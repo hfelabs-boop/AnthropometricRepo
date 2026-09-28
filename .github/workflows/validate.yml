@@ -17,3 +17,5 @@ jobs:
         run: python scripts/build_catalog.py --check
       - name: Committed datasets match SHA256SUMS
         run: python scripts/fetch.py verify
+      - name: Database and website build
+        run: python scripts/build_site.py

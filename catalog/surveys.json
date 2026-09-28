@@ -5,6 +5,11 @@
       "row": 1,
       "region": "United States",
       "entry": "ANSUR 1988 (US Army)",
+      "country": "United States",
+      "service": "Army",
+      "sexes": "both",
+      "year_start": 1987,
+      "n_total": 3982,
       "citations": [
         "Gordon CC, Churchill T, Clauser CE, Bradtmiller B, McConville JT, Tebbetts I, Walker RA (1989). 1988 Anthropometric Survey of U.S. Army Personnel: Methods and Summary Statistics. NATICK/TR-89/044. DTIC ADA225094.",
         "Interim summary statistics: NATICK/TR-89/027."
@@ -58,6 +63,11 @@
       "row": 2,
       "region": "United States",
       "entry": "ANSUR II 2012 (US Army)",
+      "country": "United States",
+      "service": "Army",
+      "sexes": "both",
+      "year_start": 2010,
+      "n_total": 6068,
       "citations": [
         "Gordon CC, Blackwell CL, Bradtmiller B, Parham JL, Barrientos P, Paquette SP, Corner BD, Carson JM, Venezia JC, Rockwell BM, Mucher M, Kristensen S (2014/2015). 2012 Anthropometric Survey of U.S. Army Personnel: Methods and Summary Statistics. NATICK/TR-15/007. DTIC ADA611869.",
         "Hotzman J, Gordon CC, Bradtmiller B, Corner BD, Mucher M, Kristensen S, Paquette S, Blackwell CL (2011). Measurer's Handbook: US Army and Marine Corps Anthropometric Surveys, 2010-2011. NATICK/TR-11/017. DTIC ADA548497.",
@@ -116,6 +126,10 @@
       "row": 3,
       "region": "United States",
       "entry": "US Army men 1966",
+      "country": "United States",
+      "service": "Army",
+      "sexes": "men",
+      "year_start": 1966,
       "citations": [
         "White RM, Churchill E (Dec 1971). The Body Size of Soldiers: U.S. Army Anthropometry - 1966. Technical Report 72-51-CE (C&PLSEL-94), US Army Natick Laboratories. DTIC AD0743465."
       ],
@@ -137,6 +151,11 @@
       "row": 4,
       "region": "United States",
       "entry": "US Army women 1977",
+      "country": "United States",
+      "service": "Army",
+      "sexes": "women",
+      "year_start": 1976,
+      "n_total": 1331,
       "citations": [
         "Report 1 (methods): Laubach LL, McConville JT, Churchill E, White RM (Jun 1977). NATICK/TR-77/021. DTIC ADA043715.",
         "Report 2 (univariate statistics): Churchill E, Churchill T, McConville JT, White RM (1977). NATICK/TR-77/024. DTIC ADA044806.",
@@ -176,6 +195,11 @@
       "row": 5,
       "region": "United States",
       "entry": "MC-ANSUR 2010 (US Marine Corps)",
+      "country": "United States",
+      "service": "Marine Corps",
+      "sexes": "both",
+      "year_start": 2010,
+      "n_total": 1921,
       "citations": [
         "Gordon CC, Blackwell CL, Bradtmiller B, Parham JL, Hotzman J, Paquette SP, Corner BD, Hodge BM (Jun 2013). 2010 Anthropometric Survey of U.S. Marine Corps Personnel: Methods and Summary Statistics. NATICK/TR-13/018. DTIC ADA581918."
       ],
@@ -199,6 +223,11 @@
       "row": 6,
       "region": "United States",
       "entry": "USMC 1966",
+      "country": "United States",
+      "service": "Marine Corps",
+      "sexes": "men",
+      "year_start": 1966,
+      "n_total": 2008,
       "citations": [
         "White RM (Dec 1977). United States Marine Corps Anthropometry. Natick report CEMEL-115. DTIC ADA073824."
       ],
@@ -222,6 +251,10 @@
       "row": 7,
       "region": "United States",
       "entry": "US Navy 1966",
+      "country": "United States",
+      "service": "Navy",
+      "sexes": "men",
+      "year_start": 1966,
       "citations": [
         "No stand-alone report found. Summary statistics appear in NASA RP-1024 Vol. II and DOD-HDBK-743A (see entry dod-hdbk-743a-nasa-rp-1024)."
       ],
@@ -234,6 +267,11 @@
       "row": 8,
       "region": "United States",
       "entry": "Naval Aviators 1964",
+      "country": "United States",
+      "service": "Aircrew",
+      "sexes": "men",
+      "year_start": 1964,
+      "n_total": 1549,
       "citations": [
         "Gifford EC, Provost JR, Lazo J (8 Oct 1965). Anthropometry of Naval Aviators - 1964. NAEC-ACEL-533, Naval Air Engineering Center, Philadelphia. DTIC AD0626322."
       ],
@@ -256,6 +294,10 @@
       "row": 9,
       "region": "United States",
       "entry": "US Navy women 1988 (uniform sizing)",
+      "country": "United States",
+      "service": "Navy",
+      "sexes": "women",
+      "year_start": 1988,
       "citations": [
         "Best-matching citation: Robinette KM, Mellian SA, Ervin KA (1991). Development of Sizing Systems for Navy Women's Uniforms. DTIC ADA232851.",
         "Predecessor study: McConville JT, Tebbetts I, Churchill T (Mar 1979). Analysis of Body Size Measurements for U.S. Navy Women's Clothing and Pattern Design. NCTRF 138."
@@ -275,6 +317,11 @@
       "row": 10,
       "region": "United States",
       "entry": "USAF flying personnel 1950",
+      "country": "United States",
+      "service": "Aircrew",
+      "sexes": "men",
+      "year_start": 1950,
+      "n_total": 4000,
       "citations": [
         "Hertzberg HTE, Daniels GS, Churchill E (Sep 1954). Anthropometry of Flying Personnel - 1950. WADC TR 52-321. DTIC AD0047953."
       ],
@@ -298,6 +345,11 @@
       "row": 11,
       "region": "United States",
       "entry": "USAF 1967 survey",
+      "country": "United States",
+      "service": "Aircrew",
+      "sexes": "men",
+      "year_start": 1967,
+      "n_total": 2420,
       "citations": [
         "No stand-alone report found. Data tabulated in Grunhöfer HJ, Kroh G (eds) (Apr 1975). A Review of Anthropometric Data of German Air Force and United States Air Force Flying Personnel 1967-1968. AGARD-AG-205. DTIC ADA010674.",
         "Survey history: AAMRL-TR-85-062. DTIC ADA168485.",
@@ -351,6 +403,11 @@
       "row": 12,
       "region": "United States",
       "entry": "Air Force women 1968",
+      "country": "United States",
+      "service": "Air Force",
+      "sexes": "women",
+      "year_start": 1968,
+      "n_total": 1905,
       "citations": [
         "Clauser CE, Tucker PE, McConville JT, Churchill E, Laubach LL, Reardon JA (Apr 1972). Anthropometry of Air Force Women. AMRL-TR-70-5. DTIC AD0743113."
       ],
@@ -375,6 +432,11 @@
       "row": 13,
       "region": "United States",
       "entry": "CAESAR (Civilian American and European Surface Anthropometry Resource)",
+      "country": "United States; Netherlands; Italy",
+      "service": "Civilian",
+      "sexes": "both",
+      "year_start": 1998,
+      "n_total": 4426,
       "citations": [
         "Robinette KM, Blackwell S, Daanen H, Boehmer M, Fleming S, Brill T, Hoeferlin D, Burnsides D (Jun 2002). Civilian American and European Surface Anthropometry Resource (CAESAR), Final Report, Vol. I: Summary. AFRL-HE-WP-TR-2002-0169. DTIC ADA406704.",
         "Companion report (weighted US summary statistics): AFRL-HE-WP-TR-2002-0170. DTIC ADA406674.",
@@ -404,6 +466,9 @@
       "row": 14,
       "region": "United States",
       "entry": "DOD-HDBK-743A; NASA RP-1024 (compilations)",
+      "country": "United States",
+      "service": "Compilation",
+      "sexes": "both",
       "citations": [
         "DOD-HDBK-743A (13 Feb 1991). Anthropometry of U.S. Military Personnel (Metric).",
         "Webb Associates (Jul 1978). Anthropometric Source Book. NASA RP-1024, Vols. I-III."
@@ -446,6 +511,10 @@
       "row": 15,
       "region": "United Kingdom",
       "entry": "UK military 2006-07 (QinetiQ)",
+      "country": "United Kingdom",
+      "service": "Tri-service",
+      "sexes": "both",
+      "year_start": 2006,
       "citations": [
         "QinetiQ report QINETIQ/07/01821 (no public copy found). The UK Army component is cited in the AWAS paper (entry awas)."
       ],
@@ -460,6 +529,10 @@
       "row": 16,
       "region": "United Kingdom",
       "entry": "UK Tri-Service Anthropometry Survey",
+      "country": "United Kingdom",
+      "service": "Tri-service",
+      "sexes": "both",
+      "year_start": 2023,
       "citations": [
         "Evans L, Pringle R, Lewis E (2025). Women are not small men: the UK's new, comprehensive Tri-Service Anthropometry survey. Ergonomics 68(5):673-682. doi:10.1080/00140139.2024.2378365 (online 31 Jul 2024). PubMed 39082614.",
         "QinetiQ news release, 'Equipment \"fit\" for the future', 22 Feb 2023."
@@ -487,6 +560,10 @@
       "row": 17,
       "region": "United Kingdom",
       "entry": "British Army 1972-76 (Army Personnel Research Establishment)",
+      "country": "United Kingdom",
+      "service": "Army",
+      "sexes": "men",
+      "year_start": 1972,
       "citations": [
         "No public report found."
       ],
@@ -499,6 +576,11 @@
       "row": 18,
       "region": "United Kingdom",
       "entry": "RAF aircrew 1970-72",
+      "country": "United Kingdom",
+      "service": "Aircrew",
+      "sexes": "men",
+      "year_start": 1970,
+      "n_total": 2000,
       "citations": [
         "Likely: Bolton CB et al. (1973). An Anthropometric Survey of 2000 Royal Air Force Aircrew 1970/71. Royal Aircraft Establishment (report number not verified)."
       ],
@@ -511,6 +593,10 @@
       "row": 19,
       "region": "Canada / Australia / New Zealand",
       "entry": "Canadian Forces 1974",
+      "country": "Canada",
+      "service": "Tri-service",
+      "sexes": "men",
+      "year_start": 1974,
       "citations": [
         "No report found. DCIEM 75-R-1114 not confirmed."
       ],
@@ -523,6 +609,10 @@
       "row": 20,
       "region": "Canada / Australia / New Zealand",
       "entry": "Canadian Forces aircrew 1985",
+      "country": "Canada",
+      "service": "Aircrew",
+      "sexes": "both",
+      "year_start": 1985,
       "citations": [
         "Stewart LE (1985). 1985 Anthropometric Survey of the Canadian Forces Aircrew. DCIEM TR 85-12-01, Toronto."
       ],
@@ -536,6 +626,11 @@
       "row": 21,
       "region": "Canada / Australia / New Zealand",
       "entry": "CFAS 2012 (Canadian Forces Anthropometric Survey)",
+      "country": "Canada",
+      "service": "Tri-service",
+      "sexes": "both",
+      "year_start": 2012,
+      "n_total": 2205,
       "citations": [
         "DRDC report p803174 (authors and number not confirmed; the site blocks automated access).",
         "Shu C, et al. (2015). Data Processing and Analysis for the 2012 Canadian Forces 3D Anthropometric Survey. Procedia Manufacturing 3:3745-3752 (open access).",
@@ -572,6 +667,10 @@
       "row": 22,
       "region": "Canada / Australia / New Zealand",
       "entry": "AWAS (Australian Warfighter Anthropometry Survey, Australian Army)",
+      "country": "Australia",
+      "service": "Army",
+      "sexes": "both",
+      "year_start": 2010,
       "citations": [
         "Edwards M, Furnell A, Coleman J, Davis S (Aug 2014). A Preliminary Anthropometry Standard for Australian Army Equipment Evaluation. DSTO-TR-3006, AR-016-049. DTIC ADA610792.",
         "Furnell A et al. (2014). Sizing up the ADF: The Australian Warfighter Anthropometry Survey (conference paper, on ResearchGate)."
@@ -599,6 +698,10 @@
       "row": 23,
       "region": "Canada / Australia / New Zealand",
       "entry": "Australian Defence Force aircrew 2004-05",
+      "country": "Australia",
+      "service": "Aircrew",
+      "sexes": "both",
+      "year_start": 2004,
       "citations": [
         "No report found for MIS 872.",
         "Related: Singh B, Smith A (2008). Anthropometric survey of potential aircrew recruit population... (cited in DST-Group-GD-0968)."
@@ -612,6 +715,10 @@
       "row": 24,
       "region": "Canada / Australia / New Zealand",
       "entry": "Historic Australian surveys",
+      "country": "Australia",
+      "service": "Compilation",
+      "sexes": "both",
+      "year_start": 1958,
       "citations": [
         "Australian Defence Force Anthropometry. DST-Group-GD-0968 (authors not verified). Cites the 1958-59 Army surveys (Aird et al.; Carrington) and the 1981 King & O'Leary survey."
       ],
@@ -630,6 +737,9 @@
       "row": 25,
       "region": "Canada / Australia / New Zealand",
       "entry": "NZDFAS (New Zealand Defence Force Anthropometry Survey)",
+      "country": "New Zealand",
+      "service": "Tri-service",
+      "sexes": "both",
       "citations": [
         "Kolose S, Hume PA, Stewart T, Tomkinson GR, Stewart AD, Legg SJ (2021). Three-Dimensional Physique Assessment in the Military: New Zealand Defence Force Anthropometry Survey Protocols and Summary Statistics. Tuwhera Open Access Books, AUT. doi:10.24135/TOAB.7. ISBN 978-0-473-57328-7."
       ],
@@ -654,6 +764,11 @@
       "row": 26,
       "region": "Canada / Australia / New Zealand",
       "entry": "ASRAN (Anthropometric Survey of the Royal Australian Navy)",
+      "country": "Australia",
+      "service": "Navy",
+      "sexes": "both",
+      "year_start": 2015,
+      "n_total": 1322,
       "citations": [
         "Revised Anthropometry Guidance for the Royal Australian Navy. DST-Group-TR-3564.",
         "Parkinson MB, Reed MP (rev. 12 Nov 2020). Multivariate Accommodation Testing Tool - Virtual Fit Testing (ASRAN)."
@@ -702,6 +817,10 @@
       "row": 27,
       "region": "Europe / Other",
       "entry": "NATO 1960-61 (Turkey, Greece, Italy)",
+      "country": "Turkey; Greece; Italy",
+      "service": "Tri-service",
+      "sexes": "men",
+      "year_start": 1960,
       "citations": [
         "Hertzberg HTE, Churchill E, Dupertuis CW, White RM, Damon A (1963). Anthropometric Survey of Turkey, Greece and Italy. AGARDograph 73. Pergamon/Macmillan. DTIC AD 421428."
       ],
@@ -717,6 +836,11 @@
       "row": 28,
       "region": "Europe / Other",
       "entry": "German Air Force 1967-68",
+      "country": "Germany",
+      "service": "Aircrew",
+      "sexes": "men",
+      "year_start": 1967,
+      "n_total": 1400,
       "citations": [
         "Grunhöfer HJ, Kroh G (eds) (Apr 1975). AGARD-AG-205. DTIC ADA010674."
       ],
@@ -739,6 +863,10 @@
       "row": 29,
       "region": "Europe / Other",
       "entry": "French aircrew 1972",
+      "country": "France",
+      "service": "Aircrew",
+      "sexes": "men",
+      "year_start": 1972,
       "citations": [
         "No public report found. Listed only as a dataset on bodysizeshape.com."
       ],
@@ -751,6 +879,10 @@
       "row": 30,
       "region": "Europe / Other",
       "entry": "French military database and 1992 survey",
+      "country": "France",
+      "service": "Tri-service",
+      "sexes": "both",
+      "year_start": 1992,
       "citations": [
         "No public report found."
       ],
@@ -763,6 +895,9 @@
       "row": 31,
       "region": "Europe / Other",
       "entry": "Dutch military 3D scan paper",
+      "country": "Netherlands",
+      "service": "Tri-service",
+      "sexes": "both",
       "citations": [
         "No public report found."
       ],
@@ -775,6 +910,9 @@
       "row": 32,
       "region": "Europe / Other",
       "entry": "Bundeswehr (German armed forces)",
+      "country": "Germany",
+      "service": "Tri-service",
+      "sexes": "both",
       "citations": [
         "No public report found."
       ],
@@ -787,6 +925,9 @@
       "row": 33,
       "region": "Europe / Other",
       "entry": "Russian GOST/OST standards",
+      "country": "Russia",
+      "service": "Standard",
+      "sexes": "both",
       "citations": [
         "No public report found."
       ],
@@ -799,6 +940,10 @@
       "row": 34,
       "region": "Europe / Other",
       "entry": "Iran 1969-71 (Imperial Iranian Armed Forces)",
+      "country": "Iran",
+      "service": "Tri-service",
+      "sexes": "men",
+      "year_start": 1969,
       "citations": [
         "Kennedy SJ, White RM (May 1971). Anthropometric Survey of the Imperial Iranian Armed Forces, Phase III - Technical Summary. DTIC AD0728822."
       ],
@@ -819,6 +964,10 @@
       "row": 35,
       "region": "Europe / Other",
       "entry": "Israeli aircrew 1981",
+      "country": "Israel",
+      "service": "Aircrew",
+      "sexes": "men",
+      "year_start": 1981,
       "citations": [
         "No public report found. Listed only as a dataset on bodysizeshape.com."
       ],
@@ -831,6 +980,9 @@
       "row": 36,
       "region": "Europe / Other",
       "entry": "Turkish army men",
+      "country": "Turkey",
+      "service": "Army",
+      "sexes": "men",
       "citations": [
         "Kayış B, Özok AF (1991). Applied Ergonomics (volume, pages and DOI not verified)."
       ],
@@ -843,6 +995,11 @@
       "row": 37,
       "region": "Europe / Other",
       "entry": "Latin American armed forces",
+      "country": "Latin America (multinational)",
+      "service": "Tri-service",
+      "sexes": "men",
+      "year_start": 1965,
+      "n_total": 1985,
       "citations": [
         "Dobbins DA, Kindick CM (Aug 1972). Anthropometry of the Latin-American Armed Forces. USATTC Report No. 7209002. DTIC AD0759949.",
         "Earlier report (733 trainees, 1965-66). DTIC AD0654762."
@@ -870,6 +1027,9 @@
       "row": 38,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Korea (Armed Forces of the Republic of Korea)",
+      "country": "South Korea",
+      "service": "Tri-service",
+      "sexes": "men",
       "citations": [
         "Anthropometric Survey of the Armed Forces of the Republic of Korea (authors not verified). DTIC AD0661625."
       ],
@@ -890,6 +1050,9 @@
       "row": 39,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Size Korea",
+      "country": "South Korea",
+      "service": "Civilian",
+      "sexes": "both",
       "citations": [
         "Official portal not verified in this pass."
       ],
@@ -902,6 +1065,10 @@
       "row": 40,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Vietnam 1963",
+      "country": "Vietnam",
+      "service": "Army",
+      "sexes": "men",
+      "year_start": 1963,
       "citations": [
         "White RM (1964). Natick. Likely DTIC AD0457939 (title only partly confirmed)."
       ],
@@ -921,6 +1088,9 @@
       "row": 41,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Singapore",
+      "country": "Singapore",
+      "service": "Unknown",
+      "sexes": "unknown",
       "citations": [
         "No public report verified."
       ],
@@ -933,6 +1103,9 @@
       "row": 42,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Taiwan",
+      "country": "Taiwan",
+      "service": "Unknown",
+      "sexes": "unknown",
       "citations": [
         "No public report verified."
       ],
@@ -945,6 +1118,9 @@
       "row": 43,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Japan",
+      "country": "Japan",
+      "service": "Unknown",
+      "sexes": "unknown",
       "citations": [
         "No public report verified."
       ],
@@ -957,6 +1133,9 @@
       "row": 44,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "India",
+      "country": "India",
+      "service": "Unknown",
+      "sexes": "unknown",
       "citations": [
         "No public report verified."
       ],
@@ -969,6 +1148,9 @@
       "row": 45,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Indonesia",
+      "country": "Indonesia",
+      "service": "Unknown",
+      "sexes": "unknown",
       "citations": [
         "No public report verified."
       ],
@@ -981,6 +1163,9 @@
       "row": 46,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Malaysia",
+      "country": "Malaysia",
+      "service": "Unknown",
+      "sexes": "unknown",
       "citations": [
         "No public report verified."
       ],
@@ -993,6 +1178,11 @@
       "row": 47,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Oman (Royal Air Force of Oman)",
+      "country": "Oman",
+      "service": "Aircrew",
+      "sexes": "men",
+      "year_start": 2003,
+      "n_total": 2296,
       "citations": [
         "Al Wardi YM, Al Sabei SH, Jeevarathinam S (2016). Eastern bodies in western cockpits: An anthropometric study in the Oman military aviation. Cogent Engineering 3(1):1269384. doi:10.1080/23311916.2016.1269384 (online 29 Dec 2016)."
       ],
@@ -1017,6 +1207,9 @@
       "row": 48,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Saudi Arabia",
+      "country": "Saudi Arabia",
+      "service": "Unknown",
+      "sexes": "unknown",
       "citations": [
         "No public report verified."
       ],
@@ -1029,6 +1222,9 @@
       "row": 49,
       "region": "Asia-Pacific / Middle East / Latin America",
       "entry": "Brazilian Air Force pilots",
+      "country": "Brazil",
+      "service": "Aircrew",
+      "sexes": "both",
       "citations": [
         "da Silva GV, Halpern M, Gordon CC (2017). Ergonomics 60(10). doi:10.1080/00140139.2017.1301575."
       ],

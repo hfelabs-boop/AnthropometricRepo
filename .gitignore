@@ -4,3 +4,4 @@ reports/
 __pycache__/
 .venv/
 public/
+database/anthro.sqlite

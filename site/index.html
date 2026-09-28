@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Military Anthropometric Surveys</title>
+<meta name="description" content="Catalog of 49 military anthropometric surveys and a queryable database of 13,792 people from four open datasets (ANSUR 1988, ANSUR II, ASRAN 2015, USAF 1967).">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231c5cab'/%3E%3Cpath d='M10 7v18M10 7h5M10 13h3M10 19h5M10 25h3M20 7v18' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="styles.css">
+<script>try{const t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#/catalog"><span class="brand-mark" aria-hidden="true">▮▯</span><span class="brand-text">Military Anthropometry</span></a>
+    <nav class="tabs" aria-label="Sections">
+      <a class="tab" href="#/catalog" data-view="catalog">Survey catalog</a>
+      <a class="tab" href="#/explore" data-view="explore">Explore data</a>
+      <a class="tab" href="#/sql" data-view="sql">SQL console</a>
+      <a class="tab" href="#/measures" data-view="measures">Measures</a>
+      <a class="tab" href="#/about" data-view="about">About</a>
+    </nav>
+    <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+  </div>
+</header>
+
+<main>
+  <!-- ================= CATALOG ================= -->
+  <section class="view" id="view-catalog" hidden>
+    <div class="hero">
+      <h1>Military anthropometric surveys</h1>
+      <p>49 body-measurement surveys of armed forces worldwide: study reports, data availability and verified facts. Four surveys publish individual-level data, and all four are loaded into a database you can query in <a href="#/explore">Explore data</a>.</p>
+    </div>
+    <div class="stats" id="catalog-stats"></div>
+    <div class="layout">
+      <aside class="panel sidebar" id="catalog-sidebar" aria-label="Catalog filters">
+        <div class="sidebar-head">
+          <h2>Filters</h2>
+          <div>
+            <button class="btn ghost small" id="catalog-clear" type="button">Clear all</button>
+            <button class="icon-btn only-mobile" data-close-sidebar type="button" aria-label="Close filters">✕</button>
+          </div>
+        </div>
+        <div class="field search">
+          <label class="sr-only" for="catalog-q">Search</label>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input class="input" id="catalog-q" type="search" placeholder="Name, author, report no.…" autocomplete="off">
+        </div>
+        <div id="catalog-facets"></div>
+      </aside>
+      <div>
+        <div class="toolbar">
+          <button class="btn only-mobile" type="button" data-open-sidebar="catalog-sidebar">☰ Filters</button>
+          <div class="result-count" id="catalog-count" aria-live="polite"></div>
+          <div class="grow"></div>
+          <label class="sr-only" for="catalog-sort">Sort by</label>
+          <select class="input" id="catalog-sort" style="width:auto">
+            <option value="row">Sort: catalog order</option>
+            <option value="year-desc">Newest survey first</option>
+            <option value="year-asc">Oldest survey first</option>
+            <option value="n-desc">Largest sample first</option>
+            <option value="name">Name A–Z</option>
+            <option value="verification">Best verified first</option>
+            <option value="access">Open data first</option>
+          </select>
+          <div class="seg" role="group" aria-label="View">
+            <button type="button" data-catalog-view="cards" aria-pressed="true">Cards</button>
+            <button type="button" data-catalog-view="table" aria-pressed="false">Table</button>
+          </div>
+          <button class="btn" id="catalog-export" type="button" title="Download the filtered list as CSV">⤓ CSV</button>
+        </div>
+        <div class="chips" id="catalog-chips"></div>
+        <div id="catalog-results"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= EXPLORE ================= -->
+  <section class="view" id="view-explore" hidden>
+    <div class="hero">
+      <h1>Explore the data</h1>
+      <p>Ask questions of 13,792 people from four open surveys. Every question here becomes a SQL query on the in-browser database. Filter by any measurement, group the results, sort any column and export them.</p>
+    </div>
+    <div class="presets" id="presets" aria-label="Example questions"></div>
+    <div class="layout">
+      <aside class="panel sidebar" id="explore-sidebar" aria-label="Query builder">
+        <div class="sidebar-head">
+          <h2>Build a question</h2>
+          <div>
+            <button class="btn ghost small" id="explore-reset" type="button">Reset</button>
+            <button class="icon-btn only-mobile" data-close-sidebar type="button" aria-label="Close">✕</button>
+          </div>
+        </div>
+        <div class="field"><span class="field-label">Surveys</span><div class="ds-list" id="ex-datasets"></div></div>
+        <div class="field"><span class="field-label">Sex</span>
+          <div class="seg" role="group" aria-label="Sex" id="ex-sex">
+            <button type="button" data-v="">All</button><button type="button" data-v="M">Men</button><button type="button" data-v="F">Women</button>
+          </div>
+        </div>
+        <details class="facet" open>
+          <summary>Measurement conditions</summary>
+          <div class="facet-body">
+            <p class="small muted" style="margin:0 0 6px">People must satisfy every condition. Leave min or max blank for open ranges.</p>
+            <div id="ex-conds"></div>
+            <button class="btn small" id="ex-add-cond" type="button">+ Add condition</button>
+          </div>
+        </details>
+        <details class="facet">
+          <summary>Branch &amp; handedness</summary>
+          <div class="facet-body" id="ex-cats"></div>
+        </details>
+        <details class="facet" open>
+          <summary>Columns to show</summary>
+          <div class="facet-body">
+            <input class="input" id="ex-col-filter" type="search" placeholder="Find a measure…" aria-label="Find a measure">
+            <div class="multi" id="ex-columns"></div>
+          </div>
+        </details>
+        <div class="field" style="margin-top:10px">
+          <label for="ex-group">Group results by</label>
+          <select class="input" id="ex-group">
+            <option value="dataset">Survey</option>
+            <option value="sex">Sex</option>
+            <option value="dataset,sex">Survey × sex</option>
+            <option value="branch">Branch</option>
+            <option value="">No grouping</option>
+          </select>
+        </div>
+      </aside>
+      <div class="panel" style="min-width:0">
+        <div class="content-pad">
+          <div class="toolbar" style="margin-bottom:6px">
+            <button class="btn only-mobile" type="button" data-open-sidebar="explore-sidebar">☰ Question</button>
+            <div class="result-count" id="ex-count" aria-live="polite"></div>
+            <div class="grow"></div>
+            <button class="btn" id="ex-copy-link" type="button" title="Copy a link to this question">🔗 Share</button>
+            <button class="btn" id="ex-export" type="button">⤓ CSV</button>
+          </div>
+          <div class="subtabs" role="tablist" id="ex-subtabs">
+            <button class="subtab" role="tab" data-sub="summary" aria-selected="true">Summary statistics</button>
+            <button class="subtab" role="tab" data-sub="records" aria-selected="false">Records</button>
+            <button class="subtab" role="tab" data-sub="histogram" aria-selected="false">Distribution</button>
+            <button class="subtab" role="tab" data-sub="scatter" aria-selected="false">Scatter</button>
+            <button class="subtab" role="tab" data-sub="query" aria-selected="false">SQL</button>
+          </div>
+          <div id="ex-body"><div class="loading"><div class="spinner"></div>Loading database…</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SQL ================= -->
+  <section class="view" id="view-sql" hidden>
+    <div class="hero">
+      <h1>SQL console</h1>
+      <p>Run any SQLite query against the full database: the catalog, the harmonized <code>subjects</code> table, and every original column in the <code>raw_*</code> tables. Queries run in your browser; nothing is sent to a server. Press <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>Enter</kbd> to run.</p>
+    </div>
+    <div class="sql-grid">
+      <aside class="panel schema" aria-label="Schema">
+        <div class="field-label" style="margin-bottom:6px">Example queries</div>
+        <div class="examples" id="sql-examples"></div>
+        <div class="field-label" style="margin:14px 0 6px">Tables <span class="muted">(click a column to insert it)</span></div>
+        <div id="sql-schema"><div class="loading"><div class="spinner"></div></div></div>
+      </aside>
+      <div style="min-width:0">
+        <label class="sr-only" for="sql-editor">SQL query</label>
+        <textarea class="editor" id="sql-editor" spellcheck="false"></textarea>
+        <div class="toolbar" style="margin-top:8px">
+          <button class="btn primary" id="sql-run" type="button">▶ Run query</button>
+          <span class="muted small" id="sql-status" aria-live="polite"></span>
+          <div class="grow"></div>
+          <button class="btn" id="sql-export" type="button" disabled>⤓ CSV</button>
+          <button class="btn" id="db-download" type="button">⤓ Download database (.sqlite)</button>
+        </div>
+        <div id="sql-results"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MEASURES ================= -->
+  <section class="view" id="view-measures" hidden>
+    <div class="hero">
+      <h1>Harmonized measures</h1>
+      <p>The same dimension under one name and one unit across all four surveys. Click a measure to see its distribution. Methods differ between surveys (landmarks, posture, and ASRAN's scan-extracted values), so treat differences of a few millimetres with care.</p>
+    </div>
+    <div class="toolbar">
+      <input class="input" id="measures-q" type="search" placeholder="Find a measure…" style="max-width:320px" aria-label="Find a measure">
+      <select class="input" id="measures-cat" style="width:auto" aria-label="Category"><option value="">All categories</option></select>
+    </div>
+    <div id="measures-table"><div class="loading"><div class="spinner"></div>Loading database…</div></div>
+  </section>
+
+  <!-- ================= ABOUT ================= -->
+  <section class="view prose" id="view-about" hidden></section>
+</main>
+<footer class="site">Data: ANSUR 1988 &amp; ANSUR II (US Army, public domain, via Penn State OPEN Design Lab) · ASRAN 2015 (© Commonwealth of Australia, CC BY 3.0 AU, via data.gov.au) · USAF 1967 (US Government, via the CRAN <i>Anthropometry</i> package). <a href="https://github.com/hfelabs-boop/AnthropometricRepo">Source on GitHub</a>.</footer>
+<div class="scrim" id="scrim" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

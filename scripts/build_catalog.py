@@ -28,7 +28,8 @@ REGIONS = [
     "Europe / Other",
     "Asia-Pacific / Middle East / Latin America",
 ]
-CSV_FIELDS = ["row", "id", "region", "entry", "measured", "published", "sample", "dimensions",
+CSV_FIELDS = ["row", "id", "region", "country", "service", "sexes", "year_start", "n_total",
+              "entry", "measured", "published", "sample", "dimensions",
               "data_access", "report_access", "licence", "verification", "citations",
               "report_urls", "data_urls", "local_data", "notes"]
 
@@ -52,6 +53,8 @@ def validate(surveys, extra):
         for key in ("id", "row", "region", "entry", "citations", "data_access", "report_access", "verification"):
             if key not in s:
                 errors.append(f"{s.get('id')}: missing {key}")
+        if s.get("sexes") not in ("men", "women", "both", "unknown"):
+            errors.append(f"{s['id']}: sexes must be men, women, both or unknown")
         if s.get("region") not in REGIONS:
             errors.append(f"{s['id']}: unknown region {s.get('region')!r}")
         for d in s.get("data", []):
