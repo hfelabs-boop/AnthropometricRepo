@@ -3,3 +3,4 @@ reports/
 *.part
 __pycache__/
 .venv/
+public/

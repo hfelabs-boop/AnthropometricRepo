@@ -81,6 +81,16 @@ Install the dependencies with `pip install -r requirements.txt`.
 | Europe / Other | 11 |
 | Asia-Pacific / Middle East / Latin America | 12 |
 
+## Website (Vercel)
+
+`vercel.json` deploys a searchable version of the catalog as a static site. `python scripts/build_site.py` builds it into `public/` (git-ignored), using only the Python standard library. To preview it locally:
+
+```bash
+python scripts/build_site.py && python -m http.server -d public 8000
+```
+
+To deploy: in Vercel choose **Add New → Project**, import this repository, and keep the settings from `vercel.json` (no framework, output directory `public`). Every push to `main` redeploys.
+
 ## Contributing
 
 To add a source or fix an entry:
