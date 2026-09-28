@@ -1,0 +1,20 @@
+# Additional relevant reports found while building the survey catalog.
+# Generated outputs: catalog/additional_reports.csv, section in CATALOG.md.
+
+reports:
+- {title: "2012 US Army pilot survey: 977 men, 42 women (NATICK/TR-16/013)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA634277.pdf", related: ansur-ii-2012}
+- {title: "ANSUR II pilot study", url: "https://apps.dtic.mil/sti/tr/pdf/ADA498172.pdf", related: ansur-ii-2012}
+- {title: "ANSUR 1988 correlations and regressions (NATICK/TR-90/032)", url: "https://apps.dtic.mil/sti/pdfs/ADA224986.pdf", related: ansur-1988}
+- {title: "ANSUR 1988 bivariate frequency tables (NATICK/TR-90/031)", url: "https://apps.dtic.mil/sti/pdfs/ADA222782.pdf", related: ansur-1988}
+- {title: "ANSUR 1988 pilot summary statistics (NATICK/TR-91/040)", url: "https://apps.dtic.mil/sti/pdfs/ADA241952.pdf", related: ansur-1988}
+- {title: "2020 Army sizing system memo based on ANSUR II", url: "https://apps.dtic.mil/sti/tr/pdf/AD1100615.pdf", related: ansur-ii-2012}
+- {title: "1946 US Army men and women surveys (105,062 men; 8,864 women)", url: "https://apps.dtic.mil/sti/pdfs/ADA239831.pdf"}
+- {title: "Women's Air Force (WAF) basic trainees, WADC TR 53-12", url: "https://apps.dtic.mil/sti/tr/pdf/AD0020542.pdf"}
+- {title: "Royal Thai Armed Forces, 1964", url: "https://apps.dtic.mil/sti/tr/pdf/AD0450836.pdf"}
+- {title: "Canadian Forces matched database validation (NATICK/TR-96/031)", url: "https://apps.dtic.mil/sti/pdfs/ADA310612.pdf"}
+- {title: "Selected Anthropometric Dimensions of Naval Aviation Personnel (NAMRL-1141, 1971)", url: "https://apps.dtic.mil/sti/pdfs/AD0735101.pdf"}
+- {title: "A Comparison of Selected International Anthropometric Measurements", url: "https://apps.dtic.mil/sti/tr/pdf/ADA103181.pdf"}
+- {title: "Robinette et al. (1979). A Comparison of Male and Female Body Sizes and Proportions. AMRL-TR-79-69", url: "https://apps.dtic.mil/sti/pdfs/ADA074807.pdf"}
+- {title: "Anthropometry of the Air Force Female Hand. AMRL-TR-69-26", url: "https://apps.dtic.mil/sti/tr/pdf/AD0710202.pdf"}
+- {title: "Revised Anthropometric Restrictions for U.S. Navy and Marine Corps aircraft", url: "https://apps.dtic.mil/sti/tr/pdf/ADA472617.pdf"}
+- {title: "Anthropometry: A Bibliography with Abstracts (useful for finding accession numbers for unverified rows)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA529930.pdf"}

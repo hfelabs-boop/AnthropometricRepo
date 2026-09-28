@@ -1,0 +1,733 @@
+# Military anthropometric surveys: source catalog (September 2026 update)
+#
+# One entry per survey (49 entries). This file is the source of truth;
+# catalog/surveys.csv, catalog/surveys.json and CATALOG.md are generated from
+# it by `python scripts/build_catalog.py`.
+#
+# Field guide
+#   id            short stable slug
+#   row           row number in the original research table
+#   region        United States | United Kingdom | Canada / Australia / New Zealand |
+#                 Europe / Other | Asia-Pacific / Middle East / Latin America
+#   citations     full bibliographic citations
+#   reports       study PDFs / landing pages  {label, url}
+#   data          individual-level data sources {label, url, local}
+#                 `local` is the path of the copy committed in this repo
+#   data_access   public | not public | commercial | restricted | n/a
+#   report_access free | paywalled | restricted | not found | ...
+#   licence       licence or copyright status, if known
+#   measured / published / sample / dimensions   corrected facts
+#   verification  verified | partly verified | not verified
+#   notes         corrections and caveats
+
+surveys:
+
+# --------------------------------------------------------------------------
+# United States
+# --------------------------------------------------------------------------
+- id: ansur-1988
+  row: 1
+  region: United States
+  entry: ANSUR 1988 (US Army)
+  citations:
+    - "Gordon CC, Churchill T, Clauser CE, Bradtmiller B, McConville JT, Tebbetts I, Walker RA (1989). 1988 Anthropometric Survey of U.S. Army Personnel: Methods and Summary Statistics. NATICK/TR-89/044. DTIC ADA225094."
+    - "Interim summary statistics: NATICK/TR-89/027."
+  reports:
+    - {label: "NATICK/TR-89/044 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA225094.pdf"}
+    - {label: "NATICK/TR-89/044 (ODL mirror)", url: "https://tools.openlab.psu.edu/publicData/ANSUR-TR89-044.pdf"}
+    - {label: "NATICK/TR-89/027 interim summary (ODL mirror)", url: "https://tools.openlab.psu.edu/publicData/ANSUR-TR89-027.pdf"}
+    - {label: "ANSUR 88 variable codes (UMTRI)", url: "http://mreed.umtri.umich.edu/mreed/downloads/anthro/ansur/ANSUR_88_Codes.pdf"}
+  data:
+    - {label: "Men (CSV)", url: "https://tools.openlab.psu.edu/publicData/ansurMen.csv", local: "data/ansur-1988/ansurMen.csv"}
+    - {label: "Women (CSV)", url: "https://tools.openlab.psu.edu/publicData/ansurWomen.csv", local: "data/ansur-1988/ansurWomen.csv"}
+    - {label: "ODL landing page", url: "https://www.openlab.psu.edu/ansur/"}
+  data_access: public
+  report_access: free
+  licence: "Public-domain US Government work"
+  measured: "1987-88"
+  published: "1989"
+  sample: "1,774 men, 2,208 women (ODL CSVs)"
+  dimensions: "ODL CSVs carry 131 variables plus subject number; report describes 140+ measures"
+  verification: verified
+  notes: "Units mm; mass in hectograms. ODL files must be fetched over https: the http:// URLs now return the ODL web-app HTML page instead of the file (checked 2026-09-28)."
+
+- id: ansur-ii-2012
+  row: 2
+  region: United States
+  entry: ANSUR II 2012 (US Army)
+  citations:
+    - "Gordon CC, Blackwell CL, Bradtmiller B, Parham JL, Barrientos P, Paquette SP, Corner BD, Carson JM, Venezia JC, Rockwell BM, Mucher M, Kristensen S (2014/2015). 2012 Anthropometric Survey of U.S. Army Personnel: Methods and Summary Statistics. NATICK/TR-15/007. DTIC ADA611869."
+    - "Hotzman J, Gordon CC, Bradtmiller B, Corner BD, Mucher M, Kristensen S, Paquette S, Blackwell CL (2011). Measurer's Handbook: US Army and Marine Corps Anthropometric Surveys, 2010-2011. NATICK/TR-11/017. DTIC ADA548497."
+    - "Paquette S, Parham JL. ANSUR II explanatory Memorandum for Record."
+  reports:
+    - {label: "NATICK/TR-15/007 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA611869.pdf"}
+    - {label: "NATICK/TR-15/007 (ODL copy)", url: "https://tools.openlab.psu.edu/publicData/ANSURII-TR15-007.pdf"}
+    - {label: "Measurer's Handbook NATICK/TR-11/017 (ODL copy)", url: "https://tools.openlab.psu.edu/publicData/ANSURII-TR11-017.pdf"}
+    - {label: "Measurer's Handbook NATICK/TR-11/017 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA548497.pdf"}
+    - {label: "Memorandum for Record (ODL)", url: "https://tools.openlab.psu.edu/publicData/ANSURII-MFR.pdf"}
+  data:
+    - {label: "Male (CSV)", url: "https://tools.openlab.psu.edu/publicData/ANSUR_II_MALE_Public.csv", local: "data/ansur-ii-2012/ANSUR_II_MALE_Public.csv"}
+    - {label: "Female (CSV)", url: "https://tools.openlab.psu.edu/publicData/ANSUR_II_FEMALE_Public.csv", local: "data/ansur-ii-2012/ANSUR_II_FEMALE_Public.csv"}
+    - {label: "ODL landing page", url: "https://www.openlab.psu.edu/ansur2/"}
+  data_access: public
+  report_access: free
+  licence: "Public-domain US Government work; released 2017"
+  measured: "Oct 2010 - Apr 2012"
+  published: "2014 (DTIC) / 2015 (ODL citation)"
+  sample: "4,082 men, 1,986 women"
+  dimensions: "93 directly measured + 39 derived (public CSVs carry the 93 measured plus 14 demographic columns)"
+  verification: verified
+  notes: "3D scans withheld for privacy. Mass column 'weightkg' is in hectograms. Last columns Heightin and Weightlbs are probably self-reported (one male record has Weightlbs = 0). The male CSV is Latin-1 encoded, not UTF-8."
+
+- id: us-army-men-1966
+  row: 3
+  region: United States
+  entry: US Army men 1966
+  citations:
+    - "White RM, Churchill E (Dec 1971). The Body Size of Soldiers: U.S. Army Anthropometry - 1966. Technical Report 72-51-CE (C&PLSEL-94), US Army Natick Laboratories. DTIC AD0743465."
+  reports:
+    - {label: "TR 72-51-CE (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/AD0743465.pdf"}
+  data_access: not public
+  report_access: free
+  licence: "Public-domain US Government work"
+  measured: "1966"
+  published: "Dec 1971"
+  verification: verified
+
+- id: us-army-women-1977
+  row: 4
+  region: United States
+  entry: US Army women 1977
+  citations:
+    - "Report 1 (methods): Laubach LL, McConville JT, Churchill E, White RM (Jun 1977). NATICK/TR-77/021. DTIC ADA043715."
+    - "Report 2 (univariate statistics): Churchill E, Churchill T, McConville JT, White RM (1977). NATICK/TR-77/024. DTIC ADA044806."
+    - "Report 3 (bivariate tables): NATICK/TR-77/028. DTIC AD A046692 (citation only)."
+    - "Report 5 (comparative data for Army men). DTIC ADA048591."
+    - "Summary: White RM, DeSantis. DTIC ADA056493."
+  reports:
+    - {label: "Report 1, NATICK/TR-77/021 (DTIC)", url: "https://apps.dtic.mil/sti/pdfs/ADA043715.pdf"}
+    - {label: "Report 2, NATICK/TR-77/024 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA044806.pdf"}
+    - {label: "Report 5 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA048591.pdf"}
+    - {label: "Summary, White & DeSantis (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA056493.pdf"}
+  data_access: not public
+  report_access: free
+  licence: "Public-domain US Government work"
+  measured: "Nov 1976 - Feb 1977, 4 posts"
+  published: "1977"
+  sample: "1,331 women (69 basic dimensions); 200-300 women for extra head, workspace and strength measures"
+  dimensions: "128 body dimensions in total"
+  verification: verified
+
+- id: mc-ansur-2010
+  row: 5
+  region: United States
+  entry: MC-ANSUR 2010 (US Marine Corps)
+  citations:
+    - "Gordon CC, Blackwell CL, Bradtmiller B, Parham JL, Hotzman J, Paquette SP, Corner BD, Hodge BM (Jun 2013). 2010 Anthropometric Survey of U.S. Marine Corps Personnel: Methods and Summary Statistics. NATICK/TR-13/018. DTIC ADA581918."
+  reports:
+    - {label: "NATICK/TR-13/018 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA581918.pdf"}
+  data_access: not public
+  report_access: free
+  licence: "Public-domain US Government work"
+  measured: "2010 (to 23 Sep 2010)"
+  published: "Jun 2013"
+  sample: "1,301 men, 620 women"
+  dimensions: "94 measured + 39 derived"
+  verification: verified
+
+- id: usmc-1966
+  row: 6
+  region: United States
+  entry: USMC 1966
+  citations:
+    - "White RM (Dec 1977). United States Marine Corps Anthropometry. Natick report CEMEL-115. DTIC ADA073824."
+  reports:
+    - {label: "CEMEL-115 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA073824.pdf"}
+  data_access: not public
+  report_access: free
+  licence: "Public-domain US Government work"
+  measured: "1966"
+  published: "1977"
+  sample: "2,008 men"
+  verification: partly verified
+  notes: "Details come from a research subagent's search snippets; the PDF was not opened. Re-open before publishing."
+
+- id: us-navy-1966
+  row: 7
+  region: United States
+  entry: US Navy 1966
+  citations:
+    - "No stand-alone report found. Summary statistics appear in NASA RP-1024 Vol. II and DOD-HDBK-743A (see entry dod-hdbk-743a-nasa-rp-1024)."
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: us-navy-women-1988
+  row: 9
+  region: United States
+  entry: US Navy women 1988 (uniform sizing)
+  citations:
+    - "Best-matching citation: Robinette KM, Mellian SA, Ervin KA (1991). Development of Sizing Systems for Navy Women's Uniforms. DTIC ADA232851."
+    - "Predecessor study: McConville JT, Tebbetts I, Churchill T (Mar 1979). Analysis of Body Size Measurements for U.S. Navy Women's Clothing and Pattern Design. NCTRF 138."
+  reports:
+    - {label: "ADA232851 (DTIC citation page, unverified)", url: "https://apps.dtic.mil/sti/citations/ADA232851"}
+  data_access: not public
+  report_access: look up on DTIC
+  verification: not verified
+
+- id: naval-aviators-1964
+  row: 8
+  region: United States
+  entry: Naval Aviators 1964
+  citations:
+    - "Gifford EC, Provost JR, Lazo J (8 Oct 1965). Anthropometry of Naval Aviators - 1964. NAEC-ACEL-533, Naval Air Engineering Center, Philadelphia. DTIC AD0626322."
+  reports:
+    - {label: "NAEC-ACEL-533 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/AD0626322.pdf"}
+  data_access: not public
+  report_access: free
+  licence: "Public-domain US Government work"
+  measured: "1964"
+  published: "1965 (not 1964)"
+  sample: "1,549 men"
+  verification: verified
+
+- id: usaf-1950
+  row: 10
+  region: United States
+  entry: USAF flying personnel 1950
+  citations:
+    - "Hertzberg HTE, Daniels GS, Churchill E (Sep 1954). Anthropometry of Flying Personnel - 1950. WADC TR 52-321. DTIC AD0047953."
+  reports:
+    - {label: "WADC TR 52-321 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/AD0047953.pdf"}
+  data_access: not public
+  report_access: free
+  licence: "Public-domain US Government work"
+  measured: "1950"
+  published: "1954 (not 1950)"
+  sample: "More than 4,000 men"
+  dimensions: "132"
+  verification: verified
+
+- id: usaf-1967
+  row: 11
+  region: United States
+  entry: USAF 1967 survey
+  citations:
+    - "No stand-alone report found. Data tabulated in Grunhöfer HJ, Kroh G (eds) (Apr 1975). A Review of Anthropometric Data of German Air Force and United States Air Force Flying Personnel 1967-1968. AGARD-AG-205. DTIC ADA010674."
+    - "Survey history: AAMRL-TR-85-062. DTIC ADA168485."
+    - "Vinué G (2017). Anthropometry: An R Package for Analysis of Anthropometric Data. Journal of Statistical Software 77(6). doi:10.18637/jss.v077.i06 (open access)."
+  reports:
+    - {label: "AGARD-AG-205 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA010674.pdf"}
+    - {label: "AAMRL-TR-85-062 survey history (DTIC)", url: "https://apps.dtic.mil/sti/pdfs/ADA168485.pdf"}
+    - {label: "JSS paper (open access)", url: "https://doi.org/10.18637/jss.v077.i06"}
+    - {label: "Anthropometry package manual (CRAN)", url: "https://cran.r-project.org/web/packages/Anthropometry/Anthropometry.pdf"}
+  data:
+    - {label: "Named CSV built from AFFLY67.dat", local: "data/usaf-1967/USAF1967.csv"}
+    - {label: "Raw fixed-width file AFFLY67.dat + HSIAC docs (zip, via package author)", url: "https://www.uv.es/vivigui/softw/data_information.zip", local: "data/usaf-1967/AFFLY67.dat"}
+    - {label: "CRAN R package 'Anthropometry' (data(USAFSurvey))", url: "https://cran.r-project.org/package=Anthropometry"}
+  data_access: public
+  report_access: free
+  licence: "Measurements are a US Government work; the CRAN package is GPL (>= 2)"
+  measured: "Jan-Mar 1967, 17 bases, directed by AMRL"
+  published: "Data compiled 1975 (AGARD-AG-205)"
+  sample: "2,420 men aged 21-50"
+  dimensions: "202 variables (186 body dimensions, age, grip strength, 13 background variables)"
+  verification: verified
+  notes: "Grunhöfer & Kroh compiled the data; they did not run the survey. HSIAC documentation excludes 27 variables (6, 9-11, 28, 76-95, 117, 142) from analysis. The CSV here matches the CRAN USAFSurvey matrix cell-for-cell."
+
+- id: usaf-women-1968
+  row: 12
+  region: United States
+  entry: Air Force women 1968
+  citations:
+    - "Clauser CE, Tucker PE, McConville JT, Churchill E, Laubach LL, Reardon JA (Apr 1972). Anthropometry of Air Force Women. AMRL-TR-70-5. DTIC AD0743113."
+  reports:
+    - {label: "AMRL-TR-70-5 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/AD0743113.pdf"}
+  data_access: not public
+  report_access: free
+  licence: "Public-domain US Government work"
+  measured: "1968"
+  published: "1972"
+  sample: "1,905 women (548 officers, 1,357 enlisted)"
+  dimensions: "137"
+  verification: verified
+  notes: "1,157 pages."
+
+- id: caesar
+  row: 13
+  region: United States
+  entry: CAESAR (Civilian American and European Surface Anthropometry Resource)
+  citations:
+    - "Robinette KM, Blackwell S, Daanen H, Boehmer M, Fleming S, Brill T, Hoeferlin D, Burnsides D (Jun 2002). Civilian American and European Surface Anthropometry Resource (CAESAR), Final Report, Vol. I: Summary. AFRL-HE-WP-TR-2002-0169. DTIC ADA406704."
+    - "Companion report (weighted US summary statistics): AFRL-HE-WP-TR-2002-0170. DTIC ADA406674."
+    - "Vol. II (descriptions): cited elsewhere as AFRL-HE-WP-TR-2002-0173, DTIC a408374."
+  reports:
+    - {label: "Vol. I, AFRL-HE-WP-TR-2002-0169 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA406704.pdf"}
+    - {label: "AFRL-HE-WP-TR-2002-0170 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA406674.pdf"}
+  data_access: commercial
+  report_access: free
+  licence: "Data sold by SAE International"
+  measured: "Apr 1998 - Sep 2001 (North America, Netherlands, Italy)"
+  published: "2002"
+  sample: "One count: 2,332 women, 2,094 men"
+  verification: partly verified
+  notes: "Per SAE's CAESAR Executive Summary: US collection began Apr 1998, Dutch collection ended 1 Sep 2000, Italian collection Feb-Sep 2001. Report numbering conflicts between sources (-0170 vs -0173 for Vol. II); check the cover pages."
+
+- id: dod-hdbk-743a-nasa-rp-1024
+  row: 14
+  region: United States
+  entry: DOD-HDBK-743A; NASA RP-1024 (compilations)
+  citations:
+    - "DOD-HDBK-743A (13 Feb 1991). Anthropometry of U.S. Military Personnel (Metric)."
+    - "Webb Associates (Jul 1978). Anthropometric Source Book. NASA RP-1024, Vols. I-III."
+  reports:
+    - {label: "DOD-HDBK-743A (UMTRI)", url: "http://mreed.umtri.umich.edu/mreed/documents/DOD-HDBK-743A_anthro_handbook.pdf"}
+    - {label: "DOD-HDBK-743A (everyspec landing page)", url: "http://everyspec.com/DoD/DoD-HDBK/DOD-HDBK-743A_16856/"}
+    - {label: "NASA RP-1024 Vol. I (archive.org)", url: "https://archive.org/details/NASA_NTRS_Archive_19790003563"}
+    - {label: "NASA RP-1024 Vol. II (archive.org)", url: "https://archive.org/details/nasa_techdoc_19790005540"}
+    - {label: "NASA RP-1024 Vol. II (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA473152.pdf"}
+    - {label: "NASA RP-1024 Vol. III (NTRS)", url: "https://ntrs.nasa.gov/api/citations/19790005541/downloads/19790005541.pdf"}
+  data_access: n/a
+  report_access: free
+  licence: "Public domain"
+  dimensions: "RP-1024 Vol. II: 61 military and civilian populations, 295 variables"
+  verification: verified
+  notes: "Summary statistics only."
+
+# --------------------------------------------------------------------------
+# United Kingdom
+# --------------------------------------------------------------------------
+- id: uk-qinetiq-2006-07
+  row: 15
+  region: United Kingdom
+  entry: UK military 2006-07 (QinetiQ)
+  citations:
+    - "QinetiQ report QINETIQ/07/01821 (no public copy found). The UK Army component is cited in the AWAS paper (entry awas)."
+  data_access: not public
+  report_access: restricted
+  licence: "MOD-restricted"
+  measured: "2006-07"
+  verification: not verified
+
+- id: uk-tri-service
+  row: 16
+  region: United Kingdom
+  entry: UK Tri-Service Anthropometry Survey
+  citations:
+    - "Evans L, Pringle R, Lewis E (2025). Women are not small men: the UK's new, comprehensive Tri-Service Anthropometry survey. Ergonomics 68(5):673-682. doi:10.1080/00140139.2024.2378365 (online 31 Jul 2024). PubMed 39082614."
+    - "QinetiQ news release, 'Equipment \"fit\" for the future', 22 Feb 2023."
+  reports:
+    - {label: "Ergonomics 68(5) (Taylor & Francis)", url: "https://www.tandfonline.com/doi/full/10.1080/00140139.2024.2378365"}
+    - {label: "PubMed 39082614", url: "https://pubmed.ncbi.nlm.nih.gov/39082614/"}
+  data_access: not public
+  report_access: possibly paywalled
+  measured: "Planned early 2023 - end 2023"
+  sample: "Planned: over 2,750 personnel (final 1,886 figure unconfirmed)"
+  dimensions: "Planned: over 180 measurements (final 194 figure unconfirmed)"
+  verification: partly verified
+  notes: "The Ergonomics paper covers requirements and pilot studies, not survey results. DOSG contracted QinetiQ; the release says the last tri-service collection was in 2007."
+
+- id: british-army-1972-76
+  row: 17
+  region: United Kingdom
+  entry: British Army 1972-76 (Army Personnel Research Establishment)
+  citations:
+    - "No public report found."
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: raf-aircrew-1970-72
+  row: 18
+  region: United Kingdom
+  entry: RAF aircrew 1970-72
+  citations:
+    - "Likely: Bolton CB et al. (1973). An Anthropometric Survey of 2000 Royal Air Force Aircrew 1970/71. Royal Aircraft Establishment (report number not verified)."
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+# --------------------------------------------------------------------------
+# Canada / Australia / New Zealand
+# --------------------------------------------------------------------------
+- id: canadian-forces-1974
+  row: 19
+  region: Canada / Australia / New Zealand
+  entry: Canadian Forces 1974
+  citations:
+    - "No report found. DCIEM 75-R-1114 not confirmed."
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: canadian-aircrew-1985
+  row: 20
+  region: Canada / Australia / New Zealand
+  entry: Canadian Forces aircrew 1985
+  citations:
+    - "Stewart LE (1985). 1985 Anthropometric Survey of the Canadian Forces Aircrew. DCIEM TR 85-12-01, Toronto."
+  data_access: not public
+  report_access: not found
+  verification: partly verified
+  notes: "Author is L.E. Stewart. No PDF found."
+
+- id: cfas-2012
+  row: 21
+  region: Canada / Australia / New Zealand
+  entry: CFAS 2012 (Canadian Forces Anthropometric Survey)
+  citations:
+    - "DRDC report p803174 (authors and number not confirmed; the site blocks automated access)."
+    - "Shu C, et al. (2015). Data Processing and Analysis for the 2012 Canadian Forces 3D Anthropometric Survey. Procedia Manufacturing 3:3745-3752 (open access)."
+    - "Mangan B, Szyszlo K, Angel H (2018). CFAS - Lessons Learned. D68-3/056-2018E-PDF."
+  reports:
+    - {label: "DRDC report", url: "https://cradpdf.drdc-rddc.gc.ca/PDFS/unc328/p803174_A1b.pdf"}
+    - {label: "Shu et al. 2015 (ScienceDirect)", url: "https://www.sciencedirect.com/science/article/pii/S2351978915008148"}
+    - {label: "Shu et al. 2015 (NRC copy)", url: "https://nrc-publications.canada.ca/eng/view/accepted/?id=828ecbbf-d18d-48ae-970e-9f8ffa9c453b"}
+    - {label: "CFAS Lessons Learned (publications.gc.ca)", url: "https://publications.gc.ca/site/eng/9.881239/publication.html"}
+  data_access: not public
+  report_access: free
+  measured: "Feb-Dec 2012, 14 bases"
+  sample: "2,205 subjects, 14.3% women"
+  dimensions: "47 traditional measurements, 38 landmarks, 6 scan postures"
+  verification: partly verified
+  notes: "DRDC report details come from search snippets; re-open before publishing."
+
+- id: awas
+  row: 22
+  region: Canada / Australia / New Zealand
+  entry: AWAS (Australian Warfighter Anthropometry Survey, Australian Army)
+  citations:
+    - "Edwards M, Furnell A, Coleman J, Davis S (Aug 2014). A Preliminary Anthropometry Standard for Australian Army Equipment Evaluation. DSTO-TR-3006, AR-016-049. DTIC ADA610792."
+    - "Furnell A et al. (2014). Sizing up the ADF: The Australian Warfighter Anthropometry Survey (conference paper, on ResearchGate)."
+  reports:
+    - {label: "DSTO-TR-3006 (DST)", url: "https://www.dst.defence.gov.au/sites/default/files/publications/documents/DSTO-TR-3006.pdf"}
+    - {label: "DSTO-TR-3006 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA610792.pdf"}
+  data_access: not public
+  report_access: free
+  measured: "2010-2012"
+  sample: "2,138 personnel (not confirmed)"
+  dimensions: "84 (confirmed)"
+  verification: partly verified
+  notes: "Run by DSTO Land Division with ADTEO and the University of South Australia School of Health Sciences."
+
+- id: adf-aircrew-2004-05
+  row: 23
+  region: Canada / Australia / New Zealand
+  entry: Australian Defence Force aircrew 2004-05
+  citations:
+    - "No report found for MIS 872."
+    - "Related: Singh B, Smith A (2008). Anthropometric survey of potential aircrew recruit population... (cited in DST-Group-GD-0968)."
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: historic-australian
+  row: 24
+  region: Canada / Australia / New Zealand
+  entry: Historic Australian surveys
+  citations:
+    - "Australian Defence Force Anthropometry. DST-Group-GD-0968 (authors not verified). Cites the 1958-59 Army surveys (Aird et al.; Carrington) and the 1981 King & O'Leary survey."
+  reports:
+    - {label: "DST-Group-GD-0968 (DST)", url: "https://www.dst.defence.gov.au/sites/default/files/publications/documents/DST-Group-GD-0968.pdf"}
+  data_access: n/a
+  report_access: free
+  verification: partly verified
+
+- id: nzdfas
+  row: 25
+  region: Canada / Australia / New Zealand
+  entry: NZDFAS (New Zealand Defence Force Anthropometry Survey)
+  citations:
+    - "Kolose S, Hume PA, Stewart T, Tomkinson GR, Stewart AD, Legg SJ (2021). Three-Dimensional Physique Assessment in the Military: New Zealand Defence Force Anthropometry Survey Protocols and Summary Statistics. Tuwhera Open Access Books, AUT. doi:10.24135/TOAB.7. ISBN 978-0-473-57328-7."
+  reports:
+    - {label: "Monograph PDF (AUT Tuwhera)", url: "https://ojs.aut.ac.nz/tuwhera-open-monographs/1/catalog/download/7/12/56"}
+    - {label: "Landing page (AUT Tuwhera)", url: "https://ojs.aut.ac.nz/tuwhera-open-monographs/1/catalog/book/7"}
+  data_access: not public
+  report_access: free
+  licence: "CC BY-NC 4.0"
+  published: "10 May 2021"
+  verification: verified
+
+- id: asran-2015
+  row: 26
+  region: Canada / Australia / New Zealand
+  entry: ASRAN (Anthropometric Survey of the Royal Australian Navy)
+  citations:
+    - "Revised Anthropometry Guidance for the Royal Australian Navy. DST-Group-TR-3564."
+    - "Parkinson MB, Reed MP (rev. 12 Nov 2020). Multivariate Accommodation Testing Tool - Virtual Fit Testing (ASRAN)."
+  reports:
+    - {label: "DST-Group-TR-3564 (DST)", url: "https://www.dst.defence.gov.au/sites/default/files/publications/documents/DST-Group-TR-3564_0.pdf"}
+  data:
+    - {label: "ASRAN 2015 raw worksheets (XLSX)", url: "https://data.gov.au/data/dataset/3e124b9c-4daa-4797-a265-ddbc5f36313c/resource/93d5416d-00fd-4432-81de-379033e38647/download/asran-2015-anthropometry-data_public-release.xlsx", local: "data/asran-2015/asran-2015-anthropometry-data_public-release.xlsx"}
+    - {label: "Multivariate Virtual Fit Test ASRAN Nov 2020 (XLSX)", url: "https://data.gov.au/data/dataset/3e124b9c-4daa-4797-a265-ddbc5f36313c/resource/4aff17a2-c584-4ac1-ba16-68fa20714b66/download/multivariate-virtual-fit-test-asran_nov2020.xlsx", local: "data/asran-2015/multivariate-virtual-fit-test-asran_nov2020.xlsx"}
+    - {label: "Male CSV extracted from the workbook", local: "data/asran-2015/ASRAN_2015_male.csv"}
+    - {label: "Female CSV extracted from the workbook", local: "data/asran-2015/ASRAN_2015_female.csv"}
+    - {label: "data.gov.au landing page", url: "https://data.gov.au/data/dataset/3e124b9c-4daa-4797-a265-ddbc5f36313c"}
+  data_access: public
+  report_access: free
+  licence: "CC BY 3.0 AU"
+  measured: "Jan-Mar 2015, by the University of South Australia"
+  sample: "1,322 (1,090 men, 232 women), aged 18-54"
+  dimensions: "87 (43 physical, 44 extracted from 3D scans)"
+  verification: verified
+  notes: "Direct XLSX URLs resolved via the data.gov.au CKAN API on 2026-09-28. 3D scan data not released."
+
+# --------------------------------------------------------------------------
+# Europe / Other
+# --------------------------------------------------------------------------
+- id: nato-1960-61
+  row: 27
+  region: Europe / Other
+  entry: NATO 1960-61 (Turkey, Greece, Italy)
+  citations:
+    - "Hertzberg HTE, Churchill E, Dupertuis CW, White RM, Damon A (1963). Anthropometric Survey of Turkey, Greece and Italy. AGARDograph 73. Pergamon/Macmillan. DTIC AD 421428."
+  data_access: not public
+  report_access: not found
+  measured: "1960-61"
+  published: "1963"
+  verification: partly verified
+  notes: "One 1965 bibliography dates it 1956, which conflicts; 1963 is the standard date."
+
+- id: german-air-force-1967-68
+  row: 28
+  region: Europe / Other
+  entry: German Air Force 1967-68
+  citations:
+    - "Grunhöfer HJ, Kroh G (eds) (Apr 1975). AGARD-AG-205. DTIC ADA010674."
+  reports:
+    - {label: "AGARD-AG-205 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/ADA010674.pdf"}
+  data_access: not public
+  report_access: free
+  measured: "1967-68"
+  published: "1975"
+  sample: "More than 1,400 German Air Force subjects"
+  dimensions: "153"
+  verification: verified
+
+- id: french-aircrew-1972
+  row: 29
+  region: Europe / Other
+  entry: French aircrew 1972
+  citations:
+    - "No public report found. Listed only as a dataset on bodysizeshape.com."
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: french-military-1992
+  row: 30
+  region: Europe / Other
+  entry: French military database and 1992 survey
+  citations: ["No public report found."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: dutch-3d-scan
+  row: 31
+  region: Europe / Other
+  entry: Dutch military 3D scan paper
+  citations: ["No public report found."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: bundeswehr
+  row: 32
+  region: Europe / Other
+  entry: Bundeswehr (German armed forces)
+  citations: ["No public report found."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: russian-gost-ost
+  row: 33
+  region: Europe / Other
+  entry: Russian GOST/OST standards
+  citations: ["No public report found."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: iran-1969-71
+  row: 34
+  region: Europe / Other
+  entry: Iran 1969-71 (Imperial Iranian Armed Forces)
+  citations:
+    - "Kennedy SJ, White RM (May 1971). Anthropometric Survey of the Imperial Iranian Armed Forces, Phase III - Technical Summary. DTIC AD0728822."
+  reports:
+    - {label: "Phase III Technical Summary (DTIC)", url: "https://apps.dtic.mil/sti/pdfs/AD0728822.pdf"}
+  data_access: not public
+  report_access: free
+  measured: "1969-71"
+  verification: partly verified
+  notes: "Main report (possibly by Noble) not found. The 2010 stature study not found. Details from search snippets; re-open before publishing."
+
+- id: israeli-aircrew-1981
+  row: 35
+  region: Europe / Other
+  entry: Israeli aircrew 1981
+  citations:
+    - "No public report found. Listed only as a dataset on bodysizeshape.com."
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: turkish-army
+  row: 36
+  region: Europe / Other
+  entry: Turkish army men
+  citations:
+    - "Kayış B, Özok AF (1991). Applied Ergonomics (volume, pages and DOI not verified)."
+  data_access: not public
+  report_access: likely paywalled
+  verification: not verified
+
+- id: latin-american-armed-forces
+  row: 37
+  region: Europe / Other
+  entry: Latin American armed forces
+  citations:
+    - "Dobbins DA, Kindick CM (Aug 1972). Anthropometry of the Latin-American Armed Forces. USATTC Report No. 7209002. DTIC AD0759949."
+    - "Earlier report (733 trainees, 1965-66). DTIC AD0654762."
+  reports:
+    - {label: "USATTC 7209002 (DTIC)", url: "https://apps.dtic.mil/sti/pdfs/AD0759949.pdf"}
+    - {label: "Earlier report (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/AD0654762.pdf"}
+  data_access: not public
+  report_access: free
+  measured: "1965-70"
+  published: "Aug 1972"
+  sample: "1,985 trainees"
+  verification: partly verified
+  notes: "Report number is 7209002, not 729002. Details from search snippets; re-open before publishing."
+
+# --------------------------------------------------------------------------
+# Asia-Pacific / Middle East / Latin America
+# --------------------------------------------------------------------------
+- id: korea
+  row: 38
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Korea (Armed Forces of the Republic of Korea)
+  citations:
+    - "Anthropometric Survey of the Armed Forces of the Republic of Korea (authors not verified). DTIC AD0661625."
+  reports:
+    - {label: "AD0661625 (DTIC)", url: "https://apps.dtic.mil/sti/tr/pdf/AD0661625.pdf"}
+  data_access: not public
+  report_access: free
+  sample: "190 Air Force, 141 Navy, 167 Marine subjects plus Army"
+  verification: partly verified
+  notes: "Korean Air Force 1960, the 2026 381-soldier study and the body-armour study were not found. Details from search snippets."
+
+- id: size-korea
+  row: 39
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Size Korea
+  citations: ["Official portal not verified in this pass."]
+  data_access: restricted
+  report_access: not found
+  verification: not verified
+
+- id: vietnam-1963
+  row: 40
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Vietnam 1963
+  citations:
+    - "White RM (1964). Natick. Likely DTIC AD0457939 (title only partly confirmed)."
+  reports:
+    - {label: "AD0457939 (DTIC citation page)", url: "https://apps.dtic.mil/sti/citations/AD0457939"}
+  data_access: not public
+  report_access: unconfirmed
+  measured: "1963"
+  verification: not verified
+
+- id: singapore
+  row: 41
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Singapore
+  citations: ["No public report verified."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: taiwan
+  row: 42
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Taiwan
+  citations: ["No public report verified."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: japan
+  row: 43
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Japan
+  citations: ["No public report verified."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: india
+  row: 44
+  region: Asia-Pacific / Middle East / Latin America
+  entry: India
+  citations: ["No public report verified."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: indonesia
+  row: 45
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Indonesia
+  citations: ["No public report verified."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: malaysia
+  row: 46
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Malaysia
+  citations: ["No public report verified."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: oman
+  row: 47
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Oman (Royal Air Force of Oman)
+  citations:
+    - "Al Wardi YM, Al Sabei SH, Jeevarathinam S (2016). Eastern bodies in western cockpits: An anthropometric study in the Oman military aviation. Cogent Engineering 3(1):1269384. doi:10.1080/23311916.2016.1269384 (online 29 Dec 2016)."
+  reports:
+    - {label: "Cogent Engineering (open access)", url: "https://doi.org/10.1080/23311916.2016.1269384"}
+    - {label: "ResearchGate", url: "https://www.researchgate.net/publication/311520114"}
+  data_access: not public
+  report_access: open access journal
+  measured: "2003-2012"
+  sample: "2,296 Omani recruits; 86% (n = 1,968) met RAFO anthropometric fitness standards"
+  verification: partly verified
+
+- id: saudi-arabia
+  row: 48
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Saudi Arabia
+  citations: ["No public report verified."]
+  data_access: not public
+  report_access: not found
+  verification: not verified
+
+- id: brazilian-air-force-pilots
+  row: 49
+  region: Asia-Pacific / Middle East / Latin America
+  entry: Brazilian Air Force pilots
+  citations:
+    - "da Silva GV, Halpern M, Gordon CC (2017). Ergonomics 60(10). doi:10.1080/00140139.2017.1301575."
+  reports:
+    - {label: "Ergonomics 60(10) (DOI)", url: "https://doi.org/10.1080/00140139.2017.1301575"}
+  data_access: not public
+  report_access: paywalled
+  dimensions: "39 cockpit-related measurements (NATICK/TR-11/017 methods), all five Brazilian regions"
+  verification: partly verified
