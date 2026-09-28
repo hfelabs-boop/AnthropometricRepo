@@ -1,0 +1,81 @@
+survey_id,kind,label,url,http_status,content_type,result,note,checked
+ansur-1988,report,NATICK/TR-89/044 (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA225094.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+ansur-1988,report,NATICK/TR-89/044 (ODL mirror),https://tools.openlab.psu.edu/publicData/ANSUR-TR89-044.pdf,200,application/pdf,ok,,2026-09-28
+ansur-1988,report,NATICK/TR-89/027 interim summary (ODL mirror),https://tools.openlab.psu.edu/publicData/ANSUR-TR89-027.pdf,200,application/pdf,ok,,2026-09-28
+ansur-1988,report,ANSUR 88 variable codes (UMTRI),http://mreed.umtri.umich.edu/mreed/downloads/anthro/ansur/ANSUR_88_Codes.pdf,200,application/pdf,ok,,2026-09-28
+ansur-1988,data,Men (CSV),https://tools.openlab.psu.edu/publicData/ansurMen.csv,200,text/csv,ok,,2026-09-28
+ansur-1988,data,Women (CSV),https://tools.openlab.psu.edu/publicData/ansurWomen.csv,200,text/csv,ok,,2026-09-28
+ansur-1988,data,ODL landing page,https://www.openlab.psu.edu/ansur/,200,text/html,ok,,2026-09-28
+ansur-ii-2012,report,NATICK/TR-15/007 (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA611869.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+ansur-ii-2012,report,NATICK/TR-15/007 (ODL copy),https://tools.openlab.psu.edu/publicData/ANSURII-TR15-007.pdf,200,application/pdf,ok,,2026-09-28
+ansur-ii-2012,report,Measurer's Handbook NATICK/TR-11/017 (ODL copy),https://tools.openlab.psu.edu/publicData/ANSURII-TR11-017.pdf,200,application/pdf,ok,,2026-09-28
+ansur-ii-2012,report,Measurer's Handbook NATICK/TR-11/017 (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA548497.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+ansur-ii-2012,report,Memorandum for Record (ODL),https://tools.openlab.psu.edu/publicData/ANSURII-MFR.pdf,200,application/pdf,ok,,2026-09-28
+ansur-ii-2012,data,Male (CSV),https://tools.openlab.psu.edu/publicData/ANSUR_II_MALE_Public.csv,200,text/csv,ok,,2026-09-28
+ansur-ii-2012,data,Female (CSV),https://tools.openlab.psu.edu/publicData/ANSUR_II_FEMALE_Public.csv,200,text/csv,ok,,2026-09-28
+ansur-ii-2012,data,ODL landing page,https://www.openlab.psu.edu/ansur2/,200,text/html,ok,,2026-09-28
+us-army-men-1966,report,TR 72-51-CE (DTIC),https://apps.dtic.mil/sti/tr/pdf/AD0743465.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+us-army-women-1977,report,"Report 1, NATICK/TR-77/021 (DTIC)",https://apps.dtic.mil/sti/pdfs/ADA043715.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+us-army-women-1977,report,"Report 2, NATICK/TR-77/024 (DTIC)",https://apps.dtic.mil/sti/tr/pdf/ADA044806.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+us-army-women-1977,report,Report 5 (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA048591.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+us-army-women-1977,report,"Summary, White & DeSantis (DTIC)",https://apps.dtic.mil/sti/tr/pdf/ADA056493.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+mc-ansur-2010,report,NATICK/TR-13/018 (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA581918.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+usmc-1966,report,CEMEL-115 (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA073824.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+us-navy-women-1988,report,"ADA232851 (DTIC citation page, unverified)",https://apps.dtic.mil/sti/citations/ADA232851,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+naval-aviators-1964,report,NAEC-ACEL-533 (DTIC),https://apps.dtic.mil/sti/tr/pdf/AD0626322.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+usaf-1950,report,WADC TR 52-321 (DTIC),https://apps.dtic.mil/sti/tr/pdf/AD0047953.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+usaf-1967,report,AGARD-AG-205 (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA010674.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+usaf-1967,report,AAMRL-TR-85-062 survey history (DTIC),https://apps.dtic.mil/sti/pdfs/ADA168485.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+usaf-1967,report,JSS paper (open access),https://doi.org/10.18637/jss.v077.i06,200,text/html,ok,,2026-09-28
+usaf-1967,report,Anthropometry package manual (CRAN),https://cran.r-project.org/web/packages/Anthropometry/Anthropometry.pdf,200,application/pdf,ok,,2026-09-28
+usaf-1967,data,"Raw fixed-width file AFFLY67.dat + HSIAC docs (zip, via package author)",https://www.uv.es/vivigui/softw/data_information.zip,200,application/zip,ok,,2026-09-28
+usaf-1967,data,CRAN R package 'Anthropometry' (data(USAFSurvey)),https://cran.r-project.org/package=Anthropometry,200,text/html,ok,,2026-09-28
+usaf-women-1968,report,AMRL-TR-70-5 (DTIC),https://apps.dtic.mil/sti/tr/pdf/AD0743113.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+caesar,report,"Vol. I, AFRL-HE-WP-TR-2002-0169 (DTIC)",https://apps.dtic.mil/sti/tr/pdf/ADA406704.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+caesar,report,AFRL-HE-WP-TR-2002-0170 (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA406674.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+dod-hdbk-743a-nasa-rp-1024,report,DOD-HDBK-743A (UMTRI),http://mreed.umtri.umich.edu/mreed/documents/DOD-HDBK-743A_anthro_handbook.pdf,200,application/pdf,ok,,2026-09-28
+dod-hdbk-743a-nasa-rp-1024,report,DOD-HDBK-743A (everyspec landing page),http://everyspec.com/DoD/DoD-HDBK/DOD-HDBK-743A_16856/,200,text/html,ok,,2026-09-28
+dod-hdbk-743a-nasa-rp-1024,report,NASA RP-1024 Vol. I (archive.org),https://archive.org/details/NASA_NTRS_Archive_19790003563,200,text/html,ok,,2026-09-28
+dod-hdbk-743a-nasa-rp-1024,report,NASA RP-1024 Vol. II (archive.org),https://archive.org/details/nasa_techdoc_19790005540,200,text/html,ok,,2026-09-28
+dod-hdbk-743a-nasa-rp-1024,report,NASA RP-1024 Vol. II (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA473152.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+dod-hdbk-743a-nasa-rp-1024,report,NASA RP-1024 Vol. III (NTRS),https://ntrs.nasa.gov/api/citations/19790005541/downloads/19790005541.pdf,200,application/pdf,ok,,2026-09-28
+uk-tri-service,report,Ergonomics 68(5) (Taylor & Francis),https://www.tandfonline.com/doi/full/10.1080/00140139.2024.2378365,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+uk-tri-service,report,PubMed 39082614,https://pubmed.ncbi.nlm.nih.gov/39082614/,200,text/html,ok,,2026-09-28
+cfas-2012,report,DRDC report,https://cradpdf.drdc-rddc.gc.ca/PDFS/unc328/p803174_A1b.pdf,error,,blocked,URLError: <urlopen error [Errno 104] Connection reset by peer>,2026-09-28
+cfas-2012,report,Shu et al. 2015 (ScienceDirect),https://www.sciencedirect.com/science/article/pii/S2351978915008148,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+cfas-2012,report,Shu et al. 2015 (NRC copy),https://nrc-publications.canada.ca/eng/view/accepted/?id=828ecbbf-d18d-48ae-970e-9f8ffa9c453b,200,application/pdf,ok,,2026-09-28
+cfas-2012,report,CFAS Lessons Learned (publications.gc.ca),https://publications.gc.ca/site/eng/9.881239/publication.html,200,text/html,ok,,2026-09-28
+awas,report,DSTO-TR-3006 (DST),https://www.dst.defence.gov.au/sites/default/files/publications/documents/DSTO-TR-3006.pdf,200,application/pdf,ok,,2026-09-28
+awas,report,DSTO-TR-3006 (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA610792.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+historic-australian,report,DST-Group-GD-0968 (DST),https://www.dst.defence.gov.au/sites/default/files/publications/documents/DST-Group-GD-0968.pdf,200,application/pdf,ok,,2026-09-28
+nzdfas,report,Monograph PDF (AUT Tuwhera),https://ojs.aut.ac.nz/tuwhera-open-monographs/1/catalog/download/7/12/56,200,application/pdf,ok,,2026-09-28
+nzdfas,report,Landing page (AUT Tuwhera),https://ojs.aut.ac.nz/tuwhera-open-monographs/1/catalog/book/7,200,text/html,ok,,2026-09-28
+asran-2015,report,DST-Group-TR-3564 (DST),https://www.dst.defence.gov.au/sites/default/files/publications/documents/DST-Group-TR-3564_0.pdf,200,application/pdf,ok,,2026-09-28
+asran-2015,data,ASRAN 2015 raw worksheets (XLSX),https://data.gov.au/data/dataset/3e124b9c-4daa-4797-a265-ddbc5f36313c/resource/93d5416d-00fd-4432-81de-379033e38647/download/asran-2015-anthropometry-data_public-release.xlsx,200,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,ok,,2026-09-28
+asran-2015,data,Multivariate Virtual Fit Test ASRAN Nov 2020 (XLSX),https://data.gov.au/data/dataset/3e124b9c-4daa-4797-a265-ddbc5f36313c/resource/4aff17a2-c584-4ac1-ba16-68fa20714b66/download/multivariate-virtual-fit-test-asran_nov2020.xlsx,200,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,ok,,2026-09-28
+asran-2015,data,data.gov.au landing page,https://data.gov.au/data/dataset/3e124b9c-4daa-4797-a265-ddbc5f36313c,200,text/html,ok,,2026-09-28
+german-air-force-1967-68,report,AGARD-AG-205 (DTIC),https://apps.dtic.mil/sti/tr/pdf/ADA010674.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+iran-1969-71,report,Phase III Technical Summary (DTIC),https://apps.dtic.mil/sti/pdfs/AD0728822.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+latin-american-armed-forces,report,USATTC 7209002 (DTIC),https://apps.dtic.mil/sti/pdfs/AD0759949.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+latin-american-armed-forces,report,Earlier report (DTIC),https://apps.dtic.mil/sti/tr/pdf/AD0654762.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+korea,report,AD0661625 (DTIC),https://apps.dtic.mil/sti/tr/pdf/AD0661625.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+vietnam-1963,report,AD0457939 (DTIC citation page),https://apps.dtic.mil/sti/citations/AD0457939,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+oman,report,Cogent Engineering (open access),https://doi.org/10.1080/23311916.2016.1269384,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+oman,report,ResearchGate,https://www.researchgate.net/publication/311520114,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+brazilian-air-force-pilots,report,Ergonomics 60(10) (DOI),https://doi.org/10.1080/00140139.2017.1301575,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+ansur-ii-2012,additional,"2012 US Army pilot survey: 977 men, 42 women (NATICK/TR-16/013)",https://apps.dtic.mil/sti/tr/pdf/ADA634277.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+ansur-ii-2012,additional,ANSUR II pilot study,https://apps.dtic.mil/sti/tr/pdf/ADA498172.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+ansur-1988,additional,ANSUR 1988 correlations and regressions (NATICK/TR-90/032),https://apps.dtic.mil/sti/pdfs/ADA224986.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+ansur-1988,additional,ANSUR 1988 bivariate frequency tables (NATICK/TR-90/031),https://apps.dtic.mil/sti/pdfs/ADA222782.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+ansur-1988,additional,ANSUR 1988 pilot summary statistics (NATICK/TR-91/040),https://apps.dtic.mil/sti/pdfs/ADA241952.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+ansur-ii-2012,additional,2020 Army sizing system memo based on ANSUR II,https://apps.dtic.mil/sti/tr/pdf/AD1100615.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+,additional,"1946 US Army men and women surveys (105,062 men; 8,864 women)",https://apps.dtic.mil/sti/pdfs/ADA239831.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+,additional,"Women's Air Force (WAF) basic trainees, WADC TR 53-12",https://apps.dtic.mil/sti/tr/pdf/AD0020542.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+,additional,"Royal Thai Armed Forces, 1964",https://apps.dtic.mil/sti/tr/pdf/AD0450836.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+,additional,Canadian Forces matched database validation (NATICK/TR-96/031),https://apps.dtic.mil/sti/pdfs/ADA310612.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+,additional,"Selected Anthropometric Dimensions of Naval Aviation Personnel (NAMRL-1141, 1971)",https://apps.dtic.mil/sti/pdfs/AD0735101.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+,additional,A Comparison of Selected International Anthropometric Measurements,https://apps.dtic.mil/sti/tr/pdf/ADA103181.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+,additional,Robinette et al. (1979). A Comparison of Male and Female Body Sizes and Proportions. AMRL-TR-79-69,https://apps.dtic.mil/sti/pdfs/ADA074807.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+,additional,Anthropometry of the Air Force Female Hand. AMRL-TR-69-26,https://apps.dtic.mil/sti/tr/pdf/AD0710202.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+,additional,Revised Anthropometric Restrictions for U.S. Navy and Marine Corps aircraft,https://apps.dtic.mil/sti/tr/pdf/ADA472617.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28
+,additional,Anthropometry: A Bibliography with Abstracts (useful for finding accession numbers for unverified rows),https://apps.dtic.mil/sti/tr/pdf/ADA529930.pdf,403,text/html,blocked,host refuses scripted requests; check in a browser,2026-09-28

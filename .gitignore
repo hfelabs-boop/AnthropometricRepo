@@ -1,0 +1,7 @@
+# Study PDFs downloaded by `python scripts/fetch.py reports` (not redistributed)
+reports/
+*.part
+__pycache__/
+.venv/
+public/
+database/anthro.sqlite
