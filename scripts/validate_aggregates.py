@@ -72,7 +72,7 @@ def validate(path, known, ranges):
 
 
 def main():
-    files = [Path(a) for a in sys.argv[1:]] or sorted((ROOT / "aggregates" / "raw").glob("*.csv"))
+    files = [Path(a) for a in sys.argv[1:]] or [f for f in sorted((ROOT / "aggregates" / "raw").glob("*.csv")) if not f.name.endswith("_papers.csv")]
     known, ranges = keys_and_ranges()
     bad = 0
     for f in files:

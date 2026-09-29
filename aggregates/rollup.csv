@@ -1,4 +1,7 @@
 country,service_role,sex,measure_key,measure_label,n_total,mean,sd,n_surveys,mean_min,mean_max,year_min,year_max,sources
+Angola,Cadets,both,bmi,Body mass index,74,25.02,4.04,1,25.02,25.02,,,pmc11270323-angola-military-cadets
+Angola,Cadets,both,mass,Body mass,74,69.79,11.01,1,69.79,69.79,,,pmc11270323-angola-military-cadets
+Angola,Cadets,both,other:body_fat_percent,Fat mass (%),74,26.86,4.13,1,26.86,26.86,,,pmc11270323-angola-military-cadets
 Australia,Army,F,abdominal_depth_sitting,Abdominal extension depth (sitting),277,226.0,31.8,1,226.0,226.0,,,awas
 Australia,Army,F,acromion_height,Acromion height,277,1349.0,56.4,1,1349.0,1349.0,,,awas
 Australia,Army,F,acromion_height_sitting,Acromion height (sitting),277,571.0,27.8,1,571.0,571.0,,,awas
@@ -329,15 +332,46 @@ Australia,Navy,M,wrist_circumference,Wrist circumference,2176,184.17,11.12,2,184
 Bolivia,Recruits/trainees,M,age,Age,135,26.0,5.8,1,26.0,26.0,1965,1965,latin-american-armed-forces
 Bolivia,Recruits/trainees,M,mass,Body mass,135,62.91,7.62,1,62.91,62.91,1965,1965,latin-american-armed-forces
 Bolivia,Recruits/trainees,M,stature,Stature,135,1651.0,53.85,1,1651.0,1651.0,1965,1965,latin-american-armed-forces
+Brazil,Cadets,M,age,Age,205,19.6,1.4,1,19.6,19.6,2013,2013,pmc6192153-brazil-army-cadets
+Brazil,Cadets,M,bmi,Body mass index,205,22.9,2.1,1,22.9,22.9,2013,2013,pmc6192153-brazil-army-cadets
+Brazil,Cadets,M,mass,Body mass,205,71.3,8.1,1,71.3,71.3,2013,2013,pmc6192153-brazil-army-cadets
+Brazil,Cadets,M,other:body_fat_percent,%FM,205,17.2,3.7,1,17.2,17.2,2013,2013,pmc6192153-brazil-army-cadets
+Brazil,Cadets,M,other:fat_free_mass,FFM (kg),205,56.3,5.9,1,56.3,56.3,2013,2013,pmc6192153-brazil-army-cadets
+Brazil,Cadets,M,other:fat_mass,FM (kg),205,12.5,3.4,1,12.5,12.5,2013,2013,pmc6192153-brazil-army-cadets
+Brazil,Cadets,M,stature,Stature,205,1762.0,64.0,1,1762.0,1762.0,2013,2013,pmc6192153-brazil-army-cadets
 Brazil,Recruits/trainees,M,age,Age,94,21.5,3.3,1,21.5,21.5,1965,1965,latin-american-armed-forces
 Brazil,Recruits/trainees,M,mass,Body mass,94,65.41,7.89,1,65.41,65.41,1965,1965,latin-american-armed-forces
 Brazil,Recruits/trainees,M,stature,Stature,94,1699.26,60.71,1,1699.26,1699.26,1965,1965,latin-american-armed-forces
+Chile,Cadets,F,age,Age,8,21.0,1.51,1,21.0,21.0,,,pmc8171865-chile-naval-cadets
+Chile,Cadets,F,bmi,Body mass index,8,21.9,1.79,1,21.9,21.9,,,pmc8171865-chile-naval-cadets
+Chile,Cadets,F,other:body_fat_percent,% Fat,8,23.3,4.7,1,23.3,23.3,,,pmc8171865-chile-naval-cadets
+Chile,Cadets,M,age,Age,30,20.5,1.22,1,20.5,20.5,,,pmc8171865-chile-naval-cadets
+Chile,Cadets,M,bmi,Body mass index,30,22.7,1.69,1,22.7,22.7,,,pmc8171865-chile-naval-cadets
+Chile,Cadets,M,other:body_fat_percent,% Fat,30,12.6,2.2,1,12.6,12.6,,,pmc8171865-chile-naval-cadets
+Chile,Cadets,both,age,Age,38,20.6,1.28,1,20.6,20.6,,,pmc8171865-chile-naval-cadets
+Chile,Cadets,both,bmi,Body mass index,38,22.5,1.72,1,22.5,22.5,,,pmc8171865-chile-naval-cadets
+Chile,Cadets,both,mass,Body mass,38,67.1,8.0,1,67.1,67.1,,,pmc8171865-chile-naval-cadets
+Chile,Cadets,both,other:body_fat_percent,% Fat,38,14.9,5.2,1,14.9,14.9,,,pmc8171865-chile-naval-cadets
 Chile,Recruits/trainees,M,age,Age,411,18.9,2.6,1,18.9,18.9,1965,1965,latin-american-armed-forces
 Chile,Recruits/trainees,M,mass,Body mass,411,63.28,7.08,1,63.28,63.28,1965,1965,latin-american-armed-forces
 Chile,Recruits/trainees,M,stature,Stature,411,1676.4,58.17,1,1676.4,1676.4,1965,1965,latin-american-armed-forces
 Colombia,Recruits/trainees,M,age,Age,207,19.7,1.5,1,19.7,19.7,1965,1965,latin-american-armed-forces
 Colombia,Recruits/trainees,M,mass,Body mass,207,61.51,5.99,1,61.51,61.51,1965,1965,latin-american-armed-forces
 Colombia,Recruits/trainees,M,stature,Stature,207,1656.08,52.32,1,1656.08,1656.08,1965,1965,latin-american-armed-forces
+Czech Republic,Army,F,age,Age,20,32.1,5.3,1,32.1,32.1,,,pmc13331485-czech-artillery
+Czech Republic,Army,F,bmi,Body mass index,20,24.7,4.8,1,24.7,24.7,,,pmc13331485-czech-artillery
+Czech Republic,Army,F,mass,Body mass,20,68.1,12.4,1,68.1,68.1,,,pmc13331485-czech-artillery
+Czech Republic,Army,F,other:body_fat_percent,BF (%),20,33.8,5.4,1,33.8,33.8,,,pmc13331485-czech-artillery
+Czech Republic,Army,F,other:fat_free_mass,FFM (kg),20,44.6,5.6,1,44.6,44.6,,,pmc13331485-czech-artillery
+Czech Republic,Army,F,other:visceral_adipose_tissue_area,VAT (cm2),20,51.0,30.4,1,51.0,51.0,,,pmc13331485-czech-artillery
+Czech Republic,Army,F,stature,Stature,20,1664.0,55.0,1,1664.0,1664.0,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,age,Age,189,31.5,6.5,1,31.5,31.5,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,bmi,Body mass index,189,26.4,3.3,1,26.4,26.4,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,mass,Body mass,189,85.3,12.7,1,85.3,85.3,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,other:body_fat_percent,BF (%),189,24.3,3.8,1,24.3,24.3,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,other:fat_free_mass,FFM (kg),189,64.4,8.3,1,64.4,64.4,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,other:visceral_adipose_tissue_area,VAT (cm2),189,77.0,24.0,1,77.0,77.0,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,stature,Stature,189,1796.0,68.0,1,1796.0,1796.0,,,pmc13331485-czech-artillery
 Dominican Republic,Recruits/trainees,M,age,Age,84,26.3,5.3,1,26.3,26.3,1965,1965,latin-american-armed-forces
 Dominican Republic,Recruits/trainees,M,mass,Body mass,84,64.86,10.8,1,64.86,64.86,1965,1965,latin-american-armed-forces
 Dominican Republic,Recruits/trainees,M,stature,Stature,84,1681.48,61.21,1,1681.48,1681.48,1965,1965,latin-american-armed-forces
@@ -347,12 +381,64 @@ Ecuador,Recruits/trainees,M,stature,Stature,210,1638.3,54.36,1,1638.3,1638.3,196
 El Salvador,Recruits/trainees,M,age,Age,47,24.1,6.3,1,24.1,24.1,1965,1965,latin-american-armed-forces
 El Salvador,Recruits/trainees,M,mass,Body mass,47,62.91,10.61,1,62.91,62.91,1965,1965,latin-american-armed-forces
 El Salvador,Recruits/trainees,M,stature,Stature,47,1635.76,52.83,1,1635.76,1635.76,1965,1965,latin-american-armed-forces
+Finland,Cadre/other military,M,age,Age,176,40.0,8.0,1,40.0,40.0,,,pmc12772597-finland-soldiers
+Finland,Cadre/other military,M,bmi,Body mass index,173,27.1,3.9,1,27.1,27.1,,,pmc12772597-finland-soldiers
+Finland,Cadre/other military,M,mass,Body mass,173,87.6,13.8,1,87.6,87.6,,,pmc12772597-finland-soldiers
+Finland,Cadre/other military,M,other:body_fat_percent,Fat percentage (%),161,20.8,7.4,1,20.8,20.8,,,pmc12772597-finland-soldiers
+Finland,Cadre/other military,M,stature,Stature,173,1796.0,63.0,1,1796.0,1796.0,,,pmc12772597-finland-soldiers
+Finland,Cadre/other military,M,waist_circumference,Waist circumference (omphalion),163,943.0,114.0,1,943.0,943.0,,,pmc12772597-finland-soldiers
+Germany,Tri-service,both,age,Age,40165,34.2,8.7,1,34.2,34.2,2018,2018,pmc11020664-germany-bundeswehr
+Germany,Tri-service,both,bmi,Body mass index,40165,26.8,3.7,1,26.8,26.8,2018,2018,pmc11020664-germany-bundeswehr
+Germany,Tri-service,both,waist_circumference,Waist circumference (omphalion),40165,921.0,114.0,1,921.0,921.0,2018,2018,pmc11020664-germany-bundeswehr
 Guatemala,Recruits/trainees,M,age,Age,62,22.9,4.7,1,22.9,22.9,1965,1965,latin-american-armed-forces
 Guatemala,Recruits/trainees,M,mass,Body mass,62,63.28,10.98,1,63.28,63.28,1965,1965,latin-american-armed-forces
 Guatemala,Recruits/trainees,M,stature,Stature,62,1640.84,66.29,1,1640.84,1640.84,1965,1965,latin-american-armed-forces
 Honduras,Recruits/trainees,M,age,Age,91,24.2,5.1,1,24.2,24.2,1965,1965,latin-american-armed-forces
 Honduras,Recruits/trainees,M,mass,Body mass,91,62.23,8.44,1,62.23,62.23,1965,1965,latin-american-armed-forces
 Honduras,Recruits/trainees,M,stature,Stature,91,1653.54,55.12,1,1653.54,1653.54,1965,1965,latin-american-armed-forces
+India,Tri-service,both,bmi,Body mass index,1388,24.18,0.0,1,24.18,24.18,2023,2023,ijasm2025-india-armed-forces-surveillance
+India,Tri-service,both,mass,Body mass,1388,71.2,0.0,1,71.2,71.2,2023,2023,ijasm2025-india-armed-forces-surveillance
+India,Tri-service,both,stature,Stature,1388,1714.0,0.0,1,1714.0,1714.0,2023,2023,ijasm2025-india-armed-forces-surveillance
+India,Tri-service,both,waist_circumference,Waist circumference (omphalion),1388,849.0,0.0,1,849.0,849.0,2023,2023,ijasm2025-india-armed-forces-surveillance
+Iran,Recruits/trainees,M,age,Age,181,30.14,4.68,2,29.52,30.26,,,pmc4592759-iran-recruits-mtss
+Iran,Recruits/trainees,M,mass,Body mass,181,82.62,16.66,2,80.2,83.1,,,pmc4592759-iran-recruits-mtss
+Iran,Recruits/trainees,M,stature,Stature,181,1742.94,76.32,2,1737.6,1744.0,,,pmc4592759-iran-recruits-mtss
+Iran,Tri-service,M,acromion_height,Acromion height,12635,1446.0,58.0,1,1446.0,1446.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,ankle_circumference,Ankle circumference,12635,261.0,22.0,1,261.0,261.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,bmi,Body mass index,12736,23.33,0.46,2,23.3,26.9,2010,2010,pmc4691302-iran-military-dexa; pmc7767597-iran-military
+Iran,Tri-service,M,buttock_knee_length,Buttock-knee length,12635,572.0,34.0,1,572.0,572.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,buttock_popliteal_length,Buttock-popliteal length,12635,455.0,31.0,1,455.0,455.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,calf_circumference,Calf circumference,12635,368.0,31.0,1,368.0,368.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,cervicale_height,Cervicale height,12635,1479.0,59.0,1,1479.0,1479.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,chest_circumference,Chest circumference,12635,936.0,74.0,1,936.0,936.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,chest_depth,Chest depth,12635,214.0,27.0,1,214.0,214.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,crotch_height,Crotch height,12635,755.0,50.0,1,755.0,755.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,eye_height_sitting,Eye height (sitting),12635,777.0,41.0,1,777.0,777.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,foot_breadth,Foot breadth,12635,97.0,8.0,1,97.0,97.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,foot_length,Foot length,12635,258.0,17.0,1,258.0,258.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,hand_breadth,Hand breadth (metacarpale),12635,84.0,6.0,1,84.0,84.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,hand_circumference,Hand circumference (metacarpale),12635,217.0,16.0,1,217.0,217.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,hand_length,Hand length,12635,192.0,10.0,1,192.0,192.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,head_breadth,Head breadth,12635,153.0,11.0,1,153.0,153.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,head_circumference,Head circumference,12635,557.0,28.0,1,557.0,557.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,head_length,Head length,12635,191.0,14.0,1,191.0,191.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,hip_breadth_sitting,Hip breadth (sitting),12635,355.0,32.0,1,355.0,355.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,interpupillary_breadth,Interpupillary breadth,12635,55.0,5.0,1,55.0,55.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,knee_height_sitting,Knee height (sitting),12635,545.0,33.0,1,545.0,545.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,mass,Body mass,12736,70.09,9.08,2,70.0,81.5,2010,2010,pmc4691302-iran-military-dexa; pmc7767597-iran-military
+Iran,Tri-service,M,neck_circumference,Neck circumference,12635,363.0,28.0,1,363.0,363.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,other:body_fat_percent_dexa,Body fat (DEXA),101,21.2,4.3,1,21.2,21.2,,,pmc4691302-iran-military-dexa
+Iran,Tri-service,M,other:crotch_thigh_circumference,Crotch Thigh Circumference,12635,550.0,68.0,1,550.0,550.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,other:hip_circumference,Hip Circumference,12635,972.0,65.0,1,972.0,972.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,other:upper_arm_circumference_relaxed,Upper Arm Circumference Relaxed,12635,296.0,32.0,1,296.0,296.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,popliteal_height,Popliteal height,12635,424.0,24.0,1,424.0,424.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,shoulder_circumference,Shoulder circumference,12635,1149.0,75.0,1,1149.0,1149.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,shoulder_elbow_length,Shoulder-elbow length,12635,366.0,25.0,1,366.0,366.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,sitting_height,Sitting height,12635,897.0,38.0,1,897.0,897.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,stature,Stature,12736,1740.98,63.01,2,1739.0,1741.0,2010,2010,pmc4691302-iran-military-dexa; pmc7767597-iran-military
+Iran,Tri-service,M,vertical_trunk_circumference,Vertical trunk circumference,12635,1719.0,93.0,1,1719.0,1719.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,waist_circumference,Waist circumference (omphalion),12635,838.0,92.0,1,838.0,838.0,2010,2010,pmc7767597-iran-military
+Iran,Tri-service,M,wrist_circumference,Wrist circumference,12635,175.0,15.0,1,175.0,175.0,2010,2010,pmc7767597-iran-military
 "Multiple: Bolivia, Brazil, Colombia, Chile, Dominican Republic, Ecuador, El Salvador, Guatemala, Honduras, Nicaragua, Panama, Paraguay, Peru, Uruguay, Venezuela",Recruits/trainees,M,age,Age,1960,22.9,5.7,1,22.9,22.9,1965,1965,latin-american-armed-forces
 "Multiple: Bolivia, Brazil, Colombia, Chile, Dominican Republic, Ecuador, El Salvador, Guatemala, Honduras, Nicaragua, Panama, Paraguay, Peru, Uruguay, Venezuela",Recruits/trainees,M,mass,Body mass,1960,63.78,8.21,1,63.78,63.78,1965,1965,latin-american-armed-forces
 "Multiple: Bolivia, Brazil, Colombia, Chile, Dominican Republic, Ecuador, El Salvador, Guatemala, Honduras, Nicaragua, Panama, Paraguay, Peru, Uruguay, Venezuela",Recruits/trainees,M,stature,Stature,1960,1663.7,55.63,1,1663.7,1663.7,1965,1965,latin-american-armed-forces
@@ -1034,6 +1120,37 @@ Paraguay,Recruits/trainees,M,stature,Stature,61,1678.94,53.85,1,1678.94,1678.94,
 Peru,Recruits/trainees,M,age,Age,161,21.7,3.5,1,21.7,21.7,1965,1965,latin-american-armed-forces
 Peru,Recruits/trainees,M,mass,Body mass,161,63.55,5.85,1,63.55,63.55,1965,1965,latin-american-armed-forces
 Peru,Recruits/trainees,M,stature,Stature,161,1645.92,46.99,1,1645.92,1645.92,1965,1965,latin-american-armed-forces
+Poland,Air Force,both,age,Age,191,36.8,8.1,1,36.8,36.8,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Air Force,both,bmi,Body mass index,191,26.7,3.6,1,26.7,26.7,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Air Force,both,mass,Body mass,191,84.7,13.1,1,84.7,84.7,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Air Force,both,stature,Stature,191,1780.0,59.0,1,1780.0,1780.0,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Aircrew,M,age,Age,200,37.8,8.5,1,37.8,37.8,,,pmc10608823-poland-flying-personnel
+Poland,Aircrew,M,bmi,Body mass index,200,26.7,3.7,1,26.7,26.7,,,pmc10608823-poland-flying-personnel
+Poland,Aircrew,M,mass,Body mass,200,85.1,13.4,1,85.1,85.1,,,pmc10608823-poland-flying-personnel
+Poland,Aircrew,M,other:body_fat_percent,PBF (%),200,20.8,6.2,1,20.8,20.8,,,pmc10608823-poland-flying-personnel
+Poland,Aircrew,M,other:fat_free_mass,FFM (kg),200,66.9,8.7,1,66.9,66.9,,,pmc10608823-poland-flying-personnel
+Poland,Aircrew,M,other:fat_mass,FM (kg),200,18.2,7.8,1,18.2,18.2,,,pmc10608823-poland-flying-personnel
+Poland,Aircrew,M,other:hip_circumference,HC (cm),200,1010.0,96.0,1,1010.0,1010.0,,,pmc10608823-poland-flying-personnel
+Poland,Aircrew,M,stature,Stature,200,1782.0,64.0,1,1782.0,1782.0,,,pmc10608823-poland-flying-personnel
+Poland,Aircrew,M,waist_circumference,Waist circumference (omphalion),200,934.0,108.0,1,934.0,934.0,,,pmc10608823-poland-flying-personnel
+Poland,Army,both,age,Age,320,38.0,8.1,1,38.0,38.0,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Army,both,bmi,Body mass index,320,27.2,4.5,1,27.2,27.2,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Army,both,mass,Body mass,320,85.0,16.6,1,85.0,85.0,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Army,both,stature,Stature,320,1764.0,80.0,1,1764.0,1764.0,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Navy,both,age,Age,397,34.4,7.6,1,34.4,34.4,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Navy,both,bmi,Body mass index,397,26.5,4.1,1,26.5,26.5,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Navy,both,mass,Body mass,397,83.3,14.9,1,83.3,83.3,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Navy,both,stature,Stature,397,1770.0,79.0,1,1770.0,1770.0,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Tri-service,M,age,Age,1096,36.31,8.03,1,36.31,36.31,2018,2018,pmc8909950-poland-armed-forces
+Poland,Tri-service,M,bmi,Body mass index,1096,26.85,3.95,1,26.85,26.85,2018,2018,pmc8909950-poland-armed-forces
+Poland,Tri-service,M,mass,Body mass,1096,84.94,14.84,1,84.94,84.94,2018,2018,pmc8909950-poland-armed-forces
+Poland,Tri-service,M,stature,Stature,1096,1775.6,73.5,1,1775.6,1775.6,2018,2018,pmc8909950-poland-armed-forces
+Poland,Tri-service,both,age,Age,321,37.1,7.34,3,35.0,39.7,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Tri-service,both,bmi,Body mass index,321,26.85,3.73,3,26.3,28.4,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Tri-service,both,mass,Body mass,321,85.43,14.89,3,84.5,88.6,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Tri-service,both,stature,Stature,321,1779.7,77.8,3,1758.0,1793.0,2018,2018,pmc10691415-poland-armed-forces-branches
+Saudi Arabia,Recruits/trainees,M,age,Age,2010,20.16,2.93,1,20.16,20.16,,,pmc8620872-saudi-armed-forces-applicants
+Saudi Arabia,Recruits/trainees,M,stature,Stature,2010,1693.8,68.8,1,1693.8,1693.8,,,pmc8620872-saudi-armed-forces-applicants
 South Korea,Air Force,M,ankle_circumference,Ankle circumference,190,212.0,0.0,1,212.0,212.0,1965,1965,korea
 South Korea,Air Force,M,calf_circumference,Calf circumference,190,344.0,0.0,1,344.0,344.0,1965,1965,korea
 South Korea,Air Force,M,chest_breadth,Chest breadth,190,295.0,0.0,1,295.0,295.0,1965,1965,korea
@@ -1207,6 +1324,13 @@ South Korea,Tri-service,M,shoulder_elbow_length,Shoulder-elbow length,3747,335.0
 South Korea,Tri-service,M,stature,Stature,3747,1652.0,49.0,1,1652.0,1652.0,1965,1965,korea
 South Korea,Tri-service,M,waist_circumference,Waist circumference (omphalion),3747,743.0,40.0,1,743.0,743.0,1965,1965,korea
 South Korea,Tri-service,M,wrist_circumference,Wrist circumference,3747,164.0,9.0,1,164.0,164.0,1965,1965,korea
+Switzerland,Recruits/trainees,M,bmi,Body mass index,159503,22.92,3.56,4,20.63,23.44,1875,2010,pmc6007356-swiss-conscripts
+Switzerland,Recruits/trainees,M,mass,Body mass,159504,71.72,13.07,4,56.18,74.51,1875,2010,pmc6007356-swiss-conscripts
+Switzerland,Recruits/trainees,M,stature,Stature,159504,1766.44,74.37,4,1648.1,1782.1,1875,2010,pmc6007356-swiss-conscripts
+Taiwan,Cadets,M,age,Age,873,23.53,1.17,2,23.53,23.55,,,pmc7663089-taiwan-af-academy-student-pilots
+Taiwan,Cadets,M,bmi,Body mass index,873,23.2,2.41,2,21.8,23.27,,,pmc7663089-taiwan-af-academy-student-pilots
+Taiwan,Cadets,M,mass,Body mass,873,70.09,8.53,2,66.09,70.3,,,pmc7663089-taiwan-af-academy-student-pilots
+Taiwan,Cadets,M,stature,Stature,873,1737.4,53.62,2,1737.2,1741.1,,,pmc7663089-taiwan-af-academy-student-pilots
 Thailand,Air Force,M,age,Age,330,26.8,4.4,1,26.8,26.8,1962,1962,thai-1964
 Thailand,Air Force,M,ankle_circumference,Ankle circumference,330,213.0,12.0,1,213.0,213.0,1962,1962,thai-1964
 Thailand,Air Force,M,buttock_knee_length,Buttock-knee length,330,543.0,24.0,1,543.0,543.0,1962,1962,thai-1964
@@ -1473,124 +1597,851 @@ United States,Aircrew,M,trochanterion_height,Trochanterion height,2420,939.57,43
 United States,Aircrew,M,vertical_trunk_circumference,Vertical trunk circumference,2420,1680.72,71.62,1,1680.72,1680.72,1967,1967,usaf-1967
 United States,Aircrew,M,waist_circumference,Waist circumference (omphalion),2420,876.01,73.85,1,876.01,876.01,1967,1967,usaf-1967
 United States,Aircrew,M,wrist_circumference,Wrist circumference,2420,175.88,9.2,1,175.88,175.88,1967,1967,usaf-1967
-United States,Army,F,abdominal_depth_sitting,Abdominal extension depth (sitting),4194,225.8,29.11,2,222.34,229.65,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,acromion_height,Acromion height,4194,1334.29,57.98,2,1333.56,1335.1,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,acromion_height_sitting,Acromion height (sitting),2208,555.53,28.65,1,555.53,555.53,1987,1987,ansur-1988
-United States,Army,F,acromion_radiale_length,Acromion-radiale length,4194,311.56,16.91,2,311.2,311.88,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,abdominal_depth_sitting,Abdominal extension depth (sitting),8388,225.8,29.11,4,222.3,229.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,acromion_height,Acromion height,8388,1334.3,57.98,4,1333.56,1335.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,acromion_height_sitting,Acromion height (sitting),4416,555.52,28.62,2,555.5,555.53,1987,1987,ansur-1988
+United States,Army,F,acromion_radiale_length,Acromion-radiale length,8388,311.56,16.92,4,311.2,311.9,1987,2010,ansur-1988; ansur-ii-2012
 United States,Army,F,age,Age,1986,28.94,8.33,1,28.94,28.94,2010,2010,ansur-ii-2012
-United States,Army,F,ankle_circumference,Ankle circumference,4194,210.26,14.44,2,205.33,215.74,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,biacromial_breadth,Biacromial breadth,4194,363.91,17.89,2,362.61,365.35,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,biceps_circumference_flexed,Biceps circumference (flexed),4194,292.81,29.42,2,281.33,305.58,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,bicristal_breadth,Bicristal (biiliocristale) breadth,1986,273.3,22.26,1,273.3,273.3,2010,2010,ansur-ii-2012
-United States,Army,F,bideltoid_breadth,Bideltoid breadth,4194,440.99,27.16,2,432.6,450.32,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,bizygomatic_breadth,Bizygomatic breadth,4194,132.47,5.43,2,131.3,133.77,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,ankle_circumference,Ankle circumference,8388,210.24,14.45,4,205.3,215.74,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,biacromial_breadth,Biacromial breadth,6180,364.35,18.03,3,362.61,365.35,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,biceps_circumference_flexed,Biceps circumference (flexed),8388,292.81,29.44,4,281.3,305.6,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,bicristal_breadth,Bicristal (biiliocristale) breadth,3972,273.3,22.28,2,273.3,273.3,2010,2010,ansur-ii-2012
+United States,Army,F,bideltoid_breadth,Bideltoid breadth,8388,440.99,27.15,4,432.6,450.32,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,bizygomatic_breadth,Bizygomatic breadth,8388,132.48,5.44,4,131.3,133.8,1987,2010,ansur-1988; ansur-ii-2012
 United States,Army,F,bmi,Body mass index,4194,24.36,3.26,2,23.34,25.5,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,buttock_circumference,Buttock circumference,4194,992.63,73.28,2,966.89,1021.25,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,buttock_knee_length,Buttock-knee length,4194,589.72,31.08,2,588.93,590.59,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,buttock_popliteal_length,Buttock-popliteal length,4194,483.3,27.68,2,481.66,485.12,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,calf_circumference,Calf circumference,4194,362.27,27.86,2,352.38,373.26,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,cervicale_height,Cervicale height,4194,1402.14,59.68,2,1395.67,1407.96,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,chest_breadth,Chest breadth,4194,274.75,19.86,2,269.33,279.63,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,chest_circumference,Chest circumference,4194,925.92,75.87,2,907.08,946.86,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,chest_depth,Chest depth,4194,243.2,24.57,2,239.42,247.4,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,crotch_height,Crotch height,4194,776.54,44.71,2,771.35,782.32,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,ear_length,Ear length,4194,59.58,3.82,2,59.36,59.77,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,elbow_rest_height,Elbow rest height,4194,226.16,27.19,2,220.52,232.42,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,eye_height_sitting,Eye height (sitting),4194,742.96,32.23,2,738.71,747.69,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,foot_breadth,Foot breadth,4194,91.11,5.09,2,89.67,92.71,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,foot_length,Foot length,4194,245.28,12.36,2,244.38,246.29,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,forearm_circumference_flexed,Forearm circumference (flexed),4194,258.64,17.57,2,253.74,264.08,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,forearm_forearm_breadth,Forearm-forearm breadth,4194,480.95,40.03,2,468.46,494.83,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,hand_breadth,Hand breadth (metacarpale),4194,78.81,3.84,2,78.15,79.41,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,hand_circumference,Hand circumference (metacarpale),4194,186.34,8.63,2,186.15,186.55,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,hand_length,Hand length,4194,180.75,9.87,2,180.46,181.08,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,head_breadth,Head breadth,4194,146.02,5.33,2,144.44,147.77,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,head_circumference,Head circumference,4194,553.28,18.59,2,546.23,561.12,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,head_length,Head length,4194,188.45,7.04,2,187.22,189.82,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,hip_breadth_sitting,Hip breadth (sitting),4194,391.34,30.84,2,384.49,398.96,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,iliocristale_height,Iliocristale height,4194,992.09,49.05,2,988.82,995.73,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,interpupillary_breadth,Interpupillary breadth,4191,62.03,3.62,2,61.71,62.31,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,knee_height_sitting,Knee height (sitting),4194,513.46,26.76,2,511.29,515.41,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,mass,Body mass,4194,64.73,10.1,2,62.01,67.76,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,menton_sellion_length,Menton-sellion (face) length,4194,113.28,6.02,2,113.09,113.46,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,neck_circumference,Neck circumference,4194,322.38,18.64,2,315.7,329.8,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,neck_circumference_base,Neck circumference (base),4194,358.0,21.89,2,346.17,371.16,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,popliteal_height,Popliteal height,4194,388.83,23.67,2,388.2,389.4,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,radiale_stylion_length,Radiale-stylion length,4194,242.44,15.39,2,241.33,243.44,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,shoulder_circumference,Shoulder circumference,4194,1027.5,52.52,2,1026.88,1028.19,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,shoulder_elbow_length,Shoulder-elbow length,4194,335.07,17.34,2,334.3,335.76,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,shoulder_length,Shoulder length,4194,140.27,11.53,2,135.41,144.65,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,sitting_height,Sitting height,4194,854.17,34.11,2,851.96,856.63,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,sleeve_outseam,Sleeve outseam,4194,545.46,29.92,2,543.55,547.18,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,span,Span,4194,1666.4,82.28,2,1660.29,1671.9,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,stature,Stature,4194,1628.94,63.88,2,1628.47,1629.37,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,suprasternale_height,Suprasternale height,4194,1330.02,56.56,2,1329.69,1330.31,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,thigh_circumference,Thigh circumference,4194,597.26,53.51,2,580.27,616.15,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,thigh_clearance,Thigh clearance,4194,163.16,13.8,2,158.94,167.86,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,thumbtip_reach,Thumb-tip reach,4194,739.06,39.83,2,734.61,744.01,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,trochanterion_height,Trochanterion height,4194,853.9,45.7,2,845.35,861.59,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,vertical_trunk_circumference,Vertical trunk circumference,4194,1544.03,73.94,2,1530.19,1559.41,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,waist_circumference,Waist circumference (omphalion),4194,824.57,97.56,2,791.88,860.91,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,F,wrist_circumference,Wrist circumference,4194,152.92,7.56,2,151.23,154.79,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,abdominal_depth_sitting,Abdominal extension depth (sitting),5856,249.93,35.56,2,239.08,254.65,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,acromion_height,Acromion height,5856,1441.28,62.91,2,1440.74,1442.51,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,acromion_height_sitting,Acromion height (sitting),1774,597.76,29.59,1,597.76,597.76,1987,1987,ansur-1988
-United States,Army,M,acromion_radiale_length,Acromion-radiale length,5856,336.93,17.57,2,335.24,340.81,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,buttock_circumference,Buttock circumference,8388,992.62,73.27,4,966.89,1021.25,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,buttock_knee_length,Buttock-knee length,8388,589.71,31.07,4,588.9,590.6,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,buttock_popliteal_length,Buttock-popliteal length,8388,483.3,27.67,4,481.66,485.12,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,calf_circumference,Calf circumference,8388,362.28,27.86,4,352.38,373.3,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,cervicale_height,Cervicale height,8388,1402.16,59.66,4,1395.67,1408.0,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,chest_breadth,Chest breadth,8388,274.74,19.86,4,269.3,279.63,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,chest_circumference,Chest circumference,8388,925.93,75.86,4,907.08,946.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,chest_depth,Chest depth,8388,243.19,24.56,4,239.4,247.4,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,crotch_height,Crotch height,8388,776.55,44.68,4,771.35,782.32,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,ear_length,Ear length,8388,59.59,3.84,4,59.36,59.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,elbow_rest_height,Elbow rest height,8388,226.15,27.2,4,220.5,232.42,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,eye_height_sitting,Eye height (sitting),8388,742.96,32.22,4,738.7,747.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,foot_breadth,Foot breadth,8388,91.12,5.08,4,89.67,92.71,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,foot_length,Foot length,8388,245.29,12.34,4,244.38,246.3,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,forearm_circumference_flexed,Forearm circumference (flexed),8388,258.63,17.57,4,253.7,264.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,forearm_forearm_breadth,Forearm-forearm breadth,8388,480.95,40.02,4,468.46,494.83,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,hand_breadth,Hand breadth (metacarpale),8388,78.82,3.85,4,78.15,79.41,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,hand_circumference,Hand circumference (metacarpale),8388,186.36,8.64,4,186.15,186.6,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,hand_length,Hand length,8388,180.77,9.88,4,180.46,181.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,head_breadth,Head breadth,8388,146.01,5.32,4,144.4,147.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,head_circumference,Head circumference,6180,555.79,19.2,3,546.23,561.12,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,head_length,Head length,8388,188.44,7.03,4,187.2,189.82,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,hip_breadth_sitting,Hip breadth (sitting),8388,391.35,30.81,4,384.49,399.0,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,iliocristale_height,Iliocristale height,8388,992.08,49.04,4,988.8,995.73,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,interpupillary_breadth,Interpupillary breadth,8382,62.02,3.62,4,61.7,62.31,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,knee_height_sitting,Knee height (sitting),8388,513.46,26.76,4,511.29,515.41,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,mass,Body mass,8388,64.73,10.1,4,62.01,67.76,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,menton_sellion_length,Menton-sellion (face) length,8388,113.3,6.04,4,113.09,113.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,neck_circumference,Neck circumference,8388,322.38,18.64,4,315.7,329.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,neck_circumference_base,Neck circumference (base),8388,358.02,21.89,4,346.17,371.2,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:axilla_height,AXILLA HEIGHT,4194,1236.16,55.07,2,1233.6,1239.0,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:axillary_arm_circumference,AXILLARY ARM CIRCUMFERENCE,2208,291.6,24.4,1,291.6,291.6,1987,1987,ansur-1988
+United States,Army,F,other:ball_of_foot_circumference,BALL OF FOOT CIRCUMFERENCE,4194,225.68,11.76,2,223.5,228.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:ball_of_foot_length,BALL OF FOOT LENGTH,4194,180.68,9.69,2,179.4,182.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:biacromial_breadth,BIACROMIAL BREADTH,2208,362.6,17.4,1,362.6,362.6,1987,1987,ansur-1988
+United States,Army,F,other:bimalleolar_breadth,BIMALLEOLAR BREADTH,4194,65.63,3.54,2,64.4,67.0,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:bispinous_breadth,BISPINOUS BREADTH,2208,219.9,20.5,1,219.9,219.9,1987,1987,ansur-1988
+United States,Army,F,other:bitragion_chin_arc,BITRAGION CHIN ARC,4194,306.74,14.27,2,302.9,311.0,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:bitragion_coronal_arc,BITRAGION CORONAL ARC,2208,336.4,12.9,1,336.4,336.4,1987,1987,ansur-1988
+United States,Army,F,other:bitragion_crinion_arc,BITRAGION CRINION ARC,2208,307.5,10.7,1,307.5,307.5,1987,1987,ansur-1988
+United States,Army,F,other:bitragion_frontal_arc,BITRAGION FRONTAL ARC,2208,287.9,9.9,1,287.9,287.9,1987,1987,ansur-1988
+United States,Army,F,other:bitragion_submandibular_arc,BITRAGION SUBMANDIBULAR ARC,4194,281.68,15.26,2,276.0,288.0,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:bitragion_subnasale_arc,BITRAGION SUBNASALE ARC,2208,276.2,11.7,1,276.2,276.2,1987,1987,ansur-1988
+United States,Army,F,other:buttock_depth,BUTTOCK DEPTH,4194,229.85,22.8,2,227.1,232.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:buttock_height,BUTTOCK HEIGHT,4194,836.12,45.49,2,833.7,838.3,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:calf_height,CALF HEIGHT,2208,316.1,24.0,1,316.1,316.1,1987,1987,ansur-1988
+United States,Army,F,other:cervicale_height_sitting,"CERVICALE HEIGHT, SITTING",2208,629.1,29.8,1,629.1,629.1,1987,1987,ansur-1988
+United States,Army,F,other:chest_circumference_below_breast,CHEST CIRCUMFERENCE BELOW BREAST,2208,769.7,51.0,1,769.7,769.7,1987,1987,ansur-1988
+United States,Army,F,other:chest_height,CHEST HEIGHT,4194,1173.07,55.25,2,1171.6,1174.4,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:crotch_length_natural_indentation,CROTCH LENGTH (NATURAL INDENTATION),2208,754.3,55.7,1,754.3,754.3,1987,1987,ansur-1988
+United States,Army,F,other:crotch_length_omphalion,CROTCH LENGTH (OMPHALION),4194,613.38,41.45,2,606.7,620.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:crotch_length_posterior_natural_indentation,"CROTCH LENGTH, POSTERIOR (NATURAL INDENTATION)",2208,386.4,31.0,1,386.4,386.4,1987,1987,ansur-1988
+United States,Army,F,other:crotch_length_posterior_omphalion,"CROTCH LENGTH, POSTERIOR (OMPHALION)",4194,323.11,32.24,2,306.2,341.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:ear_breadth,EAR BREADTH,4194,34.04,2.76,2,33.2,34.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:ear_length_above_tragion,EAR LENGTH ABOVE TRAGION,2208,28.7,2.3,1,28.7,28.7,1987,1987,ansur-1988
+United States,Army,F,other:ear_protrusion,EAR PROTRUSION,4194,21.14,2.95,2,20.4,21.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:elbow_circumference,ELBOW CIRCUMFERENCE,2208,238.3,13.4,1,238.3,238.3,1987,1987,ansur-1988
+United States,Army,F,other:forearm_center_of_grip_length,FOREARM-CENTER OF GRIP LENGTH,1986,317.7,18.0,1,317.7,317.7,2010,2010,ansur-ii-2012
+United States,Army,F,other:forearm_hand_length,FOREARM-HAND LENGTH,4194,441.48,23.45,2,439.9,442.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:functional_leg_length,FUNCTIONAL LEG LENGTH,4194,1027.3,53.94,2,1012.0,1044.3,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:gluteal_furrow_height,GLUTEAL FURROW HEIGHT,2208,744.3,43.0,1,744.3,744.3,1987,1987,ansur-1988
+United States,Army,F,other:head_circumference,HEAD CIRCUMFERENCE,2208,546.2,14.6,1,546.2,546.2,1987,1987,ansur-1988
+United States,Army,F,other:headboard_alare_back_of_head,ALARE-BACK OF HEAD,2208,191.3,7.7,1,191.3,191.3,1987,1987,ansur-1988
+United States,Army,F,other:headboard_alare_top_of_head,ALARE-TOP OF HEAD,2208,146.5,7.0,1,146.5,146.5,1987,1987,ansur-1988
+United States,Army,F,other:headboard_bigonial_breadth,BIGONIAL BREADTH,2208,108.3,7.1,1,108.3,108.3,1987,1987,ansur-1988
+United States,Army,F,other:headboard_biinfraorbitale_breadth,BIINFRAORBITALE BREADTH,2208,67.2,5.1,1,67.2,67.2,1987,1987,ansur-1988
+United States,Army,F,other:headboard_biocular_breadth_maximum,"BIOCULAR BREADTH, MAXIMUM",2208,119.6,5.5,1,119.6,119.6,1987,1987,ansur-1988
+United States,Army,F,other:headboard_bitragion_breadth,BITRAGION BREADTH,2208,136.4,5.2,1,136.4,136.4,1987,1987,ansur-1988
+United States,Army,F,other:headboard_bizygomatic_breadth,BIZYGOMATIC BREADTH,2208,135.7,5.6,1,135.7,135.7,1987,1987,ansur-1988
+United States,Army,F,other:headboard_cheilion_back_of_head,CHEILION-BACK OF HEAD,2208,179.7,9.3,1,179.7,179.7,1987,1987,ansur-1988
+United States,Army,F,other:headboard_cheilion_top_of_head,CHEILION-TOP OF HEAD,2208,177.2,7.3,1,177.2,177.2,1987,1987,ansur-1988
+United States,Army,F,other:headboard_chin_back_of_head,CHIN-BACK OF HEAD,2208,187.6,9.8,1,187.6,187.6,1987,1987,ansur-1988
+United States,Army,F,other:headboard_crinion_back_of_head,CRINION-BACK OF HEAD,2206,179.3,8.7,1,179.3,179.3,1987,1987,ansur-1988
+United States,Army,F,other:headboard_crinion_top_of_head,CRINION-TOP OF HEAD,2206,41.7,9.5,1,41.7,41.7,1987,1987,ansur-1988
+United States,Army,F,other:headboard_ectoorbitale_back_of_head,ECTOORBITALE-BACK OF HEAD,2208,153.5,6.1,1,153.5,153.5,1987,1987,ansur-1988
+United States,Army,F,other:headboard_ectoorbitale_top_of_head,ECTOORBITALE-TOP OF HEAD,2208,111.5,5.7,1,111.5,111.5,1987,1987,ansur-1988
+United States,Army,F,other:headboard_frontotemporale_back_of_head,FRONTOTEMPORALE-BACK OF HEAD,2208,166.1,6.2,1,166.1,166.1,1987,1987,ansur-1988
+United States,Army,F,other:headboard_frontotemporale_top_of_head,FRONTOTEMPORALE-TOP OF HEAD,2208,84.0,6.4,1,84.0,84.0,1987,1987,ansur-1988
+United States,Army,F,other:headboard_glabella_back_of_head,GLABELLA-BACK OF HEAD,2208,191.0,6.6,1,191.0,191.0,1987,1987,ansur-1988
+United States,Army,F,other:headboard_glabella_top_of_head,GLABELLA-TOP OF HEAD,2208,88.3,6.9,1,88.3,88.3,1987,1987,ansur-1988
+United States,Army,F,other:headboard_gonion_back_of_head,GONION-BACK OF HEAD,2208,106.4,7.0,1,106.4,106.4,1987,1987,ansur-1988
+United States,Army,F,other:headboard_gonion_top_of_head,GONION-TOP OF HEAD,2208,181.9,6.7,1,181.9,181.9,1987,1987,ansur-1988
+United States,Army,F,other:headboard_infraorb1tale_top_of_head,INFRAORB1TALE-TOP OF HEAD,2208,124.1,5.8,1,124.1,124.1,1987,1987,ansur-1988
+United States,Army,F,other:headboard_infraorbitale_back_of_head,INFRAORBITALE-BACK OF HEAD,2208,176.1,6.9,1,176.1,176.1,1987,1987,ansur-1988
+United States,Army,F,other:headboard_lip_length,LIP LENGTH,2208,55.0,4.2,1,55.0,55.0,1987,1987,ansur-1988
+United States,Army,F,other:headboard_maximum_frontal_breadth,MAXIMUM FRONTAL BREADTH,2208,111.3,5.4,1,111.3,111.3,1987,1987,ansur-1988
+United States,Army,F,other:headboard_menton_back_of_head,MENTON-BACK OF HEAD,2208,173.3,9.8,1,173.3,173.3,1987,1987,ansur-1988
+United States,Army,F,other:headboard_menton_crinion_length,MENTON-CRINION LENGTH,2206,176.5,9.6,1,176.5,176.5,1987,1987,ansur-1988
+United States,Army,F,other:headboard_menton_sellion_length,MENTON-SELLION LENGTH,2208,113.7,6.0,1,113.7,113.7,1987,1987,ansur-1988
+United States,Army,F,other:headboard_menton_subnasale_length,MENTON-SUBNASALE LENGTH,2208,68.8,5.4,1,68.8,68.8,1987,1987,ansur-1988
+United States,Army,F,other:headboard_menton_top_of_head,MENTON-TOP OF HEAD,2208,217.6,8.5,1,217.6,217.6,1987,1987,ansur-1988
+United States,Army,F,other:headboard_minimum_frontal_breadth,MINIMUM FRONTAL BREADTH,2208,103.3,4.8,1,103.3,103.3,1987,1987,ansur-1988
+United States,Army,F,other:headboard_nose_breadth,NOSE BREADTH,2208,34.5,4.7,1,34.5,34.5,1987,1987,ansur-1988
+United States,Army,F,other:headboard_nose_protrusion,NOSE PROTRUSION,2208,18.2,2.3,1,18.2,18.2,1987,1987,ansur-1988
+United States,Army,F,other:headboard_pronasale_back_of_head,PRONASALE-BACK OF HEAD,2208,209.7,7.5,1,209.7,209.7,1987,1987,ansur-1988
+United States,Army,F,other:headboard_sellion_back_of_head,SELLION-BACK OF HEAD,2208,189.0,6.6,1,189.0,189.0,1987,1987,ansur-1988
+United States,Army,F,other:headboard_sellion_top_of_head,SELLION-TOP OF HEAD,2206,105.3,6.6,1,105.3,105.3,1987,1987,ansur-1988
+United States,Army,F,other:headboard_stomion_back_of_head,STOMION-BACK OF HEAD,2208,193.1,9.9,1,193.1,193.1,1987,1987,ansur-1988
+United States,Army,F,other:headboard_stomion_top_of_head,STOMION-TOP OF HEAD,2208,175.1,7.7,1,175.1,175.1,1987,1987,ansur-1988
+United States,Army,F,other:headboard_subnasale_back_of_head,SUBNASALE-BACK OF HEAD,2208,195.7,8.0,1,195.7,195.7,1987,1987,ansur-1988
+United States,Army,F,other:headboard_subnasale_sellion_length,SUBNASALE-SELLION LENGTH,2208,48.2,3.6,1,48.2,48.2,1987,1987,ansur-1988
+United States,Army,F,other:headboard_subnasale_top_of_head,SUBNASALE-TOP OF HEAD,2208,152.8,7.4,1,152.8,152.8,1987,1987,ansur-1988
+United States,Army,F,other:headboard_tragion_back_of_head,TRAGION-BACK OF HEAD,2208,97.4,5.5,1,97.4,97.4,1987,1987,ansur-1988
+United States,Army,F,other:headboard_tragion_top_of_head,TRAGION-TOP OF HEAD,2208,123.5,5.5,1,123.5,123.5,1987,1987,ansur-1988
+United States,Army,F,other:headboard_zygion_back_of_head,ZYGION-BACK OF HEAD,2208,128.5,7.6,1,128.5,128.5,1987,1987,ansur-1988
+United States,Army,F,other:headboard_zygion_top_of_head,ZYGION-TOP OF HEAD,2208,126.3,5.3,1,126.3,126.3,1987,1987,ansur-1988
+United States,Army,F,other:headboard_zygofrontale_top_of_head,ZYGOFRONTALE-TOP OF HEAD,2208,98.3,6.1,1,98.3,98.3,1987,1987,ansur-1988
+United States,Army,F,other:heel_ankle_circumference,HEEL-ANKLE CIRCUMFERENCE,1986,310.3,15.3,1,310.3,310.3,2010,2010,ansur-ii-2012
+United States,Army,F,other:heel_ankle_circumference,HEEL ANKLE CIRCUMFERENCE,2208,304.8,14.9,1,304.8,304.8,1987,1987,ansur-1988
+United States,Army,F,other:heel_breadth,HEEL BREADTH,4194,64.99,5.42,2,63.0,67.2,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:hip_breadth,HIP BREADTH,4194,347.96,25.15,2,342.7,353.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:interscye_i,INTERSCYE I,1986,373.4,29.8,1,373.4,373.4,2010,2010,ansur-ii-2012
+United States,Army,F,other:interscye_ii,INTERSCYE II,4194,385.43,26.71,2,376.2,395.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:knee_circumference,KNEE CIRCUMFERENCE,2208,365.2,23.3,1,365.2,365.2,1987,1987,ansur-1988
+United States,Army,F,other:knee_height_midpatella,"KNEE HEIGHT, MIDPATELLA",4194,454.11,26.5,2,449.0,458.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:lateral_femoral_epicondyle_height,LATERAL FEMORAL EPICONDYLE HEIGHT,4194,463.37,25.97,2,461.1,465.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:lateral_malleolus_height,LATERAL MALLEOLUS HEIGHT,4194,61.59,5.31,2,60.6,62.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:lower_thigh_circumference,LOWER THIGH CIRCUMFERENCE,4194,388.49,33.49,2,377.5,400.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:midshoulder_height_sitting,"MIDSHOULDER HEIGHT, SITTING",2208,584.0,27.7,1,584.0,584.0,1987,1987,ansur-1988
+United States,Army,F,other:neck_bustpoint_thelion_length,NECK-BUSTPOINT/THELION LENGTH,2208,268.0,22.3,1,268.0,268.0,1987,1987,ansur-1988
+United States,Army,F,other:neck_height_lateral,"NECK HEIGHT, LATERAL",2208,1396.5,58.4,1,1396.5,1396.5,1987,1987,ansur-1988
+United States,Army,F,other:overhead_fingertip_reach,OVERHEAD FINGERTIP REACH,2208,2061.5,92.4,1,2061.5,2061.5,1987,1987,ansur-1988
+United States,Army,F,other:overhead_fingertip_reach_extended,"OVERHEAD FINGERTIP REACH, EXTENDED",2208,2153.4,95.0,1,2153.4,2153.4,1987,1987,ansur-1988
+United States,Army,F,other:overhead_fingertip_reach_sitting,"OVERHEAD FINGERTIP REACH, SITTING",4194,1318.54,59.65,2,1309.7,1326.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:palm_length,PALM LENGTH,1986,108.7,5.9,1,108.7,108.7,2010,2010,ansur-ii-2012
+United States,Army,F,other:scye_circumference,SCYE CIRCUMFERENCE,2208,371.3,23.0,1,371.3,371.3,1987,1987,ansur-1988
+United States,Army,F,other:scye_depth,SCYE DEPTh,2208,185.7,14.4,1,185.7,185.7,1987,1987,ansur-1988
+United States,Army,F,other:sleeve_length_spine_elbow,SLEEVE LENGTH: SPINE-ELBOW,2208,537.1,24.7,1,537.1,537.1,1987,1987,ansur-1988
+United States,Army,F,other:sleeve_length_spine_scye,SLEEVE LENGTH: SPINE-SCYE,2208,208.3,12.9,1,208.3,208.3,1987,1987,ansur-1988
+United States,Army,F,other:sleeve_length_spine_wrist,SLEEVE LENGTH: SPINE-WRIST,4194,806.7,37.06,2,806.7,806.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:strap_length,STRAP LENGTH,2208,678.6,46.2,1,678.6,678.6,1987,1987,ansur-1988
+United States,Army,F,other:tenth_rib_height,TENTH RIB HEIGHT,4194,1050.04,49.67,2,1044.4,1056.3,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:thumb_breadth,THUMB BREADTH,2208,20.7,1.3,1,20.7,20.7,1987,1987,ansur-1988
+United States,Army,F,other:tibial_height,TIBIAL HEIGHT,1986,437.8,25.0,1,437.8,437.8,2010,2010,ansur-ii-2012
+United States,Army,F,other:tragion_top_of_head,TRAGION - TOP OF HEAD,1986,126.5,6.5,1,126.5,126.5,2010,2010,ansur-ii-2012
+United States,Army,F,other:vertical_trunk_circumference_ascc,VERTICAL TRUNK CIRCUMFERENCE (ASCC),2208,1488.9,67.5,1,1488.9,1488.9,1987,1987,ansur-1988
+United States,Army,F,other:waist_back_length_natural_indentation,WAIST BACK LENGTH (NATURAL INDENTATION),2208,367.3,25.0,1,367.3,367.3,1987,1987,ansur-1988
+United States,Army,F,other:waist_back_length_omphalion,WAIST BACK LENGTH (OMPHALION),4194,434.4,26.86,2,425.4,442.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:waist_breadth,WAIST BREADTH,4194,294.53,31.03,2,289.7,299.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:waist_circumference_natural_indentation,WAIST CIRCUMFERENCE (NATURAL INDENTATION),2208,725.5,63.0,1,725.5,725.5,1987,1987,ansur-1988
+United States,Army,F,other:waist_depth,WAIST DEPTH,4194,208.21,28.53,2,203.9,213.0,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:waist_front_length_natural_indentation,WAIST FRONT LENGTH (NATURAL INDENTATION),2208,311.7,23.5,1,311.7,311.7,1987,1987,ansur-1988
+United States,Army,F,other:waist_front_length_omphalion,WAIST FRONT LENGTH (OMPHALION),2208,389.8,22.3,1,389.8,389.8,1987,1987,ansur-1988
+United States,Army,F,other:waist_front_length_sitting,"WAIST FRONT LENGTH, SITTING",1986,355.1,23.9,1,355.1,355.1,2010,2010,ansur-ii-2012
+United States,Army,F,other:waist_height_natural_indentation,WAIST HEIGHT (NATURAL INDENTATION),2208,1056.5,51.7,1,1056.5,1056.5,1987,1987,ansur-1988
+United States,Army,F,other:waist_height_omphalion,WAIST HEIGHT (OMPHALION),4194,981.15,49.38,2,980.1,982.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:waist_height_sitting_natural_indentation,"WAIST HEIGHT, SITTING (NATURAL INDENTATION)",2208,279.5,21.4,1,279.5,279.5,1987,1987,ansur-1988
+United States,Army,F,other:waist_height_sitting_omphalion,"WAIST HEIGHT, SITTING (OMPHALION)",2208,227.6,15.1,1,227.6,227.6,1987,1987,ansur-1988
+United States,Army,F,other:waist_hip_length,WAIST-HIP LENGTH,2208,148.4,21.3,1,148.4,148.4,1987,1987,ansur-1988
+United States,Army,F,other:wrist_center_of_grip_length,WRIST-CENTER OF GRIP LENGTH,2208,66.3,4.9,1,66.3,66.3,1987,1987,ansur-1988
+United States,Army,F,other:wrist_height,WRIST HEIGHT,4194,792.15,38.46,2,790.3,794.2,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,other:wrist_height_sitting,"WRIST HEIGHT, SITTING",2208,471.3,34.4,1,471.3,471.3,1987,1987,ansur-1988
+United States,Army,F,other:wrist_index_finger_length,WRIST-INDEX FINGER LENGTH,2208,169.2,8.9,1,169.2,169.2,1987,1987,ansur-1988
+United States,Army,F,other:wrist_tiumebtip_length,WRIST-TIUMEBTIP LENGTH,2208,117.6,6.7,1,117.6,117.6,1987,1987,ansur-1988
+United States,Army,F,other:wrist_wall_length,WRIST-WALL LENGTH,2208,619.8,32.1,1,619.8,619.8,1987,1987,ansur-1988
+United States,Army,F,other:wrist_wall_length_extended,"WRIST-WALL LENGTH, EXTENDED",2208,679.3,34.3,1,679.3,679.3,1987,1987,ansur-1988
+United States,Army,F,popliteal_height,Popliteal height,8388,388.83,23.66,4,388.2,389.4,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,radiale_stylion_length,Radiale-stylion length,8388,242.42,15.39,4,241.3,243.44,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,shoulder_circumference,Shoulder circumference,8388,1027.51,52.52,4,1026.88,1028.2,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,shoulder_elbow_length,Shoulder-elbow length,8388,335.08,17.35,4,334.3,335.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,shoulder_length,Shoulder length,8388,140.29,11.53,4,135.4,144.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,sitting_height,Sitting height,6180,854.95,33.81,3,851.96,856.63,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,sleeve_outseam,Sleeve outseam,8388,545.48,29.9,4,543.55,547.2,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,span,Span,8388,1666.4,82.29,4,1660.29,1671.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,stature,Stature,8388,1628.96,63.87,4,1628.47,1629.4,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,suprasternale_height,Suprasternale height,8388,1330.02,56.56,4,1329.69,1330.31,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,thigh_circumference,Thigh circumference,8388,597.26,53.49,4,580.27,616.15,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,thigh_clearance,Thigh clearance,8388,163.16,13.81,4,158.9,167.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,thumbtip_reach,Thumb-tip reach,8388,739.06,39.83,4,734.6,744.01,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,trochanterion_height,Trochanterion height,8388,853.91,45.69,4,845.35,861.6,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,vertical_trunk_circumference,Vertical trunk circumference,8388,1544.03,73.94,4,1530.19,1559.41,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,waist_circumference,Waist circumference (omphalion),8388,824.57,97.54,4,791.88,860.91,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,F,wrist_circumference,Wrist circumference,8388,152.91,7.56,4,151.2,154.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,abdominal_depth_sitting,Abdominal extension depth (sitting),11712,249.95,35.55,4,239.08,254.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,acromion_height,Acromion height,11712,1441.26,62.91,4,1440.7,1442.51,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,acromion_height_sitting,Acromion height (sitting),3548,597.78,29.59,2,597.76,597.8,1987,1987,ansur-1988
+United States,Army,M,acromion_radiale_length,Acromion-radiale length,11712,336.91,17.58,4,335.2,340.81,1987,2010,ansur-1988; ansur-ii-2012
 United States,Army,M,age,Age,4082,30.16,8.81,1,30.16,30.16,2010,2010,ansur-ii-2012
-United States,Army,M,ankle_circumference,Ankle circumference,5856,227.03,14.61,2,221.7,229.34,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,biacromial_breadth,Biacromial breadth,5856,410.01,20.68,2,396.97,415.68,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,biceps_circumference_flexed,Biceps circumference (flexed),5856,351.88,33.88,2,337.47,358.14,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,bicristal_breadth,Bicristal (biiliocristale) breadth,4082,275.43,17.51,1,275.43,275.43,2010,2010,ansur-ii-2012
-United States,Army,M,bideltoid_breadth,Bideltoid breadth,5856,504.77,31.84,2,491.76,510.42,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,bizygomatic_breadth,Bizygomatic breadth,5856,141.97,6.12,2,140.47,142.62,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,ankle_circumference,Ankle circumference,11712,227.01,14.58,4,221.7,229.34,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,biacromial_breadth,Biacromial breadth,9938,412.35,20.28,3,396.97,415.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,biceps_circumference_flexed,Biceps circumference (flexed),11712,351.87,33.87,4,337.47,358.14,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,bicristal_breadth,Bicristal (biiliocristale) breadth,8164,275.41,17.5,2,275.4,275.43,2010,2010,ansur-ii-2012
+United States,Army,M,bideltoid_breadth,Bideltoid breadth,11712,504.77,31.83,4,491.76,510.42,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,bizygomatic_breadth,Bizygomatic breadth,11712,141.97,6.11,4,140.47,142.62,1987,2010,ansur-1988; ansur-ii-2012
 United States,Army,M,bmi,Body mass index,5856,27.0,3.9,2,25.42,27.69,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,buttock_circumference,Buttock circumference,5856,1008.66,74.43,2,983.67,1019.52,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,buttock_knee_length,Buttock-knee length,5856,617.48,30.38,2,616.41,617.95,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,buttock_popliteal_length,Buttock-popliteal length,5856,502.15,27.2,2,500.39,502.92,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,calf_circumference,Calf circumference,5856,387.96,29.22,2,378.06,392.26,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,cervicale_height,Cervicale height,5856,1517.93,63.12,2,1517.3,1519.39,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,chest_breadth,Chest breadth,5856,299.15,25.45,2,289.44,321.49,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,chest_circumference,Chest circumference,5856,1038.31,87.93,2,991.37,1058.71,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,chest_depth,Chest depth,5856,250.63,25.37,2,243.22,253.85,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,crotch_height,Crotch height,5856,843.28,46.59,2,837.19,845.93,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,ear_length,Ear length,5856,64.35,4.45,2,64.21,64.67,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,elbow_rest_height,Elbow rest height,5856,240.66,28.99,2,230.57,245.04,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,eye_height_sitting,Eye height (sitting),5856,800.71,33.97,2,791.97,804.51,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,foot_breadth,Foot breadth,5856,101.48,5.27,2,100.62,101.86,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,foot_length,Foot length,5856,270.73,13.12,2,269.68,271.18,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,forearm_circumference_flexed,Forearm circumference (flexed),5856,308.06,21.28,2,303.46,310.06,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,forearm_forearm_breadth,Forearm-forearm breadth,5856,569.67,51.25,2,546.06,579.93,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,hand_breadth,Hand breadth (metacarpale),5856,88.92,4.45,2,88.26,90.43,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,hand_circumference,Hand circumference (metacarpale),5856,212.74,10.1,2,212.28,213.79,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,hand_length,Hand length,5856,193.43,9.9,2,193.28,193.78,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,head_breadth,Head breadth,5856,153.53,5.62,2,151.68,154.33,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,head_circumference,Head circumference,5856,572.34,16.14,2,567.66,574.37,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,head_length,Head length,5856,198.78,7.12,2,197.11,199.5,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,hip_breadth_sitting,Hip breadth (sitting),5856,375.5,29.35,2,366.76,379.3,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,iliocristale_height,Iliocristale height,5856,1065.18,52.1,2,1061.63,1073.36,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,interpupillary_breadth,Interpupillary breadth,5853,64.22,3.52,2,64.02,64.67,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,knee_height_sitting,Knee height (sitting),5856,555.56,28.02,2,554.16,558.79,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,mass,Body mass,5856,83.39,13.74,2,78.49,85.52,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,menton_sellion_length,Menton-sellion (face) length,5856,122.42,6.62,2,121.91,122.64,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,neck_circumference,Neck circumference,5856,392.17,25.49,2,379.57,397.65,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,neck_circumference_base,Neck circumference (base),5856,426.65,27.05,2,408.37,434.6,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,popliteal_height,Popliteal height,5856,431.09,24.92,2,429.8,434.07,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,radiale_stylion_length,Radiale-stylion length,5856,268.48,15.52,2,267.88,269.85,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,shoulder_circumference,Shoulder circumference,5856,1177.56,62.65,2,1175.18,1178.59,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,shoulder_elbow_length,Shoulder-elbow length,5856,365.32,18.28,2,363.71,369.04,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,shoulder_length,Shoulder length,5856,150.0,10.67,2,149.78,150.49,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,sitting_height,Sitting height,5856,916.97,35.72,2,913.93,918.29,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,sleeve_outseam,Sleeve outseam,5856,595.66,31.02,2,593.12,601.52,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,span,Span,5856,1816.85,83.93,2,1814.15,1823.06,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,stature,Stature,5856,1756.09,68.02,2,1755.81,1756.21,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,suprasternale_height,Suprasternale height,5856,1438.53,60.66,2,1438.38,1438.59,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,thigh_circumference,Thigh circumference,5856,616.47,57.36,2,596.51,625.14,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,thigh_clearance,Thigh clearance,5856,176.75,15.78,2,168.2,180.46,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,thumbtip_reach,Thumb-tip reach,5856,808.57,42.67,2,800.85,811.93,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,trochanterion_height,Trochanterion height,5856,909.21,50.32,2,900.93,928.27,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,vertical_trunk_circumference,Vertical trunk circumference,5856,1654.8,87.54,2,1631.8,1664.8,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,waist_circumference,Waist circumference (omphalion),5856,916.9,110.67,2,862.42,940.58,1987,2010,ansur-1988; ansur-ii-2012
-United States,Army,M,wrist_circumference,Wrist circumference,5856,175.4,8.8,2,174.21,175.92,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,buttock_circumference,Buttock circumference,11712,1008.66,74.44,4,983.67,1019.52,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,buttock_knee_length,Buttock-knee length,11712,617.5,30.39,4,616.4,618.0,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,buttock_popliteal_length,Buttock-popliteal length,11712,502.15,27.19,4,500.39,502.92,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,calf_circumference,Calf circumference,11712,387.98,29.21,4,378.06,392.3,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,cervicale_height,Cervicale height,11712,1517.93,63.12,4,1517.3,1519.4,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,chest_breadth,Chest breadth,11712,299.14,25.45,4,289.4,321.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,chest_circumference,Chest circumference,11712,1038.31,87.9,4,991.37,1058.71,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,chest_depth,Chest depth,11712,250.61,25.36,4,243.2,253.85,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,crotch_height,Crotch height,11712,843.27,46.58,4,837.19,845.93,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,ear_length,Ear length,11712,64.35,4.45,4,64.2,64.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,elbow_rest_height,Elbow rest height,11712,240.65,29.0,4,230.57,245.04,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,eye_height_sitting,Eye height (sitting),11712,800.71,33.98,4,791.97,804.51,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,foot_breadth,Foot breadth,11712,101.5,5.27,4,100.6,101.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,foot_length,Foot length,11712,270.74,13.12,4,269.68,271.2,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,forearm_circumference_flexed,Forearm circumference (flexed),11712,308.08,21.29,4,303.46,310.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,forearm_forearm_breadth,Forearm-forearm breadth,11712,569.67,51.23,4,546.06,579.93,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,hand_breadth,Hand breadth (metacarpale),11712,88.93,4.45,4,88.26,90.43,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,hand_circumference,Hand circumference (metacarpale),11712,212.75,10.08,4,212.28,213.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,hand_length,Hand length,11712,193.44,9.89,4,193.28,193.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,head_breadth,Head breadth,11712,153.52,5.61,4,151.68,154.33,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,head_circumference,Head circumference,9938,573.18,16.11,3,567.66,574.4,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,head_length,Head length,11712,198.77,7.12,4,197.1,199.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,hip_breadth_sitting,Hip breadth (sitting),11712,375.51,29.34,4,366.76,379.3,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,iliocristale_height,Iliocristale height,11712,1065.18,52.1,4,1061.6,1073.4,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,interpupillary_breadth,Interpupillary breadth,11706,64.21,3.52,4,64.0,64.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,knee_height_sitting,Knee height (sitting),11712,555.58,28.0,4,554.16,558.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,mass,Body mass,11712,83.39,13.74,4,78.49,85.52,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,menton_sellion_length,Menton-sellion (face) length,11712,122.4,6.64,4,121.9,122.64,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,neck_circumference,Neck circumference,11712,392.16,25.49,4,379.57,397.65,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,neck_circumference_base,Neck circumference (base),11712,426.66,27.06,4,408.37,434.6,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:axilla_height,AXILLA HEIGHT,5856,1326.62,59.16,2,1320.9,1329.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:axillary_arm_circumference,AXILLARY ARM CIRCUMFERENCE,1774,335.0,27.1,1,335.0,335.0,1987,1987,ansur-1988
+United States,Army,M,other:ball_of_foot_circumference,BALL OF FOOT CIRCUMFERENCE,5856,250.94,12.82,2,248.5,252.0,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:ball_of_foot_length,BALL OF FOOT LENGTH,5856,199.42,10.74,2,196.0,200.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:bimalleolar_breadth,BIMALLEOLAR BREADTH,5856,74.19,4.14,2,72.8,74.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:bispinous_breadth,BISPINOUS BREADTH,1774,231.3,19.8,1,231.3,231.3,1987,1987,ansur-1988
+United States,Army,M,other:bitragion_chin_arc,BITRAGION CHIN ARC,5856,329.91,14.08,2,325.8,331.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:bitragion_coronal_arc,BITRAGION CORONAL ARC,1774,353.3,12.9,1,353.3,353.3,1987,1987,ansur-1988
+United States,Army,M,other:bitragion_crinion_arc,BITRAGION CRINION ARC,1749,326.4,11.6,1,326.4,326.4,1987,1987,ansur-1988
+United States,Army,M,other:bitragion_frontal_arc,BITRAGION FRONTAL ARC,1774,304.3,10.6,1,304.3,304.3,1987,1987,ansur-1988
+United States,Army,M,other:bitragion_submandibular_arc,BITRAGION SUBMANDIBULAR ARC,5856,312.22,16.84,2,304.2,315.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:bitragion_subnasale_arc,BITRAGION SUBNASALE ARC,1774,292.0,11.1,1,292.0,292.0,1987,1987,ansur-1988
+United States,Army,M,other:bustpoint_thelion_bustpoint_thelion_breadth,BUSTPOINT/THELION-BUSTPOINT/THELION BREADTH,1774,215.9,18.9,1,215.9,215.9,1987,1987,ansur-1988
+United States,Army,M,other:buttock_depth,BUTTOCK DEPTH,5856,246.65,24.92,2,245.8,248.6,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:buttock_height,BUTTOCK HEIGHT,5856,887.75,49.07,2,887.4,887.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:calf_height,CALF HEIGHT,1774,353.4,23.7,1,353.4,353.4,1987,1987,ansur-1988
+United States,Army,M,other:cervicale_height_sitting,"CERVICALE HEIGHT, SITTING",1774,676.3,30.5,1,676.3,676.3,1987,1987,ansur-1988
+United States,Army,M,other:chest_circumference_at_scye,CHEST CIRCUMFERENCE AT SCYE,1774,1023.2,65.3,1,1023.2,1023.2,1987,1987,ansur-1988
+United States,Army,M,other:chest_circumference_below_breast,CHEST CIRCUMFERENCE BELOW BREAST,1774,926.1,65.4,1,926.1,926.1,1987,1987,ansur-1988
+United States,Army,M,other:chest_height,CHEST HEIGHT,5856,1286.5,57.15,2,1275.9,1291.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:crotch_length_natural_indentation,CROTCH LENGTH (NATURAL INDENTATION),1774,766.7,55.5,1,766.7,766.7,1987,1987,ansur-1988
+United States,Army,M,other:crotch_length_omphalion,CROTCH LENGTH (OMPHALION),5856,627.69,46.39,2,622.3,640.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:crotch_length_posterior_natural_indentation,"CROTCH LENGTH, POSTERIOR (NATURAL INDENTATION)",1774,388.0,28.5,1,388.0,388.0,1987,1987,ansur-1988
+United States,Army,M,other:crotch_length_posterior_omphalion,"CROTCH LENGTH, POSTERIOR (OMPHALION)",5856,343.81,33.58,2,316.0,355.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:ear_breadth,EAR BREADTH,5856,36.58,3.0,2,36.1,37.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:ear_length_above_tragion,EAR LENGTH ABOVE TRAGION,1774,31.9,2.5,1,31.9,31.9,1987,1987,ansur-1988
+United States,Army,M,other:ear_protrusion,EAR PROTRUSION,5856,23.5,3.23,2,23.2,24.2,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:elbow_circumference,ELBOW CIRCUMFERENCE,1774,277.1,15.3,1,277.1,277.1,1987,1987,ansur-1988
+United States,Army,M,other:forearm_center_of_grip_length,FOREARM-CENTER OF GRIP LENGTH,4082,349.0,18.0,1,349.0,349.0,2010,2010,ansur-ii-2012
+United States,Army,M,other:forearm_hand_length,FOREARM-HAND LENGTH,5856,481.35,23.36,2,480.2,484.0,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:functional_leg_length,FUNCTIONAL LEG LENGTH,5856,1115.63,58.91,2,1082.1,1130.2,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:gluteal_furrow_height,GLUTEAL FURROW HEIGHT,1774,814.4,45.6,1,814.4,814.4,1987,1987,ansur-1988
+United States,Army,M,other:headboard_alare_back_of_head,ALARE-BACK OF HEAD,1774,199.8,7.9,1,199.8,199.8,1987,1987,ansur-1988
+United States,Army,M,other:headboard_alare_top_of_head,ALARE-TOP OF HEAD,1774,155.4,7.4,1,155.4,155.4,1987,1987,ansur-1988
+United States,Army,M,other:headboard_bigonial_breadth,BIGONIAL BREADTH,1774,118.9,7.9,1,118.9,118.9,1987,1987,ansur-1988
+United States,Army,M,other:headboard_biinfraorbitale_breadth,BIINFRAORBITALE BREADTH,1774,68.5,5.1,1,68.5,68.5,1987,1987,ansur-1988
+United States,Army,M,other:headboard_biocular_breadth_maximum,"BIOCULAR BREADTH, MAXIMUM",1774,121.8,5.4,1,121.8,121.8,1987,1987,ansur-1988
+United States,Army,M,other:headboard_bitragion_breadth,BITRAGION BREADTH,1774,144.8,6.0,1,144.8,144.8,1987,1987,ansur-1988
+United States,Army,M,other:headboard_bizygomatic_breadth,BIZYGOMATIC BREADTH,1774,143.3,6.4,1,143.3,143.3,1987,1987,ansur-1988
+United States,Army,M,other:headboard_cheilion_back_of_head,CHEILION-BACK OF HEAD,1774,185.4,9.1,1,185.4,185.4,1987,1987,ansur-1988
+United States,Army,M,other:headboard_cheilion_top_of_head,CHEILION-TOP OF HEAD,1774,187.9,7.5,1,187.9,187.9,1987,1987,ansur-1988
+United States,Army,M,other:headboard_chin_back_of_head,CHIN-BACK OF HEAD,1774,194.2,10.3,1,194.2,194.2,1987,1987,ansur-1988
+United States,Army,M,other:headboard_crinion_back_of_head,CRINION-BACK OF HEAD,1747,183.4,10.0,1,183.4,183.4,1987,1987,ansur-1988
+United States,Army,M,other:headboard_crinion_top_of_head,CRINION-TOP OF HEAD,1747,41.7,10.4,1,41.7,41.7,1987,1987,ansur-1988
+United States,Army,M,other:headboard_ectoorbitale_back_of_head,ECTOORBITALE-BACK OF HEAD,1774,160.1,6.3,1,160.1,160.1,1987,1987,ansur-1988
+United States,Army,M,other:headboard_ectoorbitale_top_of_head,ECTOORBITALE-TOP OF HEAD,1774,118.2,5.7,1,118.2,118.2,1987,1987,ansur-1988
+United States,Army,M,other:headboard_frontotemporale_back_of_head,FRONTOTEMPORALE-BACK OF HEAD,1774,174.5,6.4,1,174.5,174.5,1987,1987,ansur-1988
+United States,Army,M,other:headboard_frontotemporale_top_of_head,FRONTOTEMPORALE-TOP OF HEAD,1774,90.4,6.9,1,90.4,90.4,1987,1987,ansur-1988
+United States,Army,M,other:headboard_glabella_back_of_head,GLABELLA-BACK OF HEAD,1774,199.7,7.2,1,199.7,199.7,1987,1987,ansur-1988
+United States,Army,M,other:headboard_glabella_top_of_head,GLABELLA-TOP OF HEAD,1774,96.2,7.3,1,96.2,96.2,1987,1987,ansur-1988
+United States,Army,M,other:headboard_gonion_back_of_head,GONION-BACK OF HEAD,1774,117.6,7.7,1,117.6,117.6,1987,1987,ansur-1988
+United States,Army,M,other:headboard_gonion_top_of_head,GONION-TOP OF HEAD,1774,197.9,7.7,1,197.9,197.9,1987,1987,ansur-1988
+United States,Army,M,other:headboard_infraorb1tale_top_of_head,INFRAORB1TALE-TOP OF HEAD,1774,130.8,5.8,1,130.8,130.8,1987,1987,ansur-1988
+United States,Army,M,other:headboard_infraorbitale_back_of_head,INFRAORBITALE-BACK OF HEAD,1774,180.8,7.0,1,180.8,180.8,1987,1987,ansur-1988
+United States,Army,M,other:headboard_lip_length,LIP LENGTH,1774,56.1,4.3,1,56.1,56.1,1987,1987,ansur-1988
+United States,Army,M,other:headboard_maximum_frontal_breadth,MAXIMUM FRONTAL BREADTH,1774,113.3,5.2,1,113.3,113.3,1987,1987,ansur-1988
+United States,Army,M,other:headboard_menton_back_of_head,MENTON-BACK OF HEAD,1774,182.4,10.5,1,182.4,182.4,1987,1987,ansur-1988
+United States,Army,M,other:headboard_menton_crinion_length,MENTON-CRINION LENGTH,1747,190.8,10.5,1,190.8,190.8,1987,1987,ansur-1988
+United States,Army,M,other:headboard_menton_sellion_length,MENTON-SELLION LENGTH,1774,121.1,6.4,1,121.1,121.1,1987,1987,ansur-1988
+United States,Army,M,other:headboard_menton_subnasale_length,MENTON-SUBNASALE LENGTH,1774,73.5,5.6,1,73.5,73.5,1987,1987,ansur-1988
+United States,Army,M,other:headboard_menton_top_of_head,MENTON-TOP OF HEAD,1774,232.0,8.8,1,232.0,232.0,1987,1987,ansur-1988
+United States,Army,M,other:headboard_minimum_frontal_breadth,MINIMUM FRONTAL BREADTH,1774,105.1,5.2,1,105.1,105.1,1987,1987,ansur-1988
+United States,Army,M,other:headboard_nose_breadth,NOSE BREADTH,1774,36.5,4.6,1,36.5,36.5,1987,1987,ansur-1988
+United States,Army,M,other:headboard_pronasale_back_of_head,PRONASALE-BACK OF HEAD,1774,219.2,8.0,1,219.2,219.2,1987,1987,ansur-1988
+United States,Army,M,other:headboard_pronasale_top_of_head,PRONASALE-TOP OF HEAD,1774,151.9,8.4,1,151.9,151.9,1987,1987,ansur-1988
+United States,Army,M,other:headboard_sellion_back_of_head,SELLION-BACK OF HEAD,1774,197.0,7.1,1,197.0,197.0,1987,1987,ansur-1988
+United States,Army,M,other:headboard_sellion_top_of_head,SELLION-TOP OF HEAD,1774,112.0,6.9,1,112.0,112.0,1987,1987,ansur-1988
+United States,Army,M,other:headboard_stomion_back_of_head,STOMION-BACK OF HEAD,1774,199.4,9.6,1,199.4,199.4,1987,1987,ansur-1988
+United States,Army,M,other:headboard_stomion_top_of_head,STOMION-TOP OF HEAD,1774,186.3,7.8,1,186.3,186.3,1987,1987,ansur-1988
+United States,Army,M,other:headboard_subnasale_back_of_head,SUBNASALE-BACK OF HEAD,1774,203.5,8.3,1,203.5,203.5,1987,1987,ansur-1988
+United States,Army,M,other:headboard_subnasale_sellion_length,SUBNASALE-SELLION LENGTH,1774,50.5,3.7,1,50.5,50.5,1987,1987,ansur-1988
+United States,Army,M,other:headboard_subnasale_top_of_head,SUBNASALE-TOP OF HEAD,1774,161.9,7.7,1,161.9,161.9,1987,1987,ansur-1988
+United States,Army,M,other:headboard_tragion_back_of_head,TRAGION-BACK OF HEAD,1774,98.9,5.8,1,98.9,98.9,1987,1987,ansur-1988
+United States,Army,M,other:headboard_zygion_back_of_head,ZYGION-BACK OF HEAD,1774,132.6,6.3,1,132.6,132.6,1987,1987,ansur-1988
+United States,Army,M,other:headboard_zygion_top_of_head,ZYGION-TOP OF HEAD,1774,131.2,5.7,1,131.2,131.2,1987,1987,ansur-1988
+United States,Army,M,other:headboard_zygofrontale_back_of_head,ZYGOFRONTALE-BACK OF HEAD,1774,171.2,6.4,1,171.2,171.2,1987,1987,ansur-1988
+United States,Army,M,other:headboard_zygofrontale_top_of_head,ZYGOFRONTALE-TOP OF HEAD,1774,106.3,6.2,1,106.3,106.3,1987,1987,ansur-1988
+United States,Army,M,other:heel_ankle_circumference,HEEL-ANKLE CIRCUMFERENCE,4082,343.5,16.6,1,343.5,343.5,2010,2010,ansur-ii-2012
+United States,Army,M,other:heel_breadth,HEEL BREADTH,5856,71.77,5.55,2,70.1,72.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:hip_breadth,HIP BREADTH,5856,344.52,23.16,2,341.8,345.7,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:interscye_i,INTERSCYE I,5856,421.99,36.67,2,401.5,430.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:interscye_ii,INTERSCYE II,5856,437.05,35.69,2,406.8,450.2,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:knee_circumference,KNEE CIRCUMFERENCE,1774,386.4,22.1,1,386.4,386.4,1987,1987,ansur-1988
+United States,Army,M,other:knee_height_midpatella,"KNEE HEIGHT, MIDPATELLA",5856,493.37,28.95,2,488.4,504.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:lateral_femoral_epicondyle_height,LATERAL FEMORAL EPICONDYLE HEIGHT,5856,494.67,26.89,2,491.7,501.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:lateral_malleolus_height,LATERAL MALLEOLUS HEIGHT,5856,71.14,6.24,2,67.1,72.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:lower_thigh_circumference,LOWER THIGH CIRCUMFERENCE,5856,404.0,31.57,2,391.8,409.3,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:midshoulder_height_sitting,"MIDSHOULDER HEIGHT, SITTING",1774,630.3,28.2,1,630.3,630.3,1987,1987,ansur-1988
+United States,Army,M,other:neck_bustpoint_thelion_length,NECK-BUSTPOINT/THELION LENGTH,1774,272.4,18.1,1,272.4,272.4,1987,1987,ansur-1988
+United States,Army,M,other:neck_height_lateral,"NECK HEIGHT, LATERAL",1774,1509.5,61.6,1,1509.5,1509.5,1987,1987,ansur-1988
+United States,Army,M,other:overhead_fingertip_reach,OVERHEAD FINGERTIP REACH,1774,2231.4,97.5,1,2231.4,2231.4,1987,1987,ansur-1988
+United States,Army,M,other:overhead_fingertip_reach_extended,"OVERHEAD FINGERTIP REACH, EXTENDED",1774,2328.0,99.9,1,2328.0,2328.0,1987,1987,ansur-1988
+United States,Army,M,other:overhead_fingertip_reach_sitting,"OVERHEAD FINGERTIP REACH, SITTING",5856,1428.85,65.26,2,1426.7,1433.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:palm_length,PALM LENGTH,4082,116.5,6.2,1,116.5,116.5,2010,2010,ansur-ii-2012
+United States,Army,M,other:scye_circumference,SCYE CIRCUMFERENCE,1774,445.5,27.1,1,445.5,445.5,1987,1987,ansur-1988
+United States,Army,M,other:scye_depth,SCYE DEPTh,1774,212.7,15.5,1,212.7,212.7,1987,1987,ansur-1988
+United States,Army,M,other:sleeve_length_spine_elbow,SLEEVE LENGTH: SPINE-ELBOW,1774,591.2,27.0,1,591.2,591.2,1987,1987,ansur-1988
+United States,Army,M,other:sleeve_length_spine_scye,SLEEVE LENGTH: SPINE-SCYE,1774,225.9,14.8,1,225.9,225.9,1987,1987,ansur-1988
+United States,Army,M,other:sleeve_length_spine_wrist,SLEEVE LENGTH: SPINE-WRIST,5856,892.83,39.77,2,886.0,895.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:strap_length,STRAP LENGTH,1774,710.7,40.1,1,710.7,710.7,1987,1987,ansur-1988
+United States,Army,M,other:tenth_rib_height,TENTH RIB HEIGHT,5856,1120.85,52.91,2,1120.7,1121.2,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:thumb_breadth,THUMB BREADTH,1774,24.1,1.4,1,24.1,24.1,1987,1987,ansur-1988
+United States,Army,M,other:tibial_height,TIBIAL HEIGHT,4082,468.2,26.6,1,468.2,468.2,2010,2010,ansur-ii-2012
+United States,Army,M,other:tragion_top_of_head,TRAGION - TOP OF HEAD,4082,131.1,6.2,1,131.1,131.1,2010,2010,ansur-ii-2012
+United States,Army,M,other:vertical_trunk_circumference_ascc,VERTICAL TRUNK CIRCUMFERENCE (ASCC),1774,1589.1,77.4,1,1589.1,1589.1,1987,1987,ansur-1988
+United States,Army,M,other:waist_back_length_natural_indentation,WAIST BACK LENGTH (NATURAL INDENTATION),1774,412.0,23.2,1,412.0,412.0,1987,1987,ansur-1988
+United States,Army,M,other:waist_back_length_omphalion,WAIST BACK LENGTH (OMPHALION),5856,477.87,27.43,2,477.6,478.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:waist_breadth,WAIST BREADTH,5856,321.22,33.92,2,309.3,326.4,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:waist_circumference_natural_indentation,WAIST CIRCUMFERENCE (NATURAL INDENTATION),1774,839.9,74.0,1,839.9,839.9,1987,1987,ansur-1988
+United States,Army,M,other:waist_depth,WAIST DEPTH,5856,234.29,32.65,2,226.2,237.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:waist_front_length_natural_indentation,WAIST FRONT LENGTH (NATURAL INDENTATION),1774,345.7,21.8,1,345.7,345.7,1987,1987,ansur-1988
+United States,Army,M,other:waist_front_length_omphalion,WAIST FRONT LENGTH (OMPHALION),1774,414.5,24.5,1,414.5,414.5,1987,1987,ansur-1988
+United States,Army,M,other:waist_front_length_sitting,"WAIST FRONT LENGTH, SITTING",4082,387.6,29.3,1,387.6,387.6,2010,2010,ansur-ii-2012
+United States,Army,M,other:waist_height_natural_indentation,WAIST HEIGHT (NATURAL INDENTATION),1774,1127.1,52.0,1,1127.1,1127.1,1987,1987,ansur-1988
+United States,Army,M,other:waist_height_omphalion,WAIST HEIGHT (OMPHALION),5856,1057.2,51.82,2,1056.5,1058.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:waist_height_sitting_natural_indentation,"WAIST HEIGHT, SITTING (NATURAL INDENTATION)",1774,287.3,16.6,1,287.3,287.3,1987,1987,ansur-1988
+United States,Army,M,other:waist_height_sitting_omphalion,"WAIST HEIGHT, SITTING (OMPHALION)",1774,234.6,15.2,1,234.6,234.6,1987,1987,ansur-1988
+United States,Army,M,other:waist_hip_length,WAIST-HIP LENGTH,1774,176.8,20.4,1,176.8,176.8,1987,1987,ansur-1988
+United States,Army,M,other:waist_natural_indentation_waist_omphalion_length,WAIST (NATURAL INDENTATION)-WAIST (OMPHALION) LENGTH,1774,69.8,18.4,1,69.8,69.8,1987,1987,ansur-1988
+United States,Army,M,other:wrist_center_of_grip_length,WRIST-CENTER OF GRIP LENGTH,1774,69.7,4.9,1,69.7,69.7,1987,1987,ansur-1988
+United States,Army,M,other:wrist_height,WRIST HEIGHT,5856,847.2,41.64,2,846.5,847.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,other:wrist_height_sitting,"WRIST HEIGHT, SITTING",1774,459.8,35.2,1,459.8,459.8,1987,1987,ansur-1988
+United States,Army,M,other:wrist_index_finger_length,WRIST-INDEX FINGER LENGTH,1774,180.8,9.1,1,180.8,180.8,1987,1987,ansur-1988
+United States,Army,M,other:wrist_tiumebtip_length,WRIST-TIUMEBTIP LENGTH,1774,124.4,6.7,1,124.4,124.4,1987,1987,ansur-1988
+United States,Army,M,other:wrist_wall_length,WRIST-WALL LENGTH,1774,680.9,34.8,1,680.9,680.9,1987,1987,ansur-1988
+United States,Army,M,other:wrist_wall_length_extended,"WRIST-WALL LENGTH, EXTENDED",1774,748.4,37.3,1,748.4,748.4,1987,1987,ansur-1988
+United States,Army,M,popliteal_height,Popliteal height,11712,431.1,24.91,4,429.8,434.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,radiale_stylion_length,Radiale-stylion length,11712,268.49,15.52,4,267.88,269.9,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,shoulder_circumference,Shoulder circumference,11712,1177.56,62.65,4,1175.18,1178.6,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,shoulder_elbow_length,Shoulder-elbow length,11712,365.32,18.28,4,363.7,369.04,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,shoulder_length,Shoulder length,11712,150.0,10.67,4,149.78,150.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,sitting_height,Sitting height,11712,916.97,35.72,4,913.9,918.3,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,sleeve_outseam,Sleeve outseam,11712,595.65,31.01,4,593.1,601.52,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,span,Span,11712,1816.87,83.9,4,1814.15,1823.1,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,stature,Stature,11712,1756.08,68.04,4,1755.8,1756.21,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,suprasternale_height,Suprasternale height,11712,1438.53,60.64,4,1438.38,1438.6,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,thigh_circumference,Thigh circumference,11712,616.45,57.37,4,596.5,625.14,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,thigh_clearance,Thigh clearance,11712,176.76,15.79,4,168.2,180.5,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,thumbtip_reach,Thumb-tip reach,11712,808.56,42.68,4,800.8,811.93,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,trochanterion_height,Trochanterion height,11712,909.21,50.33,4,900.9,928.3,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,vertical_trunk_circumference,Vertical trunk circumference,11712,1654.8,87.53,4,1631.8,1664.8,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,waist_circumference,Waist circumference (omphalion),11712,916.91,110.67,4,862.4,940.6,1987,2010,ansur-1988; ansur-ii-2012
+United States,Army,M,wrist_circumference,Wrist circumference,11712,175.39,8.81,4,174.2,175.92,1987,2010,ansur-1988; ansur-ii-2012
+United States,Marine Corps,F,abdominal_depth_sitting,Abdominal extension depth (sitting),620,222.2,25.8,1,222.2,222.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,acromion_height,Acromion height,620,1331.2,55.5,1,1331.2,1331.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,acromion_radiale_length,Acromion-radiale length,620,310.9,15.6,1,310.9,310.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,ankle_circumference,Ankle circumference,620,211.8,11.8,1,211.8,211.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,biacromial_breadth,Biacromial breadth,618,358.5,16.3,1,358.5,358.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,biceps_circumference_flexed,Biceps circumference (flexed),620,290.7,21.9,1,290.7,290.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,bicristal_breadth,Bicristal (biiliocristale) breadth,620,263.6,19.3,1,263.6,263.6,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,bideltoid_breadth,Bideltoid breadth,620,441.9,22.2,1,441.9,441.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,bizygomatic_breadth,Bizygomatic breadth,620,133.1,5.2,1,133.1,133.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,buttock_circumference,Buttock circumference,620,990.2,62.0,1,990.2,990.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,buttock_knee_length,Buttock-knee length,620,582.5,29.6,1,582.5,582.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,buttock_popliteal_length,Buttock-popliteal length,620,472.4,25.5,1,472.4,472.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,calf_circumference,Calf circumference,620,363.1,24.3,1,363.1,363.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,cervicale_height,Cervicale height,620,1391.3,57.0,1,1391.3,1391.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,chest_breadth,Chest breadth,620,260.0,16.5,1,260.0,260.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,chest_circumference,Chest circumference,620,922.0,64.0,1,922.0,922.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,chest_depth,Chest depth,619,238.2,21.6,1,238.2,238.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,crotch_height,Crotch height,620,786.9,40.5,1,786.9,786.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,ear_length,Ear length,620,59.8,3.8,1,59.8,59.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,elbow_rest_height,Elbow rest height,620,232.2,26.1,1,232.2,232.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,eye_height_sitting,Eye height (sitting),620,749.9,31.0,1,749.9,749.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,foot_breadth,Foot breadth,620,91.1,4.5,1,91.1,91.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,foot_length,Foot length,620,244.4,11.9,1,244.4,244.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,forearm_circumference_flexed,Forearm circumference (flexed),620,259.9,14.5,1,259.9,259.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,forearm_forearm_breadth,Forearm-forearm breadth,620,482.0,33.5,1,482.0,482.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,hand_breadth,Hand breadth (metacarpale),620,79.1,3.7,1,79.1,79.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,hand_circumference,Hand circumference (metacarpale),620,185.8,7.9,1,185.8,185.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,hand_length,Hand length,620,178.1,9.0,1,178.1,178.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,head_breadth,Head breadth,620,145.7,4.6,1,145.7,145.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,head_circumference,Head circumference,620,555.4,17.4,1,555.4,555.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,head_length,Head length,618,188.7,7.0,1,188.7,188.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,hip_breadth_sitting,Hip breadth (sitting),620,394.1,27.6,1,394.1,394.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,iliocristale_height,Iliocristale height,620,1000.6,46.2,1,1000.6,1000.6,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,interpupillary_breadth,Interpupillary breadth,620,60.5,3.2,1,60.5,60.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,knee_height_sitting,Knee height (sitting),619,507.2,24.7,1,507.2,507.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,mass,Body mass,613,63.6,8.4,1,63.6,63.6,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,menton_sellion_length,Menton-sellion (face) length,620,115.3,6.4,1,115.3,115.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,neck_circumference,Neck circumference,620,327.0,15.9,1,327.0,327.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,neck_circumference_base,Neck circumference (base),620,360.0,17.1,1,360.0,360.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:acromion_wall_depth,ACROMION-WALL DEPTH,620,113.3,17.0,1,113.3,113.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:axilla_height,AXILLA HEIGHT,620,1235.6,53.1,1,1235.6,1235.6,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:ball_of_foot_circumference,BALL OF FOOT CIRCUMFERENCE,620,226.7,10.5,1,226.7,226.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:ball_of_foot_length,BALL OF FOOT LENGTH,620,180.9,9.3,1,180.9,180.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:bimalleolar_breadth,BIMALLEOLAR BREADTH,620,65.3,3.3,1,65.3,65.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:bitragion_chin_arc,BITRAGION CHIN ARC,620,306.7,12.8,1,306.7,306.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:bitragion_submandibular_arc,BITRAGION SUBMANDIBULAR ARC,620,278.8,12.4,1,278.8,278.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:buttock_depth,BUTTOCK DEPTH,620,219.8,20.2,1,219.8,219.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:buttock_height,BUTTOCK HEIGHT,620,838.3,42.1,1,838.3,838.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:chest_height,CHEST HEIGHT,620,1172.2,51.8,1,1172.2,1172.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:crotch_length_omphalion,CROTCH LENGTH (OMPHALION),620,605.6,38.1,1,605.6,605.6,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:crotch_length_posterior_omphalion,"CROTCH LENGTH, POSTERIOR (OMPHALION)",620,343.8,27.5,1,343.8,343.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:ear_breadth,EAR BREADTH,620,33.4,2.5,1,33.4,33.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:ear_protrusion,EAR PROTRUSION,620,21.1,3.0,1,21.1,21.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:forearm_center_of_grip_length,FOREARM-CENTER OF GRIP LENGTH,619,317.9,16.3,1,317.9,317.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:forearm_hand_length,FOREARM-HAND LENGTH,620,433.6,20.8,1,433.6,433.6,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:functional_leg_length,FUNCTIONAL LEG LENGTH,617,1054.7,47.8,1,1054.7,1054.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:heel_ankle_circumference,HEEL-ANKLE CIRCUMFERENCE,620,305.3,13.6,1,305.3,305.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:heel_breadth,HEEL BREADTH,620,64.3,4.4,1,64.3,64.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:hip_breadth,HIP BREADTH,620,342.4,22.7,1,342.4,342.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:interscye_i,INTERSCYE I,620,367.4,28.2,1,367.4,367.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:interscye_ii,INTERSCYE II,620,393.8,24.8,1,393.8,393.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:knee_height_midpatella,"KNEE HEIGHT, MIDPATELLA",620,452.3,24.0,1,452.3,452.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:lateral_femoral_epicondyle_height,LATERAL FEMORAL EPICONDYLE HEIGHT,620,454.4,24.1,1,454.4,454.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:lateral_malleolus_height,LATERAL MALLEOLUS HEIGHT,620,60.0,7.0,1,60.0,60.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:lower_thigh_circumference,LOWER THIGH CIRCUMFERENCE,620,384.5,26.4,1,384.5,384.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:overhead_fingertip_reach_sitting,"OVERHEAD FINGERTIP REACH, SITTING",618,1331.5,59.0,1,1331.5,1331.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:palm_length,PALM LENGTH,620,109.0,5.5,1,109.0,109.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:sleeve_length_spine_wrist,SLEEVE LENGTH: SPINE-WRIST,620,798.9,34.4,1,798.9,798.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:tenth_rib_height,TENTH RIB HEIGHT,620,1039.0,45.9,1,1039.0,1039.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:tibial_height,TIBIAL HEIGHT,620,442.4,23.4,1,442.4,442.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:tragion_top_of_head,TRAGION - TOP OF HEAD,620,124.6,5.8,1,124.6,124.6,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:waist_back_length_omphalion,WAIST BACK LENGTH (OMPHALION),620,423.9,25.6,1,423.9,423.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:waist_breadth,WAIST BREADTH,619,289.0,27.2,1,289.0,289.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:waist_depth,WAIST DEPTH,620,198.1,24.8,1,198.1,198.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:waist_front_length_sitting,"WAIST FRONT LENGTH, SITTING",620,357.1,22.1,1,357.1,357.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:waist_height_omphalion,WAIST HEIGHT (OMPHALION),620,979.3,46.5,1,979.3,979.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,other:wrist_height,WRIST HEIGHT,620,788.0,37.4,1,788.0,788.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,popliteal_height,Popliteal height,620,382.1,21.1,1,382.1,382.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,radiale_stylion_length,Radiale-stylion length,620,241.8,13.5,1,241.8,241.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,shoulder_circumference,Shoulder circumference,620,1015.2,45.7,1,1015.2,1015.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,shoulder_elbow_length,Shoulder-elbow length,620,335.9,16.2,1,335.9,335.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,shoulder_length,Shoulder length,620,137.1,10.1,1,137.1,137.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,sitting_height,Sitting height,620,859.0,32.6,1,859.0,859.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,sleeve_outseam,Sleeve outseam,620,543.4,27.1,1,543.4,543.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,span,Span,619,1652.5,74.8,1,1652.5,1652.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,stature,Stature,620,1624.9,62.2,1,1624.9,1624.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,suprasternale_height,Suprasternale height,620,1324.7,54.3,1,1324.7,1324.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,thigh_circumference,Thigh circumference,620,602.0,45.4,1,602.0,602.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,thigh_clearance,Thigh clearance,620,167.9,12.0,1,167.9,167.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,thumbtip_reach,Thumb-tip reach,619,733.2,33.1,1,733.2,733.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,trochanterion_height,Trochanterion height,620,850.8,41.8,1,850.8,850.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,vertical_trunk_circumference,Vertical trunk circumference,620,1533.8,67.7,1,1533.8,1533.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,waist_circumference,Waist circumference (omphalion),620,826.4,80.5,1,826.4,826.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,F,wrist_circumference,Wrist circumference,620,153.6,6.7,1,153.6,153.6,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,abdominal_depth_sitting,Abdominal extension depth (sitting),1300,239.9,28.0,1,239.9,239.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,acromion_height,Acromion height,1301,1433.7,63.8,1,1433.7,1433.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,acromion_radiale_length,Acromion-radiale length,1301,334.8,17.3,1,334.8,334.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,ankle_circumference,Ankle circumference,1300,226.9,13.6,1,226.9,226.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,biacromial_breadth,Biacromial breadth,1300,408.8,19.7,1,408.8,408.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,biceps_circumference_flexed,Biceps circumference (flexed),1301,349.2,31.2,1,349.2,349.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,bicristal_breadth,Bicristal (biiliocristale) breadth,1301,270.5,17.6,1,270.5,270.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,bideltoid_breadth,Bideltoid breadth,1301,497.9,27.7,1,497.9,497.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,bizygomatic_breadth,Bizygomatic breadth,1300,142.8,5.9,1,142.8,142.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,buttock_circumference,Buttock circumference,1301,1006.0,67.7,1,1006.0,1006.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,buttock_knee_length,Buttock-knee length,1301,613.2,30.7,1,613.2,613.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,buttock_popliteal_length,Buttock-popliteal length,1301,494.5,27.0,1,494.5,494.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,calf_circumference,Calf circumference,1300,384.1,26.4,1,384.1,384.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,cervicale_height,Cervicale height,1301,1510.7,63.6,1,1510.7,1510.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,chest_breadth,Chest breadth,1301,284.7,17.8,1,284.7,284.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,chest_circumference,Chest circumference,1301,1030.2,75.9,1,1030.2,1030.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,chest_depth,Chest depth,1301,245.4,21.9,1,245.4,245.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,crotch_height,Crotch height,1301,854.9,46.3,1,854.9,854.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,ear_length,Ear length,1301,64.7,4.1,1,64.7,64.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,elbow_rest_height,Elbow rest height,1301,243.0,27.6,1,243.0,243.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,eye_height_sitting,Eye height (sitting),1300,802.1,34.4,1,802.1,802.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,foot_breadth,Foot breadth,1300,101.2,5.3,1,101.2,101.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,foot_length,Foot length,1300,271.0,12.8,1,271.0,271.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,forearm_circumference_flexed,Forearm circumference (flexed),1301,307.3,20.4,1,307.3,307.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,forearm_forearm_breadth,Forearm-forearm breadth,1301,556.1,46.4,1,556.1,556.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,hand_breadth,Hand breadth (metacarpale),1301,89.5,4.4,1,89.5,89.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,hand_circumference,Hand circumference (metacarpale),1301,211.0,9.9,1,211.0,211.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,hand_length,Hand length,1301,193.8,9.6,1,193.8,193.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,head_breadth,Head breadth,1300,154.0,5.4,1,154.0,154.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,head_circumference,Head circumference,1301,571.0,15.2,1,571.0,571.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,head_length,Head length,1301,198.9,6.8,1,198.9,198.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,hip_breadth_sitting,Hip breadth (sitting),1301,373.1,26.4,1,373.1,373.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,iliocristale_height,Iliocristale height,1300,1060.3,53.3,1,1060.3,1060.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,interpupillary_breadth,Interpupillary breadth,1300,63.5,3.4,1,63.5,63.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,knee_height_sitting,Knee height (sitting),1301,554.0,28.1,1,554.0,554.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,mass,Body mass,1297,80.6,11.88,1,80.6,80.6,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,menton_sellion_length,Menton-sellion (face) length,1301,124.0,6.6,1,124.0,124.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,neck_circumference,Neck circumference,1301,390.9,21.7,1,390.9,390.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,neck_circumference_base,Neck circumference (base),1301,431.1,21.9,1,431.1,431.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:acromion_wall_depth,ACROMION-WALL DEPTH,1301,124.8,16.8,1,124.8,124.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:axilla_height,AXILLA HEIGHT,1301,1326.7,60.1,1,1326.7,1326.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:ball_of_foot_circumference,BALL OF FOOT CIRCUMFERENCE,1301,251.9,12.9,1,251.9,251.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:ball_of_foot_length,BALL OF FOOT LENGTH,1299,200.3,10.1,1,200.3,200.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:bimalleolar_breadth,BIMALLEOLAR BREADTH,1301,73.3,3.9,1,73.3,73.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:bitragion_chin_arc,BITRAGION CHIN ARC,1301,329.5,13.6,1,329.5,329.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:bitragion_submandibular_arc,BITRAGION SUBMANDIBULAR ARC,1301,309.1,14.7,1,309.1,309.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:buttock_depth,BUTTOCK DEPTH,1301,237.3,21.7,1,237.3,237.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:buttock_height,BUTTOCK HEIGHT,1301,888.1,47.1,1,888.1,888.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:chest_height,CHEST HEIGHT,1301,1291.0,58.4,1,1291.0,1291.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:crotch_length_omphalion,CROTCH LENGTH (OMPHALION),1301,645.5,43.1,1,645.5,645.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:crotch_length_posterior_omphalion,"CROTCH LENGTH, POSTERIOR (OMPHALION)",1300,360.0,27.4,1,360.0,360.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:ear_breadth,EAR BREADTH,1301,36.1,2.7,1,36.1,36.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:ear_protrusion,EAR PROTRUSION,1301,23.4,3.1,1,23.4,23.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:forearm_center_of_grip_length,FOREARM-CENTER OF GRIP LENGTH,1301,350.2,17.5,1,350.2,350.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:forearm_hand_length,FOREARM-HAND LENGTH,1301,476.9,22.9,1,476.9,476.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:functional_leg_length,FUNCTIONAL LEG LENGTH,1301,1134.0,55.7,1,1134.0,1134.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:heel_ankle_circumference,HEEL-ANKLE CIRCUMFERENCE,1301,339.9,16.0,1,339.9,339.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:heel_breadth,HEEL BREADTH,1301,70.5,4.8,1,70.5,70.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:hip_breadth,HIP BREADTH,1301,342.3,21.9,1,342.3,342.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:interscye_i,INTERSCYE I,1300,424.0,33.3,1,424.0,424.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:interscye_ii,INTERSCYE II,1301,442.8,29.2,1,442.8,442.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:knee_height_midpatella,"KNEE HEIGHT, MIDPATELLA",1301,495.3,27.9,1,495.3,495.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:lateral_femoral_epicondyle_height,LATERAL FEMORAL EPICONDYLE HEIGHT,1301,493.7,26.0,1,493.7,493.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:lateral_malleolus_height,LATERAL MALLEOLUS HEIGHT,1301,69.4,7.0,1,69.4,69.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:lower_thigh_circumference,LOWER THIGH CIRCUMFERENCE,1301,402.8,29.7,1,402.8,402.8,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:overhead_fingertip_reach_sitting,"OVERHEAD FINGERTIP REACH, SITTING",1301,1447.7,61.3,1,1447.7,1447.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:palm_length,PALM LENGTH,1301,116.4,6.2,1,116.4,116.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:sleeve_length_spine_wrist,SLEEVE LENGTH: SPINE-WRIST,1301,883.7,39.3,1,883.7,883.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:tenth_rib_height,TENTH RIB HEIGHT,1301,1111.4,53.6,1,1111.4,1111.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:tibial_height,TIBIAL HEIGHT,1301,478.3,26.0,1,478.3,478.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:tragion_top_of_head,TRAGION - TOP OF HEAD,1301,131.5,6.4,1,131.5,131.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:waist_back_length_omphalion,WAIST BACK LENGTH (OMPHALION),1301,463.5,27.1,1,463.5,463.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:waist_breadth,WAIST BREADTH,1301,311.5,29.7,1,311.5,311.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:waist_depth,WAIST DEPTH,1301,219.4,25.6,1,219.4,219.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:waist_front_length_sitting,"WAIST FRONT LENGTH, SITTING",1301,386.1,25.9,1,386.1,386.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:waist_height_omphalion,WAIST HEIGHT (OMPHALION),1301,1059.4,51.9,1,1059.4,1059.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,other:wrist_height,WRIST HEIGHT,1300,837.5,42.1,1,837.5,837.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,popliteal_height,Popliteal height,1301,426.7,24.5,1,426.7,426.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,radiale_stylion_length,Radiale-stylion length,1301,265.4,14.8,1,265.4,265.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,shoulder_circumference,Shoulder circumference,1301,1163.2,59.0,1,1163.2,1163.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,shoulder_elbow_length,Shoulder-elbow length,1301,363.7,17.8,1,363.7,363.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,shoulder_length,Shoulder length,1301,148.3,10.6,1,148.3,148.3,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,sitting_height,Sitting height,1301,919.1,35.6,1,919.1,919.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,sleeve_outseam,Sleeve outseam,1301,589.7,30.2,1,589.7,589.7,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,span,Span,1300,1811.9,80.6,1,1811.9,1811.9,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,stature,Stature,1301,1753.4,69.7,1,1753.4,1753.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,suprasternale_height,Suprasternale height,1301,1435.0,61.7,1,1435.0,1435.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,thigh_circumference,Thigh circumference,1301,612.2,53.6,1,612.2,612.2,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,thigh_clearance,Thigh clearance,1301,179.1,13.9,1,179.1,179.1,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,thumbtip_reach,Thumb-tip reach,1300,794.4,39.0,1,794.4,794.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,trochanterion_height,Trochanterion height,1301,914.5,48.0,1,914.5,914.5,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,vertical_trunk_circumference,Vertical trunk circumference,1301,1657.4,79.1,1,1657.4,1657.4,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,waist_circumference,Waist circumference (omphalion),1301,884.0,89.0,1,884.0,884.0,2010,2010,mc-ansur-2010
+United States,Marine Corps,M,wrist_circumference,Wrist circumference,1301,176.9,8.3,1,176.9,176.9,2010,2010,mc-ansur-2010
+United States,Pilots,F,abdominal_depth_sitting,Abdominal extension depth (sitting),771,223.83,30.05,3,217.1,227.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,acromion_height,Acromion height,771,1363.73,49.0,3,1346.3,1377.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,acromion_height_sitting,Acromion height (sitting),334,578.5,23.9,1,578.5,578.5,1987,1987,ansur-1988-pilots
+United States,Pilots,F,acromion_radiale_length,Acromion-radiale length,729,317.92,13.61,2,314.9,321.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,ankle_circumference,Ankle circumference,771,213.33,13.65,3,209.3,216.6,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,biacromial_breadth,Biacromial breadth,437,366.39,16.28,2,366.3,366.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,biceps_circumference_flexed,Biceps circumference (flexed),771,295.43,29.52,3,283.0,307.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,bicristal_breadth,Bicristal (biiliocristale) breadth,437,278.17,19.18,2,273.2,278.7,2010,2010,ansur-ii-pilots
+United States,Pilots,F,bideltoid_breadth,Bideltoid breadth,771,445.89,26.91,3,439.2,451.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,bizygomatic_breadth,Bizygomatic breadth,437,132.02,5.43,2,132.0,132.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,buttock_circumference,Buttock circumference,771,1007.53,69.91,3,989.0,1023.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,buttock_knee_length,Buttock-knee length,771,594.52,24.54,3,587.2,600.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,buttock_popliteal_length,Buttock-popliteal length,437,486.45,21.91,2,486.4,486.9,2010,2010,ansur-ii-pilots
+United States,Pilots,F,calf_circumference,Calf circumference,771,367.12,26.65,3,358.8,373.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,cervicale_height,Cervicale height,771,1431.36,52.16,3,1412.7,1453.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,chest_breadth,Chest breadth,771,278.77,20.92,3,266.5,288.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,chest_circumference,Chest circumference,771,940.19,76.76,3,924.8,953.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,chest_depth,Chest depth,771,245.06,25.22,3,240.3,247.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,crotch_height,Crotch height,771,789.96,32.27,3,787.9,791.7,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,ear_length,Ear length,771,60.65,3.75,3,59.9,61.8,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,elbow_rest_height,Elbow rest height,771,236.3,23.9,3,232.6,241.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,eye_height_sitting,Eye height (sitting),771,765.67,27.5,3,763.2,768.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,foot_breadth,Foot breadth,437,92.44,4.77,2,91.9,92.5,2010,2010,ansur-ii-pilots
+United States,Pilots,F,foot_length,Foot length,437,246.19,11.48,2,245.2,246.3,2010,2010,ansur-ii-pilots
+United States,Pilots,F,forearm_circumference_flexed,Forearm circumference (flexed),437,262.6,17.05,2,262.2,266.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,forearm_forearm_breadth,Forearm-forearm breadth,437,494.99,43.22,2,494.8,496.8,2010,2010,ansur-ii-pilots
+United States,Pilots,F,hand_breadth,Hand breadth (metacarpale),771,79.2,3.91,3,78.1,80.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,hand_circumference,Hand circumference (metacarpale),437,186.1,9.15,2,186.1,186.1,2010,2010,ansur-ii-pilots
+United States,Pilots,F,hand_length,Hand length,771,181.27,8.28,3,177.7,182.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,head_breadth,Head breadth,771,146.19,4.94,3,145.1,147.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,head_circumference,Head circumference,437,557.08,14.98,2,556.9,558.8,2010,2010,ansur-ii-pilots
+United States,Pilots,F,head_length,Head length,771,189.18,6.64,3,188.2,191.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,hip_breadth_sitting,Hip breadth (sitting),771,399.86,29.92,3,390.5,402.6,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,iliocristale_height,Iliocristale height,771,1012.34,39.25,3,1001.3,1020.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,interpupillary_breadth,Interpupillary breadth,771,60.7,3.24,3,60.3,61.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,knee_height_sitting,Knee height (sitting),771,520.89,21.55,3,512.7,528.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,mass,Body mass,771,66.78,9.69,3,65.51,67.83,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,menton_sellion_length,Menton-sellion (face) length,437,112.66,6.21,2,111.3,112.8,2010,2010,ansur-ii-pilots
+United States,Pilots,F,neck_circumference,Neck circumference,771,322.82,18.29,3,317.4,328.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,neck_circumference_base,Neck circumference (base),771,361.68,20.5,3,349.6,374.8,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:axilla_height,AXILLA HEIGHT,729,1264.42,45.61,2,1257.0,1273.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:axilla_height,Axilla height,42,1253.2,53.51,1,1253.2,1253.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:axillary_arm_circumference,AXILLARY ARM CIRCUMFERENCE,334,294.6,26.3,1,294.6,294.6,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:ball_of_foot_circumference,BALL OF FOOT CIRCUMFERENCE,729,227.37,11.43,2,226.5,228.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:ball_of_foot_circumference,Ball of foot circumference,42,229.1,11.12,1,229.1,229.1,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:ball_of_foot_length,BALL OF FOOT LENGTH,729,182.05,8.37,2,182.0,182.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:ball_of_foot_length,Ball of foot length,42,181.2,9.9,1,181.2,181.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:bimalleolar_breadth,BIMALLEOLAR BREADTH,729,66.47,3.17,2,65.6,67.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:bimalleolar_breadth,Bimalleolar breadth,42,67.4,3.08,1,67.4,67.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:bispinous_breadth,BISPINOUS BREADTH,334,233.8,18.6,1,233.8,233.8,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:bitragion_chin_arc,BITRAGION CHIN ARC,729,304.11,12.02,2,300.8,306.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:bitragion_chin_arc,Bitragion chin arc,42,308.4,12.8,1,308.4,308.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:bitragion_coronal_arc,BITRAGION CORONAL ARC,334,337.7,12.4,1,337.7,337.7,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:bitragion_submandibular_arc,BITRAGION SUBMANDIBULAR ARC,729,282.44,14.12,2,278.0,286.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:bitragion_submandibular_arc,Bitragion submandibular arc,42,288.4,13.15,1,288.4,288.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:bitragion_subnasale_arc,BITRAGION SUBNASALE ARC,334,273.0,9.9,1,273.0,273.0,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:bustpoint_thelion_bustpoint_thelion_breadth,BUSTPOINT/THELION-BUSTPOINT/THELION BREADTH,334,187.0,16.6,1,187.0,187.0,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:buttock_depth,BUTTOCK DEPTH,729,228.41,24.01,2,228.3,228.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:buttock_depth,Buttock depth,42,226.2,28.1,1,226.2,226.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:buttock_height,BUTTOCK HEIGHT,395,840.2,38.3,1,840.2,840.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:buttock_height,Buttock height,42,842.7,38.7,1,842.7,842.7,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:calf_height,CALF HEIGHT,334,319.9,17.8,1,319.9,319.9,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:cervicale_height_sitting,"CERVICALE HEIGHT, SITTING",334,654.5,24.6,1,654.5,654.5,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:chest_circumference_at_scye,CHEST CIRCUMFERENCE AT SCYE,334,900.7,56.6,1,900.7,900.7,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:chest_circumference_below_breast,CHEST CIRCUMFERENCE BELOW BREAST,334,790.1,54.2,1,790.1,790.1,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:chest_height,CHEST HEIGHT,729,1196.87,47.61,2,1185.0,1210.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:chest_height,Chest height,42,1187.3,55.95,1,1187.3,1187.3,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:crotch_length_omphalion,CROTCH LENGTH (OMPHALION),395,627.6,42.3,1,627.6,627.6,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:crotch_length_omphalion,Crotch length omphalion,42,627.9,42.02,1,627.9,627.9,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:crotch_length_posterior_natural_indentation,"CROTCH LENGTH, POSTERIOR (NATURAL INDENTATION)",334,394.3,31.4,1,394.3,394.3,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:crotch_length_posterior_omphalion,"CROTCH LENGTH, POSTERIOR (OMPHALION)",729,330.66,29.54,2,316.3,342.8,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:crotch_length_posterior_omphalion,Crotch length posterior omphalion,42,343.3,24.02,1,343.3,343.3,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:ear_breadth,EAR BREADTH,395,33.2,2.5,1,33.2,33.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:ear_breadth,Ear breadth,42,31.7,2.55,1,31.7,31.7,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:ear_protrusion,EAR PROTRUSION,729,21.39,2.98,2,20.7,22.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:ear_protrusion,Ear protrusion,42,20.4,2.29,1,20.4,20.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:elbow_circumference,ELBOW CIRCUMFERENCE,334,242.0,13.0,1,242.0,242.0,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:forearm_center_of_grip_length,FOREARM-CENTER OF GRIP LENGTH,395,316.4,15.0,1,316.4,316.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:forearm_center_of_grip_length,Forearm center of grip length,42,316.7,16.23,1,316.7,316.7,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:forearm_hand_length,FOREARM-HAND LENGTH,729,443.57,17.38,2,438.9,449.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:forearm_hand_length,Forearm hand length,42,438.4,20.1,1,438.4,438.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:functional_leg_length,FUNCTIONAL LEG LENGTH,729,1046.18,42.1,2,1038.0,1053.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:functional_leg_length,Functional leg length,42,1036.9,42.92,1,1036.9,1036.9,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:gluteal_furrow_height,GLUTEAL FURROW HEIGHT,334,763.5,28.5,1,763.5,763.5,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:head_circumference,HEAD CIRCUMFERENCE,334,547.9,13.3,1,547.9,547.9,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:headboard_bizygomatic_breadth,BIZYGOMATIC BREADTH,334,131.4,5.0,1,131.4,131.4,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:headboard_menton_sellion_length,MENTON-SELLION LENGTH,334,114.6,6.1,1,114.6,114.6,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:heel_ankle_circumference,HEEL-ANKLE CIRCUMFERENCE,395,308.2,13.9,1,308.2,308.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:heel_ankle_circumference,Heel ankle circumference,42,306.7,14.44,1,306.7,306.7,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:heel_breadth,HEEL BREADTH,729,63.79,4.46,2,62.0,65.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:heel_breadth,Heel breadth,42,66.2,4.74,1,66.2,66.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:hip_breadth,HIP BREADTH,395,358.6,24.1,1,358.6,358.6,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:hip_breadth,Hip breadth,42,351.3,23.58,1,351.3,351.3,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:interscye_i,INTERSCYE I,729,367.5,29.19,2,357.8,375.7,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:interscye_i,Interscye I,42,370.6,31.25,1,370.6,370.6,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:interscye_ii,INTERSCYE II,395,397.5,25.0,1,397.5,397.5,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:interscye_ii,Interscye II,42,396.3,26.24,1,396.3,396.3,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:knee_height_midpatella,"KNEE HEIGHT, MIDPATELLA",729,461.25,21.31,2,452.5,471.6,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:knee_height_midpatella,Knee height midpatella,42,452.5,22.32,1,452.5,452.5,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:lateral_femoral_epicondyle_height,LATERAL FEMORAL EPICONDYLE HEIGHT,729,470.67,19.42,2,468.7,473.0,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:lateral_femoral_epicondyle_height,Lateral femoral epicondyle height,42,472.3,21.82,1,472.3,472.3,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:lateral_malleolus_height,LATERAL MALLEOLUS HEIGHT,395,64.2,4.8,1,64.2,64.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:lateral_malleolus_height,Lateral malleolus height,42,64.4,4.96,1,64.4,64.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:lower_thigh_circumference,LOWER THIGH CIRCUMFERENCE,729,390.61,31.8,2,382.1,397.8,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:lower_thigh_circumference,Lower thigh circumference,42,397.3,33.74,1,397.3,397.3,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:midshoulder_height_sitting,"MIDSHOULDER HEIGHT, SITTING",334,606.5,22.8,1,606.5,606.5,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:neck_bustpoint_thelion_length,NECK-BUSTPOINT/THELION LENGTH,334,273.8,22.8,1,273.8,273.8,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:neck_height_lateral,"NECK HEIGHT, LATERAL",334,1440.7,40.5,1,1440.7,1440.7,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:overhead_fingertip_reach_extended,"OVERHEAD FINGERTIP REACH, EXTENDED",334,2216.4,62.2,1,2216.4,2216.4,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:overhead_fingertip_reach_sitting,"OVERHEAD FINGERTIP REACH, SITTING",729,1342.01,55.0,2,1324.6,1362.6,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:overhead_fingertip_reach_sitting,Overhead fingertip reach sitting,42,1313.5,57.09,1,1313.5,1313.5,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:palm_length,PALM LENGTH,395,108.4,5.1,1,108.4,108.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:palm_length,Palm length,42,106.8,5.73,1,106.8,106.8,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:scye_circumference,SCYE CIRCUMFERENCE,334,380.2,23.0,1,380.2,380.2,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:scye_depth,SCYE DEPTh,334,192.3,14.6,1,192.3,192.3,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:sleeve_length_spine_elbow,SLEEVE LENGTH: SPINE-ELBOW,334,553.1,19.2,1,553.1,553.1,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:sleeve_length_spine_scye,SLEEVE LENGTH: SPINE-SCYE,334,213.1,12.9,1,213.1,213.1,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:sleeve_length_spine_wrist,SLEEVE LENGTH: SPINE-WRIST,729,818.49,29.08,2,812.4,825.7,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:sleeve_length_spine_wrist,Sleeve length spine wrist,42,810.1,30.14,1,810.1,810.1,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:strap_length,STRAP LENGTH,334,692.8,46.8,1,692.8,692.8,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:tenth_rib_height,TENTH RIB HEIGHT,729,1069.25,40.18,2,1066.0,1073.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:tenth_rib_height,Tenth rib height,42,1054.5,48.55,1,1054.5,1054.5,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:thumb_breadth,THUMB BREADTH,334,20.8,1.1,1,20.8,20.8,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:tibial_height,TIBIAL HEIGHT,395,440.2,20.6,1,440.2,440.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:tibial_height,Tibial height,42,436.4,21.73,1,436.4,436.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:tragion_top_of_head,TRAGION – TOP OF HEAD,395,126.4,6.1,1,126.4,126.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:tragion_top_of_head,Tragion top of head,42,126.8,6.2,1,126.8,126.8,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:waist_back_length_omphalion,WAIST BACK LENGTH (OMPHALION),395,429.4,24.6,1,429.4,429.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:waist_back_length_omphalion,Waist back length,42,427.2,16.71,1,427.2,427.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:waist_breadth,WAIST BREADTH,395,302.6,31.9,1,302.6,302.6,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:waist_breadth,Waist breadth,42,297.7,31.27,1,297.7,297.7,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:waist_depth,WAIST DEPTH,729,205.33,28.18,2,204.0,206.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:waist_depth,Waist depth,42,196.0,29.69,1,196.0,196.0,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:waist_front_length_natural_indentation,WAIST FRONT LENGTH (NATURAL INDENTATION),334,324.0,22.2,1,324.0,324.0,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:waist_front_length_omphalion,WAIST FRONT LENGTH (OMPHALION),334,402.8,22.4,1,402.8,402.8,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:waist_front_length_sitting,"WAIST FRONT LENGTH, SITTING",395,357.6,23.2,1,357.6,357.6,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:waist_front_length_sitting,Waist front length sitting,42,357.0,19.79,1,357.0,357.0,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:waist_height_omphalion,WAIST HEIGHT (OMPHALION),395,994.7,42.4,1,994.7,994.7,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:waist_height_omphalion,Waist height omphalion,42,988.3,46.14,1,988.3,988.3,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:waist_height_sitting_natural_indentation,"WAIST HEIGHT, SITTING (NATURAL INDENTATION)",334,289.7,20.7,1,289.7,289.7,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:waist_hip_length,WAIST-HIP LENGTH,334,160.5,20.1,1,160.5,160.5,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:wrist_center_of_grip_length,WRIST-CENTER OF GRIP LENGTH,334,67.0,5.0,1,67.0,67.0,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:wrist_height,WRIST HEIGHT,729,814.64,34.31,2,810.1,820.0,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,other:wrist_height,Wrist height,42,806.3,36.79,1,806.3,806.3,2010,2010,ansur-ii-pilots
+United States,Pilots,F,other:wrist_index_finger_length,WRIST-INDEX FINGER LENGTH,334,171.9,6.6,1,171.9,171.9,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:wrist_tiumebtip_length,WRIST-TIUMEBTIP LENGTH,334,119.1,5.2,1,119.1,119.1,1987,1987,ansur-1988-pilots
+United States,Pilots,F,other:wrist_wall_length,WRIST-WALL LENGTH,334,633.9,23.2,1,633.9,633.9,1987,1987,ansur-1988-pilots
+United States,Pilots,F,popliteal_height,Popliteal height,771,396.29,18.62,3,392.0,400.6,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,radiale_stylion_length,Radiale-stylion length,437,239.69,12.02,2,239.6,240.5,2010,2010,ansur-ii-pilots
+United States,Pilots,F,shoulder_circumference,Shoulder circumference,771,1033.24,51.37,3,1026.6,1041.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,shoulder_elbow_length,Shoulder-elbow length,771,341.54,14.26,3,335.0,346.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,shoulder_length,Shoulder length,771,140.41,11.57,3,135.0,146.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,sitting_height,Sitting height,437,872.95,30.51,2,872.9,873.4,2010,2010,ansur-ii-pilots
+United States,Pilots,F,sleeve_outseam,Sleeve outseam,437,546.48,24.05,2,544.4,546.7,2010,2010,ansur-ii-pilots
+United States,Pilots,F,span,Span,771,1683.16,63.88,3,1657.8,1707.6,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,stature,Stature,771,1663.82,54.38,3,1647.6,1680.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,suprasternale_height,Suprasternale height,771,1357.37,47.23,3,1346.4,1370.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,thigh_circumference,Thigh circumference,771,601.77,52.8,3,587.5,614.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,thigh_clearance,Thigh clearance,771,163.34,13.26,3,159.5,166.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,F,thumbtip_reach,Thumb-tip reach,437,741.35,40.72,2,735.2,742.0,2010,2010,ansur-ii-pilots
+United States,Pilots,F,trochanterion_height,Trochanterion height,437,851.63,37.41,2,846.3,852.2,2010,2010,ansur-ii-pilots
+United States,Pilots,F,vertical_trunk_circumference,Vertical trunk circumference,437,1571.43,73.14,2,1557.6,1572.9,2010,2010,ansur-ii-pilots
+United States,Pilots,F,waist_circumference,Waist circumference (omphalion),437,854.76,97.99,2,852.5,855.0,2010,2010,ansur-ii-pilots
+United States,Pilots,F,wrist_circumference,Wrist circumference,437,154.75,7.6,2,154.6,156.2,2010,2010,ansur-ii-pilots
+United States,Pilots,M,abdominal_depth_sitting,Abdominal extension depth (sitting),1464,252.31,31.32,2,243.1,256.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,acromion_height,Acromion height,1464,1456.47,59.6,2,1454.6,1457.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,acromion_height_sitting,Acromion height (sitting),487,612.0,28.2,1,612.0,612.0,1987,1987,ansur-1988-pilots
+United States,Pilots,M,acromion_radiale_length,Acromion-radiale length,1464,340.46,16.61,2,338.9,343.6,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,ankle_circumference,Ankle circumference,1464,226.17,13.6,2,220.9,228.8,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,biacromial_breadth,Biacromial breadth,977,416.8,19.9,1,416.8,416.8,2010,2010,ansur-ii-pilots
+United States,Pilots,M,biceps_circumference_flexed,Biceps circumference (flexed),977,365.7,29.8,1,365.7,365.7,2010,2010,ansur-ii-pilots
+United States,Pilots,M,bicristal_breadth,Bicristal (biiliocristale) breadth,977,281.0,16.4,1,281.0,281.0,2010,2010,ansur-ii-pilots
+United States,Pilots,M,bideltoid_breadth,Bideltoid breadth,1464,509.65,30.74,2,495.7,516.6,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,bizygomatic_breadth,Bizygomatic breadth,977,142.4,5.6,1,142.4,142.4,2010,2010,ansur-ii-pilots
+United States,Pilots,M,buttock_circumference,Buttock circumference,1464,1019.4,64.87,2,991.5,1033.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,buttock_knee_length,Buttock-knee length,1464,621.2,27.9,2,618.6,622.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,buttock_popliteal_length,Buttock-popliteal length,1464,509.74,25.53,2,502.6,513.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,calf_circumference,Calf circumference,1464,389.45,27.12,2,377.7,395.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,cervicale_height,Cervicale height,1464,1535.34,60.37,2,1531.8,1537.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,chest_breadth,Chest breadth,1464,306.61,26.26,2,294.0,331.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,chest_circumference,Chest circumference,1464,1057.85,79.97,2,1009.2,1082.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,chest_depth,Chest depth,1464,253.67,21.89,2,250.2,255.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,crotch_height,Crotch height,1464,854.15,42.91,2,841.8,860.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,ear_length,Ear length,1464,65.6,4.29,2,65.3,66.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,elbow_rest_height,Elbow rest height,1464,248.01,25.88,2,242.0,251.0,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,eye_height_sitting,Eye height (sitting),977,811.5,28.8,1,811.5,811.5,2010,2010,ansur-ii-pilots
+United States,Pilots,M,foot_breadth,Foot breadth,1464,101.23,4.93,2,100.1,101.8,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,foot_length,Foot length,1464,270.77,11.97,2,268.5,271.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,forearm_circumference_flexed,Forearm circumference (flexed),977,315.3,19.4,1,315.3,315.3,2010,2010,ansur-ii-pilots
+United States,Pilots,M,forearm_forearm_breadth,Forearm-forearm breadth,977,590.6,45.9,1,590.6,590.6,2010,2010,ansur-ii-pilots
+United States,Pilots,M,hand_breadth,Hand breadth (metacarpale),977,88.5,4.2,1,88.5,88.5,2010,2010,ansur-ii-pilots
+United States,Pilots,M,hand_circumference,Hand circumference (metacarpale),977,213.2,9.6,1,213.2,213.2,2010,2010,ansur-ii-pilots
+United States,Pilots,M,hand_length,Hand length,1464,192.63,8.86,2,191.7,194.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,head_breadth,Head breadth,977,153.9,5.0,1,153.9,153.9,2010,2010,ansur-ii-pilots
+United States,Pilots,M,head_circumference,Head circumference,977,578.5,14.7,1,578.5,578.5,2010,2010,ansur-ii-pilots
+United States,Pilots,M,head_length,Head length,977,201.5,6.4,1,201.5,201.5,2010,2010,ansur-ii-pilots
+United States,Pilots,M,hip_breadth_sitting,Hip breadth (sitting),1464,378.87,24.45,2,371.8,382.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,iliocristale_height,Iliocristale height,1464,1078.67,47.99,2,1076.2,1079.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,interpupillary_breadth,Interpupillary breadth,1464,63.7,3.23,2,63.4,64.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,knee_height_sitting,Knee height (sitting),1464,558.53,25.86,2,558.3,559.0,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,mass,Body mass,1464,85.48,12.33,2,79.97,88.22,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,menton_sellion_length,Menton-sellion (face) length,977,121.8,6.3,1,121.8,121.8,2010,2010,ansur-ii-pilots
+United States,Pilots,M,neck_circumference,Neck circumference,977,398.4,25.7,1,398.4,398.4,2010,2010,ansur-ii-pilots
+United States,Pilots,M,neck_circumference_base,Neck circumference (base),1464,426.05,26.65,2,408.3,434.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:axilla_height,AXILLA HEIGHT,1464,1340.41,56.25,2,1332.2,1344.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:axillary_arm_circumference,AXILLARY ARM CIRCUMFERENCE,487,337.0,22.2,1,337.0,337.0,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:ball_of_foot_circumference,BALL OF FOOT CIRCUMFERENCE,1464,250.6,12.45,2,248.4,251.7,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:ball_of_foot_length,BALL OF FOOT LENGTH,1464,200.27,9.64,2,197.2,201.8,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:bimalleolar_breadth,BIMALLEOLAR BREADTH,1464,74.74,3.99,2,72.2,76.0,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:bispinous_breadth,BISPINOUS BREADTH,487,237.0,17.3,1,237.0,237.0,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:bitragion_chin_arc,BITRAGION CHIN ARC,1464,331.07,12.74,2,328.8,332.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:bitragion_submandibular_arc,BITRAGION SUBMANDIBULAR ARC,1464,315.97,15.27,2,308.9,319.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:bitragion_subnasale_arc,BITRAGION SUBNASALE ARC,487,293.4,9.4,1,293.4,293.4,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:bustpoint_thelion_bustpoint_thelion_breadth,BUSTPOINT/THELION-BUSTPOINT/THELION BREADTH,487,218.7,17.2,1,218.7,218.7,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:buttock_depth,BUTTOCK DEPTH,1464,243.7,22.08,2,241.9,247.3,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:buttock_height,BUTTOCK HEIGHT,977,894.3,45.4,1,894.3,894.3,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:calf_height,CALF HEIGHT,487,351.5,19.3,1,351.5,351.5,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:cervicale_height_sitting,"CERVICALE HEIGHT, SITTING",487,688.9,28.0,1,688.9,688.9,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:chest_circumference_at_scye,CHEST CIRCUMFERENCE AT SCYE,487,1035.8,55.3,1,1035.8,1035.8,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:chest_height,CHEST HEIGHT,1464,1303.05,55.69,2,1282.3,1313.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:crotch_length_omphalion,CROTCH LENGTH (OMPHALION),977,629.1,42.4,1,629.1,629.1,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:crotch_length_posterior_natural_indentation,"CROTCH LENGTH, POSTERIOR (NATURAL INDENTATION)",487,386.1,24.5,1,386.1,386.1,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:crotch_length_posterior_omphalion,"CROTCH LENGTH, POSTERIOR (OMPHALION)",1464,340.39,28.05,2,316.3,352.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:ear_breadth,EAR BREADTH,1464,36.2,2.98,2,35.3,38.0,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:ear_protrusion,EAR PROTRUSION,1464,23.3,3.24,2,22.5,24.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:elbow_circumference,ELBOW CIRCUMFERENCE,487,276.2,13.7,1,276.2,276.2,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:forearm_center_of_grip_length,FOREARM-CENTER OF GRIP LENGTH,977,351.7,15.6,1,351.7,351.7,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:forearm_hand_length,FOREARM-HAND LENGTH,977,483.0,20.1,1,483.0,483.0,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:functional_leg_length,FUNCTIONAL LEG LENGTH,1463,1127.9,57.15,2,1087.3,1148.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:gluteal_furrow_height,GLUTEAL FURROW HEIGHT,487,813.7,41.2,1,813.7,813.7,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:headboard_bizygomatic_breadth,BIZYGOMATIC BREADTH,487,141.8,5.2,1,141.8,141.8,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:headboard_menton_sellion_length,MENTON-SELLION LENGTH,487,122.4,6.2,1,122.4,122.4,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:heel_ankle_circumference,HEEL-ANKLE CIRCUMFERENCE,977,342.7,15.4,1,342.7,342.7,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:heel_ankle_circumference,HEEL ANKLE CIRCUMFERENCE,487,337.0,14.6,1,337.0,337.0,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:heel_breadth,HEEL BREADTH,1464,71.54,5.28,2,67.8,73.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:hip_breadth,HIP BREADTH,977,348.1,20.5,1,348.1,348.1,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:interscye_i,INTERSCYE I,1464,427.25,35.4,2,408.7,436.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:interscye_ii,INTERSCYE II,1464,442.56,35.15,2,416.6,455.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:knee_height_midpatella,"KNEE HEIGHT, MIDPATELLA",1464,497.16,26.01,2,493.9,503.7,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:lateral_femoral_epicondyle_height,LATERAL FEMORAL EPICONDYLE HEIGHT,1464,498.46,24.62,2,495.5,504.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:lateral_malleolus_height,LATERAL MALLEOLUS HEIGHT,977,75.4,5.4,1,75.4,75.4,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:lower_thigh_circumference,LOWER THIGH CIRCUMFERENCE,1464,405.48,28.95,2,390.6,412.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:neck_bustpoint_thelion_length,NECK-BUSTPOINT/THELION LENGTH,487,280.7,17.0,1,280.7,280.7,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:neck_height_lateral,"NECK HEIGHT, LATERAL",487,1522.2,58.7,1,1522.2,1522.2,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:overhead_fingertip_reach_extended,"OVERHEAD FINGERTIP REACH, EXTENDED",487,2341.7,92.9,1,2341.7,2341.7,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:overhead_fingertip_reach_sitting,"OVERHEAD FINGERTIP REACH, SITTING",1464,1426.42,59.05,2,1419.7,1439.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:palm_length,PALM LENGTH,977,117.8,5.6,1,117.8,117.8,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:scye_circumference,SCYE CIRCUMFERENCE,487,446.5,22.8,1,446.5,446.5,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:scye_depth,SCYE DEPTh,487,218.1,13.7,1,218.1,218.1,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:sleeve_length_spine_elbow,SLEEVE LENGTH: SPINE-ELBOW,487,599.6,25.2,1,599.6,599.6,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:sleeve_length_spine_scye,SLEEVE LENGTH: SPINE-SCYE,487,235.0,14.1,1,235.0,235.0,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:sleeve_length_spine_wrist,SLEEVE LENGTH: SPINE-WRIST,1464,901.81,35.95,2,895.0,905.2,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:strap_length,STRAP LENGTH,487,719.3,35.8,1,719.3,719.3,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:tenth_rib_height,TENTH RIB HEIGHT,1464,1125.84,48.5,2,1121.3,1128.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:thumb_breadth,THUMB BREADTH,487,23.8,1.3,1,23.8,23.8,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:tibial_height,TIBIAL HEIGHT,977,468.7,23.6,1,468.7,468.7,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:tragion_top_of_head,TRAGION – TOP OF HEAD,977,132.3,5.8,1,132.3,132.3,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:waist_back_length_omphalion,WAIST BACK LENGTH (OMPHALION),977,486.8,25.4,1,486.8,486.8,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:waist_breadth,WAIST BREADTH,977,329.9,29.1,1,329.9,329.9,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:waist_depth,WAIST DEPTH,977,238.5,30.2,1,238.5,238.5,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:waist_front_length_omphalion,WAIST FRONT LENGTH (OMPHALION),487,419.8,21.5,1,419.8,419.8,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:waist_front_length_sitting,"WAIST FRONT LENGTH, SITTING",977,388.5,26.3,1,388.5,388.5,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:waist_height_omphalion,WAIST HEIGHT (OMPHALION),977,1069.0,48.9,1,1069.0,1069.0,2010,2010,ansur-ii-pilots
+United States,Pilots,M,other:waist_height_sitting_natural_indentation,"WAIST HEIGHT, SITTING (NATURAL INDENTATION)",487,291.0,15.6,1,291.0,291.0,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:waist_hip_length,WAIST-HIP LENGTH,487,184.0,19.6,1,184.0,184.0,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:wrist_center_of_grip_length,WRIST-CENTER OF GRIP LENGTH,487,68.0,4.5,1,68.0,68.0,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:wrist_height,WRIST HEIGHT,1464,858.7,39.28,2,857.1,859.5,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,other:wrist_index_finger_length,WRIST-INDEX FINGER LENGTH,487,181.4,8.3,1,181.4,181.4,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:wrist_tiumebtip_length,WRIST-TIUMEBTIP LENGTH,487,124.4,6.2,1,124.4,124.4,1987,1987,ansur-1988-pilots
+United States,Pilots,M,other:wrist_wall_length,WRIST-WALL LENGTH,487,683.2,33.3,1,683.2,683.2,1987,1987,ansur-1988-pilots
+United States,Pilots,M,popliteal_height,Popliteal height,977,435.0,23.4,1,435.0,435.0,2010,2010,ansur-ii-pilots
+United States,Pilots,M,radiale_stylion_length,Radiale-stylion length,977,272.9,13.5,1,272.9,272.9,2010,2010,ansur-ii-pilots
+United States,Pilots,M,shoulder_circumference,Shoulder circumference,1464,1178.2,56.33,2,1175.0,1179.8,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,shoulder_elbow_length,Shoulder-elbow length,1464,368.6,17.24,2,367.0,371.8,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,shoulder_length,Shoulder length,1464,151.63,10.58,2,150.4,154.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,sitting_height,Sitting height,977,928.6,33.8,1,928.6,928.6,2010,2010,ansur-ii-pilots
+United States,Pilots,M,sleeve_outseam,Sleeve outseam,977,599.9,27.6,1,599.9,599.9,2010,2010,ansur-ii-pilots
+United States,Pilots,M,span,Span,1464,1815.75,76.59,2,1809.7,1827.9,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,stature,Stature,977,1775.0,65.2,1,1775.0,1775.0,2010,2010,ansur-ii-pilots
+United States,Pilots,M,suprasternale_height,Suprasternale height,1464,1453.0,57.4,2,1448.8,1455.1,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,thigh_circumference,Thigh circumference,1464,618.42,49.58,2,594.4,630.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,thigh_clearance,Thigh clearance,1464,177.58,15.2,2,167.9,182.4,1987,2010,ansur-1988-pilots; ansur-ii-pilots
+United States,Pilots,M,thumbtip_reach,Thumb-tip reach,977,806.2,40.2,1,806.2,806.2,2010,2010,ansur-ii-pilots
+United States,Pilots,M,trochanterion_height,Trochanterion height,977,914.1,44.9,1,914.1,914.1,2010,2010,ansur-ii-pilots
+United States,Pilots,M,vertical_trunk_circumference,Vertical trunk circumference,977,1676.0,79.7,1,1676.0,1676.0,2010,2010,ansur-ii-pilots
+United States,Pilots,M,waist_circumference,Waist circumference (omphalion),977,964.4,95.6,1,964.4,964.4,2010,2010,ansur-ii-pilots
+United States,Pilots,M,wrist_circumference,Wrist circumference,977,177.4,8.6,1,177.4,177.4,2010,2010,ansur-ii-pilots
 Uruguay,Recruits/trainees,M,age,Age,43,23.6,3.4,1,23.6,23.6,1965,1965,latin-american-armed-forces
 Uruguay,Recruits/trainees,M,mass,Body mass,43,67.63,9.34,1,67.63,67.63,1965,1965,latin-american-armed-forces
 Uruguay,Recruits/trainees,M,stature,Stature,43,1694.18,62.48,1,1694.18,1694.18,1965,1965,latin-american-armed-forces

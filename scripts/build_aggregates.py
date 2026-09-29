@@ -99,7 +99,9 @@ def paper_rows():
     if mp.exists():
         mapping = [(r["source_id"], re.compile(r["population_regex"], re.I), r["survey_group"]) for r in csv.DictReader(open(mp, encoding="utf-8"))]
     rows = []
-    for f in sorted((AGG / "raw").glob("*.csv")):
+    for f in sorted(AGG.glob("raw/*.csv")):
+        if f.name.endswith("_papers.csv"):  # paper metadata, not statistics
+            continue
         for r in csv.DictReader(open(f, encoding="utf-8")):
             if list(r.keys()) != COLUMNS:
                 raise SystemExit(f"{f.name}: bad header")
