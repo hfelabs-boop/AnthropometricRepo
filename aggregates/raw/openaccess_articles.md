@@ -76,3 +76,5 @@ Local PDFs (only two direct open-access downloads worked; publishers/PMC/MDPI/Sp
 ## Excluded after review
 
 `pmc4921355-india-armed-forces` (18 rows): the numbers came from a WebFetch summary rather than the paper text, and the tabulated mean BMI (20.5) contradicts mean weight / mean height squared (about 24). No values from this paper are used.
+
+`pmc4592759-iran-recruits-mtss` (6 rows) was also excluded: it compares recruits with medial tibial stress syndrome against controls, a clinical sample that does not represent Iranian recruits.

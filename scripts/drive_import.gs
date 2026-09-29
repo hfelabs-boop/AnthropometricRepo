@@ -34,6 +34,12 @@ const PAPERS = [
   "title": "Anthropometry package manual (CRAN)"
  },
  {
+  "name": "paper__ijasm-2025-indian-armed-forces-anthropometric-surveillance.pdf",
+  "url": "https://indjaerospacemed.com/content/110/2025/69/2/pdf/IJASM-69-099.pdf",
+  "mb": 0.55,
+  "title": "Anthropometric surveillance and obesity prevalence in Armed Force personnel: A cross-sectional study"
+ },
+ {
   "name": "us-army-women-1977__ADA056493.pdf",
   "url": "https://archive.org/download/DTIC_ADA056493/DTIC_ADA056493.pdf",
   "mb": 0.66,
@@ -44,6 +50,12 @@ const PAPERS = [
   "url": "https://archive.org/download/DTIC_AD0735101/DTIC_AD0735101.pdf",
   "mb": 1.08,
   "title": "Selected Anthropometric Dimensions of Naval Aviation Personnel (NAMRL-1141, 1971)"
+ },
+ {
+  "name": "paper__pmc8171865-chile-naval-cadets.pdf",
+  "url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0251516&type=printable",
+  "mb": 1.5,
+  "title": "Effects of a period without mandatory physical training on maximum oxygen uptake and anthropometric parameters in naval cadets"
  },
  {
   "name": "historic-australian__DST-Group-GD-0968.pdf",

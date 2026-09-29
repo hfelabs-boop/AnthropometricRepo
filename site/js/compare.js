@@ -5,7 +5,7 @@ import { objects } from "./db.js";
 import { dotplot } from "./charts.js";
 
 const SEX_COLOR = { M: "--s1", F: "--s2", both: "--s3" };
-const SEX_LABEL = { M: "Men", F: "Women", both: "Both sexes" };
+const SEX_LABEL = { M: "Men", F: "Women", both: "Mixed / not stated" };
 const MATRIX_MEASURES = ["stature", "mass", "bmi", "sitting_height", "chest_circumference", "waist_circumference",
   "head_circumference", "hand_length", "foot_length", "buttock_knee_length"];
 
@@ -85,8 +85,8 @@ export async function initCompare() {
       h("div", { class: "field" }, h("label", {}, "Measure"), measureSel,
         h("span", { class: "small muted" }, `Unit: ${unitOf(st.m)}. The number in brackets is how many country/role groups have it.`)),
       h("div", { class: "field" }, h("span", { class: "field-label" }, "Sex"),
-        h("div", { class: "seg", role: "group", "aria-label": "Sex" },
-          [["M", "Men"], ["F", "Women"], ["MF", "Both, side by side"]].map(([v, t]) =>
+        h("div", { class: "seg wrap", role: "group", "aria-label": "Sex" },
+          [["M", "Men"], ["F", "Women"], ["both", "Mixed / not stated"], ["MF", "Men vs women"]].map(([v, t]) =>
             h("button", { type: "button", "aria-pressed": String(st.sex === v), onclick: () => { st.sex = v; render(); } }, t)))),
       facetList("Country", countries.filter(c => cCount.has(c) || st.countries.includes(c)).map(c => [c, cCount.get(c) || 0]).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])),
         st.countries, (v, on) => { st.countries = on ? [...st.countries, v] : st.countries.filter(x => x !== v); render(); }),

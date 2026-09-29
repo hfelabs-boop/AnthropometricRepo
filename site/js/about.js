@@ -9,7 +9,7 @@ export function renderAbout(root) {
   const code = t => h("code", {}, t);
   root.replaceChildren(
     h("div", { class: "hero" }, h("h1", {}, "About this site"),
-      p("A catalog of 49 military anthropometric surveys, plus a database built from the four that publish individual-level data. Everything runs in your browser: the SQLite database (about 4.5 MB compressed) downloads once and is queried locally with ", a("https://sql.js.org", "sql.js"), ".")),
+      p("A catalog of 49 military anthropometric surveys, a database built from the four that publish individual-level data, and statistics from about 30 published papers covering more than 40 countries and groupings. Everything runs in your browser: the SQLite database (about 5 MB compressed) downloads once and is queried locally with ", a("https://sql.js.org", "sql.js"), ".")),
 
     h("h2", {}, "The four open datasets"),
     h("div", { class: "table-wrap", style: { maxHeight: "none" } }, h("table", { class: "data" },
@@ -35,17 +35,29 @@ export function renderAbout(root) {
       h("li", {}, "Measures not recorded in a survey are NULL. A condition on such a measure excludes that survey's people. The query builder warns you when this happens."),
       h("li", {}, "The catalog's 'not verified' entries give only the best available citation. See ", a(`${REPO}/blob/main/CORRECTIONS.md`, "CORRECTIONS.md"), ".")),
 
+    h("h2", {}, "Statistics from published papers"),
+    p("Only four surveys publish individual-level data. To cover more countries and roles, tables of means and standard deviations were extracted from about 30 of the papers listed under ", a("#/papers", "Papers"),
+      ": NASA's 1978 source book of 91 populations, US Army and Marine Corps surveys, the Australian, New Zealand, German, Korean, Thai and Latin American reports, and open-access journal articles."),
+    h("ul", {},
+      h("li", {}, "Each row keeps its source file and page number so it can be checked. Rows read from scanned pages (grade B) had to pass consistency checks, for example the printed coefficient of variation must equal SD ÷ mean."),
+      h("li", {}, "Where the individual-level data exist, extracted numbers were compared with them. The NASA source book's USAF 1967 rows match the raw data to within 0.1 SD on all 47 comparable measures. ANSUR and ASRAN report tables match to rounding."),
+      h("li", {}, "Roll-ups on ", a("#/compare", "By country & role"), " combine the surveys of one country and role, weighted by sample size. Surveys span the 1940s to the 2020s, so they mix eras. Use ", h("i", {}, "Every population"), " to compare like with like."),
+      h("li", {}, "Some populations in the older reports do not state the sex of the sample. These are shown as 'Mixed / not stated' rather than guessed."),
+      h("li", {}, "Papers whose numbers could not be verified or were not representative (for example a clinical case-control study) were left out. See ", a(`${REPO}/blob/main/aggregates/raw/openaccess_articles.md`, "the notes"), ".")),
+
     h("h2", {}, "Database tables"),
     h("ul", {},
       h("li", {}, code("subjects"), ": one row per person, harmonized measures plus sex, branch, component and handedness. The ", code("people"), " view adds the survey name and year."),
-      h("li", {}, code("measures"), ": label, unit, category and the source column in each survey."),
+      h("li", {}, code("aggregates"), ": every extracted statistic (mean, SD, n, percentiles) with country, role, source paper and page. ", code("rollup"), ": the country × role × sex × measure averages."),
+      h("li", {}, code("papers"), ": the paper index. ", code("measures"), ": label, unit, category and the source column in each survey."),
       h("li", {}, code("datasets"), ", ", code("surveys"), ", ", code("survey_links"), ": provenance and the full 49-survey catalog."),
       h("li", {}, code("raw_ansur_1988"), ", ", code("raw_ansur_ii_2012"), ", ", code("raw_asran_2015"), ", ", code("raw_usaf_1967"), " and ", code("raw_columns"), ": original columns with descriptions.")),
 
     h("h2", {}, "Downloads"),
     h("ul", {},
       h("li", {}, a("db/anthro.sqlite.gz", "Full SQLite database (gzip)"), " — open it with any SQLite tool, Python ", code("sqlite3"), ", R ", code("RSQLite"), " or DB Browser for SQLite."),
-      h("li", {}, a("catalog/surveys.csv", "Survey catalog (CSV)"), " · ", a("catalog/surveys.json", "JSON")),
+      h("li", {}, a("catalog/surveys.csv", "Survey catalog (CSV)"), " · ", a("catalog/surveys.json", "JSON"), " · ", a("catalog/papers.csv", "Paper index (CSV)")),
+      h("li", {}, a("aggregates/aggregates.csv", "All extracted statistics (CSV)"), " · ", a("aggregates/rollup.csv", "Country × role roll-up (CSV)"), " · ", a("aggregates/SPEC.md", "column definitions")),
       h("li", {}, "Original data files: ", a("data/ansur-1988/ansurMen.csv", "ANSUR 88 men"), ", ", a("data/ansur-1988/ansurWomen.csv", "women"), " · ",
         a("data/ansur-ii-2012/ANSUR_II_MALE_Public.csv", "ANSUR II men"), ", ", a("data/ansur-ii-2012/ANSUR_II_FEMALE_Public.csv", "women"), " · ",
         a("data/asran-2015/asran-2015-anthropometry-data_public-release.xlsx", "ASRAN workbook"), " · ", a("data/usaf-1967/USAF1967.csv", "USAF 1967"))),

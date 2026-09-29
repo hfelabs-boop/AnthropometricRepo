@@ -23,7 +23,7 @@ survey_no,reference_list_name,printed_table_name,country,population_type,service
 23,U.S. AIR FORCE SURVEY 1965 - BASIC TRAINEES,BASIC TRAINEE 65,United States,military,Recruits/trainees,M,1965,2527,yes,sub-sample of S19,153
 24,NAVY FLIERS,NAVY FLYERS 64,United States,military,Aircrew,M,1964,1529,yes,Navy and Marine air stations,91
 25,U.S. AIR FORCE FLYING PERSONNEL 1967 - TOTAL SERIES,USAF FLY PRSNL 67,United States,military,Aircrew,M,1967,2420,yes,officers on flying status; total of S26-S29 plus flight surgeons,177
-26,U.S. AIR FORCE FLYING PERSONNEL 1967 - STUDENT PILOTS,STUDENT PLT67,United States,military,Pilots,M,1967,,yes,sub-sample of S25,177
+26,U.S. AIR FORCE FLYING PERSONNEL 1967 - STUDENT PILOTS,STUDENT PLT 67,United States,military,Pilots,M,1967,,yes,sub-sample of S25,177
 27,U.S. AIR FORCE FLYING PERSONNEL 1967 - RATED PILOTS,RATED PILOTS 67,United States,military,Pilots,M,1967,,yes,sub-sample of S25,175
 28,U.S. AIR FORCE FLYING PERSONNEL 1967 - STUDENT NAVIGATORS,SDT NAVIGAT 67,United States,military,Navigators,M,1967,,yes,sub-sample of S25,174
 29,U.S. AIR FORCE FLYING PERSONNEL 1967 - RATED NAVIGATORS,RTD NAVIGAT 67,United States,military,Navigators,M,1967,,yes,sub-sample of S25,171

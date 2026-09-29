@@ -83,27 +83,25 @@ Install the dependencies with `pip install -r requirements.txt`.
 
 ## Website and database
 
-The website is a static single-page app in [`site/`](site). It has five sections:
+The website is a static single-page app in [`site/`](site). It has seven sections:
 
-- **Survey catalog.** All 49 surveys. You can search them and filter by data access, report access, PDF availability, region, country, service, sexes measured, era, verification and licence, plus year and minimum sample size. Each filter option shows a live count. Results can be sorted, shown as cards or a table, and exported to CSV.
-- **Explore data.** A query builder over the 13,792 people in the four open datasets. You pick surveys, sex, any number of measurement ranges (for example stature 1,700–1,800 mm *and* BMI ≥ 30), branch and handedness, the columns to show, and how to group results. Results appear as:
-  - summary statistics: n, mean, SD, and the 5th to 95th percentiles;
-  - a sortable, paginated table of records;
-  - distribution charts;
-  - scatter plots with linear fits.
-
-  Every question is compiled to SQL, which you can view, and can be shared as a link or exported to CSV. The page also offers eight ready-made example questions.
+- **Survey catalog.** All 49 surveys. You can search them and filter by data access, report access, PDF availability, region, country, service, sexes measured, era, verification and licence, plus year and minimum sample size. Each filter option shows a live count. Results can be sorted, shown as cards or a table, and exported to CSV. DTIC reports carry a link to a free copy on the Internet Archive.
+- **Explore data.** A query builder over the 13,792 people in the four open datasets. You pick surveys, sex, any number of measurement ranges (for example stature 1,700–1,800 mm *and* BMI ≥ 30), branch and handedness, the columns to show, and how to group results. Results appear as summary statistics, a sortable table of records, distribution charts, and scatter plots with linear fits. Every question is compiled to SQL, which you can view, and can be shared as a link or exported to CSV.
+- **By country & role.** Average measurements of military populations in 40+ countries and groupings, from the statistics extracted from about 30 published papers ([`aggregates/`](aggregates)). A ranking (dot plot and table), a matrix of countries × measures, and a per-population view where every row links to the paper and page it came from. Filter by measure, sex, country, role and minimum sample size.
 - **SQL console.** Free-form SQLite queries against the whole database, with a schema browser, example queries, sortable results and CSV export.
 - **Measures.** The 59 harmonized measures, showing which surveys include each one and the mean for men and women.
+- **Papers.** 82 papers and reports with free links and the amount of data extracted from each.
 - **About.** Where the data comes from, how it was harmonized, caveats, and downloads.
 
-The database is described in [`database/README.md`](database/README.md). The browser downloads it once (4.5 MB compressed) and runs every query locally with [sql.js](https://sql.js.org), so no server is needed.
+The database is described in [`database/README.md`](database/README.md). The browser downloads it once (about 5 MB compressed) and runs every query locally with [sql.js](https://sql.js.org), so no server is needed.
 
 ```bash
 python scripts/build_database.py        # database/anthro.sqlite only
 python scripts/build_site.py            # database + site into public/
 python -m http.server -d public 8000    # preview at http://localhost:8000
 ```
+
+**Papers and Google Drive.** `python scripts/fetch.py reports` downloads every paper into `reports/` (git-ignored, about 600 MB; DTIC blocks scripts, so it falls back to the Internet Archive copy). `python scripts/build_papers.py` writes the index `catalog/papers.csv`. A [Google Drive folder](https://drive.google.com/drive/folders/1zB87Ukso3or-ez0tZ5lGeSl9wfXv60OJ) holds the paper index and a country/role summary as Google Sheets (private, shared on request). Drive cannot import files from a URL, so `scripts/drive_import.gs` is a Google Apps Script that copies all the open PDFs into that folder from your own account; see the README in the folder.
 
 **To deploy on Vercel:** choose **Add New → Project**, import this repository, and keep the settings from `vercel.json` (no framework, build command `python3 scripts/build_site.py`, output directory `public`). Every push to `main` redeploys the site.
 

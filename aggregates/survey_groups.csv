@@ -1,0 +1,7 @@
+source_id,population_regex,survey_group
+ansur-1988,.*,ansur-1988
+ansur-ii-2012,.*,ansur-ii-2012
+asran-2015,.*,asran-2015
+naval-aviators-1964,.*,naval-aviators-1964
+rp1024-vol2,^S25 ,usaf-1967
+rp1024-vol2,^S24 ,naval-aviators-1964

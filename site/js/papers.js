@@ -33,8 +33,10 @@ export async function initPapers() {
       cellRender: (c, v) => {
         if (c === "Paper") return h("div", {}, v.title, h("div", { class: "small muted" }, v.text_layer && v.text_layer.startsWith("no") ? "scanned image, no text layer" : ""));
         if (c === "Rows extracted") return v ? fmtInt(v) : "—";
-        if (c === "Links") return h("span", {}, h("a", { href: v.open_copy_url, target: "_blank", rel: "noopener" }, "Open copy"), " · ",
-          h("a", { href: v.original_url, target: "_blank", rel: "noopener" }, "Original"));
+        if (c === "Links") return /abstract only/.test(v.open_copy_kind)
+          ? h("a", { href: v.original_url, target: "_blank", rel: "noopener", title: "Full text is behind a paywall" }, "Publisher page (abstract)")
+          : h("span", {}, h("a", { href: v.open_copy_url, target: "_blank", rel: "noopener" }, "Open copy"), v.open_copy_url !== v.original_url ? [" · ",
+            h("a", { href: v.original_url, target: "_blank", rel: "noopener" }, "Original")] : null);
         return v ?? "—";
       } }));
     $("#papers-csv").onclick = () => download("papers.csv", toCSV(["paper_id", "survey_id", "title", "original_url", "open_copy_url", "pages", "size_mb", "aggregate_rows"], list.map(p => [p.paper_id, p.survey_id, p.title, p.original_url, p.open_copy_url, p.pages, p.size_mb, p.aggregate_rows])));

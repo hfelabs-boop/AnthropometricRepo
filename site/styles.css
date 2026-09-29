@@ -281,3 +281,9 @@ textarea.editor { width: 100%; min-height: 170px; resize: vertical; font-family:
 .prose h2 { font-size: 1.15rem; margin: 24px 0 8px; }
 .prose p, .prose li { color: var(--text-2); }
 footer.site { max-width: 1320px; margin: 0 auto; padding: 16px; color: var(--text-3); font-size: .82rem; border-top: 1px solid var(--line); }
+
+/* four-option segmented control that wraps into two rows in narrow sidebars */
+.seg.wrap { display: grid; grid-template-columns: 1fr 1fr; }
+.seg.wrap button { border-left: 0; border-top: 1px solid var(--line); text-align: center; }
+.seg.wrap button:nth-child(-n+2) { border-top: 0; }
+.seg.wrap button:nth-child(even) { border-left: 1px solid var(--line); }

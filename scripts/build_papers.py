@@ -92,7 +92,9 @@ def main():
             pages, text = pdf_facts(path) if has else (None, "")
             rows.append({
                 "paper_id": r["slug"], "survey_id": "", "title": r["title"], "original_url": r["url"],
-                "open_copy_url": r.get("pdf_url") or r["url"], "open_copy_kind": f"open access ({r.get('license') or 'license not stated'})",
+                "open_copy_url": r.get("pdf_url") or r["url"],
+                "open_copy_kind": ("publisher page (abstract only)" if r.get("accessibility", "").startswith("abstract")
+                                   else f"open access ({r.get('license') or 'license not stated'})"),
                 "local_file": local if has else "", "size_mb": round(path.stat().st_size / 1e6, 2) if has else "",
                 "pages": pages or "", "text_layer": text, "sha256": sha256(path) if has else "",
                 "aggregate_rows": int(r.get("rows_extracted") or 0), "source": "web search"})
