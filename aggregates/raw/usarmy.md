@@ -24,7 +24,7 @@ Report-level breakdowns by Army component or MOS: none. ANSUR II reports only sa
 * ANSUR II pilots: the printed "FEMALES" columns are the **augmented** database (n=395, women drawn from the ANSUR II female pool and weighted), not the 42 pilots actually measured. The 42 real women are in Appendix I (mean/SD/min/max only) and are given as a separate population. The report says the 42 should not be used for design.
 * Appendix I skips: "Acromial height sitting" (a derived dimension, D2), "Acromion radiale length" (printed mean 107.4 mm is not consistent with 311 mm in the main tables, likely a misprint, dropped). Interpupillary breadth in Appendix I is printed in tenths of mm although the header says mm; divided by 10 and noted in the row.
 * ANSUR 1988 pilots (ADA241952): the female column is a subset of the ANSUR female pool matched to pilot age and race, not real pilots. The report uses 2.2 lb per kg for weight (checked: lb/2.2 equals the printed kg), so weight consistency accepts either 2.2046 or 2.2.
-* Quality flags: the task asked for `A` = passed all consistency checks (incl. agreement with raw data where available). SPEC.md defines `A` as born-digital and `B` as OCR that passed internal checks. I used `A` for every row that passed all applicable checks, except: ANSUR 1988 headboard rows (no raw data exist, scanned OCR) and the 7 ANSUR 1988 standard rows with no raw column (Vertical trunk circumference ASCC, and single-sex rows of a few dimensions whose partner-sex OCR was unreadable), which are `B`. The ANSUR II, MC-ANSUR and pilot PDFs have a clean born-digital text layer; ANSUR 1988 PDFs are OCR of scans.
+* Quality flags: the task asked for `A` = passed all consistency checks (incl. agreement with raw data where available). SPEC.md defines `A` as born-digital and `B` as OCR that passed internal checks. I used `A` for every row that passed all applicable checks, except: ANSUR 1988 headboard rows (91; no raw data exist, scanned OCR) and the 2 ANSUR 1988 Vertical trunk circumference (ASCC) rows (no raw column), which are `B`. The ANSUR II, MC-ANSUR and pilot PDFs have a clean born-digital text layer; ANSUR 1988 PDFs are OCR of scans.
 
 ## Validation applied to every row
 
@@ -39,17 +39,17 @@ Report-level breakdowns by Army component or MOS: none. ANSUR II reports only sa
 ## Agreement with raw data
 
 * ANSUR II (data/ansur-ii-2012/*.csv; male file latin-1; raw mm converted to cm, mass hectograms /10, interpupillary breadth stored in tenths of mm): 186/186 rows match. Max |mean difference| 0.005 cm, max |SD difference| 0.005 cm (rounding of the printed value), n identical (4082/1986). No OCR or unit errors found (the PDF text is born digital).
-* ANSUR 1988 standard measurements (data/ansur-1988/*.csv; raw mm, WEIGHT in hg): 256 rows, all within 0.005 cm / 0.005 kg for the mean and within tolerance for the SD; n identical (1774 / 2208 or the printed lower n). Report dimension k maps to raw column by matching means, and the mapping is consistent with the names (checked all 131; the raw file has no column for Vertical trunk circumference ASCC, dimension 108). One raw variable order quirk: the printed order of dimension numbers 88-132 is shifted by one against the raw column list because dimension 88 (Scye circumference) is column SCYE_CIRC_OVER_ACROMION.
+* ANSUR 1988 standard measurements (data/ansur-1988/*.csv; raw mm, WEIGHT in hg): 254 rows checked (256 kept; the 2 ASCC rows have no raw column), all within 0.005 cm / 0.005 kg for the mean and within tolerance for the SD; n identical (1774 / 2208 or the printed lower n). Report dimension k maps to raw column by matching means, and the mapping is consistent with the names (checked all 131; the raw file has no column for Vertical trunk circumference ASCC, dimension 108). One raw variable order quirk: the printed order of dimension numbers 88-132 is shifted by one against the raw column list because dimension 88 (Scye circumference) is column SCYE_CIRC_OVER_ACROMION.
 * MC-ANSUR, ANSUR II pilots, ANSUR 1988 headboard and 1988 pilots: no raw data exist in the repo (individual-level data are public only for ANSUR II and ANSUR 1988 standard); checks 1-4 and 6 above apply.
 
 ## Rows dropped or values omitted (all OCR problems in ANSUR 1988 scans)
 
 Dropped, not repaired:
-* ansur-1988 men: Biacromial breadth (SD cm unreadable "1.8C"), Head circumference (SD inch unreadable), Heel-ankle circumference (SD cm/in mismatch), Bimalleolar breadth H47 women Zygofrontale-back of head (mean cm/in mismatch).
+* ansur-1988 men: Biacromial breadth (SD cm unreadable "1.8C"), Head circumference (SD inch unreadable), Heel-ankle circumference (SD cm/in mismatch).
 * ansur-1988 women: Bustpoint/thelion-bustpoint breadth, Chest circumference at scye, Waist (natural indentation)-waist (omphalion) length (mean cm unreadable), Interscye I (SD cm/in mismatch), Sitting height (mean printed "65.20", inch 33.54; the digit is misread, so dropped).
-* ansur-1988 headboard: Chin-top of head (stat page unparseable), Nose protrusion men and Pronasale-top of head women (tokens unreadable).
-* ansur-1988-pilots: rows failing cm/inch checks (Foot breadth F, Waist front length NI M), n outlier (Ear breadth F 234), cross-check failures (Crotch length NI and omphalion, both sexes: values inconsistent with the 1988 main survey, likely swapped or misprinted), and about 55 dimension-sex rows whose text layer was missing or unreadable (see the source PDF pages 85-339).
-* Percentiles are blank for 93 of 347 ANSUR 1988 rows, 167 of 214 1988-pilot rows (text layer garbled), and the Appendix I rows (not printed).
+* ansur-1988 headboard: Chin-top of head (both sexes, statistics header unreadable), Nose protrusion men and Pronasale-top of head women (tokens unreadable), Zygofrontale-back of head women (mean cm/in mismatch).
+* ansur-1988-pilots: rows failing cm/inch checks (Foot breadth F, Waist front length NI M), n outlier (Ear breadth F 234), cross-check failures (Crotch length NI and omphalion, both sexes: values inconsistent with the 1988 main survey, likely swapped or misprinted), and 43 dimension-sex rows whose text layer was missing or unreadable (statistics page not parsed, or mean/SD tokens garbled).
+* Percentiles are blank for 93 of 347 ANSUR 1988 rows (unreadable, or dropped after disagreeing with raw quantiles), 167 of 214 1988-pilot rows (text layer garbled), 8 ANSUR II rows, 6 MC-ANSUR rows, and the 92 Appendix I rows (not printed).
 
 ## Label handling
 
@@ -60,3 +60,8 @@ Measure keys: harmonized keys where the dimension name is the same as an entry i
 ## Reproduction
 
 Parsing and validation code lives in the session scratchpad (`.../scratchpad/usarmy/*.py`): word-position parsing of the PDF text layer (pymupdf), cm/inch cross-check, raw-data comparison, and CSV assembly. The CSV was regenerated from those scripts and validated with `python3 scripts/validate_aggregates.py aggregates/raw/usarmy.csv`.
+
+
+## Quality grading
+
+All rows are graded `B` (OCR text layer of scanned reports), following aggregates/SPEC.md. The ANSUR II and ANSUR 1988 standard rows also match the individual-level data in this repository to within rounding.
