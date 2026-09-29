@@ -100,7 +100,7 @@ def paper_rows():
         mapping = [(r["source_id"], re.compile(r["population_regex"], re.I), r["survey_group"]) for r in csv.DictReader(open(mp, encoding="utf-8"))]
     rows = []
     for f in sorted(AGG.glob("raw/*.csv")):
-        if f.name.endswith("_papers.csv"):  # paper metadata, not statistics
+        if f.name.endswith(("_papers.csv", "_surveys.csv")):  # paper metadata, not statistics
             continue
         for r in csv.DictReader(open(f, encoding="utf-8")):
             if list(r.keys()) != COLUMNS:

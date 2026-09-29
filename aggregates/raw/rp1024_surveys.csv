@@ -1,0 +1,91 @@
+survey_no,reference_list_name,printed_table_name,country,population_type,service_role,sex,year_start,n_reported,in_pdf_reference_list,notes,rows_extracted
+1,AIRLINE STEWARDESSES - 1971,STEWARDESSES 1971,United States,civilian,Civilian,F,1971,423,yes,,66
+2,U.S. WOMEN DEPT. OF AGRICULTURE - 1940,US WOMEN-D/A 1940,United States,civilian,Civilian,F,1939,10042,yes,,41
+3,WOMEN ARMY SERVICE (WAS) PILOTS - 1942,WAS PILOTS 1942,United States,military,Pilots,F,1942,447,yes,,27
+4,ARMY AIR FORCE (AAF) NURSES - 1942,AAF NURSES 1942,United States,military,Nurses,F,1942,152,yes,,29
+5,WOMEN OF THE ARMY CORPS SEPARATEES - 1946,WAC SEPARATEE 1946,United States,military,Army,F,1946,8543,yes,"nurses, enlisted WAC and WAC officers; companion of S14",60
+6,WOMEN OF THE AIR FORCE BASIC TRAINEES - 1952,WAF BASIC TR 1952,United States,military,Recruits/trainees,F,1952,852,yes,,55
+7,AIR FORCE WOMEN - 1968,AIR FORCE WMN 68,United States,military,Air Force,F,1968,1905,yes,"total of S8,S9,S10",133
+8,WAF NURSE OFFICERS,WAF NURSE OFCRS,United States,military,Officers,F,1968,548,yes,officers incl. nurses; sub-sample of S7,127
+9,ENLISTED WOMEN - WHITE,ENLISTED WAFS/W,United States,military,Enlisted,F,1968,1216,yes,sub-sample of S7,129
+10,ENLISTED WOMEN - BLACK,ENLISTED WAFS/B,United States,military,Enlisted,F,1968,131,yes,sub-sample of S7,129
+11,"NATIONAL HEALTH EXAMINATION SURVEY 1962, TOTAL FEMALE POPULATION",HEALTH EXAM/F 62,United States,civilian,Civilian,F,1959,3581,yes,age 18-79,14
+12,"NATIONAL HEALTH EXAMINATION SURVEY 1962, AGED 25-40",HEALTH EXAM/F 25-40,United States,civilian,Civilian,F,1959,1165,yes,sub-sample of S11,17
+13,AIR TRAFFIC CONTROLLERS,AIR TRAFFIC CNTRL,United States,civilian,Civilian,M,1960,684,yes,FAA air traffic control trainees,55
+14,ARMY SEPARATEES - 1946,ARMY SEPARATEE 46,United States,military,Army,M,1946,25000,yes,"25,000 white separatees sub-series of 85,000; companion of S5",28
+15,ARMY AIR FORCE CADETS - 1942,A.A.F.CADETS 42,United States,military,Cadets,both,1942,2961,yes,sex not stated in RP-1024 reference list,24
+16,ARMY AIR FORCE GUNNERS - 1942,A.A.F.GUNNERS 42,United States,military,Aircrew,both,1942,,yes,sex not stated in RP-1024 reference list,25
+17,U.S. AIR FORCE BASIC TRAINEES - 1952,USAF BASIC TR 52,United States,military,Recruits/trainees,M,1952,3331,yes,,52
+18,U.S. AIR FORCE FLYING PERSONNEL - 1950,USAF FLY PRSNL 50,United States,military,Aircrew,M,1950,4063,yes,,129
+19,U.S. AIR FORCE SURVEY 1965 - TOTAL SERIES,USAF SURVEY 1965,United States,military,Air Force,M,1965,3869,yes,"total of S20,S21,S23 (men)",147
+20,U.S. AIR FORCE SURVEY 1965 - OFFICERS,OFFICERS---1965,United States,military,Officers,M,1965,549,yes,sub-sample of S19,148
+21,U.S. AIR FORCE SURVEY 1965 - ENLISTED,ENLISTED MEN 65,United States,military,Enlisted,M,1965,792,yes,sub-sample of S19,141
+23,U.S. AIR FORCE SURVEY 1965 - BASIC TRAINEES,BASIC TRAINEE 65,United States,military,Recruits/trainees,M,1965,2527,yes,sub-sample of S19,153
+24,NAVY FLIERS,NAVY FLYERS 64,United States,military,Aircrew,M,1964,1529,yes,Navy and Marine air stations,91
+25,U.S. AIR FORCE FLYING PERSONNEL 1967 - TOTAL SERIES,USAF FLY PRSNL 67,United States,military,Aircrew,M,1967,2420,yes,officers on flying status; total of S26-S29 plus flight surgeons,177
+26,U.S. AIR FORCE FLYING PERSONNEL 1967 - STUDENT PILOTS,STUDENT PLT67,United States,military,Pilots,M,1967,,yes,sub-sample of S25,177
+27,U.S. AIR FORCE FLYING PERSONNEL 1967 - RATED PILOTS,RATED PILOTS 67,United States,military,Pilots,M,1967,,yes,sub-sample of S25,175
+28,U.S. AIR FORCE FLYING PERSONNEL 1967 - STUDENT NAVIGATORS,SDT NAVIGAT 67,United States,military,Navigators,M,1967,,yes,sub-sample of S25,174
+29,U.S. AIR FORCE FLYING PERSONNEL 1967 - RATED NAVIGATORS,RTD NAVIGAT 67,United States,military,Navigators,M,1967,,yes,sub-sample of S25,171
+30,ARMY SOLDIERS - 1966,ARMY SOLDIERS 66,United States,military,Army,M,1966,6682,yes,"companion of S31,S33",69
+31,NAVY ENLISTED - 1966,NAVY ENLISTED 66,United States,military,Navy,M,1966,,yes,"enlisted men; companion of S30,S33",72
+32,NAVY DIVERS,NAVY DIVERS 72,United States,military,Navy,both,,100,yes,sex not stated in RP-1024 reference list,41
+33,MARINE ENLISTED - 1966,MARINE ENLIST 66,United States,military,Marine Corps,M,1966,,yes,"enlisted men; companion of S30,S31",69
+34,ARMY AVIATORS - 1959,ARMY AVIATORS 59,United States,military,Aircrew,both,1959,,yes,sex not stated in RP-1024 reference list,37
+35,ARMY HELICOPTER STUDENTS,ARMY HELIO STDNTS,United States,military,Aircrew,both,,1640,yes,sex not stated in RP-1024 reference list; warrant officer candidate flight trainees,10
+36,ARMY AVIATORS - 1970,ARMY AVIATORS 70,United States,military,Aircrew,M,1970,1482,yes,flying personnel Fort Rucker; sex per text: men,78
+37,NATIONAL HEALTH EXAMINATION SURVEY 1962 - TOTAL MALE POPULATION,HEALTH EXAM/M 62,United States,civilian,Civilian,M,1959,,yes,age 18-79,16
+38,NATIONAL HEALTH EXAMINATION SURVEY 1962 - MEN AGED 25-40,HEALTH EXAM/M 25-40,United States,civilian,Civilian,M,1959,,yes,sub-sample of S37,14
+39,LAW ENFORCEMENT OFFICERS,LAW ENFORCE OFCRS,United States,civilian,Civilian,both,1973,2993,yes,sex not stated in RP-1024 reference list; police/law enforcement officers,16
+40,SLOVAKIAN CIVILIAN WOMEN,SLOVAK CIV WOMEN,Czechoslovakia,civilian,Civilian,F,,,yes,Slovakian sample; head measurements only,10
+41,DUTCH CIVILIAN WOMEN,DUTCH CIVIL WOMEN,Netherlands,civilian,Civilian,F,,,yes,,14
+42,GERMAN OFFICE WORKERS,GERMAN OFFC WKR/F,Germany,civilian,Civilian,both,,,yes,sex not stated in RP-1024 reference list,7
+43,ENGLISH CIVILIAN WOMEN,ENGLISH CIV WOMEN,United Kingdom,civilian,Civilian,F,,,yes,,22
+44,SWEDISH CIVILIAN WOMEN,SWEDISH CIV WOMEN,Sweden,civilian,Civilian,F,,,yes,,26
+45,AUSTRALIAN PILOTS/FEMALE,AUSTRALN PILOT/F,Australia,civilian,Civilian,F,,35,yes,female private/commercial pilots,15
+46,JAPANESE CIVILIAN WOMEN,JAPANESE CIV.WMN,Japan,civilian,Civilian,F,,,yes,women 25-39 (predominantly housewives),26
+47,SWEDISH INDUSTRIAL WORKERS/FEMALE,SWEDISH IND WKR/F,Sweden,civilian,Civilian,F,,77,yes,,16
+48,NATO SURVEY - 1960/61,NATO SURVEY-60/61,"Multiple: Turkey, Greece, Italy",military,Cadre/other military,M,1960,,yes,"total of S49,S50,S51",139
+49,TURKISH MILITARY - 1960,TURKISH MIL 60,Turkey,military,Cadre/other military,M,1960,,yes,sub-sample of S48,140
+50,GREEK MILITARY - 1961,GREEK MILIT 61,Greece,military,Cadre/other military,M,1961,,yes,sub-sample of S48,141
+51,ITALIAN MILITARY - 1961,ITALIAN MIL 61,Italy,military,Cadre/other military,M,1961,1357,yes,sub-sample of S48,144
+52,BANTU MINERS,BANTU MINERS,South Africa,civilian,Civilian,both,,,yes,sex not stated in RP-1024 reference list; Bantu mine laborers,59
+53,FRENCH ARMY,FRENCH ARMY,France,military,Army,both,,794,yes,sex not stated in RP-1024 reference list,90
+54,FRENCH PILOTS,FRENCH PILOTS,France,military,Pilots,both,,65,yes,sex not stated in RP-1024 reference list; Air Force pilots; sub-sample of French military survey,94
+55,FRENCH STUDENT PILOTS,FRENCH STUD PILOT,France,military,Recruits/trainees,both,,101,yes,sex not stated in RP-1024 reference list; Air Force student pilots,89
+56,FRENCH NAVY I,FRENCH NAVY I,France,military,Navy,both,,212,yes,sex not stated in RP-1024 reference list,96
+57,FRENCH NAVY II,FRENCH NAVY II,France,military,Navy,both,,100,yes,sex not stated in RP-1024 reference list,92
+58,GERMAN TANKERS,GERMAN TANKERS,Germany,military,Army,both,1965,300,yes,sex not stated in RP-1024 reference list; tank crews,13
+59,GERMAN AVIATORS,GERMAN AVIATORS,Germany,military,Aircrew,both,1967,,yes,"sex not stated in RP-1024 reference list; German Air Force flying personnel, 1967 subjects",142
+60,GERMAN 20 YEAR OLDS,GERMAN 20 YR OLDS,Germany,mixed,Recruits/trainees,M,1968,7144,yes,20-year-old men liable to military service,40
+61,GERMAN 25-40 YEAR OLDS,GERMANS/25-40 YRS,Germany,military,Tri-service,M,1970,2643,yes,"men 25-40, all services",47
+62,CANADIAN MILITARY - 1974,CANADIAN MILIT 74,Canada,military,Tri-service,both,1974,565,yes,sex not stated in RP-1024 reference list,31
+63,CANADIAN STUDENT - PILOTS,CANADIAN STU PLT,Canada,military,Recruits/trainees,both,1955,998,yes,sex not stated in RP-1024 reference list; RCAF pilot trainees,7
+64,CANADIAN STUDENT - OBSERVERS,CANADIAN STU OBS,Canada,military,Recruits/trainees,both,1955,580,yes,sex not stated in RP-1024 reference list; RCAF observer trainees,7
+65,ROYAL ARMOURED CORPS,ROYAL ARMOR CORP,United Kingdom,military,Army,both,1972,500,yes,sex not stated in RP-1024 reference list,54
+66,ROYAL AIR FORCE,ROYAL AIR FORCE,United Kingdom,military,Aircrew,both,1970,2000,yes,sex not stated in RP-1024 reference list,47
+67,ROYAL AIR FORCE AND ROYAL NAVY AIRCREW,RAF AIRCREW,United Kingdom,military,Aircrew,both,1966,200,yes,sex not stated in RP-1024 reference list,37
+68,ROYAL CANADIAN AIR FORCE PILOTS,RCAF PILOTS,Canada,military,Pilots,both,1961,314,yes,sex not stated in RP-1024 reference list,50
+69,ROYAL CANADIAN AIR FORCE NAVIGATORS,RCAF NAVIGATORS,Canada,military,Navigators,both,1961,290,yes,sex not stated in RP-1024 reference list,49
+70,ROYAL NEW ZEALAND AIR FORCE,NEW ZEALAND AIRF,New Zealand,military,Aircrew,both,1972,238,yes,sex not stated in RP-1024 reference list,57
+71,ROYAL AUSTRALIAN AIR FORCE CADETS,AUSTRALIAN CADETS,Australia,military,Cadets,both,1971,97,yes,sex not stated in RP-1024 reference list,16
+72,ROYAL AUSTRALIAN AIR FORCE RATED (TRAINED),AUSTRALIAN RATED,Australia,military,Aircrew,both,1971,385,yes,sex not stated in RP-1024 reference list,17
+73,CZECHOSLOVAKIAN LUMBERMEN,CZECH LUMBERMEN,Czechoslovakia,civilian,Civilian,both,,1110,yes,sex not stated in RP-1024 reference list; lumbermen (presumably male),24
+74,SLOVAKIAN CIVILIAN MALES,SLOVAK CIVILIANS,Czechoslovakia,civilian,Civilian,M,,,yes,Slovakian males over 45; head measurements only,9
+75,LATIN AMERICAN ARMED FORCES,LATIN AMERICANS,Multiple: Latin America (18 countries),military,Tri-service,both,1965,1985,yes,"sex not stated in RP-1024 reference list; students at Inter-American Air Forces Academy, mostly Air Force",64
+76,AUSTRALIAN PILOTS/MALE,AUSTRALN PILOT/M,Australia,civilian,Civilian,M,,17,yes,male private/commercial pilots,14
+77,FRENCH YOUNG MEN,FRENCH YOUNG MEN,France,civilian,Civilian,M,1967,2000,yes,head and face measurements,30
+78,SOUTH AFRICANS,SOUTH AFRICANS,South Africa,military,Tri-service,M,,1449,yes,white (Caucasian) males,46
+79,JAPANESE CIVILIAN MEN,JAPANESE CIV. MEN,Japan,civilian,Civilian,M,,,yes,men 25-39 (light laborers); values estimated from mean/SD,24
+80,JAPANESE AIR FORCE - TOTAL SERIES,JAPANESE AIRFORCE,Japan,military,Air Force,both,,1176,yes,sex not stated in RP-1024 reference list; JASDF,81
+81,JAPANESE AIR FORCE - PILOTS,JAPAN AF PILOTS,Japan,military,Pilots,both,,210,yes,sex not stated in RP-1024 reference list; sub-sample of S80,80
+82,JAPANESE AIR FORCE - NAVIGATORS,JAPAN AF NAVIG,Japan,military,Navigators,both,,538,yes,sex not stated in RP-1024 reference list; sub-sample of S80,83
+83,JAPANESE PILOTS,JAPANESE PILOTS,Japan,military,Pilots,both,1961,239,yes,sex not stated in RP-1024 reference list; JASDF pilots,61
+84,THAI MILITARY,THAI MILITARY,Thailand,military,Tri-service,both,1962,2950,yes,sex not stated in RP-1024 reference list,48
+85,VIETNAM MILITARY,VIETNAM MILITARY,Vietnam,military,Tri-service,both,1963,2129,yes,sex not stated in RP-1024 reference list,52
+86,,R.O.K.A.F. PILOTS,South Korea,military,Pilots,both,,,no,sex not stated in RP-1024 reference list; Republic of Korea Air Force pilots; not in PDF reference list (book pp. 24-25 missing from this scanned copy); metadata inferred from printed table name,106
+87,,KOREAN FORCES-65,South Korea,military,Tri-service,both,1965,,no,sex not stated in RP-1024 reference list; not in PDF reference list (book pp. 24-25 missing from this scanned copy); metadata inferred from printed table name,54
+88,,SWEDISH IND WKR/M,Sweden,civilian,Civilian,M,,,no,"industrial workers, male per printed name; not in PDF reference list (book pp. 24-25 missing from this scanned copy); metadata inferred from printed table name",19
+89,,SWEDISH AVIATORS,Sweden,military,Aircrew,both,,,no,sex not stated in RP-1024 reference list; not in PDF reference list (book pp. 24-25 missing from this scanned copy); metadata inferred from printed table name,11
+90,,IRANIAN MILITARY,Iran,military,Tri-service,both,,,no,sex not stated in RP-1024 reference list; not in PDF reference list (book pp. 24-25 missing from this scanned copy); metadata inferred from printed table name,66
+91,,AUSTRALIAN ARMY 69,Australia,military,Army,both,1969,,no,sex not stated in RP-1024 reference list; not in PDF reference list (book pp. 24-25 missing from this scanned copy); metadata inferred from printed table name,10
