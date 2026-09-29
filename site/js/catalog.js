@@ -59,7 +59,8 @@ const SORTS = {
   access: (a, b) => (ACCESS_RANK[a.data_access] ?? 9) - (ACCESS_RANK[b.data_access] ?? 9) || a.row - b.row,
 };
 
-export function initCatalog(catalog) {
+export function initCatalog(catalog, papers = []) {
+  const paperByUrl = Object.fromEntries(papers.map(p => [p.original_url, p]));
   const surveys = catalog.surveys.map(enrich);
   const state = { q: "", sel: {}, sort: "row", view: "cards", nmin: "", y0: "", y1: "", expanded: new Set() };
   FACETS.forEach(f => { state.sel[f.key] = new Set(); });
@@ -208,7 +209,10 @@ export function initCatalog(catalog) {
         s.citations.map(c => h("p", { class: "cite" }, c)),
         links.length ? h("ul", {}, links.map(l => {
           const href = l.url || l.local;
-          return h("li", {}, h("span", { class: "tag outline" }, l.kind), " ", href ? h("a", { href, rel: "noopener", target: l.url ? "_blank" : null }, l.label) : l.label);
+          const copy = paperByUrl[l.url];
+          return h("li", {}, h("span", { class: "tag outline" }, l.kind), " ", href ? h("a", { href, rel: "noopener", target: l.url ? "_blank" : null }, l.label) : l.label,
+            copy && copy.open_copy_url !== l.url ? [" ", h("a", { class: "tag good", href: copy.open_copy_url, target: "_blank", rel: "noopener", title: "Free copy that opens without the DTIC block" }, "open copy")] : null,
+            copy && copy.aggregate_rows ? [" ", h("a", { class: "tag outline", href: "#/compare", title: "Statistics from this paper are in By country & role" }, `${fmtInt(copy.aggregate_rows)} stats`)] : null);
         })) : null,
         s.notes ? h("div", { class: "note" }, s.notes) : null),
       ds ? h("div", { class: "card-actions" },

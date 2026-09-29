@@ -1,0 +1,27 @@
+# foreign_1960s.csv - extraction notes
+
+432 rows: Thailand 211, South Korea 173, Latin America 48, Iran 0. Validator: 0 problems. Quality B throughout (OCR or hand-checked text layer; no born-digital A tables). Scratch code: /tmp/claude-0/.../scratchpad/foreign/ (build.py, parse2.py).
+
+## thai-1964 - reports/additional/AD0450836.pdf (Natick, Royal Thai Armed Forces)
+* Survey actually measured Oct 1962 - Mar 1963 (report dated 1964); year_start=1962. 2,950 men: Army 2,010, Marine Corps 610, Air Force 330. All male.
+* Tables 4.8 (PDF p48), 4.9 (p49), 4.10 (p50): mean, SD, CV for 52 measures x (Army, Marine Corps, Air Force, Total series). Scan is rotated; rendered at 200 dpi, rotated 90 deg, RapidOCR, cells assigned to rows/columns by deskewed geometry (12 columns x rows). 4 cells with a trailing "." from OCR were cleaned (verified visually).
+* Table 5.1 (p51, text layer): age mean/SD by service (3 x 1 rows). Total-series age has no SD, skipped.
+* Checks: every mean/SD/CV triple satisfied SD/mean*100 = printed CV (0 failures of 208); n consistent (2010/610/330/2950); tables 4.8 and 4.10 page images compared visually (stature, weights, head/foot block). Total series rows are Tri-service pooled.
+* Percentile tables (pp36-46) are OCR-garbled images and were not extracted (percentiles optional).
+* Units: cm -> mm, weight kg. Natick measure names with unclear equivalence (shoulder height, arm reach, sleeve length, face breadth/length, hip circumference, etc.) kept as other:<name>.
+
+## latin-american-armed-forces - reports/latin-american-armed-forces/AD0759949.pdf (USATTC, Dobbins & Kindick 1972)
+* 1,985 enlisted trainees (1,852 airmen, IAAFA Albrook AFB; 133 army, School of the Americas) measured in the Canal Zone Sep 1965 - Feb 1970; 18 countries, 15 with enough men for tables (Argentina 9, Costa Rica 8, Mexico 8 omitted). Country = country of longest residence. Report gives per-country stats only for age, height, weight (Tables II-IV, pp15-17, clean text layer); 15 countries x 3 + a weighted pooled total (n=1960, country 'Multiple: ...') x 3 = 48 rows. Sex not stated (assumed M, enlisted men).
+* Checks: SD/mean sane (age 8-40%, height ~3-4%, weight 9-17%); n identical across the three tables; totals match abstract (age 23, 5 ft 5.5 in, 141 lb).
+* Not extracted: Table IX (pp22-26 rotated scans, pooled 75 measures) gives only percentiles and ranges with no mean/SD (mean is mandatory); Appendices C-H (country 1st/50th/99th percentiles, garbled scans) likewise; Table X/XI are medians (p30-31).
+
+## korea - reports/korea/AD0661625.pdf (Human Sciences Research, ROK survey, 1965)
+* 3,747 men measured May-Nov 1965 (Army 3,249, Navy 141, Marine 167, Air Force 190). year_start=1965.
+* Pooled total sample (Tri-service): Tables 1-6 to 1-10 (pp22-26, text layer + page images checked for stature, sitting block): mean, SD, CV for 55 of 59 measures (sitting height and 3 CV-mismatch items dropped, see below), n=3,747. Handwritten annotations on the scan (medians/percentiles) ignored; printed values used. Skinfolds are printed in cm ("values in centimeters") and converted to mm.
+* By service: Table 1-30 (pp47-48) gives means only (no SD). SD blank. This table is internally inconsistent with the pooled tables: e.g. Army stature 158.8 vs pooled 165.2 (Army is 87% of the sample, so its mean must be ~165.2), and the Army column disagrees with the value implied by pooled minus the other services for most measures; some cells carry a printed asterisk (Inconsistent data: Marine knee/popliteal height, Navy hand breadth) or handwritten corrections. Filter applied per cell: Army kept only if within ~0.3 cm of the implied Army mean; Navy/Marine/Air Force kept only if within 4 SE (pooled SD/sqrt(n)) of the pooled mean. This drops 32 Army cells and 70 Navy/Marine/Air Force cells (list reproducible with build.py), including legitimate real differences (Navy older/taller), so service coverage is partial and biased toward agreement with the pooled mean. Use service rows with caution.
+* Dropped completely: sitting height (pooled 89.0 is struck through on the scan and contradicts the service means 87.2-87.9 and Table 1-32); pooled face length, interpupillary distance, heel breadth (SD/mean does not match printed CV; not resolvable).
+* Table 1-31/1-32 ROK means (e.g. stature 165.3) differ slightly from 1-6 (165.2) and lack SD/n; not used. Percentile tables 1-1 to 1-5 (pp12-21) are rotated OCR-garbled images; not extracted.
+* Measure mapping: Natick/HSR names with unclear equivalence kept as other: keys (shoulder height, waist height, kneecap height, arm reach, sleeve length, hip circumference, interscye, face breadth/length, etc.). 'Eye height' in the sitting block -> eye_height_sitting; 'Knee height' -> knee_height_sitting; 'Chest depth/breadth' are standing.
+
+## iran-1969-71 - reports/iran-1969-71/AD0728822.pdf (Kennedy & White 1971) - NO ROWS
+The Phase III Technical Summary contains no mean/SD tables. It has only Table I (p13, 50th percentile stature, crotch height, chest/waist/neck circumference, sleeve length; IIAF vs US), foot Table I (p45, 50th percentile foot dimensions), chart figures of 5th-95th percentile curves (pp16-23, 47-54) and a boot-size distribution (p61). Medians are not means (mean is required by the spec and would be a guess), so nothing was extracted. Full statistics are in the earlier Volume I technical report, which is not in the repo. Survey data collection completed 1969 (year not otherwise stated).

@@ -212,3 +212,59 @@ function scatterPanel(groups, dom, { xLabel, yLabel, xUnit, yUnit, compact }) {
   svg.addEventListener("pointerleave", () => { ring.setAttribute("visibility", "hidden"); tip.hide(); });
   return wrap;
 }
+
+
+/**
+ * Horizontal dot plot: one row per item, a dot at the mean and a thin line for mean +/- 1 SD.
+ * Bars would have to start at zero and hide the differences, so this uses dots.
+ * rows: [{label, sub, mean, sd, n, color: "--s1", group?, extra?: [[k, v]]}]
+ */
+export function dotplot(rows, { unit = "", measure = "", minSd = false } = {}) {
+  if (!rows.length) return h("div", { class: "empty" }, "Nothing to plot for this selection.");
+  const rowH = 26, W = 760, M = { t: 14, r: 24, b: 40, l: 250 };
+  const H = M.t + M.b + rows.length * rowH;
+  const lo = Math.min(...rows.map(r => r.mean - (r.sd || 0))), hi = Math.max(...rows.map(r => r.mean + (r.sd || 0)));
+  const pad = (hi - lo) * .04 || 1;
+  const { ticks } = niceTicks(lo - pad, hi + pad, 6);
+  const x0 = Math.min(lo - pad, ticks[0]), x1 = Math.max(hi + pad, ticks.at(-1));
+  const x = v => M.l + ((v - x0) / (x1 - x0)) * (W - M.l - M.r);
+  const y = i => M.t + i * rowH + rowH / 2;
+  const wrap = h("div", { class: "viz" });
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": `${measure} by group: mean and one standard deviation` });
+  const g = s("g", { class: "axis" });
+  for (const t of ticks) {
+    g.append(s("line", { class: "gridline", x1: x(t), x2: x(t), y1: M.t, y2: H - M.b }));
+    g.append(s("text", { x: x(t), y: H - M.b + 16, "text-anchor": "middle" }, fmtNum(t)));
+  }
+  g.append(s("text", { class: "axis-title", x: (M.l + W - M.r) / 2, y: H - 4, "text-anchor": "middle" }, `${measure}${unit ? ` (${unit})` : ""}, mean ± 1 SD`));
+  svg.append(g);
+  const trunc = (t, n) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
+  rows.forEach((r, i) => {
+    const cy = y(i);
+    const row = s("g", { tabindex: 0, class: "dot-row", "aria-label": `${r.label}: mean ${fmtNum(r.mean)} ${unit}, n ${fmtInt(r.n)}` });
+    row.append(s("rect", { x: 0, y: cy - rowH / 2, width: W, height: rowH, fill: "transparent" }));
+    row.append(s("text", { x: M.l - 8, y: cy + 4, "text-anchor": "end", fill: "var(--text)", "font-size": 12 }, trunc(r.label, 34)));
+    if (r.sd) row.append(s("line", { x1: x(r.mean - r.sd), x2: x(r.mean + r.sd), y1: cy, y2: cy, stroke: `var(${r.color})`, "stroke-width": 2, "stroke-linecap": "round", opacity: .55 }));
+    row.append(s("circle", { cx: x(r.mean), cy, r: 5, fill: `var(${r.color})`, stroke: "var(--surface)", "stroke-width": 2 }));
+    row.append(s("text", { x: Math.min(W - 4, x(r.mean + (r.sd || 0)) + 8), y: cy + 4, fill: "var(--text-2)", "font-size": 11 }, fmtNum(r.mean, 1)));
+    svg.append(row);
+    r._el = row; r._cy = cy;
+  });
+  wrap.append(svg);
+  const tip = tooltipEl(wrap);
+  const show = r => {
+    const box = svg.getBoundingClientRect(), k = box.width / W;
+    tip.show(Math.min(x(r.mean), W - 200) * k, r._cy * k, r.label, [
+      { color: r.color, value: `${fmtNum(r.mean, 1)} ${unit}`, label: "mean" },
+      ...(r.sd ? [{ color: r.color, value: `${fmtNum(r.sd, 1)} ${unit}`, label: "SD" }] : []),
+      { color: r.color, value: fmtInt(r.n), label: "people" },
+      ...(r.extra || []).map(([k2, v]) => ({ color: r.color, value: v, label: k2 }))]);
+  };
+  rows.forEach(r => {
+    r._el.addEventListener("pointerenter", () => show(r));
+    r._el.addEventListener("focus", () => show(r));
+    r._el.addEventListener("pointerleave", () => tip.hide());
+    r._el.addEventListener("blur", () => tip.hide());
+  });
+  return wrap;
+}

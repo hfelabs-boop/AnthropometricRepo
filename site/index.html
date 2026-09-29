@@ -16,8 +16,10 @@
     <nav class="tabs" aria-label="Sections">
       <a class="tab" href="#/catalog" data-view="catalog">Survey catalog</a>
       <a class="tab" href="#/explore" data-view="explore">Explore data</a>
+      <a class="tab" href="#/compare" data-view="compare">By country &amp; role</a>
       <a class="tab" href="#/sql" data-view="sql">SQL console</a>
       <a class="tab" href="#/measures" data-view="measures">Measures</a>
+      <a class="tab" href="#/papers" data-view="papers">Papers</a>
       <a class="tab" href="#/about" data-view="about">About</a>
     </nav>
     <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
@@ -148,6 +150,12 @@
       </div>
     </div>
   </section>
+
+  <!-- ================= COMPARE ================= -->
+  <section class="view" id="view-compare" hidden><div class="loading"><div class="spinner"></div>Loading database…</div></section>
+
+  <!-- ================= PAPERS ================= -->
+  <section class="view" id="view-papers" hidden><div class="loading"><div class="spinner"></div>Loading database…</div></section>
 
   <!-- ================= SQL ================= -->
   <section class="view" id="view-sql" hidden>

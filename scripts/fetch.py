@@ -16,6 +16,7 @@ import argparse
 import csv
 import datetime as dt
 import hashlib
+import re
 import sys
 import time
 import urllib.error
@@ -89,22 +90,50 @@ def cmd_data(args):
     cmd_verify(args)
 
 
+def dtic_mirror(url):
+    """DTIC blocks scripted requests; the Internet Archive mirrors DTIC reports as DTIC_<accession>."""
+    m = re.search(r"/(AD[A-Z]?\d{6,7})\.pdf$", urllib.parse.urlparse(url).path, re.I)
+    if urllib.parse.urlparse(url).hostname == "apps.dtic.mil" and m:
+        acc = m.group(1).upper()
+        return f"https://archive.org/download/DTIC_{acc}/DTIC_{acc}.pdf"
+    return None
+
+
+def report_dest(sid, url):
+    """Where `fetch.py reports` stores a catalog report: reports/<survey-id>/<file>.pdf."""
+    name = Path(urllib.parse.urlparse(url).path).name
+    if not name.lower().endswith(".pdf"):
+        name += ".pdf"
+    return ROOT / "reports" / sid / name
+
+
+def is_pdf_link(url):
+    return urllib.parse.urlparse(url).path.lower().endswith(".pdf") or "/download/" in url
+
+
 def cmd_reports(_):
     surveys, extra = catalog()
     jobs = [(s["id"], r["url"]) for s in surveys for r in s.get("reports", [])]
     jobs += [(r.get("related") or "additional", r["url"]) for r in extra]
     failed = []
     for sid, url in jobs:
-        if not urllib.parse.urlparse(url).path.lower().endswith(".pdf"):
+        if not is_pdf_link(url):
             continue  # landing pages
-        dest = ROOT / "reports" / sid / Path(urllib.parse.urlparse(url).path).name
+        dest = report_dest(sid, url)
         if dest.exists():
             print(f"have  {dest.relative_to(ROOT)}")
             continue
         try:
-            download(url, dest)
+            try:
+                download(url, dest)
+            except Exception:
+                mirror = dtic_mirror(url)
+                if not mirror:
+                    raise
+                download(mirror, dest)
+                print(f"mirror {mirror}")
             print(f"got   {dest.relative_to(ROOT)}")
-        except Exception as e:  # keep going; DTIC is often unavailable
+        except Exception as e:  # keep going; some hosts refuse scripted requests
             failed.append((url, e))
             print(f"FAIL  {url}: {e}")
         time.sleep(1)
