@@ -13,6 +13,9 @@ export async function initPapers() {
   const q = h("input", { class: "input", type: "search", placeholder: "Search title, survey, country…", "aria-label": "Search papers", style: { maxWidth: "340px" } });
   const only = h("select", { class: "input", style: { width: "auto" }, "aria-label": "Filter" },
     [["", "All papers"], ["rows", "With extracted statistics"], ["ia", "Internet Archive copies"], ["oa", "Open-access articles"]].map(([v, t]) => h("option", { value: v }, t)));
+  const langs = [...new Set(papers.map(p => p.language || "English"))].sort();
+  const lang = h("select", { class: "input", style: { width: "auto" }, "aria-label": "Language" },
+    h("option", { value: "" }, `All languages (${langs.length})`), langs.map(l => h("option", { value: l }, `${l} (${papers.filter(p => (p.language || "English") === l).length})`)));
   const box = h("div");
   const totalMb = papers.reduce((a, p) => a + (p.size_mb || 0), 0);
   root.replaceChildren(
@@ -20,18 +23,22 @@ export async function initPapers() {
       h("p", {}, `${papers.length} papers and reports (${fmtInt(totalMb)} MB) that could be opened directly. Most are US Government reports from the Defense Technical Information Center (DTIC). DTIC blocks automated downloads, so each report also links to a free copy on the Internet Archive. `,
         "The statistics extracted from them power ", h("a", { href: "#/compare" }, "By country & role"), ". The maintainer's Google Drive folder with the paper index is ",
         h("a", { href: DRIVE_FOLDER_URL, rel: "noopener", target: "_blank" }, "here"), " (private; access on request).")),
-    h("div", { class: "toolbar" }, q, only, h("div", { class: "grow" }), h("button", { class: "btn", type: "button", id: "papers-csv" }, "⤓ CSV")), box);
+    h("div", { class: "toolbar" }, q, only, lang, h("div", { class: "grow" }), h("button", { class: "btn", type: "button", id: "papers-csv" }, "⤓ CSV")), box);
 
   function render() {
-    const t = q.value.toLowerCase(), f = only.value;
-    const list = papers.filter(p => (!t || `${p.title} ${p.survey_id} ${name[p.survey_id] || ""} ${p.paper_id}`.toLowerCase().includes(t)) &&
+    const t = q.value.toLowerCase(), f = only.value, L = lang.value;
+    const list = papers.filter(p => (!t || `${p.title} ${p.survey_id} ${name[p.survey_id] || ""} ${p.paper_id}`.toLowerCase().includes(t)) && (!L || (p.language || "English") === L) &&
       (!f || (f === "rows" && p.aggregate_rows > 0) || (f === "ia" && /Internet Archive/.test(p.open_copy_kind)) || (f === "oa" && /open access/i.test(p.open_copy_kind))));
-    const cols = ["Paper", "Survey", "Pages", "MB", "Rows extracted", "Links"];
+    const cols = ["Paper", "Survey", "Language", "Pages", "MB", "Rows extracted", "Links"];
     box.replaceChildren(dataTable({
       columns: cols, numeric: new Set(["Pages", "MB", "Rows extracted"]), pageSize: 100, wrap: new Set(["Paper", "Survey"]),
-      rows: list.map(p => [p, name[p.survey_id] || (p.survey_id ? p.survey_id : "—"), p.pages, p.size_mb, p.aggregate_rows, p]),
+      rows: list.map(p => [p, name[p.survey_id] || (p.survey_id ? p.survey_id : "—"), p.language || "English", p.pages, p.size_mb, p.aggregate_rows, p]),
       cellRender: (c, v) => {
-        if (c === "Paper") return h("div", {}, v.title, h("div", { class: "small muted" }, v.text_layer && v.text_layer.startsWith("no") ? "scanned image, no text layer" : ""));
+        if (c === "Paper") {
+          const m = /^(.*) \[original: (.*)\]$/.exec(v.title);
+          return h("div", {}, m ? m[1] : v.title, m ? h("div", { class: "small muted", lang: "" }, m[2]) : null,
+            h("div", { class: "small muted" }, v.text_layer && v.text_layer.startsWith("no") ? "scanned image, no text layer" : ""));
+        }
         if (c === "Rows extracted") return v ? fmtInt(v) : "—";
         if (c === "Links") return /abstract only/.test(v.open_copy_kind)
           ? h("a", { href: v.original_url, target: "_blank", rel: "noopener", title: "Full text is behind a paywall" }, "Publisher page (abstract)")
@@ -43,5 +50,6 @@ export async function initPapers() {
   }
   q.addEventListener("input", debounce(render, 120));
   only.addEventListener("change", render);
+  lang.addEventListener("change", render);
   render();
 }

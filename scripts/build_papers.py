@@ -2,7 +2,7 @@
 """Build the paper index: catalog/papers.csv and catalog/papers.json.
 
 One row per paper that could be downloaded (PDFs in reports/, fetched with `fetch.py reports`)
-plus open-access articles from aggregates/raw/openaccess_articles_papers.csv. For each paper:
+plus open-access articles from every aggregates/raw/*_papers.csv (one per search run). For each paper:
 the original link, an open copy (Internet Archive mirror for DTIC reports), size, page count,
 SHA-256, whether it has a text layer, and how many aggregate rows were extracted from it.
 
@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from fetch import dtic_mirror, is_pdf_link, report_dest  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
-FIELDS = ["paper_id", "survey_id", "title", "original_url", "open_copy_url", "open_copy_kind", "local_file",
+FIELDS = ["paper_id", "survey_id", "title", "language", "original_url", "open_copy_url", "open_copy_kind", "local_file",
           "size_mb", "pages", "text_layer", "sha256", "aggregate_rows", "source"]
 
 
@@ -76,22 +76,25 @@ def main():
         rel = str(dest.relative_to(ROOT))
         rows.append({
             "paper_id": re.sub(r"\W+", "-", dest.stem).strip("-").lower(),
-            "survey_id": sid, "title": label, "original_url": url,
+            "survey_id": sid, "title": label, "language": "English", "original_url": url,
             "open_copy_url": url if direct else mirror,
             "open_copy_kind": "publisher/agency" if direct else "Internet Archive mirror of DTIC",
             "local_file": rel, "size_mb": round(dest.stat().st_size / 1e6, 2), "pages": pages, "text_layer": text,
             "sha256": sha256(dest), "aggregate_rows": agg_rows.get(rel, 0), "source": "catalog",
         })
 
-    oa = ROOT / "aggregates" / "raw" / "openaccess_articles_papers.csv"
-    if oa.exists():
+    # Open-access articles found by web search: every aggregates/raw/*_papers.csv
+    for oa in sorted((ROOT / "aggregates" / "raw").glob("*_papers.csv")):
         for r in csv.DictReader(open(oa, encoding="utf-8")):
             local = r.get("local_pdf") or ""
             path = ROOT / local if local else None
             has = bool(path and path.exists())
             pages, text = pdf_facts(path) if has else (None, "")
+            title = r["title"]
+            if r.get("title_english") and r["title_english"] != title:
+                title = f"{r['title_english']} [original: {title}]"
             rows.append({
-                "paper_id": r["slug"], "survey_id": "", "title": r["title"], "original_url": r["url"],
+                "paper_id": r["slug"], "survey_id": "", "title": title, "language": r.get("language") or "English", "original_url": r["url"],
                 "open_copy_url": r.get("pdf_url") or r["url"],
                 "open_copy_kind": ("publisher page (abstract only)" if r.get("accessibility", "").startswith("abstract")
                                    else f"open access ({r.get('license') or 'license not stated'})"),
