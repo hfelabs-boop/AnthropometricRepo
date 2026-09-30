@@ -18,7 +18,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = ROOT / "docs"
-GROUPS = {"journal": "Journal articles (empirical studies)", "report": "Reports, book monographs and other grey literature"}
+GROUPS = {"journal": "Journal articles (empirical studies)", "report": "Reports, book monographs and other grey literature", "dataset": "Open datasets that need a person to download them (portal check)"}
 
 
 def apa_text(entry, markdown):
@@ -101,14 +101,14 @@ Copy everything below the line into the agent (Codex, Claude computer use, or si
 
 ## Role and goal
 
-You are a careful research assistant with control of a web browser and a file system. Download the full-text PDF of each of the __COUNT__ papers in the table below and save each in the directory tree described here. Do this only through legitimate routes: the publisher's own page, the open-access copy the publisher or a repository provides, or the institutional access already active in this browser.
+You are a careful research assistant with control of a web browser and a file system. Download the full-text PDF of each of the __COUNT__ items in the table below and save each in the directory tree described here. Do this only through legitimate routes: the publisher's own page, the open-access copy the publisher or a repository provides, or the institutional access already active in this browser.
 
 ## Rules you must follow
 
 1. **Legitimate access only.** Never use Sci-Hub, LibGen, shadow libraries, or any site that offers a paper without the publisher's or author's permission. Do not try to defeat a paywall, a CAPTCHA, or bot protection.
 2. **Never type or handle passwords, one-time codes or payment details.** If a page asks you to sign in, pay, or approve cookies beyond "reject non-essential", stop that paper, mark it `needs_login`, and go on to the next one. If the browser session is not signed in, say so in the final report; do not try to sign in yourself.
 3. **Do not submit anyone's email address, name or institution to any website** (including open-access finder tools that ask for an email). Use only the links in the table.
-4. **Download PDFs only.** Do not install software, run downloaded files, accept browser extensions, or click ads.
+4. **Download only the PDF of each paper (or, for the entries whose save_as ends in .csv, the CSV file the portal offers).** Do not install software, run downloaded files, accept browser extensions, or click ads. The Korean data-portal entries sit behind a captcha/session check: if a captcha appears, do not solve it; mark the entry `captcha_or_blocked`.
 5. Be polite: wait 8-15 seconds between requests to the same site, and make at most 2 attempts per link.
 6. If something looks wrong (a login wall you did not expect, a page asking for personal data, a download that is not a PDF), stop that item and report it.
 

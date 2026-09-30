@@ -11,9 +11,9 @@
 | `raw_ansur_1988`, `raw_ansur_ii_2012`, `raw_asran_2015`, `raw_usaf_1967` | | Every original column, unchanged, keyed by `subject_key`. |
 | `raw_columns` | | Descriptions of the raw columns. USAF 1967 variables include their HSIAC names. |
 | `surveys`, `survey_links` | 49, … | The full catalog and every report and data link. |
-| `aggregates` | 9,925 | Every mean/SD/n extracted from published papers plus statistics computed from the four datasets, with country, role, source file and page. See [`../aggregates/README.md`](../aggregates/README.md). |
-| `rollup` | 6,619 | Country × role × sex × measure averages over the primary `aggregates` rows. |
-| `papers` | 82 | The paper index: original link, free copy, pages, and how many rows were extracted. |
+| `aggregates` | 11,100 | Every mean/SD/n extracted from published papers plus statistics computed from the four datasets, with country, role, source file and page. See [`../aggregates/README.md`](../aggregates/README.md). |
+| `rollup` | 7,060 | Country × role × sex × measure averages over the primary `aggregates` rows. |
+| `papers` | 258 | The paper index: original link, free copy, pages, and how many rows were extracted. |
 
 ## Harmonization
 

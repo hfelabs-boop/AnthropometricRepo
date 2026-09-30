@@ -20,7 +20,8 @@ export async function initPapers() {
   const totalMb = papers.reduce((a, p) => a + (p.size_mb || 0), 0);
   root.replaceChildren(
     h("div", { class: "hero" }, h("h1", {}, "Papers"),
-      h("p", {}, `${papers.length} papers and reports (${fmtInt(totalMb)} MB) that could be opened directly. Most are US Government reports from the Defense Technical Information Center (DTIC). DTIC blocks automated downloads, so each report also links to a free copy on the Internet Archive. `,
+      h("p", {}, `${papers.length} papers, theses and reports (${fmtInt(totalMb)} MB) in ${langs.length} languages that could be opened directly. `,
+        "About a third are US Government reports from the Defense Technical Information Center (DTIC); DTIC blocks automated downloads, so each of those also links to a free copy on the Internet Archive. Papers in other languages show the English title first and the original title below. ",
         "The statistics extracted from them power ", h("a", { href: "#/compare" }, "By country & role"), ". The maintainer's Google Drive folder with the paper index is ",
         h("a", { href: DRIVE_FOLDER_URL, rel: "noopener", target: "_blank" }, "here"), " (private; access on request).")),
     h("div", { class: "toolbar" }, q, only, lang, h("div", { class: "grow" }), h("button", { class: "btn", type: "button", id: "papers-csv" }, "⤓ CSV")), box);

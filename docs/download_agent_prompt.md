@@ -6,14 +6,14 @@ Copy everything below the line into the agent (Codex, Claude computer use, or si
 
 ## Role and goal
 
-You are a careful research assistant with control of a web browser and a file system. Download the full-text PDF of each of the 19 papers in the table below and save each in the directory tree described here. Do this only through legitimate routes: the publisher's own page, the open-access copy the publisher or a repository provides, or the institutional access already active in this browser.
+You are a careful research assistant with control of a web browser and a file system. Download the full-text PDF of each of the 22 items in the table below and save each in the directory tree described here. Do this only through legitimate routes: the publisher's own page, the open-access copy the publisher or a repository provides, or the institutional access already active in this browser.
 
 ## Rules you must follow
 
 1. **Legitimate access only.** Never use Sci-Hub, LibGen, shadow libraries, or any site that offers a paper without the publisher's or author's permission. Do not try to defeat a paywall, a CAPTCHA, or bot protection.
 2. **Never type or handle passwords, one-time codes or payment details.** If a page asks you to sign in, pay, or approve cookies beyond "reject non-essential", stop that paper, mark it `needs_login`, and go on to the next one. If the browser session is not signed in, say so in the final report; do not try to sign in yourself.
 3. **Do not submit anyone's email address, name or institution to any website** (including open-access finder tools that ask for an email). Use only the links in the table.
-4. **Download PDFs only.** Do not install software, run downloaded files, accept browser extensions, or click ads.
+4. **Download only the PDF of each paper (or, for the entries whose save_as ends in .csv, the CSV file the portal offers).** Do not install software, run downloaded files, accept browser extensions, or click ads. The Korean data-portal entries sit behind a captcha/session check: if a captcha appears, do not solve it; mark the entry `captcha_or_blocked`.
 5. Be polite: wait 8-15 seconds between requests to the same site, and make at most 2 attempts per link.
 6. If something looks wrong (a login wall you did not expect, a page asking for personal data, a download that is not a PDF), stop that item and report it.
 
@@ -75,4 +75,7 @@ Tab-separated. Columns: number, id, direct link, alternative links (`|` separate
 17	bolton1973-raf	https://apps.dtic.mil/sti/search	https://discovery.nationalarchives.gov.uk/	United_Kingdom/Bolton_1973_RAF_aircrew_1970-71.pdf	Bolton, C. B., et al. (1973). An anthropometric survey of 2000 Royal Air Force aircrew 1970/71. Royal Aircraft Establishment [Report number not verifi
 18	dtic-ad0654762	https://apps.dtic.mil/sti/tr/pdf/AD0654762.pdf	https://apps.dtic.mil/sti/citations/AD0654762	Latin_America/DTIC_AD0654762_Latin_American_trainees_1965-66.pdf	[Earlier US Army report on Latin American armed forces trainees, 1965-66; title and authors not verified.] (1966). Defense Technical Information Cente
 19	dtic-ad1100615	https://apps.dtic.mil/sti/tr/pdf/AD1100615.pdf	https://apps.dtic.mil/sti/citations/AD1100615	United_States/DTIC_AD1100615_Army_sizing_ANSUR_II_2020.pdf	[US Army sizing system memorandum based on ANSUR II, 2020; title and authors not verified.] (2020). Defense Technical Information Center, accession AD
+20	kr-mnd-airforce-male	https://www.data.go.kr/data/15090354/fileData.do	-	South_Korea/datasets/KR_MND_AirForce_body_measurements_male_2022-2024.csv	Ministry of National Defense (Republic of Korea). (2025). 공군 신체측정정보(남) ('22~'24년) [Air Force body measurement information (male), 2022-2024; 15,885 re
+21	kr-mnd-airforce-female	https://www.data.go.kr/data/15090359/fileData.do	-	South_Korea/datasets/KR_MND_AirForce_body_measurements_female_2024.csv	Ministry of National Defense (Republic of Korea). (2025). 공군 신체측정정보(여) ('24년) [Air Force body measurement information (female), 2024; 163 records] [Da
+22	kr-mnd-marines	https://www.data.go.kr/data/15106305/fileData.do	-	South_Korea/datasets/KR_MND_Marine_Corps_body_measurements_2024.csv	Ministry of National Defense (Republic of Korea). (2024). 국방부_해병대 장병 측신정보 [Marine Corps personnel body measurement information; 9,669 records: height,
 ```

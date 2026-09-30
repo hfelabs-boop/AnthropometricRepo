@@ -9,7 +9,7 @@ export function renderAbout(root) {
   const code = t => h("code", {}, t);
   root.replaceChildren(
     h("div", { class: "hero" }, h("h1", {}, "About this site"),
-      p("A catalog of 49 military anthropometric surveys, a database built from the four that publish individual-level data, and statistics from about 30 published papers covering more than 40 countries and groupings. Everything runs in your browser: the SQLite database (about 5 MB compressed) downloads once and is queried locally with ", a("https://sql.js.org", "sql.js"), ".")),
+      p("A catalog of 49 military anthropometric surveys, a database built from the four that publish individual-level data, and statistics from about 110 published papers in 30 languages covering nearly 60 countries and groupings. Everything runs in your browser: the SQLite database (about 5 MB compressed) downloads once and is queried locally with ", a("https://sql.js.org", "sql.js"), ".")),
 
     h("h2", {}, "The four open datasets"),
     h("div", { class: "table-wrap", style: { maxHeight: "none" } }, h("table", { class: "data" },
@@ -36,8 +36,8 @@ export function renderAbout(root) {
       h("li", {}, "The catalog's 'not verified' entries give only the best available citation. See ", a(`${REPO}/blob/main/CORRECTIONS.md`, "CORRECTIONS.md"), ".")),
 
     h("h2", {}, "Statistics from published papers"),
-    p("Only four surveys publish individual-level data. To cover more countries and roles, tables of means and standard deviations were extracted from about 30 of the papers listed under ", a("#/papers", "Papers"),
-      ": NASA's 1978 source book of 91 populations, US Army and Marine Corps surveys, the Australian, New Zealand, German, Korean, Thai and Latin American reports, and open-access journal articles."),
+    p("Only four surveys publish individual-level data. To cover more countries and roles, tables of means and standard deviations were extracted from about 110 of the papers listed under ", a("#/papers", "Papers"),
+      ": NASA's 1978 source book of 91 populations, US Army and Marine Corps surveys, the Australian, New Zealand, German, Korean, Thai and Latin American reports, and open-access articles, theses and official statistics found by searching in Russian, Czech, Serbian, Polish, German, Dutch, Nordic languages, Hungarian, Hebrew, Spanish, Portuguese, Japanese, Korean, Vietnamese, Thai and others. Foreign-language sources were read in the original and translated into English (dimension names and titles)."),
     h("ul", {},
       h("li", {}, "Each row keeps its source file and page number so it can be checked. Rows read from scanned pages (grade B) had to pass consistency checks, for example the printed coefficient of variation must equal SD ÷ mean."),
       h("li", {}, "Where the individual-level data exist, extracted numbers were compared with them. The NASA source book's USAF 1967 rows match the raw data to within 0.1 SD on all 47 comparable measures. ANSUR and ASRAN report tables match to rounding."),

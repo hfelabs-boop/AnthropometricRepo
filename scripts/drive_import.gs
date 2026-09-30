@@ -10,16 +10,160 @@ const FOLDER_ID = '1zB87Ukso3or-ez0tZ5lGeSl9wfXv60OJ';
 const MAX_BYTES = 50 * 1024 * 1024; // UrlFetchApp response limit
 const PAPERS = [
  {
+  "name": "paper__pk-2015-kamran-soldiers-cad.pdf",
+  "url": "https://www.pafmj.org/PAFMJ/article/download/880/732",
+  "mb": 0.06,
+  "title": "(English) [original: Frequency of Coronary Artery Disease (CAD) Risk Factors in Armed Forces]"
+ },
+ {
+  "name": "paper__pk-2015-kamran-soldiers-mets.pdf",
+  "url": "https://www.pafmj.org/PAFMJ/article/download/1162/989",
+  "mb": 0.07,
+  "title": "(English) [original: Metabolic Syndrome in Soldiers of Armed Forces]"
+ },
+ {
+  "name": "paper__jo-2018-atoom-military-obesity.pdf",
+  "url": "https://rmsjournal.org/Articles/636751962499573196.pdf",
+  "mb": 0.07,
+  "title": "(English) [original: Prevalence of Obesity and Overweight among Military Personnel in North of Jordan and Some Associated Risk Factors]"
+ },
+ {
+  "name": "paper__pt-2016-brazil-ceara-shock-battalion.pdf",
+  "url": "https://revistas.unilasalle.edu.br/index.php/saude_desenvolvimento/article/download/2317-8582.16.35/pdf",
+  "mb": 0.11,
+  "title": "Body composition and anthropometric data of military policemen of the Ceará State Shock Battalion [original: Composição Corporal e Dados Antropométricos de Policiais Militares do Batalhão de Choque do Estado do Ceará]"
+ },
+ {
+  "name": "paper__pt-2017-silva-brazil-rio-military-police.pdf",
+  "url": "https://www.medigraphic.com/pdfs/revcubmedmil/cmm-2016/cmm164f.pdf",
+  "mb": 0.12,
+  "title": "Body mass index and cardiorespiratory performance in military personnel [original: Índice de massa corporal e desempenho cardiorrespiratório em militares]"
+ },
+ {
+  "name": "paper__pt-2018-rosa-brazil-haiti-contingent.pdf",
+  "url": "https://rbme.org/Content/pdf/volume24_n2_14.pdf",
+  "mb": 0.12,
+  "title": "Military physical training, muscular strength and body composition of Brazilian military personnel [original: Treinamento físico militar, força muscular e composição corporal de militares brasileiros]"
+ },
+ {
+  "name": "paper__es-2023-yanez-chile-infantry.pdf",
+  "url": "http://www.scielo.cl/pdf/ijmorphol/v41n5/0717-9502-ijmorphol-41-05-1323.pdf",
+  "mb": 0.12,
+  "title": "Relationship between body composition, physical condition and operational capacity in Chilean military personnel [original: Relación entre la Composición Corporal, Condición Física y Capacidad Operativa en Militares Chilenos]"
+ },
+ {
+  "name": "paper__pt-2013-brazil-army-elite-soldiers.pdf",
+  "url": "https://periodicos.sbu.unicamp.br/ojs/index.php/conexoes/article/download/8637621/pdf",
+  "mb": 0.13,
+  "title": "Difference in performance-related physical fitness between elite and conventional soldiers of the Brazilian Army [original: Diferença da aptidão física relacionada ao desempenho entre soldados de elite e convencionais do Exército Brasileiro]"
+ },
+ {
+  "name": "paper__in-2007-sharma-iaf-trainee-pilots.pdf",
+  "url": "https://indjaerospacemed.com/content/110/2007/51/2/pdf/IJASM-51-040.pdf",
+  "mb": 0.15,
+  "title": "(English) [original: Static anthropometry: Current practice to determine aircrew aircraft compatibility]"
+ },
+ {
   "name": "ansur-ii-2012__ANSURII-MFR.pdf",
   "url": "https://tools.openlab.psu.edu/publicData/ANSURII-MFR.pdf",
   "mb": 0.16,
   "title": "Memorandum for Record (ODL)"
  },
  {
+  "name": "paper__th-2006-napradit-rta-fitness-survey.pdf",
+  "url": "https://he02.tci-thaijo.org/index.php/rtamedj/article/download/11728/10573",
+  "mb": 0.18,
+  "title": "A survey of physical fitness of Royal Thai Army personnel [original: การสำรวจสมรรถภาพกายกำลังพลในกองทัพบก]"
+ },
+ {
+  "name": "paper__hu-2017-juhasz-htp-body-composition.pdf",
+  "url": "https://real.mtak.hu/93501/1/03%20A%20Honv%C3%A9d%20Testalkati%20Programban%20r%C3%A9sztvev%C5%91k%20test%C3%B6sszet%C3%A9tel%20v%C3%A1ltoz%C3%A1sa%20a%20hat%20h%C3%B3napos%20di%C3%A9t%C3%A1s%20%C3%A9s%20mozg%C3%A1sprogram%20hat%C3%A1s%C3%A1ra.pdf",
+  "mb": 0.18,
+  "title": "Change in body composition of participants of the Honvéd Body-Shape Programme after the six-month diet and exercise programme [original: A Honvéd Testalkati Programban résztvevők testösszetétel változása a hat hónapos diétás és mozgásprogram hatására]"
+ },
+ {
+  "name": "paper__es-2018-cortes-colombia-combat-course.pdf",
+  "url": "https://www.redalyc.org/journal/4762/476257752009/476257752009.pdf",
+  "mb": 0.19,
+  "title": "Changes in body mass index and body composition in active Colombian Army personnel: a case study [original: Modificaciones en el índice de masa y composición corporal en personal activo del Ejército colombiano: un estudio de caso]"
+ },
+ {
+  "name": "paper__pk-2013-younas-army-applicants.pdf",
+  "url": "https://pafmj.org/index.php/PAFMJ/article/download/2142/1852/",
+  "mb": 0.21,
+  "title": "(English) [original: Obesity/Overweight Among Healthy Adult Males Seeking Employment in Pakistan Army]"
+ },
+ {
+  "name": "paper__by-2015-shirko-physical-development-method.pdf",
+  "url": "https://www.bsmu.by/upload/docs/militarymedicine/754b990e9b8ba2b7377fcd195d8910be.pdf",
+  "mb": 0.21,
+  "title": "A method of assessing the physical development of servicemen [original: Способ оценки физического развития военнослужащих]"
+ },
+ {
   "name": "ansur-1988__ANSUR_88_Codes.pdf",
   "url": "http://mreed.umtri.umich.edu/mreed/downloads/anthro/ansur/ANSUR_88_Codes.pdf",
   "mb": 0.23,
   "title": "ANSUR 88 variable codes (UMTRI)"
+ },
+ {
+  "name": "paper__bd-2018-rahman-army-overweight.pdf",
+  "url": "https://www.banglajol.info/index.php/JAFMC/article/download/45908/34929",
+  "mb": 0.23,
+  "title": "(English) [original: Prevalence of Overweight among Military Personnel of a Selected Bangladesh Army Unit]"
+ },
+ {
+  "name": "paper__rs-2018-maric-cadets-two-classes.pdf",
+  "url": "https://scindeks-clanci.ceon.rs/data/pdf/0042-8426/2018/0042-84261806264M.pdf",
+  "mb": 0.23,
+  "title": "Comparative analysis of morphological characteristics of two classes of Military Academy cadets in the 2004/05 and 2014/15 school years [original: Компаративна анализа морфолошких карактеристика две класе кадета Војне академије у школској 2004/05. и 2014/15. години]"
+ },
+ {
+  "name": "paper__rs-2019-vajic-cadets-end-schooling.pdf",
+  "url": "https://scindeks-clanci.ceon.rs/data/pdf/0042-8426/2019/0042-84261902206V.pdf",
+  "mb": 0.23,
+  "title": "Differences in anthropometric characteristics of two classes of Military Academy cadets at the end of four-year schooling [original: Разлике у антропометријским карактеристикама две класе кадета Војне академије на крају четворогодишњег школовања]"
+ },
+ {
+  "name": "paper__ru-2007-kazakov-nw-conscripts.pdf",
+  "url": "https://cyberleninka.ru/article/n/antropometricheskie-parametry-yunoshey-prizyvnogo-vozrasta-prozhivayuschih-na-severo-zapade-rossii/pdf",
+  "mb": 0.24,
+  "title": "Anthropometric parameters of conscription-age young men living in North-West Russia [original: Антропометрические параметры юношей призывного возраста, проживающих на северо-западе России]"
+ },
+ {
+  "name": "paper__tr-2010-ulas-malatya-military-hospital.pdf",
+  "url": "https://dergipark.org.tr/en/download/article-file/139319",
+  "mb": 0.24,
+  "title": "Attitudes and behaviours regarding healthy nutrition of personnel serving at Malatya Military Hospital in 2007 [original: Malatya Asker Hastanesinde 2007 Yılında Görev Yapan Personelin Sağlıklı Beslenme Konusundaki Tutum ve Davranışları]"
+ },
+ {
+  "name": "paper__cz-2015-kinkorova-military-students.pdf",
+  "url": "https://journals.muni.cz/studiasportiva/article/download/7525/6789",
+  "mb": 0.24,
+  "title": "Status of anthropometric parameters and body composition of students of the Military Department at Charles University FTVS in Prague [original: Stav antropometrických parametrů a tělesného složení u studentů Vojenského oboru UK FTVS v Praze]"
+ },
+ {
+  "name": "paper__hu-2019-juhasz-htp-experiences.pdf",
+  "url": "https://real.mtak.hu/112903/",
+  "mb": 0.25,
+  "title": "Experiences of the Honvéd Body-Shape Programme [original: A Honvéd Testalkati Program tapasztalatai]"
+ },
+ {
+  "name": "paper__es-2017-maldonado-ecuador-esforse-soldiers.pdf",
+  "url": "https://www.medigraphic.com/pdfs/revcubinvbio/cib-2017/cib172p.pdf",
+  "mb": 0.26,
+  "title": "Anthropometric profile and body composition in aspirants of the Army Soldiers Training School [original: Perfil antropométrico y composición corporal en aspirantes de la Escuela de Formación de Soldados del Ejército]"
+ },
+ {
+  "name": "paper__hu-2025-novak-basic-training.pdf",
+  "url": "https://real.mtak.hu/227621/6/Nov%C3%A1kA%20HO2025%201-2%20p%2046-58%20(1).pdf",
+  "mb": 0.26,
+  "title": "Effect of military preparation, basic training and basic marksmanship training on body-shape indicators and strength [original: A katonai felkészítés, alapkiképzés és lövészalapozó képzés hatása a testalkati mutatókra és az erőre]"
+ },
+ {
+  "name": "paper__ja-1989-kakimoto-jasdf-pilots.pdf",
+  "url": "https://www.jstage.jst.go.jp/article/jje1965/25/Supplement/25_Supplement_68/_pdf/-char/ja",
+  "mb": 0.26,
+  "title": "Results of the 3rd anthropometric survey of pilots and others (1): The 3rd anthropometry of JASDF pilots [original: 操縦者等を対象にした第3次身体計測調査結果について (1)]"
  },
  {
   "name": "additional__ADA472617.pdf",
@@ -34,10 +178,202 @@ const PAPERS = [
   "title": "Anthropometry package manual (CRAN)"
  },
  {
+  "name": "paper__rs-2013-maric-cadets-physical-education.pdf",
+  "url": "https://scindeks-clanci.ceon.rs/data/pdf/0042-8450/2013/0042-84501301016M.pdf",
+  "mb": 0.29,
+  "title": "(same) [original: The effectiveness of physical education of the Military Academy cadets during a 4-year study]"
+ },
+ {
+  "name": "paper__pt-2016-campos-brazil-air-force-recruits.pdf",
+  "url": "https://seer.unisc.br/index.php/cinergis/article/download/7585/5069",
+  "mb": 0.29,
+  "title": "Evaluation of the morphofunctional profile of recruits entering a Brazilian Air Force military unit [original: Avaliação do perfil morfofuncional de recrutas ingressantes em uma unidade militar da força aérea brasileira]"
+ },
+ {
+  "name": "paper__ja-1990-kakimoto-jasdf-anthropometry.pdf",
+  "url": "https://www.jstage.jst.go.jp/article/jje1965/26/Supplement/26_Supplement_230/_pdf/-char/ja",
+  "mb": 0.29,
+  "title": "Results of the 3rd anthropometric survey of pilots and others (2): The 3rd anthropometry of JASDF men and women [original: 操縦者等を対象にした第3次身体計測調査結果について (2)]"
+ },
+ {
+  "name": "paper__kr-2019-song-kafa-female-cadets.pdf",
+  "url": "https://koreascience.kr/article/JAKO201908360550741.pdf",
+  "mb": 0.3,
+  "title": "An analysis of body composition and physical fitness of KAFA female cadets [original: 공군사관학교 여생도의 신체조성 및 체력에 관한 연구]"
+ },
+ {
+  "name": "paper__pl-2025-gawron-cv-risk-review.pdf",
+  "url": "https://lekarzwojskowy.wim.mil.pl/pdf-203553-133914?filename=Assessment-of-the-prevale.pdf",
+  "mb": 0.3,
+  "title": "Assessment of the prevalence of cardiovascular risk factors and associated health threats among soldiers of NATO countries [original: Ocena rozpowszechnienia czynników ryzyka sercowo-naczyniowego i związanych z nimi zagrożeń zdrowotnych wśród żołnierzy państw NATO]"
+ },
+ {
+  "name": "paper__il-2019-tsur-idf-recruits.pdf",
+  "url": "https://ima-files.s3.amazonaws.com/252224_9b9035a4-3dd8-4f1f-80f0-e8fcc956383e.pdf",
+  "mb": 0.3,
+  "title": "Differences in body measures of conscription candidates between first call-up and enlistment day: a retrospective cohort study [original: הבדלים במדדי הגוף בקרב מיועדים לשירות ביטחון - מיום הצו הראשון ליום הגיוס: מחקר עוקבה רטרוספקטיבי]"
+ },
+ {
+  "name": "paper__es-2021-barraza-chile-conscripts-training.pdf",
+  "url": "https://www.medigraphic.com/pdfs/revcubmedmil/cmm-2021/cmm211p.pdf",
+  "mb": 0.3,
+  "title": "Morpho-structural changes in conscript soldiers after four weeks of basic physical training [original: Cambios morfoestructurales en soldados conscriptos después de cuatro semanas de entrenamiento físico básico]"
+ },
+ {
+  "name": "paper__vn-2024-bui-military-pilots-mets.pdf",
+  "url": "https://yhqs.vn/tcyhqs/article/download/502/328",
+  "mb": 0.3,
+  "title": "Some characteristics of metabolic syndrome and related factors in military pilots undergoing health assessment at the Air Defence - Air Force Medical Institute [original: Một số đặc điểm của hội chứng chuyển hóa và các yếu tố liên quan ở phi công quân sự giám định sức khỏe tại Viện Y học Phòng không - Không quân]"
+ },
+ {
+  "name": "paper__ng-2020-suleiman-paramilitary.pdf",
+  "url": "https://openaccessglobal.com/wp-content/uploads/2021/06/body_composition_and_physical_fitness.pdf",
+  "mb": 0.31,
+  "title": "(English) [original: Body Composition as a Measure of Physical Fitness Level of Nigerian Para-Military Personnel]"
+ },
+ {
+  "name": "paper__rs-2018-pelva-nutrition-pilots-paratroopers.pdf",
+  "url": "https://scindeks-clanci.ceon.rs/data/pdf/0042-8426/2018/0042-84261805216P.pdf",
+  "mb": 0.31,
+  "title": "Possibilities for improving the nutrition of pilots, paratroopers and special-unit members of the Serbian Armed Forces [original: Могућности унапређења исхране летача, падобранаца и припадника специјалних јединица Војске Србије]"
+ },
+ {
+  "name": "paper__rs-2021-golubovic-63rd-parachute-brigade.pdf",
+  "url": "https://sportnaukaipraksa.vss.edu.rs/pdf/SNP-11-01/01%20Golubovic%20SRPSKI.pdf",
+  "mb": 0.32,
+  "title": "Relations between speed and specific motor abilities of members of special units [original: Relacije brzine i specifičnih motoričkih sposobnosti pripadnika specijalnih jedinica]"
+ },
+ {
+  "name": "paper__my-2017-fatimah-security-personnel.pdf",
+  "url": "https://aimt.cz/index.php/aimt/article/download/1162/251",
+  "mb": 0.36,
+  "title": "(English) [original: Body Anthropometric Study of Malaysian Security Personnel]"
+ },
+ {
+  "name": "paper__kr-2008-cho-army-helicopter-pilots.pdf",
+  "url": "http://edt.postech.ac.kr/homepage_data/publication_proceedings_domestic/07_FL_ESK_PilotAnthro.pdf",
+  "mb": 0.36,
+  "title": "Anthropometric measurement and analysis of helicopter pilots for designing a helicopter cockpit [original: 헬리콥터 조종실 설계를 위한 육군 헬리콥터 조종사 인체측정 및 분석]"
+ },
+ {
+  "name": "paper__fi-2008-jallinoja-varu-conscripts.pdf",
+  "url": "https://www.julkari.fi/server/api/core/bitstreams/89b472e3-2f43-4c05-87a8-78b5ff3d1547/content",
+  "mb": 0.38,
+  "title": "Conscripts' nutrition, health risk factors and health literacy – baseline results of the VARU intervention study in the Armoured Brigade and Kainuu Brigade in 2007 [original: Varusmiesten ravitsemus, terveyden riskitekijät ja terveystaju – VARU-interventiotutkimuksen palvelukseenastumisvaiheen tulokset Panssariprikaatissa ja Kainuun Prikaatissa vuonna 2007]"
+ },
+ {
+  "name": "paper__cz-2024-novak-covid-body-composition.pdf",
+  "url": "https://www.mmsl.cz/pdfs/mms/2024/01/11.pdf",
+  "mb": 0.39,
+  "title": "(same) [original: Correlation between COVID-19 symptoms and certain physiological and body composition parameters related to obesity and overweight]"
+ },
+ {
+  "name": "paper__pt-2018-almeida-brazil-aman-cadets.pdf",
+  "url": "https://www.aedb.br/seget/arquivos/artigos18/9226134.pdf",
+  "mb": 0.41,
+  "title": "Classification of AMAN Basic Course cadets by body-fat percentage from anthropometric measures [original: Classificação dos cadetes do Curso Básico da Academia Militar das Agulhas Negras quanto ao percentual de gordura a partir de medidas antropométricas]"
+ },
+ {
+  "name": "paper__pk-2021-kamal-cutoff-heights.pdf",
+  "url": "https://anthropological-notebooks.zrc-sazu.si/Notebooks/article/download/453/361/1135",
+  "mb": 0.42,
+  "title": "(English) [original: Cut-off heights for induction into the Armed Forces of Pakistan: Adequacy of criteria for still-growing youth]"
+ },
+ {
+  "name": "paper__me-2013-idrizovic-air-base-fitness.pdf",
+  "url": "https://www.siz-au.com/sites/default/files/journal/838-1866-2-pb.pdf",
+  "mb": 0.42,
+  "title": "Fitness potential of air forces depending on motor and morphological factors [original: Kondicioni potencijal vazduhoplovnih vojnih snaga u zavisnosti od motoričkih i morfoloških faktora]"
+ },
+ {
+  "name": "paper__fi-2021-conscript-fitness-trends.pdf",
+  "url": "https://puolustusvoimat.fi/documents/2035479/57064654/VM+kuntotilastot+2021+web.pdf/f8763257-235c-4c7a-d94a-77b2b8e320fa?t=1638859566230",
+  "mb": 0.43,
+  "title": "Changes in physical fitness, height and weight of young men starting conscript service from the 1970s to the 2020s [original: Varusmiespalveluksensa aloittaneiden nuorten miesten fyysisen kunnon, pituuden ja painon muutokset 1970-luvulta 2020-luvulle]"
+ },
+ {
+  "name": "paper__pl-2016-lenart-cadets-injuries.pdf",
+  "url": "https://zenodo.org/records/243605/files/4166.pdf?download=1",
+  "mb": 0.45,
+  "title": "(same) [original: Musculoskeletal injuries and the level of somatic constitution and physical fitness of officer cadets at the Military Academy of Land Forces]"
+ },
+ {
+  "name": "paper__vn-2025-do-mma-cadets-vo2max.pdf",
+  "url": "https://jmpm.vn/index.php/jmpm/article/download/1436/797",
+  "mb": 0.45,
+  "title": "Assessment of the relationship between body-composition indices and VO2 max of Military Medical Academy cadets [original: Đánh giá mối liên quan giữa một số chỉ số thành phần cơ thể và thể tích oxy tiêu thụ tối đa (VO2 max) của học viên Học viện Quân y]"
+ },
+ {
+  "name": "paper__pt-2013-elhage-brazil-pmmt-police-recruits.pdf",
+  "url": "https://www.rbpfex.com.br/index.php/rbpfex/pt_BR/article/download/566/519",
+  "mb": 0.47,
+  "title": "Analysis of physical performance and anthropometric profile of students of the 28th soldier training course of the Mato Grosso Military Police after 12 weeks of physical training [original: Análise do desempenho físico e perfil antropométrico dos alunos do 28 curso de formação de soldados da PM/MT - CEsp após 12 semanas de treinamento físico]"
+ },
+ {
+  "name": "paper__pt-2018-pinho-portugal-air-base-11.pdf",
+  "url": "https://repositorio.ipbeja.pt/server/api/core/bitstreams/e7fe6064-6af8-4b80-9fc1-6341128358dc/content",
+  "mb": 0.49,
+  "title": "Characterisation of the military personnel of Air Base No. 11 through anthropometric and health indicators [original: Caracterização dos Militares da Base Aérea nº11 através de indicadores antropométricos e de saúde]"
+ },
+ {
+  "name": "paper__cz-2017-fajfrova-acr-metabolic-risk.pdf",
+  "url": "https://www.mmsl.cz/pdfs/mms/2017/02/02.pdf",
+  "mb": 0.49,
+  "title": "Prevalence of selected risk factors of the metabolic syndrome in the Army of the Czech Republic [original: Prevalence vybraných rizikových faktorů metabolického syndromu v Armádě České republiky]"
+ },
+ {
+  "name": "paper__cz-2018-pravdova-preventive-care.pdf",
+  "url": "http://mmsl.cz/pdfs/mms/2018/03/05.pdf",
+  "mb": 0.5,
+  "title": "The system of preventive and enhanced preventive medical care in the Army of the Czech Republic [original: Program preventivní a rozšířené preventivní péče v podmínkách Armády České republiky]"
+ },
+ {
   "name": "paper__ijasm-2025-indian-armed-forces-anthropometric-surveillance.pdf",
   "url": "https://indjaerospacemed.com/content/110/2025/69/2/pdf/IJASM-69-099.pdf",
   "mb": 0.55,
   "title": "Anthropometric surveillance and obesity prevalence in Armed Force personnel: A cross-sectional study"
+ },
+ {
+  "name": "paper__cz-2016-fajfrova-acr-11-years.pdf",
+  "url": "https://scindeks-clanci.ceon.rs/data/pdf/0042-8450/2016/0042-84501605422F.pdf",
+  "mb": 0.55,
+  "title": "Prevalence of overweight and obesity in professional soldiers of the Czech Army over an 11-year period"
+ },
+ {
+  "name": "paper__lt-2007-cesnaviciene-conscripts.pdf",
+  "url": "https://portalcris.lsmuni.lt/server/api/core/bitstreams/956a5a42-079e-4842-bdf0-2f40b578114a/content",
+  "mb": 0.57,
+  "title": "Study of the lifestyle of compulsory military service soldiers [original: Privalomosios karinės tarnybos karių gyvensenos tyrimas]"
+ },
+ {
+  "name": "paper__kr-2011-jeong-pilot-face.pdf",
+  "url": "http://edt.postech.ac.kr/homepage_data/publication_proceedings_domestic/11_SP_ESK_MaskAnthropometry.pdf",
+  "mb": 0.59,
+  "title": "(same; body text in Korean) [original: Analysis of the Facial Anthropometric Data of Korean Pilots for Oxygen Mask Design]"
+ },
+ {
+  "name": "paper__by-2007-lebedev-conscripts-bmi.pdf",
+  "url": "https://www.bsmu.by/upload/docs/militarymedicine/c541b96293406fb2e3ba01634999b15b.pdf",
+  "mb": 0.6,
+  "title": "Distribution of conscripts by body mass index and category of fitness for military service [original: Характеристика распределения призывников по индексу массы тела и категории годности к военной службе]"
+ },
+ {
+  "name": "paper__tr-2017-basibuyuk-police-candidates.pdf",
+  "url": "https://dergipark.org.tr/en/download/article-file/386242",
+  "mb": 0.6,
+  "title": "Effect of anthropometric measurements on the shooting performance of police candidates [original: Antropometrik Ölçümlerin Polis Adaylarının Silah Atış Performansları Üstünde Etkisi]"
+ },
+ {
+  "name": "paper__kr-2018-choi-kafa-cadets-actn3.pdf",
+  "url": "http://ajkinesiol.org/upload/pdf/ajk-2018-20-4-50.pdf",
+  "mb": 0.63,
+  "title": "(same; body text in Korean) [original: Changes in Body Composition and Physical Fitness According to ACTN-3 Gene Polymorphism in Male Air Force Cadets During 8 Weeks of G-tolerance Exercise Program]"
+ },
+ {
+  "name": "paper__es-2023-umbarila-colombia-army-officers.pdf",
+  "url": "https://www.redalyc.org/journal/817/81776267002/81776267002.pdf",
+  "mb": 0.63,
+  "title": "Description of body composition in a cohort of active officers of the Colombian Army [original: Descripción de la composición corporal en una cohorte de oficiales activos en el Ejército de Colombia]"
  },
  {
   "name": "us-army-women-1977__ADA056493.pdf",
@@ -46,10 +382,130 @@ const PAPERS = [
   "title": "Summary, White & DeSantis (DTIC)"
  },
  {
+  "name": "paper__id-2020-iqbal-army-body-segments.pdf",
+  "url": "https://iopscience.iop.org/article/10.1088/1757-899X/931/1/012013/pdf",
+  "mb": 0.66,
+  "title": "(English) [original: Body Segment Dimensions of Indonesian Male Army]"
+ },
+ {
+  "name": "paper__ee-novikov-conscripts-health.pdf",
+  "url": "https://www.digar.ee/arhiiv/et/download/233636",
+  "mb": 0.69,
+  "title": "Effect of defence-force service on conscripts' health [original: Kaitseväeteenistuse mõju ajateenijate tervisele]"
+ },
+ {
+  "name": "paper__es-2015-castaneda-colombia-esmic-cadets.pdf",
+  "url": "https://revistacientificaesmic.com/index.php/esmic/article/download/26/471",
+  "mb": 0.7,
+  "title": "Relationship between body composition and physical performance at the José María Córdova Military Cadet School [original: Relación entre la composición corporal y el rendimiento físico en la Escuela Militar de Cadetes José María Córdova]"
+ },
+ {
+  "name": "paper__rs-2015-glavac-military-high-school.pdf",
+  "url": "https://scindeks-clanci.ceon.rs/data/pdf/0042-8450/2015/0042-84501508677G.pdf",
+  "mb": 0.71,
+  "title": "(same; Serbian title: Promena komponenti strukture tela i motoričkih sposobnosti kod učenika Vojne gimnazije tokom jedne godine) [original: Changing body structure components and motor skills in Military High School students within one year]"
+ },
+ {
+  "name": "paper__es-2013-pachon-colombia-esmic-cadets-smoking.pdf",
+  "url": "https://www.redalyc.org/pdf/4762/476248924012.pdf",
+  "mb": 0.71,
+  "title": "Smoking habit and anthropometric profile of students of the 'General José María Córdova' Military Cadet School [original: Hábito tabáquico y perfil antropométrico de los estudiantes de la Escuela Militar de Cadetes 'General José María Córdova']"
+ },
+ {
+  "name": "paper__ua-2026-fedyk-zhytomyr-cadets.pdf",
+  "url": "https://journals.uzhnu.uz.ua/index.php/health/article/download/1767/1829/3559",
+  "mb": 0.76,
+  "title": "Dynamics of cadets' physical condition and somatic health indicators in the process of their functional training [original: Динаміка показників фізичного стану та соматичного здоров'я курсантів у процесі функціонального тренування]"
+ },
+ {
+  "name": "paper__pt-2023-vey-brazil-army-entering-soldiers.pdf",
+  "url": "https://docs.bvsalud.org/biblioref/2023/12/1524121/12063-publicacao-68274-1-10-20231128.pdf",
+  "mb": 0.77,
+  "title": "Physical activity level, functional capacity and flexibility of soldiers entering the Brazilian Army [original: Nível de atividade física, capacidade funcional e flexibilidade de soldados ingressantes no Exército brasileiro]"
+ },
+ {
+  "name": "paper__in-2024-kakkar-dipas-mechanized-forces.pdf",
+  "url": "https://ijiset.com/vol11/v11s3/IJISET_V11_I03_05.pdf",
+  "mb": 0.78,
+  "title": "(English) [original: Anthropometric Data for Combat Vehicle Seating Design Optimization of Indian Mechanized Forces]"
+ },
+ {
+  "name": "paper__ru-2022-gaivoronsky-male-applicants.pdf",
+  "url": "https://cyberleninka.ru/article/n/antropometricheskaya-harakteristika-i-pokazateli-fizicheskogo-razvitiya-yunoshey-abiturientov-voennoy-obrazovatelnoy-organizatsii/pdf",
+  "mb": 0.78,
+  "title": "Anthropometric characteristics and physical development indicators of young male applicants to a military educational organisation [original: Антропометрическая характеристика и показатели физического развития юношей-абитуриентов военной образовательной организации]"
+ },
+ {
+  "name": "paper__bg-2020-nikolova-naval-cadets-varna.pdf",
+  "url": "https://journals.mu-varna.bg/index.php/vmf/article/download/7290/6438",
+  "mb": 0.8,
+  "title": "First results from the study of some anthropometric data and physiological parameters of the respiratory system in different categories of persons potentially related to work in a marine environment [original: Първи резултати от изследване на някои антропометрични данни и физиологични показатели на дихателната система при различни групи лица, потенциално свързани с работа в морска среда]"
+ },
+ {
+  "name": "paper__es-2021-cubides-colombia-army-schools.pdf",
+  "url": "https://www.redalyc.org/journal/4762/476268663011/476268663011.pdf",
+  "mb": 0.82,
+  "title": "Comparison of physical conditioning in students of three Colombian National Army schools [original: Comparación del acondicionamiento físico en alumnos de tres escuelas del Ejército Nacional de Colombia]"
+ },
+ {
+  "name": "paper__cz-2024-krutisova-metabolic-syndrome.pdf",
+  "url": "https://www.mmsl.cz/pdfs/mms/2024/01/09.pdf",
+  "mb": 0.9,
+  "title": "Psychological burden and metabolic syndrome in professional soldiers"
+ },
+ {
+  "name": "paper__in-2020-biswal-iaf-aircrew-helmet.pdf",
+  "url": "https://indjaerospacemed.com/content/110/2020/64/1/pdf/IJAM-64-018.pdf",
+  "mb": 0.92,
+  "title": "(English) [original: Optimizing sizing schedules of aircrew helmets using machine learning techniques]"
+ },
+ {
   "name": "additional__AD0735101.pdf",
   "url": "https://archive.org/download/DTIC_AD0735101/DTIC_AD0735101.pdf",
   "mb": 1.08,
   "title": "Selected Anthropometric Dimensions of Naval Aviation Personnel (NAMRL-1141, 1971)"
+ },
+ {
+  "name": "paper__kr-2023-lee-female-combat-uniform.pdf",
+  "url": "https://koreascience.kr/article/JAKO202326943313306.pdf",
+  "mb": 1.08,
+  "title": "Evaluation of the fit and motion suitability for Korean female combat uniforms [original: 여군 전투복의 치수 및 동작적합성 평가]"
+ },
+ {
+  "name": "paper__su-1991-gost-20881-servicemen-size-scales.pdf",
+  "url": "https://meganorm.ru/Data2/1/4294832/4294832689.pdf",
+  "mb": 1.12,
+  "title": "GOST 20881-91 Standard figures of servicemen. Scales of sizes [original: ГОСТ 20881-91 Фигуры военнослужащих типовые. Шкалы размеров]"
+ },
+ {
+  "name": "paper__pt-2013-brazil-tfm-conscientiae.pdf",
+  "url": "https://periodicos.uninove.br/saude/article/download/3820/2463",
+  "mb": 1.14,
+  "title": "Changes induced by military physical training on the body composition of young adult military personnel [original: Alterações induzidas pelo treinamento físico militar sobre a composição corporal de militares adultos jovens]"
+ },
+ {
+  "name": "paper__uz-2022-bobojonova-feet-servicemen.pdf",
+  "url": "https://zenodo.org/records/7298710/files/EJAR11234.pdf?download=1",
+  "mb": 1.16,
+  "title": "Fundamentals of anthropometric studies of servicemen's feet [original: Основы антропометрических исследований стоп военнослужащих]"
+ },
+ {
+  "name": "paper__no-2017-kober-ffi-conscription.pdf",
+  "url": "https://www.ffi.no/publikasjoner/arkiv/friskere-raskere-sterkere-en-kvantitativ-analyse-av-medisinske-og-fysiske-krav-til-forstegangstjeneste",
+  "mb": 1.3,
+  "title": "Healthier, faster, stronger? A quantitative analysis of medical and physical requirements for initial military service [original: Friskere, raskere, sterkere? – en kvantitativ analyse av medisinske og fysiske krav til førstegangstjeneste]"
+ },
+ {
+  "name": "paper__in-2011-tripathy-iaf-sitting-height.pdf",
+  "url": "https://indjaerospacemed.com/content/110/2011/55/1/pdf/IJASM-55-026.pdf",
+  "mb": 1.33,
+  "title": "(English) [original: Maximum Permissible Sitting Height with the Induction of A New Helmet: A Critical Analysis]"
+ },
+ {
+  "name": "paper__in-2013-sharma-iaf-helicopter-cadets.pdf",
+  "url": "https://indjaerospacemed.com/content/110/2013/57/1/pdf/IJASM-57-051.pdf",
+  "mb": 1.37,
+  "title": "(English) [original: Anthropometric Parameters for IAF Helicopter Pilots]"
  },
  {
   "name": "paper__pmc8171865-chile-naval-cadets.pdf",
@@ -58,10 +514,70 @@ const PAPERS = [
   "title": "Effects of a period without mandatory physical training on maximum oxygen uptake and anthropometric parameters in naval cadets"
  },
  {
+  "name": "paper__pt-2016-morgado-brazil-tfm.pdf",
+  "url": "https://revistadeeducacaofisica.emnuvens.com.br/revista/article/download/191/pdf_61",
+  "mb": 1.52,
+  "title": "Effects of military physical training on anthropometric characteristics and physical performance of military personnel [original: Efeitos do Treinamento Físico Militar nas características antropométricas e no desempenho físico de militares]"
+ },
+ {
+  "name": "paper__ja-2007-nittami-aeromedical-lab-reports.pdf",
+  "url": "https://www.jstage.jst.go.jp/article/jasdfaml/47/2/47_141/_pdf/-char/ja",
+  "mb": 1.57,
+  "title": "On the Reports of the Aeromedical Laboratory, 1958-2006 (annotated bibliography) [original: 航空医学実験隊報告について―1958年から2006年まで―]"
+ },
+ {
+  "name": "paper__dk-2025-forsvarets-dag-statistics.pdf",
+  "url": "https://www.forsvaret.dk/globalassets/fps/dokumenter/2025/-statistik-fra-forsvarets-dag-okt2025-.pdf",
+  "mb": 1.73,
+  "title": "Statistical information from Forsvarets Dag (conscription day) / session, October 2025 [original: Statistiske oplysninger fra Forsvarets Dag/session (oktober 2025)]"
+ },
+ {
+  "name": "paper__ch-2020-matthes-gewicht-der-schweiz.pdf",
+  "url": "https://www.bag.admin.ch/dam/fr/sd-web/AFCHHUqnla-K/schlussbericht-bmi.pdf",
+  "mb": 1.75,
+  "title": "The weight of Switzerland. A quantitative synthesis study on BMI and waist circumference and associated cofactors in adult men and women in Switzerland [original: Das Gewicht der Schweiz. Eine quantitative Synthesestudie zum Body Mass Index und Bauchumfang sowie den damit verbundenen Kofaktoren bei erwachsenen Männern und Frauen in der Schweiz]"
+ },
+ {
   "name": "historic-australian__DST-Group-GD-0968.pdf",
   "url": "https://www.dst.defence.gov.au/sites/default/files/publications/documents/DST-Group-GD-0968.pdf",
   "mb": 1.77,
   "title": "DST-Group-GD-0968 (DST)"
+ },
+ {
+  "name": "paper__fi-2022-vafyko-conscript-training.pdf",
+  "url": "https://puolustusvoimat.fi/documents/1951253/2670014/VAFYKO-tutkimusraportti_WEB_FINAL.pdf/12486ca2-ee41-5545-9e70-b9f9b0084bf1?t=1652700504065",
+  "mb": 1.89,
+  "title": "Conscripts' physical training as part of the Training 2020 reform. Research report [original: Varusmiesten liikuntakoulutus osana Koulutus 2020 -uudistusta. Tutkimusraportti]"
+ },
+ {
+  "name": "paper__nl-1989-schuffel-dutchmil85.pdf",
+  "url": "https://www.militairespectator.nl/sites/default/files/bestanden/uitgaven/1989/1989-0013-01-0010.PDF",
+  "mb": 2.14,
+  "title": "Anthropometry for the armed forces [original: Antropometrie voor de krijgsmacht]"
+ },
+ {
+  "name": "paper__fi-2020-pihlainen-kritoky.pdf",
+  "url": "https://jyx.jyu.fi/bitstream/handle/123456789/75963/1/Sotilaslaaketieteen_aikakauslehti_2_2020_KRITOKY.pdf",
+  "mb": 2.29,
+  "title": "KRITOKY study: maintaining readiness in low-load crisis-management operations requires strength and endurance training [original: KRITOKY-tutkimus: valmiustason ylläpito matalakuormitteisissa kriisinhallintaoperaatioissa edellyttää voima- ja kestävyysharjoittelua]"
+ },
+ {
+  "name": "paper__in-2025-chandran-iaf-iam-3dscanner.pdf",
+  "url": "https://indjaerospacemed.com/content/110/2025/69/1/pdf/IJASM-69-009.pdf",
+  "mb": 2.33,
+  "title": "(English) [original: Identification and comparison of analogous parameters from three-dimensional anthropometric scanner for aviation applications]"
+ },
+ {
+  "name": "paper__fi-2016-reservists-fitness-2015.pdf",
+  "url": "https://puolustusvoimat.fi/documents/1951253/2670014/PEVIESTOS-Reservilaistutkimus2015-20160525/00312ea2-fa34-41e4-93f0-0aa7a81d51b5/PEVIESTOS-Reservilaistutkimus2015-20160525.pdf",
+  "mb": 2.35,
+  "title": "Functional capacity of reservists in 2015 [original: Reserviläisten toimintakyky vuonna 2015]"
+ },
+ {
+  "name": "paper__tw-2018-shih-pasgt-helmet.pdf",
+  "url": "https://www.mnd.gov.tw/NewUpload/201805/%E7%9F%B3%E8%A3%95%E5%B7%9D%E3%80%81%E7%9F%B3%E7%A9%8E%E6%B5%A9_061144.pdf",
+  "mb": 2.36,
+  "title": "Subjective satisfaction with the current ROC military PASGT helmet [original: 國軍現行PASGT軍用頭盔之主觀滿意度探討]"
  },
  {
   "name": "additional__ADA103181.pdf",
@@ -76,10 +592,34 @@ const PAPERS = [
   "title": "NATICK/TR-89/027 interim summary (ODL mirror)"
  },
  {
+  "name": "paper__nl-1993-ellens-tall-soldier.pdf",
+  "url": "https://publications.tno.nl/publication/34641090/BzaWjW/ellens-1993-lange.pdf",
+  "mb": 2.81,
+  "title": "The tall Dutch soldier squeezed [original: De lange Nederlandse militair in de verdrukking]"
+ },
+ {
+  "name": "paper__cz-2010-soumar-casri-monitoring.pdf",
+  "url": "https://www.mo.gov.cz/assets/multimedia-a-knihovna/casopisy/vojenske-rozhledy/vr4_10.pdf",
+  "mb": 2.93,
+  "title": "Long-term monitoring of the current physical state of the population with emphasis on members of the Army of the Czech Republic [original: Dlouhodobé monitorování aktuálního tělesného stavu populace s důrazem na příslušníky Armády České republiky]"
+ },
+ {
   "name": "additional__AD0020542.pdf",
   "url": "https://archive.org/download/DTIC_AD0020542/DTIC_AD0020542.pdf",
   "mb": 2.99,
   "title": "Women's Air Force (WAF) basic trainees, WADC TR 53-12"
+ },
+ {
+  "name": "paper__pt-2014-freitas-portugal-military-academy.pdf",
+  "url": "https://comum.rcaap.pt/server/api/core/bitstreams/27b9ce3d-f26a-4565-8c4d-72aa005ae451/content",
+  "mb": 3.09,
+  "title": "Nutritional assessment and motor activity of the Military Academy cadet-student [original: Avaliação Nutricional e Atividade Motora do Cadete-Aluno da Academia Militar]"
+ },
+ {
+  "name": "paper__de-2024-scheit-bundeswehr-obesity.pdf",
+  "url": "https://opus4.kobv.de/opus4-fizbw/files/367/WMM_202411_478-485_Scheit.pdf",
+  "mb": 3.09,
+  "title": "Prevalence of obesity and associated health risk factors in soldiers of the Bundeswehr [original: Prävalenz von Adipositas und damit verbundene gesundheitliche Risikofaktoren bei Soldaten der Bundeswehr]"
  },
  {
   "name": "naval-aviators-1964__AD0626322.pdf",
@@ -122,6 +662,12 @@ const PAPERS = [
   "url": "https://archive.org/download/DTIC_AD0728822/DTIC_AD0728822.pdf",
   "mb": 3.75,
   "title": "Phase III Technical Summary (DTIC)"
+ },
+ {
+  "name": "paper__pt-2003-salem-brazil-army-women-hydrostatic.pdf",
+  "url": "http://rbafs.org.br/RBAFS/article/download/869/1143",
+  "mb": 4.33,
+  "title": "Reliability of anthropometric variables and body composition by hydrostatic weighing in female military personnel of the Brazilian Army [original: Fidedignidade de variáveis antropométricas e da composição corporal pelo peso hidrostático de militares femininas do Exército Brasileiro]"
  },
  {
   "name": "korea__AD0661625.pdf",
@@ -172,6 +718,12 @@ const PAPERS = [
   "title": "Report 1, NATICK/TR-77/021 (DTIC)"
  },
  {
+  "name": "paper__bg-2025-stoyanova-naval-cadets-anthropometric.pdf",
+  "url": "https://conf.uni-ruse.bg/bg/docs/sns/2025/FOZZG-HPSM.pdf",
+  "mb": 5.84,
+  "title": "Anthropometric profile analysis of cadets at the Nikola Vaptsarov Naval Academy [original: Анализ на антропометрични показатели сред курсанти от ВВМУ \"Н. Й. Вапцаров\"]"
+ },
+ {
   "name": "ansur-ii-2012__ADA634277.pdf",
   "url": "https://archive.org/download/DTIC_ADA634277/DTIC_ADA634277.pdf",
   "mb": 6.86,
@@ -206,6 +758,12 @@ const PAPERS = [
   "url": "https://archive.org/download/DTIC_ADA610792/DTIC_ADA610792.pdf",
   "mb": 7.84,
   "title": "DSTO-TR-3006 (DTIC)"
+ },
+ {
+  "name": "paper__pt-2012-maria-brazil-air-force-sao-paulo-thesis.pdf",
+  "url": "http://www.teses.usp.br/teses/disponiveis/89/89131/tde-14092012-100639/publico/Mestrado_Simone_Hernandes_Campos_Maria_original.pdf",
+  "mb": 8.12,
+  "title": "Nutritional status and associated factors in Brazilian Air Force military personnel in the city of São Paulo [original: Estado nutricional e fatores associados em militares da Força Aérea Brasileira na cidade de São Paulo]"
  },
  {
   "name": "german-air-force-1967-68__ADA010674.pdf",
@@ -302,6 +860,18 @@ const PAPERS = [
   "url": "https://archive.org/download/DTIC_ADA241952/DTIC_ADA241952.pdf",
   "mb": 29.58,
   "title": "ANSUR 1988 pilot summary statistics (NATICK/TR-91/040)"
+ },
+ {
+  "name": "paper__su-1991-gost-23167-servicemen-typical-figures.pdf",
+  "url": "https://meganorm.ru/Data/385/38507.pdf",
+  "mb": 30.46,
+  "title": "GOST 23167-91 Standard figures of servicemen. Measurements for the design of military uniform [original: ГОСТ 23167-91 Фигуры военнослужащих типовые. Размерные признаки для проектирования военной одежды]"
+ },
+ {
+  "name": "paper__ja-2006-nishi-jasdf-pilot-models.pdf",
+  "url": "https://www.jstage.jst.go.jp/article/jasdfaml/46/3/46_61/_pdf/-char/ja",
+  "mb": 35.26,
+  "title": "Anthropometry of JASDF personnel: multivariate pilot body-shape models by principal component analysis [original: 航空自衛隊員の身体計測値―多次元尺度的男性女性操縦士マネキンモデルの検討―]"
  },
  {
   "name": "additional__ADA529930.pdf",

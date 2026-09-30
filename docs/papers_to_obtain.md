@@ -121,3 +121,20 @@ Entries marked *(citation incomplete)* need their title page checked once the PD
    - Alternative: <https://apps.dtic.mil/sti/citations/AD1100615>
    - Access: free (DTIC). Why the project has no full text: DTIC blocked automated requests and the Internet Archive mirror returned an error. Complete the citation from the title page.
    - Save as: `United_States/DTIC_AD1100615_Army_sizing_ANSUR_II_2020.pdf`
+
+## Open datasets that need a person to download them (portal check)
+
+20. Ministry of National Defense (Republic of Korea). (2025). *공군 신체측정정보(남) ('22~'24년)* [Air Force body measurement information (male), 2022-2024; 15,885 records, 3D full-body scanner] [Data set]. Public Data Portal (data.go.kr), dataset 15090354. Free use, no restriction on use scope.
+   - **Direct link:** <https://www.data.go.kr/data/15090354/fileData.do>
+   - Access: open data (use scope unrestricted); the portal's download button sits behind a session/captcha check that automated tools cannot pass. Why the project has no full text: The portal returned an empty file to scripted download requests. Individual-level records, so means and SDs could be computed for Korean Air Force men.
+   - Save as: `South_Korea/datasets/KR_MND_AirForce_body_measurements_male_2022-2024.csv`
+
+21. Ministry of National Defense (Republic of Korea). (2025). *공군 신체측정정보(여) ('24년)* [Air Force body measurement information (female), 2024; 163 records] [Data set]. Public Data Portal (data.go.kr), dataset 15090359. Free use, no restriction on use scope.
+   - **Direct link:** <https://www.data.go.kr/data/15090359/fileData.do>
+   - Access: open data (use scope unrestricted); download behind a session/captcha check. Why the project has no full text: Same as the male file.
+   - Save as: `South_Korea/datasets/KR_MND_AirForce_body_measurements_female_2024.csv`
+
+22. Ministry of National Defense (Republic of Korea). (2024). *국방부_해병대 장병 측신정보* [Marine Corps personnel body measurement information; 9,669 records: height, chest, waist, sleeve; January 2024] [Data set]. Public Data Portal (data.go.kr), dataset 15106305. *(citation incomplete)*
+   - **Direct link:** <https://www.data.go.kr/data/15106305/fileData.do>
+   - Access: open data; download may sit behind the same check. Why the project has no full text: Found by the multilingual search; landing page not opened by this project.
+   - Save as: `South_Korea/datasets/KR_MND_Marine_Corps_body_measurements_2024.csv`

@@ -94,7 +94,7 @@ def main():
             if r.get("title_english") and r["title_english"] != title:
                 title = f"{r['title_english']} [original: {title}]"
             rows.append({
-                "paper_id": r["slug"], "survey_id": "", "title": title, "language": r.get("language") or "English", "original_url": r["url"],
+                "paper_id": r["slug"], "survey_id": "", "title": title, "language": re.split(r"[/(]| and ", r.get("language") or "English")[0].strip() or "English", "original_url": r["url"],
                 "open_copy_url": r.get("pdf_url") or r["url"],
                 "open_copy_kind": ("publisher page (abstract only)" if r.get("accessibility", "").startswith("abstract")
                                    else f"open access ({r.get('license') or 'license not stated'})"),

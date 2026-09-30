@@ -262,3 +262,41 @@ papers:
     links:
       - https://apps.dtic.mil/sti/tr/pdf/AD1100615.pdf
       - https://apps.dtic.mil/sti/citations/AD1100615
+
+  # ---- open datasets that need a human to download (portal check) --------------------
+  - id: kr-mnd-airforce-male
+    group: dataset
+    country: South Korea
+    apa: "Ministry of National Defense (Republic of Korea). (2025). *공군 신체측정정보(남) ('22~'24년)* [Air Force body measurement information (male), 2022-2024; 15,885 records, 3D full-body scanner] [Data set]. Public Data Portal (data.go.kr), dataset 15090354. Free use, no restriction on use scope."
+    doi: ""
+    folder: South_Korea/datasets
+    file: KR_MND_AirForce_body_measurements_male_2022-2024.csv
+    access: open data (use scope unrestricted); the portal's download button sits behind a session/captcha check that automated tools cannot pass
+    why: The portal returned an empty file to scripted download requests. Individual-level records, so means and SDs could be computed for Korean Air Force men.
+    links:
+      - https://www.data.go.kr/data/15090354/fileData.do
+    verified: data.go.kr file metadata (title, 15,885 rows, CSV, updated 2025-08-13)
+  - id: kr-mnd-airforce-female
+    group: dataset
+    country: South Korea
+    apa: "Ministry of National Defense (Republic of Korea). (2025). *공군 신체측정정보(여) ('24년)* [Air Force body measurement information (female), 2024; 163 records] [Data set]. Public Data Portal (data.go.kr), dataset 15090359. Free use, no restriction on use scope."
+    doi: ""
+    folder: South_Korea/datasets
+    file: KR_MND_AirForce_body_measurements_female_2024.csv
+    access: open data (use scope unrestricted); download behind a session/captcha check
+    why: Same as the male file.
+    links:
+      - https://www.data.go.kr/data/15090359/fileData.do
+    verified: data.go.kr file metadata (title, 163 rows, CSV)
+  - id: kr-mnd-marines
+    group: dataset
+    country: South Korea
+    apa: "Ministry of National Defense (Republic of Korea). (2024). *국방부_해병대 장병 측신정보* [Marine Corps personnel body measurement information; 9,669 records: height, chest, waist, sleeve; January 2024] [Data set]. Public Data Portal (data.go.kr), dataset 15106305."
+    doi: ""
+    folder: South_Korea/datasets
+    file: KR_MND_Marine_Corps_body_measurements_2024.csv
+    access: open data; download may sit behind the same check
+    why: Found by the multilingual search; landing page not opened by this project.
+    verified: partial
+    links:
+      - https://www.data.go.kr/data/15106305/fileData.do

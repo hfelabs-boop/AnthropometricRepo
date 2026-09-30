@@ -19,10 +19,16 @@ Only four surveys publish individual-level data. To cover more countries, servic
 | `aunz.csv` | NZDFAS (New Zealand), AWAS (Australian Army), ASRAN (Royal Australian Navy) | 991 |
 | `foreign_1960s.csv` | Korea 1965, Thailand 1962, Latin American armed forces 1965 | 432 |
 | `german_navy_usaf.csv` | German Air Force 1967-68, US Naval Aviators 1964, Canadian Forces | 223 |
-| `openaccess_articles.csv` | Open-access journal articles: Iran, Poland, Germany, Finland, Czech Republic, Switzerland, Brazil, Chile, Angola, Taiwan, Saudi Arabia, India | 145 |
+| `openaccess_articles.csv` | English-language open-access journal articles: Iran, Poland, Germany, Finland, Czech Republic, Switzerland, Brazil, Chile, Angola, Taiwan, Saudi Arabia | 145 |
+| `ml_germanic.csv` | German, Dutch, Nordic, Baltic, Hungarian, Turkish sources: Austrian, Danish and Norwegian conscript series, Finnish, Swiss, Dutch 1985 military survey, Hungarian recruits | 339 |
+| `ml_slavic.csv` | Russian, Czech, Serbian, Polish, Bulgarian, Ukrainian sources: Czech Army preventive exams 1999-2015, Serbian cadets, Russian conscripts | 333 |
+| `ml_romance.csv` | Spanish and Portuguese sources: Brazil, Colombia, Portugal, Chile, Ecuador | 238 |
+| `ml_mideast_sasia.csv` | Hebrew, English (Middle East/South Asia): Israel, India, Iran, Pakistan | 122 |
+| `ml_cjk.csv` | Japanese, Korean, Vietnamese, Thai, Indonesian, Chinese-language searches: JASDF 1988, Korea, Vietnam, Thailand, Indonesia | 143 |
 
 ## How reliable is it?
 
+* Multilingual rows: the search was run in about 30 languages. Sources were read in the original and translated into English (population names, dimension names, notes); each run's `.md` lists the queries, translation notes and exclusions. Persian, Arabic and Chinese full texts were unreachable from the search environment (Iranian hosts, CNKI and others blocked automated access), so those languages are under-represented. Candidate surveys that could not be read are listed in [`../docs/candidate_surveys.md`](../docs/candidate_surveys.md).
 * **Grade A**: parsed from a born-digital table and checked. **B**: read by OCR from a scanned report; each row had to pass internal checks (for example the printed coefficient of variation must equal SD ÷ mean, the mean must lie inside the printed percentiles). **C**: read from the text of a web article.
 * Where individual-level data exist, the extracted numbers were compared with them: the USAF 1967 rows in the NASA source book agree with the raw data to within 0.1 SD on all 47 comparable measures, and the ANSUR and ASRAN report tables agree to rounding.
 * Rows that could not be verified were dropped, not repaired. Each run's `.md` counts them. Papers left out on purpose are listed there too (a clinical case-control study; a paper whose BMI contradicted its own weight and height).

@@ -151,7 +151,8 @@ def rollup(rows):
         N = sum(ns)
         M = sum(n * m for n, m in zip(ns, ms)) / N
         ss = sum((n - 1) * (num(r["sd"]) or 0) ** 2 for n, r in zip(ns, rs)) + sum(n * (m - M) ** 2 for n, m in zip(ns, ms))
-        sd = math.sqrt(ss / (N - 1)) if N > 1 else None
+        # A pooled SD is only meaningful when every contributing row has an SD.
+        sd = math.sqrt(ss / (N - 1)) if N > 1 and all(num(r["sd"]) for r in rs) else None
         years = [int(r["year_start"]) for r in rs if r["year_start"]]
         out.append({
             "country": country, "service_role": role, "sex": sex, "measure_key": key,

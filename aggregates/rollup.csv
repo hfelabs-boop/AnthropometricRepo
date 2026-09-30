@@ -372,19 +372,86 @@ Australia,Navy,M,thumbtip_reach,Thumb-tip reach,1084,806.43,53.51,1,806.43,806.4
 Australia,Navy,M,trochanterion_height,Trochanterion height,1082,935.08,49.23,1,935.08,935.08,2015,2015,asran-2015
 Australia,Navy,M,waist_circumference,Waist circumference (omphalion),1090,948.73,114.05,1,948.73,948.73,2015,2015,asran-2015
 Australia,Navy,M,wrist_circumference,Wrist circumference,1088,184.33,11.24,1,184.33,184.33,2015,2015,asran-2015
+Austria,Recruits/trainees,M,mass,Body mass,1466174,73.49,,35,70.7,77.1,1990,2024,at-statistik-austria-stellungspflichtige
+Austria,Recruits/trainees,M,stature,Stature,1466174,1779.0,,35,1771.0,1789.0,1990,2024,at-statistik-austria-stellungspflichtige
+Belarus,Recruits/trainees,M,bmi,Body mass index,208,22.82,2.81,1,22.82,22.82,2007,2007,by-2007-lebedev-conscripts-bmi
 Bolivia,Recruits/trainees,M,age,Age,135,26.0,5.8,1,26.0,26.0,1965,1965,latin-american-armed-forces
 Bolivia,Recruits/trainees,M,mass,Body mass,135,62.91,7.62,1,62.91,62.91,1965,1965,latin-american-armed-forces
 Bolivia,Recruits/trainees,M,stature,Stature,135,1651.0,53.85,1,1651.0,1651.0,1965,1965,latin-american-armed-forces
-Brazil,Cadets,M,age,Age,205,19.6,1.4,1,19.6,19.6,2013,2013,pmc6192153-brazil-army-cadets
-Brazil,Cadets,M,bmi,Body mass index,205,22.9,2.1,1,22.9,22.9,2013,2013,pmc6192153-brazil-army-cadets
-Brazil,Cadets,M,mass,Body mass,205,71.3,8.1,1,71.3,71.3,2013,2013,pmc6192153-brazil-army-cadets
+Brazil,Air Force,M,age,Age,1241,26.0,8.7,1,26.0,26.0,2011,2011,pt-2012-maria-brazil-air-force-sao-paulo-thesis
+Brazil,Air Force,M,bmi,Body mass index,1241,24.8,3.8,1,24.8,24.8,2011,2011,pt-2012-maria-brazil-air-force-sao-paulo-thesis
+Brazil,Air Force,M,mass,Body mass,1241,76.1,12.6,1,76.1,76.1,2011,2011,pt-2012-maria-brazil-air-force-sao-paulo-thesis
+Brazil,Air Force,M,other:abdominal_circumference,CA (circunferencia abdominal),1241,859.0,106.0,1,859.0,859.0,2011,2011,pt-2012-maria-brazil-air-force-sao-paulo-thesis
+Brazil,Air Force,M,other:body_fat_percent,%G,1241,17.4,7.8,1,17.4,17.4,2011,2011,pt-2012-maria-brazil-air-force-sao-paulo-thesis
+Brazil,Air Force,M,stature,Stature,1241,1751.0,61.0,1,1751.0,1751.0,2011,2011,pt-2012-maria-brazil-air-force-sao-paulo-thesis
+Brazil,Army,F,age,Age,110,30.86,6.47,2,30.65,32.96,,,pt-2003-salem-brazil-army-women-hydrostatic; pt-2004-salem-brazil-army-women-equations
+Brazil,Army,F,biceps_circumference_flexed,Biceps circumference (flexed),10,265.4,15.9,1,265.4,265.4,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,buttock_circumference,Buttock circumference,10,955.8,39.2,1,955.8,955.8,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,calf_circumference,Calf circumference,10,345.5,19.5,1,345.5,345.5,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,chest_circumference,Chest circumference,10,732.3,37.5,1,732.3,732.3,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,forearm_circumference_flexed,Forearm circumference (flexed),10,226.4,12.5,1,226.4,226.4,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,mass,Body mass,110,58.51,6.83,2,56.25,58.74,,,pt-2003-salem-brazil-army-women-hydrostatic; pt-2004-salem-brazil-army-women-equations
+Brazil,Army,F,neck_circumference,Neck circumference,10,310.0,11.6,1,310.0,310.0,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:abdominal_circumference,Abdomem,10,774.5,41.5,1,774.5,774.5,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:arm_circumference_relaxed,Braco relaxado,10,258.9,18.1,1,258.9,258.9,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:body_fat_percent,%G,10,23.28,3.37,1,23.28,23.28,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:body_fat_percent,% gordura,100,23.6,4.19,1,23.6,23.6,,,pt-2004-salem-brazil-army-women-equations
+Brazil,Army,F,other:skinfold_abdominal,Abdominal,10,18.29,4.98,1,18.29,18.29,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:skinfold_biceps,Biceps,10,8.16,2.89,1,8.16,8.16,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:skinfold_chest,Peitoral,10,10.32,4.23,1,10.32,10.32,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:skinfold_medial_calf,Panturrilha,10,14.69,3.33,1,14.69,14.69,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:skinfold_midaxillary,Axilar media,10,8.21,2.78,1,8.21,8.21,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:skinfold_subscapular,Subescapular,10,11.95,3.6,1,11.95,11.95,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:skinfold_suprailiac,Suprailiaca,10,19.18,3.96,1,19.18,19.18,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:skinfold_supraspinale,Supraespinal,10,12.13,4.42,1,12.13,12.13,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:skinfold_thigh,Coxa,10,24.56,6.33,1,24.56,24.56,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,other:skinfold_triceps,Triceps,10,19.46,3.09,1,19.46,19.46,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,stature,Stature,110,1648.17,58.57,2,1641.9,1648.8,,,pt-2003-salem-brazil-army-women-hydrostatic; pt-2004-salem-brazil-army-women-equations
+Brazil,Army,F,thigh_circumference,Thigh circumference,10,552.5,31.6,1,552.5,552.5,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,F,waist_circumference,Waist circumference (omphalion),10,693.3,40.0,1,693.3,693.3,,,pt-2003-salem-brazil-army-women-hydrostatic
+Brazil,Army,M,age,Age,232,22.47,3.66,2,18.95,23.2,,,pt-2013-vargas-brazil-army-soldiers-ponta-grossa; pt-2018-rosa-brazil-haiti-contingent
+Brazil,Army,M,bmi,Body mass index,232,24.31,3.49,2,22.9,24.6,,,pt-2013-vargas-brazil-army-soldiers-ponta-grossa; pt-2018-rosa-brazil-haiti-contingent
+Brazil,Army,M,mass,Body mass,232,73.8,10.03,2,68.05,75.0,,,pt-2013-vargas-brazil-army-soldiers-ponta-grossa; pt-2018-rosa-brazil-haiti-contingent
+Brazil,Army,M,other:body_fat_percent,% G,192,13.9,4.0,1,13.9,13.9,,,pt-2018-rosa-brazil-haiti-contingent
+Brazil,Army,M,stature,Stature,232,1743.17,60.8,2,1720.0,1748.0,,,pt-2013-vargas-brazil-army-soldiers-ponta-grossa; pt-2018-rosa-brazil-haiti-contingent
+Brazil,Army,M,waist_circumference,Waist circumference (omphalion),192,818.0,60.0,1,818.0,818.0,,,pt-2018-rosa-brazil-haiti-contingent
+Brazil,Cadets,M,age,Age,492,18.86,1.46,2,18.33,19.6,2013,2013,pmc6192153-brazil-army-cadets; pt-2013-avila-brazil-espcex-cadets
+Brazil,Cadets,M,bmi,Body mass index,492,22.72,2.3,2,22.59,22.9,2013,2013,pmc6192153-brazil-army-cadets; pt-2013-avila-brazil-espcex-cadets
+Brazil,Cadets,M,mass,Body mass,492,70.35,8.56,2,69.67,71.3,2013,2013,pmc6192153-brazil-army-cadets; pt-2013-avila-brazil-espcex-cadets
+Brazil,Cadets,M,other:body_fat_percent,% gordura,287,13.62,5.04,1,13.62,13.62,,,pt-2013-avila-brazil-espcex-cadets
 Brazil,Cadets,M,other:body_fat_percent,%FM,205,17.2,3.7,1,17.2,17.2,2013,2013,pmc6192153-brazil-army-cadets
 Brazil,Cadets,M,other:fat_free_mass,FFM (kg),205,56.3,5.9,1,56.3,56.3,2013,2013,pmc6192153-brazil-army-cadets
 Brazil,Cadets,M,other:fat_mass,FM (kg),205,12.5,3.4,1,12.5,12.5,2013,2013,pmc6192153-brazil-army-cadets
-Brazil,Cadets,M,stature,Stature,205,1762.0,64.0,1,1762.0,1762.0,2013,2013,pmc6192153-brazil-army-cadets
-Brazil,Recruits/trainees,M,age,Age,94,21.5,3.3,1,21.5,21.5,1965,1965,latin-american-armed-forces
-Brazil,Recruits/trainees,M,mass,Body mass,94,65.41,7.89,1,65.41,65.41,1965,1965,latin-american-armed-forces
-Brazil,Recruits/trainees,M,stature,Stature,94,1699.26,60.71,1,1699.26,1699.26,1965,1965,latin-american-armed-forces
+Brazil,Cadets,M,stature,Stature,492,1755.0,61.92,2,1750.0,1762.0,2013,2013,pmc6192153-brazil-army-cadets; pt-2013-avila-brazil-espcex-cadets
+Brazil,Cadets,both,mass,Body mass,441,72.95,9.86,1,72.95,72.95,2018,2018,pt-2018-almeida-brazil-aman-cadets
+Brazil,Cadets,both,other:abdominal_or_waist_circumference,CABDO e CCINT,441,822.9,74.4,1,822.9,822.9,2018,2018,pt-2018-almeida-brazil-aman-cadets
+Brazil,Cadets,both,other:body_fat_percent,Percentual de gordura,441,17.61,4.55,1,17.61,17.61,2018,2018,pt-2018-almeida-brazil-aman-cadets
+Brazil,Cadets,both,stature,Stature,441,1750.0,70.0,1,1750.0,1750.0,2018,2018,pt-2018-almeida-brazil-aman-cadets
+Brazil,Cadre/other military,M,age,Age,57,38.28,5.07,2,36.28,39.84,2015,2015,pt-2016-damasceno-brazil-ceara-shock-battalion; pt-2017-silva-brazil-rio-military-police
+Brazil,Cadre/other military,M,bmi,Body mass index,57,27.77,2.93,2,27.02,28.73,2015,2015,pt-2016-damasceno-brazil-ceara-shock-battalion; pt-2017-silva-brazil-rio-military-police
+Brazil,Cadre/other military,M,mass,Body mass,32,82.94,12.06,1,82.94,82.94,,,pt-2017-silva-brazil-rio-military-police
+Brazil,Cadre/other military,M,other:abdominal_circumference,CA,25,962.4,57.5,1,962.4,962.4,2015,2015,pt-2016-damasceno-brazil-ceara-shock-battalion
+Brazil,Cadre/other military,M,other:body_fat_percent,% de Gordura,25,26.27,4.91,1,26.27,26.27,2015,2015,pt-2016-damasceno-brazil-ceara-shock-battalion
+Brazil,Cadre/other military,M,stature,Stature,32,1750.0,62.0,1,1750.0,1750.0,,,pt-2017-silva-brazil-rio-military-police
+Brazil,Cadre/other military,M,waist_circumference,Waist circumference (omphalion),25,916.4,58.5,1,916.4,916.4,2015,2015,pt-2016-damasceno-brazil-ceara-shock-battalion
+Brazil,Recruits/trainees,M,age,Age,374,20.13,3.07,3,18.0,23.7,1965,1965,latin-american-armed-forces; pt-2013-elhage-brazil-pmmt-police-recruits; pt-2023-vey-brazil-army-entering-soldiers
+Brazil,Recruits/trainees,M,biceps_circumference_flexed,Biceps circumference (flexed),139,270.0,30.0,1,270.0,270.0,2016,2016,pt-2016-campos-brazil-air-force-recruits
+Brazil,Recruits/trainees,M,bmi,Body mass index,446,22.98,3.36,4,21.93,24.3,2016,2016,pt-2013-elhage-brazil-pmmt-police-recruits; pt-2016-campos-brazil-air-force-recruits; pt-2016-morgado-brazil-sergeant-course; pt-2023-vey-brazil-army-entering-soldiers
+Brazil,Recruits/trainees,M,buttock_circumference,Buttock circumference,337,923.33,83.41,2,900.0,939.7,2016,2016,pt-2016-campos-brazil-air-force-recruits; pt-2023-vey-brazil-army-entering-soldiers
+Brazil,Recruits/trainees,M,mass,Body mass,587,69.99,11.65,6,65.41,73.9,1965,2016,latin-american-armed-forces; pt-2013-elhage-brazil-pmmt-police-recruits; pt-2013-madureira-brazil-army-police-battalion; pt-2016-campos-brazil-air-force-recruits; pt-2016-morgado-brazil-sergeant-course; pt-2023-vey-brazil-army-entering-soldiers
+Brazil,Recruits/trainees,M,other:body_fat_percent,Gordura Corporal (%),139,14.1,7.2,1,14.1,14.1,2016,2016,pt-2016-campos-brazil-air-force-recruits
+Brazil,Recruits/trainees,M,other:body_fat_percent,Percentual de gordura,27,11.6,6.9,1,11.6,11.6,,,pt-2016-morgado-brazil-sergeant-course
+Brazil,Recruits/trainees,M,other:body_fat_percent,Gordura corporal relativa,47,11.4,6.9,1,11.4,11.4,,,pt-2013-madureira-brazil-army-police-battalion
+Brazil,Recruits/trainees,M,other:skinfold_abdominal,Dobra Cutanea Abdominal,139,15.9,10.3,1,15.9,15.9,2016,2016,pt-2016-campos-brazil-air-force-recruits
+Brazil,Recruits/trainees,M,other:skinfold_suprailiac,Dobra Cutanea Suprailiaca,139,17.2,11.5,1,17.2,17.2,2016,2016,pt-2016-campos-brazil-air-force-recruits
+Brazil,Recruits/trainees,M,other:skinfold_triceps,Dobra Cutanea Tricipital,139,9.5,4.8,1,9.5,9.5,2016,2016,pt-2016-campos-brazil-air-force-recruits
+Brazil,Recruits/trainees,M,other:total_muscle_mass_kg,Massa muscular total,47,33.3,2.8,1,33.3,33.3,,,pt-2013-madureira-brazil-army-police-battalion
+Brazil,Recruits/trainees,M,stature,Stature,513,1745.01,69.01,4,1699.26,1760.0,1965,2016,latin-american-armed-forces; pt-2013-elhage-brazil-pmmt-police-recruits; pt-2016-campos-brazil-air-force-recruits; pt-2023-vey-brazil-army-entering-soldiers
+Brazil,Recruits/trainees,M,waist_circumference,Waist circumference (omphalion),419,771.86,87.81,3,750.0,811.0,2016,2016,pt-2013-elhage-brazil-pmmt-police-recruits; pt-2016-campos-brazil-air-force-recruits; pt-2023-vey-brazil-army-entering-soldiers
+Bulgaria,Cadets,F,mass,Body mass,6,59.0,,1,59.0,59.0,2020,2020,bg-2020-nikolova-naval-cadets-varna
+Bulgaria,Cadets,F,stature,Stature,6,1690.0,,1,1690.0,1690.0,2020,2020,bg-2020-nikolova-naval-cadets-varna
+Bulgaria,Cadets,M,mass,Body mass,19,74.2,,1,74.2,74.2,2020,2020,bg-2020-nikolova-naval-cadets-varna
+Bulgaria,Cadets,M,stature,Stature,19,1797.0,,1,1797.0,1797.0,2020,2020,bg-2020-nikolova-naval-cadets-varna
 Canada,Navigators,both,ankle_circumference,Ankle circumference,290,226.8,13.7,1,226.8,226.8,1961,1961,rp1024-vol2
 Canada,Navigators,both,biacromial_breadth,Biacromial breadth,290,352.2,20.3,1,352.2,352.2,1961,1961,rp1024-vol2
 Canada,Navigators,both,bideltoid_breadth,Bideltoid breadth,290,455.4,21.0,1,455.4,455.4,1961,1961,rp1024-vol2
@@ -538,6 +605,12 @@ Canada,Tri-service,both,stature,Stature,565,1750.5,63.2,1,1750.5,1750.5,1974,197
 Canada,Tri-service,both,thumbtip_reach,Thumb-tip reach,565,794.0,42.4,1,794.0,794.0,1974,1974,rp1024-vol2
 Canada,Tri-service,both,vertical_trunk_circumference,Vertical trunk circumference,565,1679.6,88.2,1,1679.6,1679.6,1974,1974,rp1024-vol2
 Canada,Tri-service,both,waist_circumference,Waist circumference (omphalion),565,888.7,95.7,1,888.7,888.7,1974,1974,rp1024-vol2
+Chile,Army,M,age,Age,57,26.9,4.8,1,26.9,26.9,,,es-2023-yanez-chile-infantry
+Chile,Army,M,bmi,Body mass index,57,25.9,2.3,1,25.9,25.9,,,es-2023-yanez-chile-infantry
+Chile,Army,M,mass,Body mass,57,78.2,9.4,1,78.2,78.2,,,es-2023-yanez-chile-infantry
+Chile,Army,M,other:body_fat_percent,Tejido adiposo (%),57,20.3,4.9,1,20.3,20.3,,,es-2023-yanez-chile-infantry
+Chile,Army,M,other:fat_free_mass_kg,MLG (masa libre de grasa),57,62.2,7.4,1,62.2,62.2,,,es-2023-yanez-chile-infantry
+Chile,Army,M,stature,Stature,57,1734.0,53.0,1,1734.0,1734.0,,,es-2023-yanez-chile-infantry
 Chile,Cadets,F,age,Age,8,21.0,1.51,1,21.0,21.0,,,pmc8171865-chile-naval-cadets
 Chile,Cadets,F,bmi,Body mass index,8,21.9,1.79,1,21.9,21.9,,,pmc8171865-chile-naval-cadets
 Chile,Cadets,F,other:body_fat_percent,% Fat,8,23.3,4.7,1,23.3,23.3,,,pmc8171865-chile-naval-cadets
@@ -548,12 +621,68 @@ Chile,Cadets,both,age,Age,38,20.6,1.28,1,20.6,20.6,,,pmc8171865-chile-naval-cade
 Chile,Cadets,both,bmi,Body mass index,38,22.5,1.72,1,22.5,22.5,,,pmc8171865-chile-naval-cadets
 Chile,Cadets,both,mass,Body mass,38,67.1,8.0,1,67.1,67.1,,,pmc8171865-chile-naval-cadets
 Chile,Cadets,both,other:body_fat_percent,% Fat,38,14.9,5.2,1,14.9,14.9,,,pmc8171865-chile-naval-cadets
-Chile,Recruits/trainees,M,age,Age,411,18.9,2.6,1,18.9,18.9,1965,1965,latin-american-armed-forces
-Chile,Recruits/trainees,M,mass,Body mass,411,63.28,7.08,1,63.28,63.28,1965,1965,latin-american-armed-forces
-Chile,Recruits/trainees,M,stature,Stature,411,1676.4,58.17,1,1676.4,1676.4,1965,1965,latin-american-armed-forces
-Colombia,Recruits/trainees,M,age,Age,207,19.7,1.5,1,19.7,19.7,1965,1965,latin-american-armed-forces
-Colombia,Recruits/trainees,M,mass,Body mass,207,61.51,5.99,1,61.51,61.51,1965,1965,latin-american-armed-forces
-Colombia,Recruits/trainees,M,stature,Stature,207,1656.08,52.32,1,1656.08,1656.08,1965,1965,latin-american-armed-forces
+Chile,Recruits/trainees,M,age,Age,439,18.9,2.53,2,18.9,18.9,1965,1965,es-2021-barraza-chile-conscripts-training; latin-american-armed-forces
+Chile,Recruits/trainees,M,biacromial_breadth,Biacromial breadth,28,388.7,31.2,1,388.7,388.7,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,biceps_circumference_flexed,Biceps circumference (flexed),28,308.3,20.6,1,308.3,308.3,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,bicristal_breadth,Bicristal (biiliocristale) breadth,28,277.4,16.8,1,277.4,277.4,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,bmi,Body mass index,28,22.47,2.42,1,22.47,22.47,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,buttock_circumference,Buttock circumference,28,924.4,55.0,1,924.4,924.4,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,calf_circumference,Calf circumference,28,328.7,19.7,1,328.7,328.7,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,chest_breadth,Chest breadth,28,287.7,21.2,1,287.7,287.7,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,chest_circumference,Chest circumference,28,908.0,60.5,1,908.0,908.0,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,chest_depth,Chest depth,28,203.1,19.1,1,203.1,203.1,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,forearm_circumference_flexed,Forearm circumference (flexed),28,258.3,11.8,1,258.3,258.3,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,head_circumference,Head circumference,28,556.0,12.2,1,556.0,556.0,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,mass,Body mass,439,63.52,7.24,2,63.28,67.04,1965,1965,es-2021-barraza-chile-conscripts-training; latin-american-armed-forces
+Chile,Recruits/trainees,M,other:arm_circumference_relaxed,Brazo,28,281.3,21.5,1,281.3,281.3,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,other:femur_breadth,Femoral,28,98.1,5.1,1,98.1,98.1,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,other:humerus_breadth,Humeral,28,69.7,3.2,1,69.7,69.7,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,other:mid_thigh_circumference,Muslo medio,28,485.0,47.8,1,485.0,485.0,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,other:skinfold_abdominal,Abdominal,28,16.83,8.34,1,16.83,16.83,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,other:skinfold_front_thigh,Muslo frontal,28,12.46,3.89,1,12.46,12.46,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,other:skinfold_medial_calf,Pantorrilla,28,8.56,3.48,1,8.56,8.56,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,other:skinfold_subscapular,Subescapular,28,10.98,4.92,1,10.98,10.98,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,other:skinfold_supraspinale,Supraespinal,28,10.06,4.92,1,10.06,10.06,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,other:skinfold_triceps,Triceps,28,12.0,4.58,1,12.0,12.0,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,sitting_height,Sitting height,28,925.9,27.0,1,925.9,925.9,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,stature,Stature,439,1679.82,58.44,2,1676.4,1730.0,1965,1965,es-2021-barraza-chile-conscripts-training; latin-american-armed-forces
+Chile,Recruits/trainees,M,thigh_circumference,Thigh circumference,28,526.3,35.4,1,526.3,526.3,,,es-2021-barraza-chile-conscripts-training
+Chile,Recruits/trainees,M,waist_circumference,Waist circumference (omphalion),28,766.8,69.0,1,766.8,766.8,,,es-2021-barraza-chile-conscripts-training
+Colombia,Cadets,M,age,Age,112,20.71,1.71,2,20.0,22.0,2015,2015,es-2018-cortes-colombia-combat-course; es-2021-cubides-colombia-army-schools
+Colombia,Cadets,M,biceps_circumference_flexed,Biceps circumference (flexed),51,326.0,22.4,1,326.0,326.0,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,bmi,Body mass index,163,23.71,2.33,3,22.9,24.4,2015,2015,es-2015-castaneda-colombia-esmic-cadets; es-2018-cortes-colombia-combat-course; es-2021-cubides-colombia-army-schools
+Colombia,Cadets,M,calf_circumference,Calf circumference,51,370.0,26.0,1,370.0,370.0,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,mass,Body mass,163,70.21,8.43,3,68.33,72.2,2015,2015,es-2015-castaneda-colombia-esmic-cadets; es-2018-cortes-colombia-combat-course; es-2021-cubides-colombia-army-schools
+Colombia,Cadets,M,other:body_fat_percent,Porcentaje graso,72,8.58,3.12,1,8.58,8.58,2015,2015,es-2018-cortes-colombia-combat-course
+Colombia,Cadets,M,other:femur_breadth,Diametro femoral,51,97.0,5.2,1,97.0,97.0,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,other:humerus_breadth,Diametro humero,51,69.0,3.7,1,69.0,69.0,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,other:skinfold_abdominal,Pliegue abdominal,51,16.7,7.88,1,16.7,16.7,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,other:skinfold_front_thigh,Pliegue muslo frontal,51,12.1,4.65,1,12.1,12.1,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,other:skinfold_iliac_crest,Pliegue cresta iliaca,51,16.6,6.4,1,16.6,16.6,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,other:skinfold_medial_calf,Pliegue pantorrilla medial,51,8.9,4.84,1,8.9,8.9,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,other:skinfold_subscapular,Pliegue subescapular,51,10.9,3.14,1,10.9,10.9,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,other:skinfold_supraspinale,Pliegue supra espinal,51,9.3,4.38,1,9.3,9.3,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,other:skinfold_triceps,Pliegue triceps,51,9.69,3.08,1,9.69,9.69,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,other:wrist_breadth,Diametro muneca,51,57.0,3.2,1,57.0,57.0,,,es-2015-castaneda-colombia-esmic-cadets
+Colombia,Cadets,M,stature,Stature,163,1719.42,,3,1710.0,1726.0,2015,2015,es-2015-castaneda-colombia-esmic-cadets; es-2018-cortes-colombia-combat-course; es-2021-cubides-colombia-army-schools
+Colombia,Cadets,M,waist_circumference,Waist circumference (omphalion),91,793.91,50.78,2,786.0,804.0,,,es-2015-castaneda-colombia-esmic-cadets; es-2021-cubides-colombia-army-schools
+Colombia,Cadets,both,age,Age,69,19.0,1.0,1,19.0,19.0,2012,2012,es-2013-pachon-colombia-esmic-cadets-smoking
+Colombia,Cadets,both,biceps_circumference_flexed,Biceps circumference (flexed),69,301.0,,1,301.0,301.0,2012,2012,es-2013-pachon-colombia-esmic-cadets-smoking
+Colombia,Cadets,both,buttock_circumference,Buttock circumference,69,928.0,,1,928.0,928.0,2012,2012,es-2013-pachon-colombia-esmic-cadets-smoking
+Colombia,Cadets,both,mass,Body mass,69,65.9,,1,65.9,65.9,2012,2012,es-2013-pachon-colombia-esmic-cadets-smoking
+Colombia,Cadets,both,other:abdominal_circumference,Perimetro abdomen,69,756.0,,1,756.0,756.0,2012,2012,es-2013-pachon-colombia-esmic-cadets-smoking
+Colombia,Cadets,both,other:arm_circumference_relaxed,Perimetro brazo relajado,69,259.0,,1,259.0,259.0,2012,2012,es-2013-pachon-colombia-esmic-cadets-smoking
+Colombia,Cadets,both,sitting_height,Sitting height,69,898.0,,1,898.0,898.0,2012,2012,es-2013-pachon-colombia-esmic-cadets-smoking
+Colombia,Cadets,both,stature,Stature,69,1720.0,,1,1720.0,1720.0,2012,2012,es-2013-pachon-colombia-esmic-cadets-smoking
+Colombia,Officers,both,age,Age,81,31.89,6.23,2,28.25,39.58,,,es-2023-umbarila-colombia-army-officers
+Colombia,Officers,both,mass,Body mass,81,79.16,5.29,2,78.7,80.12,,,es-2023-umbarila-colombia-army-officers
+Colombia,Officers,both,other:body_fat_percent,Masa grasa %,81,18.84,5.35,2,18.51,19.55,,,es-2023-umbarila-colombia-army-officers
+Colombia,Officers,both,stature,Stature,81,1728.07,68.6,2,1725.5,1733.5,,,es-2023-umbarila-colombia-army-officers
+Colombia,Recruits/trainees,M,age,Age,287,20.06,1.61,3,19.7,21.0,1965,1965,es-2021-cubides-colombia-army-schools; latin-american-armed-forces
+Colombia,Recruits/trainees,M,bmi,Body mass index,80,23.05,2.14,2,22.4,23.7,,,es-2021-cubides-colombia-army-schools
+Colombia,Recruits/trainees,M,mass,Body mass,287,62.46,6.48,3,61.51,65.2,1965,1965,es-2021-cubides-colombia-army-schools; latin-american-armed-forces
+Colombia,Recruits/trainees,M,stature,Stature,287,1659.96,57.29,3,1650.0,1690.0,1965,1965,es-2021-cubides-colombia-army-schools; latin-american-armed-forces
+Colombia,Recruits/trainees,M,waist_circumference,Waist circumference (omphalion),80,778.0,50.92,2,764.0,792.0,,,es-2021-cubides-colombia-army-schools
 Czech Republic,Army,F,age,Age,20,32.1,5.3,1,32.1,32.1,,,pmc13331485-czech-artillery
 Czech Republic,Army,F,bmi,Body mass index,20,24.7,4.8,1,24.7,24.7,,,pmc13331485-czech-artillery
 Czech Republic,Army,F,mass,Body mass,20,68.1,12.4,1,68.1,68.1,,,pmc13331485-czech-artillery
@@ -561,28 +690,89 @@ Czech Republic,Army,F,other:body_fat_percent,BF (%),20,33.8,5.4,1,33.8,33.8,,,pm
 Czech Republic,Army,F,other:fat_free_mass,FFM (kg),20,44.6,5.6,1,44.6,44.6,,,pmc13331485-czech-artillery
 Czech Republic,Army,F,other:visceral_adipose_tissue_area,VAT (cm2),20,51.0,30.4,1,51.0,51.0,,,pmc13331485-czech-artillery
 Czech Republic,Army,F,stature,Stature,20,1664.0,55.0,1,1664.0,1664.0,,,pmc13331485-czech-artillery
-Czech Republic,Army,M,age,Age,189,31.5,6.5,1,31.5,31.5,,,pmc13331485-czech-artillery
-Czech Republic,Army,M,bmi,Body mass index,189,26.4,3.3,1,26.4,26.4,,,pmc13331485-czech-artillery
-Czech Republic,Army,M,mass,Body mass,189,85.3,12.7,1,85.3,85.3,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,age,Age,6759,26.17,,5,25.8,31.5,,,cz-2010-soumar-casri-monitoring; pmc13331485-czech-artillery
+Czech Republic,Army,M,biceps_circumference_flexed,Biceps circumference (flexed),6570,329.95,,4,329.0,340.0,,,cz-2010-soumar-casri-monitoring
+Czech Republic,Army,M,bmi,Body mass index,6759,25.04,,5,24.9,26.4,,,cz-2010-soumar-casri-monitoring; pmc13331485-czech-artillery
+Czech Republic,Army,M,mass,Body mass,6759,80.5,,5,80.1,85.3,,,cz-2010-soumar-casri-monitoring; pmc13331485-czech-artillery
+Czech Republic,Army,M,other:body_fat_percent,tuk %,6570,13.59,,4,13.5,14.8,,,cz-2010-soumar-casri-monitoring
 Czech Republic,Army,M,other:body_fat_percent,BF (%),189,24.3,3.8,1,24.3,24.3,,,pmc13331485-czech-artillery
 Czech Republic,Army,M,other:fat_free_mass,FFM (kg),189,64.4,8.3,1,64.4,64.4,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,other:skinfold_abdomen,kožní řasa břicho,6570,13.97,,4,13.8,15.6,,,cz-2010-soumar-casri-monitoring
 Czech Republic,Army,M,other:visceral_adipose_tissue_area,VAT (cm2),189,77.0,24.0,1,77.0,77.0,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,other:waist_hip_ratio,WHR,6570,0.87,,4,0.85,0.88,,,cz-2010-soumar-casri-monitoring
 Czech Republic,Army,M,stature,Stature,189,1796.0,68.0,1,1796.0,1796.0,,,pmc13331485-czech-artillery
+Czech Republic,Army,M,thigh_circumference,Thigh circumference,6570,537.01,,4,524.0,550.0,,,cz-2010-soumar-casri-monitoring
+Czech Republic,Army,M,waist_circumference,Waist circumference (omphalion),6570,853.29,,4,850.0,879.0,,,cz-2010-soumar-casri-monitoring
+Czech Republic,Army,both,age,Age,315,28.75,5.04,2,28.7,28.8,,,cz-2010-soumar-casri-monitoring
+Czech Republic,Army,both,bmi,Body mass index,315,26.09,2.88,2,26.0,26.2,,,cz-2010-soumar-casri-monitoring
+Czech Republic,Army,both,mass,Body mass,315,83.13,11.07,2,82.7,83.5,,,cz-2010-soumar-casri-monitoring
+Czech Republic,Army,both,other:body_fat_percent,tuk %,315,24.88,4.36,2,24.6,25.2,,,cz-2010-soumar-casri-monitoring
+Czech Republic,Army,both,other:waist_hip_ratio,WHR,315,0.86,0.05,2,0.86,0.86,,,cz-2010-soumar-casri-monitoring
+Czech Republic,Army,both,stature,Stature,315,1783.51,66.39,2,1776.0,1790.0,,,cz-2010-soumar-casri-monitoring
+Czech Republic,Cadets,M,age,Age,22,22.9,2.6,1,22.9,22.9,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,biceps_circumference_flexed,Biceps circumference (flexed),22,359.0,17.0,1,359.0,359.0,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,bmi,Body mass index,22,23.8,1.5,1,23.8,23.8,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,calf_circumference,Calf circumference,22,379.0,17.0,1,379.0,379.0,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,mass,Body mass,22,76.8,7.0,1,76.8,76.8,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,other:body_fat_percent,FM (%) (BIA Tanita MC-980),22,8.3,3.0,1,8.3,8.3,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,other:fat_free_mass,FFM (kg) (BIA),22,70.5,6.1,1,70.5,70.5,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,other:femur_biepicondylar_breadth,šířka epikondylů femuru,22,102.1,4.7,1,102.1,102.1,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,other:humerus_biepicondylar_breadth,šířka epikondylů humeru,22,91.1,4.0,1,91.1,91.1,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,other:skinfold_calf,kožní řasa lýtko,22,5.0,1.1,1,5.0,5.0,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,other:skinfold_subscapular,kožní řasa scapula,22,8.9,1.0,1,8.9,8.9,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,other:skinfold_supraspinale,kožní řasa spina,22,4.5,0.9,1,4.5,4.5,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,other:skinfold_triceps,kožní řasa triceps,22,5.9,1.6,1,5.9,5.9,,,cz-2015-kinkorova-military-students
+Czech Republic,Cadets,M,stature,Stature,22,1799.0,60.0,1,1799.0,1799.0,,,cz-2015-kinkorova-military-students
+Czech Republic,Tri-service,F,age,Age,7355,37.24,7.32,12,34.8,41.0,1999,2015,cz-2016-fajfrova-acr-11-years; cz-2017-fajfrova-acr-metabolic-risk
+Czech Republic,Tri-service,F,bmi,Body mass index,7355,24.09,4.31,12,23.5,24.8,1999,2015,cz-2016-fajfrova-acr-11-years; cz-2017-fajfrova-acr-metabolic-risk
+Czech Republic,Tri-service,F,mass,Body mass,7355,67.22,11.81,12,65.7,69.3,1999,2015,cz-2016-fajfrova-acr-11-years; cz-2017-fajfrova-acr-metabolic-risk
+Czech Republic,Tri-service,F,stature,Stature,7355,1670.47,63.7,12,1659.0,1674.0,1999,2015,cz-2016-fajfrova-acr-11-years; cz-2017-fajfrova-acr-metabolic-risk
+Czech Republic,Tri-service,F,waist_circumference,Waist circumference (omphalion),7298,776.85,106.22,12,754.0,798.0,1999,2015,cz-2016-fajfrova-acr-11-years; cz-2017-fajfrova-acr-metabolic-risk
+Czech Republic,Tri-service,M,age,Age,72864,38.55,7.81,12,36.6,40.7,1999,2015,cz-2016-fajfrova-acr-11-years; cz-2017-fajfrova-acr-metabolic-risk
+Czech Republic,Tri-service,M,bmi,Body mass index,72864,26.69,3.25,12,26.3,27.2,1999,2015,cz-2016-fajfrova-acr-11-years; cz-2017-fajfrova-acr-metabolic-risk
+Czech Republic,Tri-service,M,mass,Body mass,72864,85.93,11.95,12,84.5,88.2,1999,2015,cz-2016-fajfrova-acr-11-years; cz-2017-fajfrova-acr-metabolic-risk
+Czech Republic,Tri-service,M,stature,Stature,72864,1789.92,65.28,12,1770.0,1799.0,1999,2015,cz-2016-fajfrova-acr-11-years; cz-2017-fajfrova-acr-metabolic-risk
+Czech Republic,Tri-service,M,waist_circumference,Waist circumference (omphalion),72602,925.88,97.1,12,919.0,934.0,1999,2015,cz-2016-fajfrova-acr-11-years; cz-2017-fajfrova-acr-metabolic-risk
 Dominican Republic,Recruits/trainees,M,age,Age,84,26.3,5.3,1,26.3,26.3,1965,1965,latin-american-armed-forces
 Dominican Republic,Recruits/trainees,M,mass,Body mass,84,64.86,10.8,1,64.86,64.86,1965,1965,latin-american-armed-forces
 Dominican Republic,Recruits/trainees,M,stature,Stature,84,1681.48,61.21,1,1681.48,1681.48,1965,1965,latin-american-armed-forces
-Ecuador,Recruits/trainees,M,age,Age,210,25.6,5.5,1,25.6,25.6,1965,1965,latin-american-armed-forces
-Ecuador,Recruits/trainees,M,mass,Body mass,210,61.73,6.62,1,61.73,61.73,1965,1965,latin-american-armed-forces
-Ecuador,Recruits/trainees,M,stature,Stature,210,1638.3,54.36,1,1638.3,1638.3,1965,1965,latin-american-armed-forces
+Ecuador,Recruits/trainees,M,age,Age,363,23.07,5.27,2,19.6,25.6,1965,1965,es-2017-maldonado-ecuador-esforse-soldiers; latin-american-armed-forces
+Ecuador,Recruits/trainees,M,ankle_circumference,Ankle circumference,153,240.1,12.8,1,240.1,240.1,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,biacromial_breadth,Biacromial breadth,153,392.7,19.6,1,392.7,392.7,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,bideltoid_breadth,Bideltoid breadth,153,437.6,23.5,1,437.6,437.6,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,bmi,Body mass index,153,22.73,2.76,1,22.73,22.73,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,buttock_circumference,Buttock circumference,153,958.6,47.6,1,958.6,958.6,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,chest_circumference,Chest circumference,153,943.0,73.6,1,943.0,943.0,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,foot_length,Foot length,153,254.2,15.7,1,254.2,254.2,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,forearm_circumference_flexed,Forearm circumference (flexed),153,254.4,19.2,1,254.4,254.4,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,hand_length,Hand length,153,194.3,15.6,1,194.3,194.3,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,mass,Body mass,363,62.9,6.39,2,61.73,64.51,1965,1965,es-2017-maldonado-ecuador-esforse-soldiers; latin-american-armed-forces
+Ecuador,Recruits/trainees,M,neck_circumference,Neck circumference,153,380.9,20.9,1,380.9,380.9,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,other:arm_length,Arm length,153,720.7,49.8,1,720.7,720.7,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,other:hip_breadth_standing,Hips width,153,322.8,28.6,1,322.8,322.8,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,other:shoulder_wrist_length,Shoulder-wrist length,153,528.0,34.8,1,528.0,528.0,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,stature,Stature,363,1659.5,56.15,2,1638.3,1688.6,1965,1965,es-2017-maldonado-ecuador-esforse-soldiers; latin-american-armed-forces
+Ecuador,Recruits/trainees,M,thigh_circumference,Thigh circumference,153,558.9,26.0,1,558.9,558.9,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,waist_circumference,Waist circumference (omphalion),153,842.7,44.1,1,842.7,842.7,,,es-2017-maldonado-ecuador-esforse-soldiers
+Ecuador,Recruits/trainees,M,wrist_circumference,Wrist circumference,153,171.2,13.0,1,171.2,171.2,,,es-2017-maldonado-ecuador-esforse-soldiers
 El Salvador,Recruits/trainees,M,age,Age,47,24.1,6.3,1,24.1,24.1,1965,1965,latin-american-armed-forces
 El Salvador,Recruits/trainees,M,mass,Body mass,47,62.91,10.61,1,62.91,62.91,1965,1965,latin-american-armed-forces
 El Salvador,Recruits/trainees,M,stature,Stature,47,1635.76,52.83,1,1635.76,1635.76,1965,1965,latin-american-armed-forces
-Finland,Cadre/other military,M,age,Age,176,40.0,8.0,1,40.0,40.0,,,pmc12772597-finland-soldiers
-Finland,Cadre/other military,M,bmi,Body mass index,173,27.1,3.9,1,27.1,27.1,,,pmc12772597-finland-soldiers
-Finland,Cadre/other military,M,mass,Body mass,173,87.6,13.8,1,87.6,87.6,,,pmc12772597-finland-soldiers
+Finland,Cadre/other military,F,bmi,Body mass index,15,25.6,6.2,1,25.6,25.6,2015,2015,fi-2016-reservists-fitness-2015
+Finland,Cadre/other military,F,mass,Body mass,15,69.3,15.8,1,69.3,69.3,2015,2015,fi-2016-reservists-fitness-2015
+Finland,Cadre/other military,F,other:body_fat_percent,Rasvaprosentti,15,31.5,9.6,1,31.5,31.5,2015,2015,fi-2016-reservists-fitness-2015
+Finland,Cadre/other military,F,stature,Stature,15,1653.0,59.0,1,1653.0,1653.0,2015,2015,fi-2016-reservists-fitness-2015
+Finland,Cadre/other military,F,waist_circumference,Waist circumference (omphalion),15,775.0,105.0,1,775.0,775.0,2015,2015,fi-2016-reservists-fitness-2015
+Finland,Cadre/other military,M,age,Age,267,36.59,9.29,2,30.0,40.0,,,fi-2020-pihlainen-kritoky; pmc12772597-finland-soldiers
+Finland,Cadre/other military,M,bmi,Body mass index,2675,25.17,3.88,5,24.7,27.1,2003,2015,fi-2016-reservists-fitness-2015; fi-2020-pihlainen-kritoky; pmc12772597-finland-soldiers
+Finland,Cadre/other military,M,mass,Body mass,3337,81.08,14.15,6,79.0,87.6,2003,2015,fi-2016-reservists-fitness-2015; fi-2020-pihlainen-kritoky; pmc12772597-finland-soldiers
+Finland,Cadre/other military,M,other:body_fat_percent,Rasvaprosentti,754,17.7,7.9,1,17.7,17.7,2015,2015,fi-2016-reservists-fitness-2015
 Finland,Cadre/other military,M,other:body_fat_percent,Fat percentage (%),161,20.8,7.4,1,20.8,20.8,,,pmc12772597-finland-soldiers
-Finland,Cadre/other military,M,stature,Stature,173,1796.0,63.0,1,1796.0,1796.0,,,pmc12772597-finland-soldiers
-Finland,Cadre/other military,M,waist_circumference,Waist circumference (omphalion),163,943.0,114.0,1,943.0,943.0,,,pmc12772597-finland-soldiers
+Finland,Cadre/other military,M,stature,Stature,3333,1793.89,61.23,6,1790.0,1800.0,2003,2015,fi-2016-reservists-fitness-2015; fi-2020-pihlainen-kritoky; pmc12772597-finland-soldiers
+Finland,Cadre/other military,M,waist_circumference,Waist circumference (omphalion),3231,881.44,110.55,5,860.0,943.0,2003,2015,fi-2016-reservists-fitness-2015; pmc12772597-finland-soldiers
+Finland,Recruits/trainees,M,bmi,Body mass index,2222,23.72,,5,23.3,24.6,2007,2007,fi-2008-jallinoja-varu-conscripts
+Finland,Recruits/trainees,M,other:body_fat_percent,Rasvaprosentti,1868,16.91,,5,16.1,19.7,2007,2007,fi-2008-jallinoja-varu-conscripts
+Finland,Recruits/trainees,M,waist_circumference,Waist circumference (omphalion),2288,849.92,,5,831.0,858.0,2007,2007,fi-2008-jallinoja-varu-conscripts
 France,Army,both,acromion_height,Acromion height,734,1417.9,61.4,1,1417.9,1417.9,,,rp1024-vol2
 France,Army,both,acromion_height_sitting,Acromion height (sitting),794,600.1,29.2,1,600.1,600.1,,,rp1024-vol2
 France,Army,both,age,Age,794,22.35,4.25,1,22.35,22.35,,,rp1024-vol2
@@ -1300,9 +1490,9 @@ Germany,Tri-service,M,thigh_circumference,Thigh circumference,2643,571.0,35.0,1,
 Germany,Tri-service,M,thigh_clearance,Thigh clearance,2643,151.0,7.0,1,151.0,151.0,1970,1970,rp1024-vol2
 Germany,Tri-service,M,vertical_trunk_circumference,Vertical trunk circumference,2643,1627.0,75.0,1,1627.0,1627.0,1970,1970,rp1024-vol2
 Germany,Tri-service,M,wrist_circumference,Wrist circumference,2643,174.0,8.0,1,174.0,174.0,1970,1970,rp1024-vol2
-Germany,Tri-service,both,age,Age,40165,34.2,8.7,1,34.2,34.2,2018,2018,pmc11020664-germany-bundeswehr
-Germany,Tri-service,both,bmi,Body mass index,40165,26.8,3.7,1,26.8,26.8,2018,2018,pmc11020664-germany-bundeswehr
-Germany,Tri-service,both,waist_circumference,Waist circumference (omphalion),40165,921.0,114.0,1,921.0,921.0,2018,2018,pmc11020664-germany-bundeswehr
+Germany,Tri-service,both,age,Age,80330,34.2,8.7,2,34.2,34.2,2018,2018,de-2024-scheit-bundeswehr-obesity; pmc11020664-germany-bundeswehr
+Germany,Tri-service,both,bmi,Body mass index,80330,26.8,3.7,2,26.8,26.8,2018,2018,de-2024-scheit-bundeswehr-obesity; pmc11020664-germany-bundeswehr
+Germany,Tri-service,both,waist_circumference,Waist circumference (omphalion),80330,921.0,114.0,2,921.0,921.0,2018,2018,de-2024-scheit-bundeswehr-obesity; pmc11020664-germany-bundeswehr
 Greece,Cadre/other military,M,acromion_height,Acromion height,1071,1386.0,54.0,1,1386.0,1386.0,1961,1961,rp1024-vol2
 Greece,Cadre/other military,M,age,Age,1071,22.95,2.81,1,22.95,22.95,1961,1961,rp1024-vol2
 Greece,Cadre/other military,M,ankle_circumference,Ankle circumference,1071,225.5,11.5,1,225.5,225.5,1961,1961,rp1024-vol2
@@ -1449,13 +1639,77 @@ Guatemala,Recruits/trainees,M,stature,Stature,62,1640.84,66.29,1,1640.84,1640.84
 Honduras,Recruits/trainees,M,age,Age,91,24.2,5.1,1,24.2,24.2,1965,1965,latin-american-armed-forces
 Honduras,Recruits/trainees,M,mass,Body mass,91,62.23,8.44,1,62.23,62.23,1965,1965,latin-american-armed-forces
 Honduras,Recruits/trainees,M,stature,Stature,91,1653.54,55.12,1,1653.54,1653.54,1965,1965,latin-american-armed-forces
-India,Tri-service,both,bmi,Body mass index,1388,24.18,0.0,1,24.18,24.18,2023,2023,ijasm2025-india-armed-forces-surveillance
-India,Tri-service,both,mass,Body mass,1388,71.2,0.0,1,71.2,71.2,2023,2023,ijasm2025-india-armed-forces-surveillance
-India,Tri-service,both,stature,Stature,1388,1714.0,0.0,1,1714.0,1714.0,2023,2023,ijasm2025-india-armed-forces-surveillance
-India,Tri-service,both,waist_circumference,Waist circumference (omphalion),1388,849.0,0.0,1,849.0,849.0,2023,2023,ijasm2025-india-armed-forces-surveillance
+Hungary,Recruits/trainees,both,age,Age,265,27.1,7.6,1,27.1,27.1,2024,2024,hu-2025-novak-basic-training
+Hungary,Recruits/trainees,both,mass,Body mass,265,77.37,13.89,1,77.37,77.37,2024,2024,hu-2025-novak-basic-training
+Hungary,Recruits/trainees,both,other:body_fat_percent,testzsírfrakció (kg%),265,20.93,8.7,1,20.93,20.93,2024,2024,hu-2025-novak-basic-training
+Hungary,Recruits/trainees,both,other:handgrip_strength_left,marokszorító erő bal kéz (Newton),265,479.0,106.6,1,479.0,479.0,2024,2024,hu-2025-novak-basic-training
+Hungary,Recruits/trainees,both,other:handgrip_strength_right,marokszorító erő jobb kéz (Newton),265,515.0,112.7,1,515.0,515.0,2024,2024,hu-2025-novak-basic-training
+Hungary,Recruits/trainees,both,other:hip_circumference,csípőkörfogat (cm),265,1007.7,89.1,1,1007.7,1007.7,2024,2024,hu-2025-novak-basic-training
+Hungary,Recruits/trainees,both,other:skeletal_muscle_percent,testizomfrakció (kg%),265,39.35,4.71,1,39.35,39.35,2024,2024,hu-2025-novak-basic-training
+Hungary,Recruits/trainees,both,other:visceral_fat_level,viszcerális zsír (1-29 au.),265,7.3,3.8,1,7.3,7.3,2024,2024,hu-2025-novak-basic-training
+Hungary,Recruits/trainees,both,stature,Stature,265,1757.0,65.0,1,1757.0,1757.0,2024,2024,hu-2025-novak-basic-training
+Hungary,Recruits/trainees,both,waist_circumference,Waist circumference (omphalion),265,882.3,114.9,1,882.3,882.3,2024,2024,hu-2025-novak-basic-training
+India,Air Force,both,acromion_height_sitting,Acromion height (sitting),205,616.0,23.0,1,616.0,616.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,age,Age,205,32.1,10.8,1,32.1,32.1,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,buttock_knee_length,Buttock-knee length,205,576.0,28.0,1,576.0,576.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,buttock_popliteal_length,Buttock-popliteal length,205,472.0,25.0,1,472.0,472.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,eye_height_sitting,Eye height (sitting),205,794.0,32.0,1,794.0,794.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,knee_height_sitting,Knee height (sitting),205,541.0,24.0,1,541.0,541.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,other:arm_reach_fingertip,Arm reach fingertip,205,837.0,36.0,1,837.0,837.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,other:chest_circumference_expiration,Chest circumference (expiration),205,896.0,65.0,1,896.0,896.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,other:chest_circumference_inspiration,Chest circumference (inspiration),205,949.0,61.0,1,949.0,949.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,other:eye_height_sitting_relaxed,Eye-level height (relaxed),205,791.0,31.0,1,791.0,791.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,other:functional_leg_length_horizontal,Functional leg length (horizontal),205,748.0,50.0,1,748.0,748.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,other:leg_length_iaf,Buttock heel length (leg length),205,1051.0,51.0,1,1051.0,1051.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,other:mid_shoulder_height_sitting,Mid shoulder height,205,638.0,23.0,1,638.0,638.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,other:shoulder_width,Shoulder width,205,438.0,22.0,1,438.0,438.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,sitting_height,Sitting height,205,898.0,32.0,1,898.0,898.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Air Force,both,stature,Stature,205,1706.0,60.0,1,1706.0,1706.0,,,in-2025-chandran-iaf-iam-3dscanner
+India,Aircrew,M,age,Age,834,28.3,5.3,1,28.3,28.3,,,in-2020-biswal-iaf-aircrew-helmet
+India,Aircrew,M,head_breadth,Head breadth,834,148.9,8.0,1,148.9,148.9,,,in-2020-biswal-iaf-aircrew-helmet
+India,Aircrew,M,head_length,Head length,834,187.0,9.0,1,187.0,187.0,,,in-2020-biswal-iaf-aircrew-helmet
+India,Army,M,acromion_height_sitting,Acromion height (sitting),600,619.0,26.0,1,619.0,619.0,,,in-2024-kakkar-dipas-mechanized-forces
+India,Army,M,buttock_popliteal_length,Buttock-popliteal length,600,480.0,25.0,1,480.0,480.0,,,in-2024-kakkar-dipas-mechanized-forces
+India,Army,M,eye_height_sitting,Eye height (sitting),600,797.0,30.0,1,797.0,797.0,,,in-2024-kakkar-dipas-mechanized-forces
+India,Army,M,hip_breadth_sitting,Hip breadth (sitting),600,348.0,26.0,1,348.0,348.0,,,in-2024-kakkar-dipas-mechanized-forces
+India,Army,M,popliteal_height,Popliteal height,600,445.0,24.0,1,445.0,445.0,,,in-2024-kakkar-dipas-mechanized-forces
+India,Cadets,M,other:leg_length_iaf,leg length,64,1083.0,98.0,1,1083.0,1083.0,,,in-2013-sharma-iaf-helicopter-cadets
+India,Cadets,M,other:thigh_length_iaf,thigh length,64,600.0,46.0,1,600.0,600.0,,,in-2013-sharma-iaf-helicopter-cadets
+India,Cadets,M,stature,Stature,64,1747.0,,1,1747.0,1747.0,,,in-2013-sharma-iaf-helicopter-cadets
+India,Pilots,M,age,Age,230,21.5,0.84,2,21.0,22.0,,,in-2007-sharma-iaf-trainee-pilots
+India,Pilots,M,mass,Body mass,230,62.73,6.24,2,61.95,63.52,,,in-2007-sharma-iaf-trainee-pilots
+India,Pilots,M,other:leg_length_iaf,Leg Length (cm),230,1064.95,39.99,2,1062.4,1067.5,,,in-2007-sharma-iaf-trainee-pilots
+India,Pilots,M,other:thigh_length_iaf,Thigh Length (cm),230,584.95,21.35,2,582.9,587.0,,,in-2007-sharma-iaf-trainee-pilots
+India,Pilots,M,sitting_height,Sitting height,230,907.4,25.82,2,905.4,909.4,,,in-2007-sharma-iaf-trainee-pilots
+India,Pilots,M,stature,Stature,230,1733.5,49.72,2,1730.0,1737.0,,,in-2007-sharma-iaf-trainee-pilots
+India,Tri-service,both,bmi,Body mass index,1388,24.18,,1,24.18,24.18,2023,2023,ijasm2025-india-armed-forces-surveillance
+India,Tri-service,both,mass,Body mass,1388,71.2,,1,71.2,71.2,2023,2023,ijasm2025-india-armed-forces-surveillance
+India,Tri-service,both,stature,Stature,1388,1714.0,,1,1714.0,1714.0,2023,2023,ijasm2025-india-armed-forces-surveillance
+India,Tri-service,both,waist_circumference,Waist circumference (omphalion),1388,849.0,,1,849.0,849.0,2023,2023,ijasm2025-india-armed-forces-surveillance
+Indonesia,Army,M,acromion_height,Acromion height,268,1454.7,44.2,1,1454.7,1454.7,2019,2019,id-2020-iqbal-army-body-segments
+Indonesia,Army,M,age,Age,268,27.6,6.93,1,27.6,27.6,2019,2019,id-2020-iqbal-army-body-segments
+Indonesia,Army,M,chest_breadth,Chest breadth,268,231.6,31.5,1,231.6,231.6,2019,2019,id-2020-iqbal-army-body-segments
+Indonesia,Army,M,chest_depth,Chest depth,268,224.0,36.1,1,224.0,224.0,2019,2019,id-2020-iqbal-army-body-segments
+Indonesia,Army,M,mass,Body mass,268,70.28,7.59,1,70.28,70.28,2019,2019,id-2020-iqbal-army-body-segments
+Indonesia,Army,M,other:leg_length,Leg length,268,1027.1,117.4,1,1027.1,1027.1,2019,2019,id-2020-iqbal-army-body-segments
+Indonesia,Army,M,other:spine_length,Spine length,268,523.8,45.8,1,523.8,523.8,2019,2019,id-2020-iqbal-army-body-segments
+Indonesia,Army,M,stature,Stature,268,1690.9,39.5,1,1690.9,1690.9,2019,2019,id-2020-iqbal-army-body-segments
+Iran,Cadets,M,age,Age,150,20.8,2.34,2,18.5,23.1,,,ir-2013-khoshdel-officer-trainees
+Iran,Cadets,M,bmi,Body mass index,150,22.45,2.04,2,22.13,22.76,,,ir-2013-khoshdel-officer-trainees
+Iran,Cadets,M,mass,Body mass,150,66.2,7.68,2,65.0,67.4,,,ir-2013-khoshdel-officer-trainees
+Iran,Cadets,M,other:body_fat_percent,"Body fat, %",150,16.86,3.68,2,16.6,17.12,,,ir-2013-khoshdel-officer-trainees
+Iran,Cadets,M,stature,Stature,150,1742.5,55.15,2,1741.0,1744.0,,,ir-2013-khoshdel-officer-trainees
+Iran,Cadre/other military,M,age,Age,400,38.67,5.22,1,38.67,38.67,,,ir-2023-military-staff-diet-mental-health
+Iran,Cadre/other military,M,bmi,Body mass index,400,25.28,3.22,1,25.28,25.28,,,ir-2023-military-staff-diet-mental-health
+Iran,Cadre/other military,M,mass,Body mass,400,78.55,9.47,1,78.55,78.55,,,ir-2023-military-staff-diet-mental-health
+Iran,Cadre/other military,M,stature,Stature,400,1764.5,61.9,1,1764.5,1764.5,,,ir-2023-military-staff-diet-mental-health
+Iran,Navy,M,age,Age,50,26.45,2.04,2,26.4,26.5,,,ir-2024-iranian-navy-suspension-training
+Iran,Navy,M,bmi,Body mass index,50,24.79,,2,24.78,24.8,,,ir-2024-iranian-navy-suspension-training
+Iran,Navy,M,mass,Body mass,50,75.7,3.4,2,74.7,76.7,,,ir-2024-iranian-navy-suspension-training
+Iran,Navy,M,stature,Stature,50,1793.5,56.21,2,1789.0,1798.0,,,ir-2024-iranian-navy-suspension-training
 Iran,Tri-service,M,acromion_height,Acromion height,12635,1446.0,58.0,1,1446.0,1446.0,2010,2010,pmc7767597-iran-military
 Iran,Tri-service,M,ankle_circumference,Ankle circumference,12635,261.0,22.0,1,261.0,261.0,2010,2010,pmc7767597-iran-military
-Iran,Tri-service,M,bmi,Body mass index,12736,23.33,0.46,2,23.3,26.9,2010,2010,pmc4691302-iran-military-dexa; pmc7767597-iran-military
+Iran,Tri-service,M,bmi,Body mass index,12736,23.33,,2,23.3,26.9,2010,2010,pmc4691302-iran-military-dexa; pmc7767597-iran-military
 Iran,Tri-service,M,buttock_knee_length,Buttock-knee length,12635,572.0,34.0,1,572.0,572.0,2010,2010,pmc7767597-iran-military
 Iran,Tri-service,M,buttock_popliteal_length,Buttock-popliteal length,12635,455.0,31.0,1,455.0,455.0,2010,2010,pmc7767597-iran-military
 Iran,Tri-service,M,calf_circumference,Calf circumference,12635,368.0,31.0,1,368.0,368.0,2010,2010,pmc7767597-iran-military
@@ -1555,6 +1809,31 @@ Iran,Tri-service,both,thigh_circumference,Thigh circumference,9414,525.6,41.9,1,
 Iran,Tri-service,both,thumbtip_reach,Thumb-tip reach,9414,767.9,41.4,1,767.9,767.9,,,rp1024-vol2
 Iran,Tri-service,both,vertical_trunk_circumference,Vertical trunk circumference,9414,1548.0,74.3,1,1548.0,1548.0,,,rp1024-vol2
 Iran,Tri-service,both,wrist_circumference,Wrist circumference,9414,166.7,9.3,1,166.7,166.7,,,rp1024-vol2
+Israel,Army,M,age,Age,63357,18.87,1.1,4,18.8,20.4,2003,2003,il-2020-hollander-idf-conscripts; il-2025-idf-heat-tolerance-soldiers
+Israel,Army,M,bmi,Body mass index,63357,21.63,4.37,4,21.5,24.8,2003,2003,il-2020-hollander-idf-conscripts; il-2025-idf-heat-tolerance-soldiers
+Israel,Army,M,mass,Body mass,63357,67.27,14.55,4,66.8,76.62,2003,2003,il-2020-hollander-idf-conscripts; il-2025-idf-heat-tolerance-soldiers
+Israel,Army,M,other:body_fat_percent,Fat (%),70,16.09,3.75,2,15.9,16.85,,,il-2025-idf-heat-tolerance-soldiers
+Israel,Army,M,stature,Stature,63357,1723.3,,4,1718.0,1768.0,2003,2003,il-2020-hollander-idf-conscripts; il-2025-idf-heat-tolerance-soldiers
+Israel,Cadets,both,age,Age,2292,20.22,1.19,3,20.08,20.35,2020,2020,il-2022-idf-officer-cadets-covid
+Israel,Cadets,both,bmi,Body mass index,2292,22.0,3.0,3,21.62,22.36,2020,2020,il-2022-idf-officer-cadets-covid
+Israel,Cadets,both,mass,Body mass,2292,64.07,11.44,3,60.96,67.04,2020,2020,il-2022-idf-officer-cadets-covid
+Israel,Cadets,both,stature,Stature,2292,1704.03,95.54,3,1677.0,1729.0,2020,2020,il-2022-idf-officer-cadets-covid
+Israel,Cadre/other military,M,age,Age,10353,19.1,1.4,1,19.1,19.1,2003,2003,il-2020-hollander-idf-conscripts
+Israel,Cadre/other military,M,bmi,Body mass index,10353,21.5,3.9,1,21.5,21.5,2003,2003,il-2020-hollander-idf-conscripts
+Israel,Cadre/other military,M,mass,Body mass,10353,67.5,13.3,1,67.5,67.5,2003,2003,il-2020-hollander-idf-conscripts
+Israel,Cadre/other military,M,stature,Stature,10353,1747.0,,1,1747.0,1747.0,2003,2003,il-2020-hollander-idf-conscripts
+Israel,Recruits/trainees,F,age,Age,2199,18.67,0.5,1,18.67,18.67,2010,2010,il-2019-tsur-idf-recruits
+Israel,Recruits/trainees,F,bmi,Body mass index,4398,21.8,3.76,2,21.69,21.91,2010,2010,il-2019-tsur-idf-recruits
+Israel,Recruits/trainees,F,mass,Body mass,4398,58.31,10.81,2,58.31,58.31,2010,2010,il-2019-tsur-idf-recruits
+Israel,Recruits/trainees,F,stature,Stature,4398,1625.35,62.88,2,1620.1,1630.6,2010,2010,il-2019-tsur-idf-recruits
+Israel,Recruits/trainees,M,age,Age,3051,19.06,1.12,1,19.06,19.06,2010,2010,il-2019-tsur-idf-recruits
+Israel,Recruits/trainees,M,bmi,Body mass index,6888,22.77,4.07,3,22.08,24.39,2010,2010,il-2019-tsur-idf-recruits; il-2025-idf-infantry-recruits-asymmetry
+Israel,Recruits/trainees,M,mass,Body mass,6888,70.71,13.61,3,68.82,74.9,2010,2010,il-2019-tsur-idf-recruits; il-2025-idf-infantry-recruits-asymmetry
+Israel,Recruits/trainees,M,stature,Stature,6888,1751.82,68.29,3,1743.9,1760.2,2010,2010,il-2019-tsur-idf-recruits; il-2025-idf-infantry-recruits-asymmetry
+Israel,Tri-service,M,age,Age,73640,18.9,1.1,1,18.9,18.9,2003,2003,il-2020-hollander-idf-conscripts
+Israel,Tri-service,M,bmi,Body mass index,73640,21.6,4.3,1,21.6,21.6,2003,2003,il-2020-hollander-idf-conscripts
+Israel,Tri-service,M,mass,Body mass,73640,67.3,14.4,1,67.3,67.3,2003,2003,il-2020-hollander-idf-conscripts
+Israel,Tri-service,M,stature,Stature,73640,1727.0,,1,1727.0,1727.0,2003,2003,il-2020-hollander-idf-conscripts
 Italy,Cadre/other military,M,acromion_height,Acromion height,1342,1389.1,57.2,1,1389.1,1389.1,1961,1961,rp1024-vol2
 Italy,Cadre/other military,M,age,Age,1342,26.46,7.12,1,26.46,26.46,1961,1961,rp1024-vol2
 Italy,Cadre/other military,M,ankle_circumference,Ankle circumference,1342,225.9,12.6,1,225.9,225.9,1961,1961,rp1024-vol2
@@ -1698,6 +1977,44 @@ Italy,Cadre/other military,M,trochanterion_height,Trochanterion height,1342,888.
 Italy,Cadre/other military,M,vertical_trunk_circumference,Vertical trunk circumference,1342,1605.4,62.9,1,1605.4,1605.4,1961,1961,rp1024-vol2
 Italy,Cadre/other military,M,waist_circumference,Waist circumference (omphalion),1342,823.7,71.0,1,823.7,823.7,1961,1961,rp1024-vol2
 Italy,Cadre/other military,M,wrist_circumference,Wrist circumference,1342,173.9,8.6,1,173.9,173.9,1961,1961,rp1024-vol2
+Japan,Air Force,F,age,Age,240,20.4,2.22,1,20.4,20.4,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,buttock_circumference,Buttock circumference,240,919.0,42.6,1,919.0,919.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,buttock_knee_length,Buttock-knee length,240,550.0,22.1,1,550.0,550.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,chest_breadth,Chest breadth,240,263.0,14.5,1,263.0,263.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,chest_circumference,Chest circumference,240,866.0,53.4,1,866.0,866.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,crotch_height,Crotch height,240,716.0,34.0,1,716.0,716.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,eye_height_sitting,Eye height (sitting),240,732.0,26.7,1,732.0,732.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,hip_breadth_sitting,Hip breadth (sitting),240,358.0,17.3,1,358.0,358.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,knee_height_sitting,Knee height (sitting),240,475.0,19.9,1,475.0,475.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,mass,Body mass,240,54.2,6.18,1,54.2,54.2,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,other:arm_reach,Armreach,240,761.0,32.7,1,761.0,761.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,other:hip_breadth_standing,Hip Breadth,240,315.0,15.3,1,315.0,315.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,other:lower_thigh_circumference,Lower Thigh Circum.,240,414.0,27.2,1,414.0,414.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,other:shoulder_breadth,Shoulder Breadth,240,419.0,20.2,1,419.0,419.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,other:sleeve_length,Sleeve Length,240,518.0,22.7,1,518.0,518.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,shoulder_circumference,Shoulder circumference,240,993.0,46.1,1,993.0,993.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,sitting_height,Sitting height,240,855.0,27.7,1,855.0,855.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,stature,Stature,240,1584.0,50.2,1,1584.0,1584.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,F,thigh_circumference,Thigh circumference,240,548.0,33.4,1,548.0,548.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,age,Age,363,24.3,3.04,1,24.3,24.3,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,buttock_circumference,Buttock circumference,363,920.0,44.8,1,920.0,920.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,buttock_knee_length,Buttock-knee length,363,573.0,22.6,1,573.0,573.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,chest_breadth,Chest breadth,363,300.0,18.3,1,300.0,300.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,chest_circumference,Chest circumference,363,904.0,54.1,1,904.0,904.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,crotch_height,Crotch height,363,761.0,35.5,1,761.0,761.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,eye_height_sitting,Eye height (sitting),363,791.0,29.2,1,791.0,791.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,hip_breadth_sitting,Hip breadth (sitting),363,348.0,18.8,1,348.0,348.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,knee_height_sitting,Knee height (sitting),363,514.0,21.3,1,514.0,514.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,mass,Body mass,363,65.9,7.95,1,65.9,65.9,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,other:arm_reach,Armreach,363,813.0,30.3,1,813.0,813.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,other:hip_breadth_standing,Hip Breadth,363,320.0,15.0,1,320.0,320.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,other:lower_thigh_circumference,Lower Thigh Circum.,363,384.0,23.8,1,384.0,384.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,other:shoulder_breadth,Shoulder Breadth,363,459.0,20.9,1,459.0,459.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,other:sleeve_length,Sleeve Length,363,548.0,23.6,1,548.0,548.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,shoulder_circumference,Shoulder circumference,363,1119.0,54.3,1,1119.0,1119.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,sitting_height,Sitting height,363,912.0,29.8,1,912.0,912.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,stature,Stature,363,1699.0,52.0,1,1699.0,1699.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
+Japan,Air Force,M,thigh_circumference,Thigh circumference,363,554.0,36.5,1,554.0,554.0,1988,1988,ja-1990-kakimoto-jasdf-anthropometry
 Japan,Air Force,both,acromion_height,Acromion height,1176,1345.7,48.1,1,1345.7,1345.7,,,rp1024-vol2
 Japan,Air Force,both,acromion_height_sitting,Acromion height (sitting),1176,592.8,25.3,1,592.8,592.8,,,rp1024-vol2
 Japan,Air Force,both,ankle_circumference,Ankle circumference,1176,214.0,10.7,1,214.0,214.0,,,rp1024-vol2
@@ -1961,6 +2278,15 @@ Japan,Pilots,both,thigh_clearance,Thigh clearance,210,139.3,13.3,1,139.3,139.3,,
 Japan,Pilots,both,vertical_trunk_circumference,Vertical trunk circumference,468,1560.9,59.14,2,1560.9,1560.9,1961,1961,rp1024-vol2
 Japan,Pilots,both,waist_circumference,Waist circumference (omphalion),448,749.53,57.25,2,733.5,767.7,1961,1961,rp1024-vol2
 Japan,Pilots,both,wrist_circumference,Wrist circumference,447,166.16,7.36,2,165.5,166.9,1961,1961,rp1024-vol2
+Lithuania,Recruits/trainees,M,age,Age,200,21.0,,1,21.0,21.0,,,lt-2007-cesnaviciene-conscripts
+Lithuania,Recruits/trainees,M,mass,Body mass,200,72.9,,1,72.9,72.9,,,lt-2007-cesnaviciene-conscripts
+Lithuania,Recruits/trainees,M,stature,Stature,200,1790.0,,1,1790.0,1790.0,,,lt-2007-cesnaviciene-conscripts
+Malaysia,Army,M,age,Age,378,29.1,5.5,1,29.1,29.1,2012,2012,my-2013-nadiy-malaysian-army-nutrition
+Malaysia,Army,M,bmi,Body mass index,378,24.6,4.1,1,24.6,24.6,2012,2012,my-2013-nadiy-malaysian-army-nutrition
+Malaysia,Army,M,mass,Body mass,378,71.7,12.2,1,71.7,71.7,2012,2012,my-2013-nadiy-malaysian-army-nutrition
+Malaysia,Army,M,other:body_fat_percent,body fat percentage,378,23.4,6.6,1,23.4,23.4,2012,2012,my-2013-nadiy-malaysian-army-nutrition
+Malaysia,Army,M,stature,Stature,378,1710.0,600.0,1,1710.0,1710.0,2012,2012,my-2013-nadiy-malaysian-army-nutrition
+Malaysia,Army,M,waist_circumference,Waist circumference (omphalion),378,870.0,100.0,1,870.0,870.0,2012,2012,my-2013-nadiy-malaysian-army-nutrition
 "Multiple: Bolivia, Brazil, Colombia, Chile, Dominican Republic, Ecuador, El Salvador, Guatemala, Honduras, Nicaragua, Panama, Paraguay, Peru, Uruguay, Venezuela",Recruits/trainees,M,age,Age,1960,22.9,5.7,1,22.9,22.9,1965,1965,latin-american-armed-forces
 "Multiple: Bolivia, Brazil, Colombia, Chile, Dominican Republic, Ecuador, El Salvador, Guatemala, Honduras, Nicaragua, Panama, Paraguay, Peru, Uruguay, Venezuela",Recruits/trainees,M,mass,Body mass,1960,63.78,8.21,1,63.78,63.78,1965,1965,latin-american-armed-forces
 "Multiple: Bolivia, Brazil, Colombia, Chile, Dominican Republic, Ecuador, El Salvador, Guatemala, Honduras, Nicaragua, Panama, Paraguay, Peru, Uruguay, Venezuela",Recruits/trainees,M,stature,Stature,1960,1663.7,55.63,1,1663.7,1663.7,1965,1965,latin-american-armed-forces
@@ -2166,6 +2492,7 @@ Multiple: Latin America (18 countries),Tri-service,both,wrist_circumference,Wris
 "Multiple: Turkey, Greece, Italy",Cadre/other military,M,thumbtip_reach,Thumb-tip reach,3325,754.8,35.2,1,754.8,754.8,1960,1960,rp1024-vol2
 "Multiple: Turkey, Greece, Italy",Cadre/other military,M,trochanterion_height,Trochanterion height,3325,878.2,43.0,1,878.2,878.2,1960,1960,rp1024-vol2
 "Multiple: Turkey, Greece, Italy",Cadre/other military,M,waist_circumference,Waist circumference (omphalion),3325,807.7,67.8,1,807.7,807.7,1960,1960,rp1024-vol2
+Netherlands,Army,M,stature,Stature,1000,1802.0,67.0,1,1802.0,1802.0,1985,1985,nl-1989-schuffel-dutchmil85
 New Zealand,Air Force,F,abdominal_depth_sitting,Abdominal extension depth (sitting),72,236.0,34.0,1,236.0,236.0,2016,2016,nzdfas
 New Zealand,Air Force,F,acromion_height,Acromion height,72,1363.0,50.0,1,1363.0,1363.0,2016,2016,nzdfas
 New Zealand,Air Force,F,acromion_height_sitting,Acromion height (sitting),72,593.0,29.0,1,593.0,593.0,2016,2016,nzdfas
@@ -2892,6 +3219,8 @@ New Zealand,Tri-service,M,wrist_circumference,Wrist circumference,790,181.0,11.0
 Nicaragua,Recruits/trainees,M,age,Age,84,22.5,7.5,1,22.5,22.5,1965,1965,latin-american-armed-forces
 Nicaragua,Recruits/trainees,M,mass,Body mass,84,63.32,10.43,1,63.32,63.32,1965,1965,latin-american-armed-forces
 Nicaragua,Recruits/trainees,M,stature,Stature,84,1656.08,61.21,1,1656.08,1656.08,1965,1965,latin-american-armed-forces
+Pakistan,Army,M,age,Age,4402,29.65,5.4,2,29.6,29.69,2012,2012,pk-2015-kamran-soldiers-cad; pk-2015-kamran-soldiers-mets
+Pakistan,Army,M,bmi,Body mass index,4402,23.21,2.09,2,22.7,23.73,2012,2012,pk-2015-kamran-soldiers-cad; pk-2015-kamran-soldiers-mets
 Panama,Recruits/trainees,M,age,Age,131,27.7,6.2,1,27.7,27.7,1965,1965,latin-american-armed-forces
 Panama,Recruits/trainees,M,mass,Body mass,131,65.82,9.53,1,65.82,65.82,1965,1965,latin-american-armed-forces
 Panama,Recruits/trainees,M,stature,Stature,131,1678.94,65.02,1,1678.94,1678.94,1965,1965,latin-american-armed-forces
@@ -2918,6 +3247,13 @@ Poland,Army,both,age,Age,320,38.0,8.1,1,38.0,38.0,2018,2018,pmc10691415-poland-a
 Poland,Army,both,bmi,Body mass index,320,27.2,4.5,1,27.2,27.2,2018,2018,pmc10691415-poland-armed-forces-branches
 Poland,Army,both,mass,Body mass,320,85.0,16.6,1,85.0,85.0,2018,2018,pmc10691415-poland-armed-forces-branches
 Poland,Army,both,stature,Stature,320,1764.0,80.0,1,1764.0,1764.0,2018,2018,pmc10691415-poland-armed-forces-branches
+Poland,Cadets,M,bmi,Body mass index,178,24.52,2.1,3,24.5,24.53,2011,2011,pl-2016-lenart-cadets-injuries
+Poland,Cadets,M,mass,Body mass,178,78.66,8.36,3,77.74,80.88,2011,2011,pl-2016-lenart-cadets-injuries
+Poland,Cadets,M,other:bone_mass,Bone mass,178,3.25,0.25,3,3.22,3.33,2011,2011,pl-2016-lenart-cadets-injuries
+Poland,Cadets,M,other:fat_mass,Weight of body fat,178,13.17,3.73,3,13.05,13.48,2011,2011,pl-2016-lenart-cadets-injuries
+Poland,Cadets,M,other:lean_body_mass,Lean body mass,178,65.49,5.52,3,64.7,67.4,2011,2011,pl-2016-lenart-cadets-injuries
+Poland,Cadets,M,other:muscle_mass,Muscle mass,178,62.23,5.28,3,61.48,64.07,2011,2011,pl-2016-lenart-cadets-injuries
+Poland,Cadets,M,stature,Stature,178,1794.4,52.93,3,1784.5,1818.4,2011,2011,pl-2016-lenart-cadets-injuries
 Poland,Navy,both,age,Age,397,34.4,7.6,1,34.4,34.4,2018,2018,pmc10691415-poland-armed-forces-branches
 Poland,Navy,both,bmi,Body mass index,397,26.5,4.1,1,26.5,26.5,2018,2018,pmc10691415-poland-armed-forces-branches
 Poland,Navy,both,mass,Body mass,397,83.3,14.9,1,83.3,83.3,2018,2018,pmc10691415-poland-armed-forces-branches
@@ -2930,8 +3266,56 @@ Poland,Tri-service,both,age,Age,321,37.1,7.34,3,35.0,39.7,2018,2018,pmc10691415-
 Poland,Tri-service,both,bmi,Body mass index,321,26.85,3.73,3,26.3,28.4,2018,2018,pmc10691415-poland-armed-forces-branches
 Poland,Tri-service,both,mass,Body mass,321,85.43,14.89,3,84.5,88.6,2018,2018,pmc10691415-poland-armed-forces-branches
 Poland,Tri-service,both,stature,Stature,321,1779.7,77.8,3,1758.0,1793.0,2018,2018,pmc10691415-poland-armed-forces-branches
+Portugal,Air Force,F,bmi,Body mass index,50,22.96,3.23,1,22.96,22.96,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Air Force,F,mass,Body mass,50,62.7,9.92,1,62.7,62.7,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Air Force,F,stature,Stature,50,1652.8,62.1,1,1652.8,1652.8,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Air Force,M,bmi,Body mass index,423,26.14,3.18,1,26.14,26.14,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Air Force,M,mass,Body mass,423,80.56,11.35,1,80.56,80.56,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Air Force,M,stature,Stature,423,1754.3,65.1,1,1754.3,1754.3,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Air Force,both,age,Age,473,36.15,10.15,1,36.15,36.15,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Air Force,both,bmi,Body mass index,473,25.81,3.33,1,25.81,25.81,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Air Force,both,mass,Body mass,473,78.67,12.48,1,78.67,78.67,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Air Force,both,stature,Stature,473,1743.6,71.9,1,1743.6,1743.6,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Air Force,both,waist_circumference,Waist circumference (omphalion),473,892.9,106.1,1,892.9,892.9,2016,2016,pt-2018-pinho-portugal-air-base-11
+Portugal,Cadets,F,age,Age,19,19.45,1.37,1,19.45,19.45,,,pt-2024-moura-portugal-military-academy-cadets
+Portugal,Cadets,F,bmi,Body mass index,19,22.02,1.26,1,22.02,22.02,,,pt-2024-moura-portugal-military-academy-cadets
+Portugal,Cadets,F,mass,Body mass,19,58.54,5.33,1,58.54,58.54,,,pt-2024-moura-portugal-military-academy-cadets
+Portugal,Cadets,F,other:body_fat_percent,Massa gorda,19,23.81,2.36,1,23.81,23.81,,,pt-2024-moura-portugal-military-academy-cadets
+Portugal,Cadets,F,stature,Stature,19,1629.3,60.0,1,1629.3,1629.3,,,pt-2024-moura-portugal-military-academy-cadets
+Portugal,Cadets,M,age,Age,80,19.69,1.58,1,19.69,19.69,,,pt-2024-moura-portugal-military-academy-cadets
+Portugal,Cadets,M,bmi,Body mass index,80,22.79,1.63,1,22.79,22.79,,,pt-2024-moura-portugal-military-academy-cadets
+Portugal,Cadets,M,mass,Body mass,80,70.26,6.75,1,70.26,70.26,,,pt-2024-moura-portugal-military-academy-cadets
+Portugal,Cadets,M,other:body_fat_percent,Massa gorda,80,13.73,2.82,1,13.73,13.73,,,pt-2024-moura-portugal-military-academy-cadets
+Portugal,Cadets,M,stature,Stature,80,1755.4,61.9,1,1755.4,1755.4,,,pt-2024-moura-portugal-military-academy-cadets
+Russia,Recruits/trainees,F,bmi,Body mass index,257,21.2,,1,21.2,21.2,,,ru-2022-gaivoronsky-female-applicants
+Russia,Recruits/trainees,F,chest_circumference,Chest circumference,257,819.0,,1,819.0,819.0,,,ru-2022-gaivoronsky-female-applicants
+Russia,Recruits/trainees,F,head_breadth,Head breadth,257,151.0,,1,151.0,151.0,,,ru-2022-gaivoronsky-female-applicants
+Russia,Recruits/trainees,F,head_circumference,Head circumference,257,545.0,,1,545.0,545.0,,,ru-2022-gaivoronsky-female-applicants
+Russia,Recruits/trainees,F,head_length,Head length,257,189.0,,1,189.0,189.0,,,ru-2022-gaivoronsky-female-applicants
+Russia,Recruits/trainees,F,mass,Body mass,257,54.0,,1,54.0,54.0,,,ru-2022-gaivoronsky-female-applicants
+Russia,Recruits/trainees,F,sitting_height,Sitting height,257,867.0,,1,867.0,867.0,,,ru-2022-gaivoronsky-female-applicants
+Russia,Recruits/trainees,F,stature,Stature,257,1655.0,,1,1655.0,1655.0,,,ru-2022-gaivoronsky-female-applicants
+Russia,Recruits/trainees,M,age,Age,327,19.1,0.57,2,19.02,19.23,2005,2005,ru-2007-kazakov-nw-conscripts
+Russia,Recruits/trainees,M,bmi,Body mass index,327,21.85,2.33,2,21.24,22.24,2005,2005,ru-2007-kazakov-nw-conscripts
+Russia,Recruits/trainees,M,chest_circumference,Chest circumference,607,927.1,,4,914.0,938.6,2005,2005,ru-2007-kazakov-nw-conscripts; ru-2022-gaivoronsky-male-applicants
+Russia,Recruits/trainees,M,mass,Body mass,607,70.06,,4,65.7,74.7,2005,2005,ru-2007-kazakov-nw-conscripts; ru-2022-gaivoronsky-male-applicants
+Russia,Recruits/trainees,M,other:chest_excursion,Экскурсия грудной клетки,327,43.62,16.92,2,39.4,50.1,2005,2005,ru-2007-kazakov-nw-conscripts
+Russia,Recruits/trainees,M,stature,Stature,607,1767.69,,4,1751.2,1806.0,2005,2005,ru-2007-kazakov-nw-conscripts; ru-2022-gaivoronsky-male-applicants
+Saudi Arabia,Cadets,M,age,Age,109,19.68,1.33,1,19.68,19.68,,,sa-2026-stress-fractures-military-cadets
+Saudi Arabia,Cadets,M,bmi,Body mass index,109,22.5,3.1,1,22.5,22.5,,,sa-2026-stress-fractures-military-cadets
 Saudi Arabia,Recruits/trainees,M,age,Age,2010,20.16,2.93,1,20.16,20.16,,,pmc8620872-saudi-armed-forces-applicants
 Saudi Arabia,Recruits/trainees,M,stature,Stature,2010,1693.8,68.8,1,1693.8,1693.8,,,pmc8620872-saudi-armed-forces-applicants
+Serbia,Cadets,M,bmi,Body mass index,434,22.02,2.55,8,20.83,23.01,2012,2013,rs-2015-glavac-military-high-school
+Serbia,Cadets,M,chest_circumference,Chest circumference,384,984.88,72.95,4,939.83,1025.21,2004,2018,rs-2018-maric-cadets-two-classes; rs-2019-vajic-cadets-end-schooling
+Serbia,Cadets,M,mass,Body mass,760,73.47,10.67,11,65.24,80.02,2004,2018,rs-2015-glavac-military-high-school; rs-2018-maric-cadets-two-classes; rs-2019-vajic-cadets-end-schooling
+Serbia,Cadets,M,other:arm_length,Дужина руке (АДУР),384,809.63,39.75,4,794.71,822.23,2004,2018,rs-2018-maric-cadets-two-classes; rs-2019-vajic-cadets-end-schooling
+Serbia,Cadets,M,other:forearm_circumference_maximum,Максимални обим подлактице (АОМП),384,270.58,18.45,4,265.6,274.79,2004,2018,rs-2018-maric-cadets-two-classes; rs-2019-vajic-cadets-end-schooling
+Serbia,Cadets,M,other:leg_length,Дужина ноге (АДУН),384,1047.13,52.86,4,1029.88,1061.78,2004,2018,rs-2018-maric-cadets-two-classes; rs-2019-vajic-cadets-end-schooling
+Serbia,Cadets,M,other:skinfold_abdomen,Кожни набор трбуха (АКНТ),384,12.25,6.44,4,10.64,14.77,2004,2018,rs-2018-maric-cadets-two-classes; rs-2019-vajic-cadets-end-schooling
+Serbia,Cadets,M,other:skinfold_back,Кожни набор леђа (АКНЛ),384,13.51,5.16,4,12.32,15.0,2004,2018,rs-2018-maric-cadets-two-classes; rs-2019-vajic-cadets-end-schooling
+Serbia,Cadets,M,other:skinfold_upper_arm,Кожни набор надлактице (АКНН),384,10.44,4.58,4,9.62,11.43,2004,2018,rs-2018-maric-cadets-two-classes; rs-2019-vajic-cadets-end-schooling
+Serbia,Cadets,M,stature,Stature,818,1794.31,64.74,12,1769.1,1808.75,2004,2018,rs-2015-glavac-military-high-school; rs-2018-maric-cadets-two-classes; rs-2019-vajic-cadets-end-schooling
+Serbia,Cadets,M,waist_circumference,Waist circumference (omphalion),434,806.74,65.38,8,766.6,835.3,2012,2013,rs-2015-glavac-military-high-school
 South Africa,Tri-service,M,acromion_height,Acromion height,1438,1442.2,58.5,1,1442.2,1442.2,,,rp1024-vol2
 South Africa,Tri-service,M,acromion_height_sitting,Acromion height (sitting),1314,605.8,26.9,1,605.8,605.8,,,rp1024-vol2
 South Africa,Tri-service,M,age,Age,1449,28.24,10.6,1,28.24,28.24,,,rp1024-vol2
@@ -2978,124 +3362,149 @@ South Africa,Tri-service,M,stature,Stature,1447,1753.1,62.0,1,1753.1,1753.1,,,rp
 South Africa,Tri-service,M,thigh_circumference,Thigh circumference,1442,523.7,39.1,1,523.7,523.7,,,rp1024-vol2
 South Africa,Tri-service,M,thumbtip_reach,Thumb-tip reach,1444,798.6,39.6,1,798.6,798.6,,,rp1024-vol2
 South Africa,Tri-service,M,wrist_circumference,Wrist circumference,1440,173.7,11.2,1,173.7,173.7,,,rp1024-vol2
-South Korea,Air Force,M,ankle_circumference,Ankle circumference,190,212.0,0.0,1,212.0,212.0,1965,1965,korea
-South Korea,Air Force,M,calf_circumference,Calf circumference,190,344.0,0.0,1,344.0,344.0,1965,1965,korea
-South Korea,Air Force,M,chest_breadth,Chest breadth,190,295.0,0.0,1,295.0,295.0,1965,1965,korea
-South Korea,Air Force,M,chest_depth,Chest depth,190,220.0,0.0,1,220.0,220.0,1965,1965,korea
-South Korea,Air Force,M,crotch_height,Crotch height,190,758.0,0.0,1,758.0,758.0,1965,1965,korea
-South Korea,Air Force,M,hand_breadth,Hand breadth (metacarpale),190,87.0,0.0,1,87.0,87.0,1965,1965,korea
-South Korea,Air Force,M,head_breadth,Head breadth,190,154.0,0.0,1,154.0,154.0,1965,1965,korea
-South Korea,Air Force,M,head_circumference,Head circumference,190,540.0,0.0,1,540.0,540.0,1965,1965,korea
-South Korea,Air Force,M,head_length,Head length,190,177.0,0.0,1,177.0,177.0,1965,1965,korea
-South Korea,Air Force,M,hip_breadth_sitting,Hip breadth (sitting),190,321.0,0.0,1,321.0,321.0,1965,1965,korea
-South Korea,Air Force,M,knee_height_sitting,Knee height (sitting),190,479.0,0.0,1,479.0,479.0,1965,1965,korea
-South Korea,Air Force,M,mass,Body mass,190,59.4,0.0,1,59.4,59.4,1965,1965,korea
-South Korea,Air Force,M,neck_circumference,Neck circumference,190,346.0,0.0,1,346.0,346.0,1965,1965,korea
-South Korea,Air Force,M,other:arm_reach_forward,"Arm reach, forward",190,807.0,0.0,1,807.0,807.0,1965,1965,korea
-South Korea,Air Force,M,other:arm_reach_upward,"Arm reach, upward",190,1320.0,0.0,1,1320.0,1320.0,1965,1965,korea
-South Korea,Air Force,M,other:back_waist_length,Back waist length,190,455.0,0.0,1,455.0,455.0,1965,1965,korea
-South Korea,Air Force,M,other:crotch_thigh_circumference,Crotch thigh circumference,190,490.0,0.0,1,490.0,490.0,1965,1965,korea
-South Korea,Air Force,M,other:elbow_to_elbow_breadth,Elbow-to-elbow breadth,190,406.0,0.0,1,406.0,406.0,1965,1965,korea
-South Korea,Air Force,M,other:face_breadth,Face breadth,190,144.0,0.0,1,144.0,144.0,1965,1965,korea
-South Korea,Air Force,M,other:head_height,Head height,190,122.0,0.0,1,122.0,122.0,1965,1965,korea
-South Korea,Air Force,M,other:heel_ankle_circumference,Heel-ankle circumference,190,317.0,0.0,1,317.0,317.0,1965,1965,korea
-South Korea,Air Force,M,other:hip_breadth_standing,"Hip breadth, standing",190,309.0,0.0,1,309.0,309.0,1965,1965,korea
-South Korea,Air Force,M,other:kneecap_height,Kneecap height,190,473.0,0.0,1,473.0,473.0,1965,1965,korea
-South Korea,Air Force,M,other:lower_thigh_circumference,Lower thigh circumference,190,377.0,0.0,1,377.0,377.0,1965,1965,korea
-South Korea,Air Force,M,other:palm_length,Palm length,190,104.0,0.0,1,104.0,104.0,1965,1965,korea
-South Korea,Air Force,M,other:shoulder_breadth,Shoulder breadth,190,420.0,0.0,1,420.0,420.0,1965,1965,korea
-South Korea,Air Force,M,other:shoulder_height,Shoulder height,190,1345.0,0.0,1,1345.0,1345.0,1965,1965,korea
-South Korea,Air Force,M,other:shoulder_height_sitting,"Shoulder height, sitting",190,573.0,0.0,1,573.0,573.0,1965,1965,korea
-South Korea,Air Force,M,other:sleeve_inseam,Sleeve inseam,190,455.0,0.0,1,455.0,455.0,1965,1965,korea
-South Korea,Air Force,M,other:triceps_skinfold,Triceps skinfold,190,5.7,0.0,1,5.7,5.7,1965,1965,korea
-South Korea,Air Force,M,other:upper_arm_circumference,Upper arm circumference,190,253.0,0.0,1,253.0,253.0,1965,1965,korea
-South Korea,Air Force,M,stature,Stature,190,1659.0,0.0,1,1659.0,1659.0,1965,1965,korea
-South Korea,Air Force,M,wrist_circumference,Wrist circumference,190,162.0,0.0,1,162.0,162.0,1965,1965,korea
-South Korea,Army,M,ankle_circumference,Ankle circumference,3249,214.0,0.0,1,214.0,214.0,1965,1965,korea
-South Korea,Army,M,chest_breadth,Chest breadth,3249,288.0,0.0,1,288.0,288.0,1965,1965,korea
-South Korea,Army,M,chest_depth,Chest depth,3249,217.0,0.0,1,217.0,217.0,1965,1965,korea
-South Korea,Army,M,foot_breadth,Foot breadth,3249,96.0,0.0,1,96.0,96.0,1965,1965,korea
-South Korea,Army,M,hand_length,Hand length,3249,179.0,0.0,1,179.0,179.0,1965,1965,korea
-South Korea,Army,M,head_breadth,Head breadth,3249,150.0,0.0,1,150.0,150.0,1965,1965,korea
-South Korea,Army,M,head_length,Head length,3249,178.0,0.0,1,178.0,178.0,1965,1965,korea
-South Korea,Army,M,hip_breadth_sitting,Hip breadth (sitting),3249,318.0,0.0,1,318.0,318.0,1965,1965,korea
-South Korea,Army,M,other:ball_foot_circumference,Ball foot circumference,3249,244.0,0.0,1,244.0,244.0,1965,1965,korea
-South Korea,Army,M,other:elbow_to_elbow_breadth,Elbow-to-elbow breadth,3249,398.0,0.0,1,398.0,398.0,1965,1965,korea
-South Korea,Army,M,other:face_breadth,Face breadth,3249,140.0,0.0,1,140.0,140.0,1965,1965,korea
-South Korea,Army,M,other:hand_circumference,Hand circumference,3249,206.0,0.0,1,206.0,206.0,1965,1965,korea
-South Korea,Army,M,other:head_height,Head height,3249,125.0,0.0,1,125.0,125.0,1965,1965,korea
-South Korea,Army,M,other:hip_breadth_standing,"Hip breadth, standing",3249,303.0,0.0,1,303.0,303.0,1965,1965,korea
-South Korea,Army,M,other:instep_length,Instep length,3249,177.0,0.0,1,177.0,177.0,1965,1965,korea
-South Korea,Army,M,other:interscye_breadth,Interscye,3249,377.0,0.0,1,377.0,377.0,1965,1965,korea
-South Korea,Army,M,other:juxta_nipple_skinfold,Juxta-nipple skinfold,3249,4.4,0.0,1,4.4,4.4,1965,1965,korea
-South Korea,Army,M,other:mid_axillary_skinfold,Mid-axillary skinfold,3249,4.8,0.0,1,4.8,4.8,1965,1965,korea
-South Korea,Army,M,other:shoulder_breadth,Shoulder breadth,3249,422.0,0.0,1,422.0,422.0,1965,1965,korea
-South Korea,Army,M,other:triceps_skinfold,Triceps skinfold,3249,5.4,0.0,1,5.4,5.4,1965,1965,korea
-South Korea,Army,M,other:waist_height,Waist height,3249,988.0,0.0,1,988.0,988.0,1965,1965,korea
-South Korea,Army,M,shoulder_elbow_length,Shoulder-elbow length,3249,336.0,0.0,1,336.0,336.0,1965,1965,korea
-South Korea,Army,M,wrist_circumference,Wrist circumference,3249,164.0,0.0,1,164.0,164.0,1965,1965,korea
-South Korea,Marine Corps,M,ankle_circumference,Ankle circumference,167,220.0,0.0,1,220.0,220.0,1965,1965,korea
-South Korea,Marine Corps,M,calf_circumference,Calf circumference,167,345.0,0.0,1,345.0,345.0,1965,1965,korea
-South Korea,Marine Corps,M,foot_breadth,Foot breadth,167,96.0,0.0,1,96.0,96.0,1965,1965,korea
-South Korea,Marine Corps,M,head_breadth,Head breadth,167,154.0,0.0,1,154.0,154.0,1965,1965,korea
-South Korea,Marine Corps,M,head_circumference,Head circumference,167,544.0,0.0,1,544.0,544.0,1965,1965,korea
-South Korea,Marine Corps,M,head_length,Head length,167,177.0,0.0,1,177.0,177.0,1965,1965,korea
-South Korea,Marine Corps,M,mass,Body mass,167,60.1,0.0,1,60.1,60.1,1965,1965,korea
-South Korea,Marine Corps,M,other:arm_reach_forward,"Arm reach, forward",167,817.0,0.0,1,817.0,817.0,1965,1965,korea
-South Korea,Marine Corps,M,other:ball_foot_circumference,Ball foot circumference,167,244.0,0.0,1,244.0,244.0,1965,1965,korea
-South Korea,Marine Corps,M,other:crotch_thigh_circumference,Crotch thigh circumference,167,491.0,0.0,1,491.0,491.0,1965,1965,korea
-South Korea,Marine Corps,M,other:elbow_to_elbow_breadth,Elbow-to-elbow breadth,167,411.0,0.0,1,411.0,411.0,1965,1965,korea
-South Korea,Marine Corps,M,other:face_breadth,Face breadth,167,141.0,0.0,1,141.0,141.0,1965,1965,korea
-South Korea,Marine Corps,M,other:forearm_hand_length,Forearm-hand length,167,439.0,0.0,1,439.0,439.0,1965,1965,korea
-South Korea,Marine Corps,M,other:hand_circumference,Hand circumference,167,210.0,0.0,1,210.0,210.0,1965,1965,korea
-South Korea,Marine Corps,M,other:heel_ankle_circumference,Heel-ankle circumference,167,317.0,0.0,1,317.0,317.0,1965,1965,korea
-South Korea,Marine Corps,M,other:hip_breadth_standing,"Hip breadth, standing",167,309.0,0.0,1,309.0,309.0,1965,1965,korea
-South Korea,Marine Corps,M,other:interscye_breadth,Interscye,167,387.0,0.0,1,387.0,387.0,1965,1965,korea
-South Korea,Marine Corps,M,other:kneecap_height,Kneecap height,167,458.0,0.0,1,458.0,458.0,1965,1965,korea
-South Korea,Marine Corps,M,other:lower_thigh_circumference,Lower thigh circumference,167,383.0,0.0,1,383.0,383.0,1965,1965,korea
-South Korea,Marine Corps,M,other:shoulder_breadth,Shoulder breadth,167,429.0,0.0,1,429.0,429.0,1965,1965,korea
-South Korea,Marine Corps,M,other:shoulder_height,Shoulder height,167,1343.0,0.0,1,1343.0,1343.0,1965,1965,korea
-South Korea,Marine Corps,M,other:shoulder_height_sitting,"Shoulder height, sitting",167,572.0,0.0,1,572.0,572.0,1965,1965,korea
-South Korea,Marine Corps,M,other:sub_scapular_skinfold,Sub-scapular skinfold,167,7.6,0.0,1,7.6,7.6,1965,1965,korea
-South Korea,Marine Corps,M,other:upper_arm_circumference,Upper arm circumference,167,256.0,0.0,1,256.0,256.0,1965,1965,korea
-South Korea,Marine Corps,M,shoulder_circumference,Shoulder circumference,167,1065.0,0.0,1,1065.0,1065.0,1965,1965,korea
-South Korea,Marine Corps,M,shoulder_elbow_length,Shoulder-elbow length,167,339.0,0.0,1,339.0,339.0,1965,1965,korea
-South Korea,Marine Corps,M,stature,Stature,167,1639.0,0.0,1,1639.0,1639.0,1965,1965,korea
-South Korea,Marine Corps,M,wrist_circumference,Wrist circumference,167,165.0,0.0,1,165.0,165.0,1965,1965,korea
-South Korea,Navy,M,ankle_circumference,Ankle circumference,141,213.0,0.0,1,213.0,213.0,1965,1965,korea
-South Korea,Navy,M,chest_breadth,Chest breadth,141,294.0,0.0,1,294.0,294.0,1965,1965,korea
-South Korea,Navy,M,chest_depth,Chest depth,141,221.0,0.0,1,221.0,221.0,1965,1965,korea
-South Korea,Navy,M,crotch_height,Crotch height,141,750.0,0.0,1,750.0,750.0,1965,1965,korea
-South Korea,Navy,M,foot_breadth,Foot breadth,141,96.0,0.0,1,96.0,96.0,1965,1965,korea
-South Korea,Navy,M,foot_length,Foot length,141,242.0,0.0,1,242.0,242.0,1965,1965,korea
-South Korea,Navy,M,hand_length,Hand length,141,179.0,0.0,1,179.0,179.0,1965,1965,korea
-South Korea,Navy,M,head_breadth,Head breadth,141,154.0,0.0,1,154.0,154.0,1965,1965,korea
-South Korea,Navy,M,head_circumference,Head circumference,141,539.0,0.0,1,539.0,539.0,1965,1965,korea
-South Korea,Navy,M,head_length,Head length,141,177.0,0.0,1,177.0,177.0,1965,1965,korea
-South Korea,Navy,M,knee_height_sitting,Knee height (sitting),141,481.0,0.0,1,481.0,481.0,1965,1965,korea
-South Korea,Navy,M,mass,Body mass,141,60.1,0.0,1,60.1,60.1,1965,1965,korea
-South Korea,Navy,M,neck_circumference,Neck circumference,141,350.0,0.0,1,350.0,350.0,1965,1965,korea
-South Korea,Navy,M,other:arm_reach_forward,"Arm reach, forward",141,820.0,0.0,1,820.0,820.0,1965,1965,korea
-South Korea,Navy,M,other:arm_reach_upward,"Arm reach, upward",141,1310.0,0.0,1,1310.0,1310.0,1965,1965,korea
-South Korea,Navy,M,other:face_breadth,Face breadth,141,143.0,0.0,1,143.0,143.0,1965,1965,korea
-South Korea,Navy,M,other:forearm_hand_length,Forearm-hand length,141,443.0,0.0,1,443.0,443.0,1965,1965,korea
-South Korea,Navy,M,other:hand_circumference,Hand circumference,141,208.0,0.0,1,208.0,208.0,1965,1965,korea
-South Korea,Navy,M,other:head_height,Head height,141,123.0,0.0,1,123.0,123.0,1965,1965,korea
-South Korea,Navy,M,other:interscye_breadth,Interscye,141,387.0,0.0,1,387.0,387.0,1965,1965,korea
-South Korea,Navy,M,other:kneecap_height,Kneecap height,141,472.0,0.0,1,472.0,472.0,1965,1965,korea
-South Korea,Navy,M,other:lower_thigh_circumference,Lower thigh circumference,141,390.0,0.0,1,390.0,390.0,1965,1965,korea
-South Korea,Navy,M,other:palm_length,Palm length,141,103.0,0.0,1,103.0,103.0,1965,1965,korea
-South Korea,Navy,M,other:shoulder_height,Shoulder height,141,1342.0,0.0,1,1342.0,1342.0,1965,1965,korea
-South Korea,Navy,M,other:shoulder_height_sitting,"Shoulder height, sitting",141,583.0,0.0,1,583.0,583.0,1965,1965,korea
-South Korea,Navy,M,other:sleeve_inseam,Sleeve inseam,141,455.0,0.0,1,455.0,455.0,1965,1965,korea
-South Korea,Navy,M,other:sleeve_length,Sleeve length,141,797.0,0.0,1,797.0,797.0,1965,1965,korea
-South Korea,Navy,M,other:triceps_skinfold,Triceps skinfold,141,4.8,0.0,1,4.8,4.8,1965,1965,korea
-South Korea,Navy,M,other:upper_arm_circumference,Upper arm circumference,141,254.0,0.0,1,254.0,254.0,1965,1965,korea
-South Korea,Navy,M,popliteal_height,Popliteal height,141,385.0,0.0,1,385.0,385.0,1965,1965,korea
-South Korea,Navy,M,shoulder_elbow_length,Shoulder-elbow length,141,341.0,0.0,1,341.0,341.0,1965,1965,korea
-South Korea,Navy,M,stature,Stature,141,1663.0,0.0,1,1663.0,1663.0,1965,1965,korea
-South Korea,Navy,M,waist_circumference,Waist circumference (omphalion),141,740.0,0.0,1,740.0,740.0,1965,1965,korea
-South Korea,Navy,M,wrist_circumference,Wrist circumference,141,166.0,0.0,1,166.0,166.0,1965,1965,korea
+South Korea,Air Force,M,ankle_circumference,Ankle circumference,190,212.0,,1,212.0,212.0,1965,1965,korea
+South Korea,Air Force,M,calf_circumference,Calf circumference,190,344.0,,1,344.0,344.0,1965,1965,korea
+South Korea,Air Force,M,chest_breadth,Chest breadth,190,295.0,,1,295.0,295.0,1965,1965,korea
+South Korea,Air Force,M,chest_depth,Chest depth,190,220.0,,1,220.0,220.0,1965,1965,korea
+South Korea,Air Force,M,crotch_height,Crotch height,190,758.0,,1,758.0,758.0,1965,1965,korea
+South Korea,Air Force,M,hand_breadth,Hand breadth (metacarpale),190,87.0,,1,87.0,87.0,1965,1965,korea
+South Korea,Air Force,M,head_breadth,Head breadth,190,154.0,,1,154.0,154.0,1965,1965,korea
+South Korea,Air Force,M,head_circumference,Head circumference,190,540.0,,1,540.0,540.0,1965,1965,korea
+South Korea,Air Force,M,head_length,Head length,190,177.0,,1,177.0,177.0,1965,1965,korea
+South Korea,Air Force,M,hip_breadth_sitting,Hip breadth (sitting),190,321.0,,1,321.0,321.0,1965,1965,korea
+South Korea,Air Force,M,knee_height_sitting,Knee height (sitting),190,479.0,,1,479.0,479.0,1965,1965,korea
+South Korea,Air Force,M,mass,Body mass,190,59.4,,1,59.4,59.4,1965,1965,korea
+South Korea,Air Force,M,neck_circumference,Neck circumference,190,346.0,,1,346.0,346.0,1965,1965,korea
+South Korea,Air Force,M,other:arm_reach_forward,"Arm reach, forward",190,807.0,,1,807.0,807.0,1965,1965,korea
+South Korea,Air Force,M,other:arm_reach_upward,"Arm reach, upward",190,1320.0,,1,1320.0,1320.0,1965,1965,korea
+South Korea,Air Force,M,other:back_waist_length,Back waist length,190,455.0,,1,455.0,455.0,1965,1965,korea
+South Korea,Air Force,M,other:crotch_thigh_circumference,Crotch thigh circumference,190,490.0,,1,490.0,490.0,1965,1965,korea
+South Korea,Air Force,M,other:elbow_to_elbow_breadth,Elbow-to-elbow breadth,190,406.0,,1,406.0,406.0,1965,1965,korea
+South Korea,Air Force,M,other:face_breadth,Face breadth,190,144.0,,1,144.0,144.0,1965,1965,korea
+South Korea,Air Force,M,other:head_height,Head height,190,122.0,,1,122.0,122.0,1965,1965,korea
+South Korea,Air Force,M,other:heel_ankle_circumference,Heel-ankle circumference,190,317.0,,1,317.0,317.0,1965,1965,korea
+South Korea,Air Force,M,other:hip_breadth_standing,"Hip breadth, standing",190,309.0,,1,309.0,309.0,1965,1965,korea
+South Korea,Air Force,M,other:kneecap_height,Kneecap height,190,473.0,,1,473.0,473.0,1965,1965,korea
+South Korea,Air Force,M,other:lower_thigh_circumference,Lower thigh circumference,190,377.0,,1,377.0,377.0,1965,1965,korea
+South Korea,Air Force,M,other:palm_length,Palm length,190,104.0,,1,104.0,104.0,1965,1965,korea
+South Korea,Air Force,M,other:shoulder_breadth,Shoulder breadth,190,420.0,,1,420.0,420.0,1965,1965,korea
+South Korea,Air Force,M,other:shoulder_height,Shoulder height,190,1345.0,,1,1345.0,1345.0,1965,1965,korea
+South Korea,Air Force,M,other:shoulder_height_sitting,"Shoulder height, sitting",190,573.0,,1,573.0,573.0,1965,1965,korea
+South Korea,Air Force,M,other:sleeve_inseam,Sleeve inseam,190,455.0,,1,455.0,455.0,1965,1965,korea
+South Korea,Air Force,M,other:triceps_skinfold,Triceps skinfold,190,5.7,,1,5.7,5.7,1965,1965,korea
+South Korea,Air Force,M,other:upper_arm_circumference,Upper arm circumference,190,253.0,,1,253.0,253.0,1965,1965,korea
+South Korea,Air Force,M,stature,Stature,190,1659.0,,1,1659.0,1659.0,1965,1965,korea
+South Korea,Air Force,M,wrist_circumference,Wrist circumference,190,162.0,,1,162.0,162.0,1965,1965,korea
+South Korea,Aircrew,F,bizygomatic_breadth,Bizygomatic breadth,57,127.0,,1,127.0,127.0,2010,2010,kr-2011-jeong-pilot-face
+South Korea,Aircrew,F,menton_sellion_length,Menton-sellion (face) length,57,116.0,,1,116.0,116.0,2010,2010,kr-2011-jeong-pilot-face
+South Korea,Aircrew,F,other:chin_length,chin length (턱길이),57,25.0,,1,25.0,25.0,2010,2010,kr-2011-jeong-pilot-face
+South Korea,Aircrew,F,other:lip_width,lip width (입너비),57,47.0,,1,47.0,47.0,2010,2010,kr-2011-jeong-pilot-face
+South Korea,Army,F,buttock_circumference,Buttock circumference,20,947.0,72.0,1,947.0,947.0,2022,2022,kr-2023-lee-female-combat-uniform
+South Korea,Army,F,chest_circumference,Chest circumference,20,865.0,47.0,1,865.0,865.0,2022,2022,kr-2023-lee-female-combat-uniform
+South Korea,Army,F,mass,Body mass,20,56.7,5.8,1,56.7,56.7,2022,2022,kr-2023-lee-female-combat-uniform
+South Korea,Army,F,stature,Stature,20,1639.0,40.0,1,1639.0,1639.0,2022,2022,kr-2023-lee-female-combat-uniform
+South Korea,Army,F,waist_circumference,Waist circumference (omphalion),20,721.0,54.0,1,721.0,721.0,2022,2022,kr-2023-lee-female-combat-uniform
+South Korea,Army,M,ankle_circumference,Ankle circumference,3249,214.0,,1,214.0,214.0,1965,1965,korea
+South Korea,Army,M,chest_breadth,Chest breadth,3249,288.0,,1,288.0,288.0,1965,1965,korea
+South Korea,Army,M,chest_depth,Chest depth,3249,217.0,,1,217.0,217.0,1965,1965,korea
+South Korea,Army,M,foot_breadth,Foot breadth,3249,96.0,,1,96.0,96.0,1965,1965,korea
+South Korea,Army,M,hand_length,Hand length,3249,179.0,,1,179.0,179.0,1965,1965,korea
+South Korea,Army,M,head_breadth,Head breadth,3249,150.0,,1,150.0,150.0,1965,1965,korea
+South Korea,Army,M,head_length,Head length,3249,178.0,,1,178.0,178.0,1965,1965,korea
+South Korea,Army,M,hip_breadth_sitting,Hip breadth (sitting),3249,318.0,,1,318.0,318.0,1965,1965,korea
+South Korea,Army,M,other:ball_foot_circumference,Ball foot circumference,3249,244.0,,1,244.0,244.0,1965,1965,korea
+South Korea,Army,M,other:elbow_to_elbow_breadth,Elbow-to-elbow breadth,3249,398.0,,1,398.0,398.0,1965,1965,korea
+South Korea,Army,M,other:face_breadth,Face breadth,3249,140.0,,1,140.0,140.0,1965,1965,korea
+South Korea,Army,M,other:hand_circumference,Hand circumference,3249,206.0,,1,206.0,206.0,1965,1965,korea
+South Korea,Army,M,other:head_height,Head height,3249,125.0,,1,125.0,125.0,1965,1965,korea
+South Korea,Army,M,other:hip_breadth_standing,"Hip breadth, standing",3249,303.0,,1,303.0,303.0,1965,1965,korea
+South Korea,Army,M,other:instep_length,Instep length,3249,177.0,,1,177.0,177.0,1965,1965,korea
+South Korea,Army,M,other:interscye_breadth,Interscye,3249,377.0,,1,377.0,377.0,1965,1965,korea
+South Korea,Army,M,other:juxta_nipple_skinfold,Juxta-nipple skinfold,3249,4.4,,1,4.4,4.4,1965,1965,korea
+South Korea,Army,M,other:mid_axillary_skinfold,Mid-axillary skinfold,3249,4.8,,1,4.8,4.8,1965,1965,korea
+South Korea,Army,M,other:shoulder_breadth,Shoulder breadth,3249,422.0,,1,422.0,422.0,1965,1965,korea
+South Korea,Army,M,other:triceps_skinfold,Triceps skinfold,3249,5.4,,1,5.4,5.4,1965,1965,korea
+South Korea,Army,M,other:waist_height,Waist height,3249,988.0,,1,988.0,988.0,1965,1965,korea
+South Korea,Army,M,shoulder_elbow_length,Shoulder-elbow length,3249,336.0,,1,336.0,336.0,1965,1965,korea
+South Korea,Army,M,wrist_circumference,Wrist circumference,3249,164.0,,1,164.0,164.0,1965,1965,korea
+South Korea,Cadets,F,age,Age,50,20.6,1.3,1,20.6,20.6,2019,2019,kr-2019-song-kafa-female-cadets
+South Korea,Cadets,F,mass,Body mass,50,57.3,5.7,1,57.3,57.3,2019,2019,kr-2019-song-kafa-female-cadets
+South Korea,Cadets,F,stature,Stature,50,1654.0,37.0,1,1654.0,1654.0,2019,2019,kr-2019-song-kafa-female-cadets
+South Korea,Cadets,M,age,Age,57,23.09,0.83,5,22.6,23.69,2017,2021,kr-2018-choi-kafa-cadets-actn3; kr-2022-kim-kafa-cadets-gtest
+South Korea,Cadets,M,bmi,Body mass index,27,23.1,1.94,2,22.52,23.73,2021,2021,kr-2022-kim-kafa-cadets-gtest
+South Korea,Cadets,M,mass,Body mass,57,68.99,6.41,5,66.77,71.45,2017,2021,kr-2018-choi-kafa-cadets-actn3; kr-2022-kim-kafa-cadets-gtest
+South Korea,Cadets,M,other:body_fat_percent,%fat,30,13.27,3.35,3,12.72,13.96,2017,2017,kr-2018-choi-kafa-cadets-actn3
+South Korea,Cadets,M,other:body_fat_percent,Body fat,27,15.62,3.71,2,14.86,16.32,2021,2021,kr-2022-kim-kafa-cadets-gtest
+South Korea,Cadets,M,other:fat_mass,Fat mass,27,11.0,2.51,2,10.97,11.02,2021,2021,kr-2022-kim-kafa-cadets-gtest
+South Korea,Cadets,M,other:skeletal_muscle_mass,Skeletal muscle mass,27,33.37,4.2,2,32.37,34.44,2021,2021,kr-2022-kim-kafa-cadets-gtest
+South Korea,Cadets,M,stature,Stature,57,1741.8,52.82,5,1718.1,1765.0,2017,2021,kr-2018-choi-kafa-cadets-actn3; kr-2022-kim-kafa-cadets-gtest
+South Korea,Marine Corps,M,ankle_circumference,Ankle circumference,167,220.0,,1,220.0,220.0,1965,1965,korea
+South Korea,Marine Corps,M,calf_circumference,Calf circumference,167,345.0,,1,345.0,345.0,1965,1965,korea
+South Korea,Marine Corps,M,foot_breadth,Foot breadth,167,96.0,,1,96.0,96.0,1965,1965,korea
+South Korea,Marine Corps,M,head_breadth,Head breadth,167,154.0,,1,154.0,154.0,1965,1965,korea
+South Korea,Marine Corps,M,head_circumference,Head circumference,167,544.0,,1,544.0,544.0,1965,1965,korea
+South Korea,Marine Corps,M,head_length,Head length,167,177.0,,1,177.0,177.0,1965,1965,korea
+South Korea,Marine Corps,M,mass,Body mass,167,60.1,,1,60.1,60.1,1965,1965,korea
+South Korea,Marine Corps,M,other:arm_reach_forward,"Arm reach, forward",167,817.0,,1,817.0,817.0,1965,1965,korea
+South Korea,Marine Corps,M,other:ball_foot_circumference,Ball foot circumference,167,244.0,,1,244.0,244.0,1965,1965,korea
+South Korea,Marine Corps,M,other:crotch_thigh_circumference,Crotch thigh circumference,167,491.0,,1,491.0,491.0,1965,1965,korea
+South Korea,Marine Corps,M,other:elbow_to_elbow_breadth,Elbow-to-elbow breadth,167,411.0,,1,411.0,411.0,1965,1965,korea
+South Korea,Marine Corps,M,other:face_breadth,Face breadth,167,141.0,,1,141.0,141.0,1965,1965,korea
+South Korea,Marine Corps,M,other:forearm_hand_length,Forearm-hand length,167,439.0,,1,439.0,439.0,1965,1965,korea
+South Korea,Marine Corps,M,other:hand_circumference,Hand circumference,167,210.0,,1,210.0,210.0,1965,1965,korea
+South Korea,Marine Corps,M,other:heel_ankle_circumference,Heel-ankle circumference,167,317.0,,1,317.0,317.0,1965,1965,korea
+South Korea,Marine Corps,M,other:hip_breadth_standing,"Hip breadth, standing",167,309.0,,1,309.0,309.0,1965,1965,korea
+South Korea,Marine Corps,M,other:interscye_breadth,Interscye,167,387.0,,1,387.0,387.0,1965,1965,korea
+South Korea,Marine Corps,M,other:kneecap_height,Kneecap height,167,458.0,,1,458.0,458.0,1965,1965,korea
+South Korea,Marine Corps,M,other:lower_thigh_circumference,Lower thigh circumference,167,383.0,,1,383.0,383.0,1965,1965,korea
+South Korea,Marine Corps,M,other:shoulder_breadth,Shoulder breadth,167,429.0,,1,429.0,429.0,1965,1965,korea
+South Korea,Marine Corps,M,other:shoulder_height,Shoulder height,167,1343.0,,1,1343.0,1343.0,1965,1965,korea
+South Korea,Marine Corps,M,other:shoulder_height_sitting,"Shoulder height, sitting",167,572.0,,1,572.0,572.0,1965,1965,korea
+South Korea,Marine Corps,M,other:sub_scapular_skinfold,Sub-scapular skinfold,167,7.6,,1,7.6,7.6,1965,1965,korea
+South Korea,Marine Corps,M,other:upper_arm_circumference,Upper arm circumference,167,256.0,,1,256.0,256.0,1965,1965,korea
+South Korea,Marine Corps,M,shoulder_circumference,Shoulder circumference,167,1065.0,,1,1065.0,1065.0,1965,1965,korea
+South Korea,Marine Corps,M,shoulder_elbow_length,Shoulder-elbow length,167,339.0,,1,339.0,339.0,1965,1965,korea
+South Korea,Marine Corps,M,stature,Stature,167,1639.0,,1,1639.0,1639.0,1965,1965,korea
+South Korea,Marine Corps,M,wrist_circumference,Wrist circumference,167,165.0,,1,165.0,165.0,1965,1965,korea
+South Korea,Navy,M,ankle_circumference,Ankle circumference,141,213.0,,1,213.0,213.0,1965,1965,korea
+South Korea,Navy,M,chest_breadth,Chest breadth,141,294.0,,1,294.0,294.0,1965,1965,korea
+South Korea,Navy,M,chest_depth,Chest depth,141,221.0,,1,221.0,221.0,1965,1965,korea
+South Korea,Navy,M,crotch_height,Crotch height,141,750.0,,1,750.0,750.0,1965,1965,korea
+South Korea,Navy,M,foot_breadth,Foot breadth,141,96.0,,1,96.0,96.0,1965,1965,korea
+South Korea,Navy,M,foot_length,Foot length,141,242.0,,1,242.0,242.0,1965,1965,korea
+South Korea,Navy,M,hand_length,Hand length,141,179.0,,1,179.0,179.0,1965,1965,korea
+South Korea,Navy,M,head_breadth,Head breadth,141,154.0,,1,154.0,154.0,1965,1965,korea
+South Korea,Navy,M,head_circumference,Head circumference,141,539.0,,1,539.0,539.0,1965,1965,korea
+South Korea,Navy,M,head_length,Head length,141,177.0,,1,177.0,177.0,1965,1965,korea
+South Korea,Navy,M,knee_height_sitting,Knee height (sitting),141,481.0,,1,481.0,481.0,1965,1965,korea
+South Korea,Navy,M,mass,Body mass,141,60.1,,1,60.1,60.1,1965,1965,korea
+South Korea,Navy,M,neck_circumference,Neck circumference,141,350.0,,1,350.0,350.0,1965,1965,korea
+South Korea,Navy,M,other:arm_reach_forward,"Arm reach, forward",141,820.0,,1,820.0,820.0,1965,1965,korea
+South Korea,Navy,M,other:arm_reach_upward,"Arm reach, upward",141,1310.0,,1,1310.0,1310.0,1965,1965,korea
+South Korea,Navy,M,other:face_breadth,Face breadth,141,143.0,,1,143.0,143.0,1965,1965,korea
+South Korea,Navy,M,other:forearm_hand_length,Forearm-hand length,141,443.0,,1,443.0,443.0,1965,1965,korea
+South Korea,Navy,M,other:hand_circumference,Hand circumference,141,208.0,,1,208.0,208.0,1965,1965,korea
+South Korea,Navy,M,other:head_height,Head height,141,123.0,,1,123.0,123.0,1965,1965,korea
+South Korea,Navy,M,other:interscye_breadth,Interscye,141,387.0,,1,387.0,387.0,1965,1965,korea
+South Korea,Navy,M,other:kneecap_height,Kneecap height,141,472.0,,1,472.0,472.0,1965,1965,korea
+South Korea,Navy,M,other:lower_thigh_circumference,Lower thigh circumference,141,390.0,,1,390.0,390.0,1965,1965,korea
+South Korea,Navy,M,other:palm_length,Palm length,141,103.0,,1,103.0,103.0,1965,1965,korea
+South Korea,Navy,M,other:shoulder_height,Shoulder height,141,1342.0,,1,1342.0,1342.0,1965,1965,korea
+South Korea,Navy,M,other:shoulder_height_sitting,"Shoulder height, sitting",141,583.0,,1,583.0,583.0,1965,1965,korea
+South Korea,Navy,M,other:sleeve_inseam,Sleeve inseam,141,455.0,,1,455.0,455.0,1965,1965,korea
+South Korea,Navy,M,other:sleeve_length,Sleeve length,141,797.0,,1,797.0,797.0,1965,1965,korea
+South Korea,Navy,M,other:triceps_skinfold,Triceps skinfold,141,4.8,,1,4.8,4.8,1965,1965,korea
+South Korea,Navy,M,other:upper_arm_circumference,Upper arm circumference,141,254.0,,1,254.0,254.0,1965,1965,korea
+South Korea,Navy,M,popliteal_height,Popliteal height,141,385.0,,1,385.0,385.0,1965,1965,korea
+South Korea,Navy,M,shoulder_elbow_length,Shoulder-elbow length,141,341.0,,1,341.0,341.0,1965,1965,korea
+South Korea,Navy,M,stature,Stature,141,1663.0,,1,1663.0,1663.0,1965,1965,korea
+South Korea,Navy,M,waist_circumference,Waist circumference (omphalion),141,740.0,,1,740.0,740.0,1965,1965,korea
+South Korea,Navy,M,wrist_circumference,Wrist circumference,141,166.0,,1,166.0,166.0,1965,1965,korea
+South Korea,Pilots,M,bizygomatic_breadth,Bizygomatic breadth,311,138.0,,1,138.0,138.0,2010,2010,kr-2011-jeong-pilot-face
+South Korea,Pilots,M,head_breadth,Head breadth,311,162.0,,1,162.0,162.0,2010,2010,kr-2011-jeong-pilot-face
+South Korea,Pilots,M,head_length,Head length,311,188.0,,1,188.0,188.0,2010,2010,kr-2011-jeong-pilot-face
+South Korea,Pilots,M,menton_sellion_length,Menton-sellion (face) length,311,123.0,,1,123.0,123.0,2010,2010,kr-2011-jeong-pilot-face
+South Korea,Pilots,M,other:lip_width,lip width (입너비),311,54.0,,1,54.0,54.0,2010,2010,kr-2011-jeong-pilot-face
 South Korea,Pilots,both,acromion_height,Acromion height,254,1387.3,43.7,1,1387.3,1387.3,,,rp1024-vol2
 South Korea,Pilots,both,acromion_height_sitting,Acromion height (sitting),254,601.7,25.4,1,601.7,601.7,,,rp1024-vol2
 South Korea,Pilots,both,biacromial_breadth,Biacromial breadth,264,346.3,20.2,1,346.3,346.3,,,rp1024-vol2
@@ -3320,9 +3729,19 @@ Sweden,Aircrew,both,shoulder_elbow_length,Shoulder-elbow length,240,376.5,17.2,1
 Sweden,Aircrew,both,sitting_height,Sitting height,240,939.7,29.8,1,939.7,939.7,,,rp1024-vol2
 Sweden,Aircrew,both,stature,Stature,240,1786.1,56.2,1,1786.1,1786.1,,,rp1024-vol2
 Sweden,Aircrew,both,thigh_circumference,Thigh circumference,240,562.2,36.5,1,562.2,562.2,,,rp1024-vol2
-Switzerland,Recruits/trainees,M,bmi,Body mass index,159503,22.92,3.56,4,20.63,23.44,1875,2010,pmc6007356-swiss-conscripts
+Switzerland,Recruits/trainees,M,bmi,Body mass index,208171,23.0,3.64,9,20.63,24.17,1875,2019,ch-2020-matthes-gewicht-der-schweiz; pmc6007356-swiss-conscripts
 Switzerland,Recruits/trainees,M,mass,Body mass,159504,71.72,13.07,4,56.18,74.51,1875,2010,pmc6007356-swiss-conscripts
-Switzerland,Recruits/trainees,M,stature,Stature,159504,1766.44,74.37,4,1648.1,1782.1,1875,2010,pmc6007356-swiss-conscripts
+Switzerland,Recruits/trainees,M,other:waist_to_height_ratio,WHtR (cm/cm),22457,0.46,0.06,3,0.45,0.47,2019,2019,ch-2020-matthes-gewicht-der-schweiz
+Switzerland,Recruits/trainees,M,stature,Stature,183838,1769.29,73.68,5,1648.1,1788.0,1875,2019,ch-2020-matthes-gewicht-der-schweiz; pmc6007356-swiss-conscripts
+Switzerland,Recruits/trainees,M,waist_circumference,Waist circumference (omphalion),47222,814.87,100.29,5,801.3,844.1,2019,2019,ch-2020-matthes-gewicht-der-schweiz
+Taiwan,Army,F,age,Age,60,25.8,4.65,1,25.8,25.8,2017,2017,tw-2018-shih-pasgt-helmet
+Taiwan,Army,F,bmi,Body mass index,60,22.1,1.93,1,22.1,22.1,2017,2017,tw-2018-shih-pasgt-helmet
+Taiwan,Army,F,mass,Body mass,60,58.4,5.17,1,58.4,58.4,2017,2017,tw-2018-shih-pasgt-helmet
+Taiwan,Army,F,stature,Stature,60,1623.0,45.9,1,1623.0,1623.0,2017,2017,tw-2018-shih-pasgt-helmet
+Taiwan,Army,M,age,Age,272,26.6,5.13,1,26.6,26.6,2017,2017,tw-2018-shih-pasgt-helmet
+Taiwan,Army,M,bmi,Body mass index,272,23.9,1.74,1,23.9,23.9,2017,2017,tw-2018-shih-pasgt-helmet
+Taiwan,Army,M,mass,Body mass,272,71.1,7.5,1,71.1,71.1,2017,2017,tw-2018-shih-pasgt-helmet
+Taiwan,Army,M,stature,Stature,272,1724.0,57.0,1,1724.0,1724.0,2017,2017,tw-2018-shih-pasgt-helmet
 Taiwan,Cadets,M,age,Age,873,23.53,1.17,2,23.53,23.55,,,pmc7663089-taiwan-af-academy-student-pilots
 Taiwan,Cadets,M,bmi,Body mass index,873,23.2,2.41,2,21.8,23.27,,,pmc7663089-taiwan-af-academy-student-pilots
 Taiwan,Cadets,M,mass,Body mass,873,70.09,8.53,2,66.09,70.3,,,pmc7663089-taiwan-af-academy-student-pilots
@@ -3380,8 +3799,16 @@ Thailand,Air Force,M,sitting_height,Sitting height,330,874.0,27.0,1,874.0,874.0,
 Thailand,Air Force,M,stature,Stature,330,1654.0,51.0,1,1654.0,1654.0,1962,1962,thai-1964
 Thailand,Air Force,M,waist_circumference,Waist circumference (omphalion),330,695.0,59.0,1,695.0,695.0,1962,1962,thai-1964
 Thailand,Air Force,M,wrist_circumference,Wrist circumference,330,155.0,8.0,1,155.0,155.0,1962,1962,thai-1964
-Thailand,Army,M,age,Age,2010,24.2,4.2,1,24.2,24.2,1962,1962,thai-1964
+Thailand,Army,F,age,Age,393,38.5,10.1,1,38.5,38.5,2005,2005,th-2006-napradit-rta-fitness-survey
+Thailand,Army,F,bmi,Body mass index,393,22.1,3.6,1,22.1,22.1,2005,2005,th-2006-napradit-rta-fitness-survey
+Thailand,Army,F,buttock_circumference,Buttock circumference,393,947.42,73.66,1,947.42,947.42,2005,2005,th-2006-napradit-rta-fitness-survey
+Thailand,Army,F,mass,Body mass,393,55.5,9.4,1,55.5,55.5,2005,2005,th-2006-napradit-rta-fitness-survey
+Thailand,Army,F,stature,Stature,393,1585.0,51.0,1,1585.0,1585.0,2005,2005,th-2006-napradit-rta-fitness-survey
+Thailand,Army,F,waist_circumference,Waist circumference (omphalion),393,731.52,81.28,1,731.52,731.52,2005,2005,th-2006-napradit-rta-fitness-survey
+Thailand,Army,M,age,Age,6040,35.74,10.98,2,24.2,41.5,1962,2005,th-2006-napradit-rta-fitness-survey; thai-1964
 Thailand,Army,M,ankle_circumference,Ankle circumference,2010,208.0,11.0,1,208.0,208.0,1962,1962,thai-1964
+Thailand,Army,M,bmi,Body mass index,4030,24.0,3.3,1,24.0,24.0,2005,2005,th-2006-napradit-rta-fitness-survey
+Thailand,Army,M,buttock_circumference,Buttock circumference,4030,955.04,68.58,1,955.04,955.04,2005,2005,th-2006-napradit-rta-fitness-survey
 Thailand,Army,M,buttock_knee_length,Buttock-knee length,2010,535.0,25.0,1,535.0,535.0,1962,1962,thai-1964
 Thailand,Army,M,buttock_popliteal_length,Buttock-popliteal length,2010,443.0,24.0,1,443.0,443.0,1962,1962,thai-1964
 Thailand,Army,M,calf_circumference,Calf circumference,2010,340.0,23.0,1,340.0,340.0,1962,1962,thai-1964
@@ -3398,7 +3825,7 @@ Thailand,Army,M,head_length,Head length,2010,179.0,6.0,1,179.0,179.0,1962,1962,t
 Thailand,Army,M,hip_breadth_sitting,Hip breadth (sitting),2010,320.0,20.0,1,320.0,320.0,1962,1962,thai-1964
 Thailand,Army,M,interpupillary_breadth,Interpupillary breadth,2010,63.0,4.0,1,63.0,63.0,1962,1962,thai-1964
 Thailand,Army,M,knee_height_sitting,Knee height (sitting),2010,507.0,21.0,1,507.0,507.0,1962,1962,thai-1964
-Thailand,Army,M,mass,Body mass,2010,56.3,5.8,1,56.3,56.3,1962,1962,thai-1964
+Thailand,Army,M,mass,Body mass,6040,64.44,10.72,2,56.3,68.5,1962,2005,th-2006-napradit-rta-fitness-survey; thai-1964
 Thailand,Army,M,neck_circumference,Neck circumference,2010,337.0,16.0,1,337.0,337.0,1962,1962,thai-1964
 Thailand,Army,M,other:arm_reach_forward,"Arm reach, forward",2010,818.0,41.0,1,818.0,818.0,1962,1962,thai-1964
 Thailand,Army,M,other:arm_reach_upward,"Arm reach, upward",2010,1310.0,48.0,1,1310.0,1310.0,1962,1962,thai-1964
@@ -3430,8 +3857,8 @@ Thailand,Army,M,popliteal_height,Popliteal height,2010,422.0,18.0,1,422.0,422.0,
 Thailand,Army,M,shoulder_circumference,Shoulder circumference,2010,1044.0,44.0,1,1044.0,1044.0,1962,1962,thai-1964
 Thailand,Army,M,shoulder_elbow_length,Shoulder-elbow length,2010,348.0,17.0,1,348.0,348.0,1962,1962,thai-1964
 Thailand,Army,M,sitting_height,Sitting height,2010,861.0,32.0,1,861.0,861.0,1962,1962,thai-1964
-Thailand,Army,M,stature,Stature,2010,1629.0,53.0,1,1629.0,1629.0,1962,1962,thai-1964
-Thailand,Army,M,waist_circumference,Waist circumference (omphalion),2010,697.0,50.0,1,697.0,697.0,1962,1962,thai-1964
+Thailand,Army,M,stature,Stature,6040,1669.7,59.13,2,1629.0,1690.0,1962,2005,th-2006-napradit-rta-fitness-survey; thai-1964
+Thailand,Army,M,waist_circumference,Waist circumference (omphalion),6040,794.6,105.65,2,697.0,843.28,1962,2005,th-2006-napradit-rta-fitness-survey; thai-1964
 Thailand,Army,M,wrist_circumference,Wrist circumference,2010,156.0,9.0,1,156.0,156.0,1962,1962,thai-1964
 Thailand,Marine Corps,M,age,Age,610,22.0,1.8,1,22.0,22.0,1962,1962,thai-1964
 Thailand,Marine Corps,M,ankle_circumference,Ankle circumference,610,213.0,11.0,1,213.0,213.0,1962,1962,thai-1964
@@ -3725,6 +4152,11 @@ Turkey,Cadre/other military,M,trochanterion_height,Trochanterion height,912,865.
 Turkey,Cadre/other military,M,vertical_trunk_circumference,Vertical trunk circumference,912,1594.1,66.2,1,1594.1,1594.1,1960,1960,rp1024-vol2
 Turkey,Cadre/other military,M,waist_circumference,Waist circumference (omphalion),912,794.0,67.8,1,794.0,794.0,1960,1960,rp1024-vol2
 Turkey,Cadre/other military,M,wrist_circumference,Wrist circumference,912,169.3,8.4,1,169.3,169.3,1960,1960,rp1024-vol2
+Turkey,Cadre/other military,both,age,Age,268,28.6,8.0,1,28.6,28.6,2007,2007,tr-2010-ulas-malatya-military-hospital
+Turkey,Cadre/other military,both,bmi,Body mass index,268,24.2,3.2,1,24.2,24.2,2007,2007,tr-2010-ulas-malatya-military-hospital
+Turkey,Cadre/other military,both,mass,Body mass,268,72.4,12.4,1,72.4,72.4,2007,2007,tr-2010-ulas-malatya-military-hospital
+Turkey,Cadre/other military,both,stature,Stature,268,1726.0,83.0,1,1726.0,1726.0,2007,2007,tr-2010-ulas-malatya-military-hospital
+Ukraine,Cadets,M,bmi,Body mass index,134,22.6,1.44,4,21.94,23.52,2023,2025,ua-2026-fedyk-zhytomyr-cadets
 United Kingdom,Aircrew,both,abdominal_depth_sitting,Abdominal extension depth (sitting),588,241.9,22.6,1,241.9,241.9,1970,1970,rp1024-vol2
 United Kingdom,Aircrew,both,acromion_height,Acromion height,200,1498.6,57.9,1,1498.6,1498.6,1966,1966,rp1024-vol2
 United Kingdom,Aircrew,both,acromion_height_sitting,Acromion height (sitting),2000,612.4,28.3,1,612.4,612.4,1970,1970,rp1024-vol2
@@ -6566,6 +6998,15 @@ Uruguay,Recruits/trainees,M,stature,Stature,43,1694.18,62.48,1,1694.18,1694.18,1
 Venezuela,Recruits/trainees,M,age,Age,139,26.9,7.5,1,26.9,26.9,1965,1965,latin-american-armed-forces
 Venezuela,Recruits/trainees,M,mass,Body mass,139,68.04,8.07,1,68.04,68.04,1965,1965,latin-american-armed-forces
 Venezuela,Recruits/trainees,M,stature,Stature,139,1671.32,45.47,1,1671.32,1671.32,1965,1965,latin-american-armed-forces
+Vietnam,Cadets,M,bmi,Body mass index,88,22.95,1.99,2,22.9,23.0,2024,2024,vn-2025-do-mma-cadets-vo2max
+Vietnam,Cadets,M,mass,Body mass,88,65.77,6.97,2,65.3,66.2,2024,2024,vn-2025-do-mma-cadets-vo2max
+Vietnam,Cadets,M,stature,Stature,88,1693.27,56.93,2,1687.0,1699.0,2024,2024,vn-2025-do-mma-cadets-vo2max
+Vietnam,Cadets,M,waist_circumference,Waist circumference (omphalion),88,780.32,57.62,2,766.0,796.0,2024,2024,vn-2025-do-mma-cadets-vo2max
+Vietnam,Pilots,M,age,Age,584,39.11,8.62,4,38.4,41.1,2023,2023,vn-2024-bui-military-pilots-mets
+Vietnam,Pilots,M,bmi,Body mass index,584,24.92,1.81,4,24.6,25.7,2023,2023,vn-2024-bui-military-pilots-mets
+Vietnam,Pilots,M,mass,Body mass,584,72.57,6.54,4,71.4,75.2,2023,2023,vn-2024-bui-military-pilots-mets
+Vietnam,Pilots,M,stature,Stature,584,1704.81,41.66,4,1702.0,1712.0,2023,2023,vn-2024-bui-military-pilots-mets
+Vietnam,Pilots,M,waist_circumference,Waist circumference (omphalion),584,930.01,37.1,4,924.0,942.0,2023,2023,vn-2024-bui-military-pilots-mets
 Vietnam,Tri-service,both,acromion_height,Acromion height,2127,1313.1,50.0,1,1313.1,1313.1,1963,1963,rp1024-vol2
 Vietnam,Tri-service,both,acromion_height_sitting,Acromion height (sitting),2126,561.8,28.5,1,561.8,561.8,1963,1963,rp1024-vol2
 Vietnam,Tri-service,both,age,Age,2127,27.23,5.7,1,27.23,27.23,1963,1963,rp1024-vol2
