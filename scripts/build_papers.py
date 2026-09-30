@@ -91,8 +91,11 @@ def main():
             has = bool(path and path.exists())
             pages, text = pdf_facts(path) if has else (None, "")
             title = r["title"]
-            if r.get("title_english") and r["title_english"] != title:
-                title = f"{r['title_english']} [original: {title}]"
+            te = (r.get("title_english") or "").strip()
+            if te.startswith("("):  # placeholders such as "(English)" or "(same)": no translation
+                te = ""
+            if te and te != title:
+                title = f"{te} [original: {title}]"
             rows.append({
                 "paper_id": r["slug"], "survey_id": "", "title": title, "language": re.split(r"[/(]| and ", r.get("language") or "English")[0].strip() or "English", "original_url": r["url"],
                 "open_copy_url": r.get("pdf_url") or r["url"],

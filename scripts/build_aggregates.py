@@ -133,10 +133,36 @@ def mark_primary(rows):
         r["is_primary"] = 1 if i in keep else 0
 
 
+def part_of_total(rows):
+    """Indexes of rows that are parts of a pooled total printed in the same source.
+
+    Within one source, country, role, sex and measure, if the largest n equals the sum of the
+    other rows' n (within 3%), the others are its parts (for example 'all pilots' 292 and the
+    subsonic 188, supersonic 65 and helicopter 39 pilots). Only the total goes into the roll-up.
+    """
+    groups = defaultdict(list)
+    for i, r in enumerate(rows):
+        if r["is_primary"] and num(r["n"]) and num(r["mean"]) is not None and r["population_type"] != "civilian":
+            measure = r["measure_key"] if not r["measure_key"].startswith("other:") else r["measure_label"].lower()
+            groups[(r["source_id"], r["country"], r["service_role"], r["sex"], measure)].append(i)
+    parts = set()
+    for idx in groups.values():
+        if len(idx) < 3:
+            continue
+        idx = sorted(idx, key=lambda i: -num(rows[i]["n"]))
+        top, rest = num(rows[idx[0]]["n"]), sum(num(rows[i]["n"]) for i in idx[1:])
+        if rest and 0.97 <= top / rest <= 1.03:
+            parts.update(idx[1:])
+    return parts
+
+
 def rollup(rows):
     labels = {m["key"]: m["label"] for m in load_measures()}
+    parts = part_of_total(rows)
     groups = defaultdict(list)
-    for r in rows:
+    for i, r in enumerate(rows):
+        if i in parts:
+            continue
         # '#sub' rows are subgroups of a survey already counted in full; never add them to the rollup
         if not r["is_primary"] or "#sub" in r["survey_group"] or r["population_type"] == "civilian" or not r["mean"]:
             continue
