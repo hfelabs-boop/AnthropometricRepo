@@ -25,7 +25,7 @@ export async function initCompare() {
   const label = k => M[k]?.label || otherLabel[k] || k.replace(/^other:/, "").replace(/_/g, " ");
   const unitOf = k => M[k]?.unit || "mm";
 
-  const fresh = () => ({ m: "stature", sex: "M", countries: [], roles: [], sub: "ranking", sort: "mean-desc", minN: 100, civilians: false, all: false, matrixRole: "", zoom: true });
+  const fresh = () => ({ m: "stature", sex: "M", countries: [], roles: [], sub: "ranking", sort: "mean-desc", minN: 100, civilians: false, all: false, matrixRole: "", zoom: true, body: true });
   let st = fresh();
   const { view, params } = readHash();
   if (view === "compare" && params.get("s")) { try { st = { ...fresh(), ...JSON.parse(params.get("s")) }; } catch { /* ignore */ } }
@@ -55,6 +55,7 @@ export async function initCompare() {
         h("div", { class: "toolbar", style: { marginBottom: "6px" } },
           h("button", { class: "btn only-mobile", type: "button", "data-open-sidebar": "compare-sidebar" }, "☰ Filters"),
           h("div", { class: "result-count", id: "cmp-count", "aria-live": "polite" }), h("div", { class: "grow" }),
+          h("button", { class: "btn", id: "cmp-body-toggle", type: "button", "aria-pressed": "true", title: "Show or hide the body map" }, "Body map: on"),
           h("button", { class: "btn", id: "cmp-share", type: "button" }, "🔗 Share"),
           h("button", { class: "btn", id: "cmp-export", type: "button" }, "⤓ CSV")),
         h("div", { class: "subtabs", role: "tablist", id: "cmp-subtabs" },
@@ -110,9 +111,10 @@ export async function initCompare() {
       const mean = !rs.length ? null : people ? rs.reduce((a, r) => a + r.mean * w(r), 0) / people : rs.reduce((a, r) => a + r.mean, 0) / rs.length;
       return { sex: sx, label: SEX_LABEL[sx], color: SEX_COLOR[sx], mean, people, groups: rs.length };
     });
+    if (!st.body) return null;
     return h("div", { class: "cmp-top-card" }, bodyMap({ key: st.m, label: label(st.m), unit: unitOf(st.m), figures, zoom: st.zoom, onZoom: () => { st.zoom = !st.zoom; render(false); } }));
   }
-  const topClass = () => "cmp-top" + (sexes().length > 1 ? " two" : "");
+  const topClass = () => "cmp-top" + (!st.body ? " solo" : sexes().length > 1 ? " two" : "");
 
   function sortRows(rows) {
     const [k, d] = st.sort.split("-"), dir = d === "asc" ? 1 : -1;
@@ -216,12 +218,15 @@ export async function initCompare() {
 
   async function render(withFilters = true) {
     if (withFilters) renderFilters();
+    const bt = $("#cmp-body-toggle");
+    bt.setAttribute("aria-pressed", String(st.body)); bt.textContent = st.body ? "Body map: on" : "Body map: off";
     $$("#cmp-subtabs .subtab").forEach(b => b.setAttribute("aria-selected", b.dataset.sub === st.sub));
     save();
     const body = $("#cmp-body");
     body.replaceChildren(st.sub === "ranking" ? rankingView() : st.sub === "matrix" ? matrixView() : await detailView());
   }
 
+  $("#cmp-body-toggle").addEventListener("click", () => { st.body = !st.body; render(false); });
   $("#cmp-reset").addEventListener("click", () => { st = fresh(); render(); });
   $("#cmp-share").addEventListener("click", async () => { try { await navigator.clipboard.writeText(location.href); toast("Link copied"); } catch { toast("Copy the address bar to share"); } });
   $("#cmp-export").addEventListener("click", () => lastExport && download("country-role-aggregates.csv", lastExport()));
