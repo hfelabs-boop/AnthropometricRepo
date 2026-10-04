@@ -48,7 +48,7 @@ export function renderAbout(root) {
     h("h2", {}, "Database tables"),
     h("ul", {},
       h("li", {}, code("subjects"), ": one row per person, harmonized measures plus sex, branch, component and handedness. The ", code("people"), " view adds the survey name and year."),
-      h("li", {}, code("aggregates"), ": every extracted statistic (mean, SD, n, percentiles) with country, role, source paper and page. ", code("rollup"), ": the country × role × sex × measure averages."),
+      h("li", {}, code("aggregates"), ": every extracted statistic (mean, SD, n, percentiles) with country, role, source paper and page. ", code("rollup"), ": the country × role × sex × measure averages, SD and 5th / 50th / 95th percentiles."),
       h("li", {}, code("papers"), ": the paper index. ", code("measures"), ": label, unit, category and the source column in each survey."),
       h("li", {}, code("datasets"), ", ", code("surveys"), ", ", code("survey_links"), ": provenance and the full 49-survey catalog."),
       h("li", {}, code("raw_ansur_1988"), ", ", code("raw_ansur_ii_2012"), ", ", code("raw_asran_2015"), ", ", code("raw_usaf_1967"), " and ", code("raw_columns"), ": original columns with descriptions.")),

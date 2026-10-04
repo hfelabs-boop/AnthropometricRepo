@@ -300,5 +300,7 @@ footer.site { max-width: 1320px; margin: 0 auto; padding: 16px; color: var(--tex
 .mq-fig figcaption { display: grid; gap: 2px; }
 .mq-sex { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--text-2); }
 .mq-val { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.mq-pct { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: .8rem; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.mq-pct i { font-style: normal; color: var(--text-3); margin-right: 3px; }
 .mq-sex .swatch-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .cmp-top.solo { grid-template-columns: minmax(0, 1fr); }

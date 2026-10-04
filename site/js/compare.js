@@ -1,6 +1,6 @@
 // By country & role: aggregated statistics from the four open datasets plus every paper we extracted tables from.
 // Three sub-views: ranking (dot plot + table), matrix (countries x measures heat table) and every population (traceable rows).
-import { h, $, $$, fmtInt, fmtNum, fmtFixed, dataTable, toCSV, download, readHash, writeHash, toast } from "./util.js";
+import { h, $, $$, fmtInt, fmtNum, fmtFixed, dataTable, toCSV, download, readHash, writeHash, toast, mixPercentiles } from "./util.js";
 import { objects } from "./db.js";
 import { dotplot } from "./charts.js";
 import { bodyMap } from "./mannequin.js";
@@ -25,7 +25,7 @@ export async function initCompare() {
   const label = k => M[k]?.label || otherLabel[k] || k.replace(/^other:/, "").replace(/_/g, " ");
   const unitOf = k => M[k]?.unit || "mm";
 
-  const fresh = () => ({ m: "stature", sex: "M", countries: [], roles: [], sub: "ranking", sort: "mean-desc", minN: 100, civilians: false, all: false, matrixRole: "", zoom: true, body: true });
+  const fresh = () => ({ m: "stature", sex: "M", countries: [], roles: [], sub: "ranking", sort: "mean-desc", minN: 100, civilians: false, all: false, matrixRole: "", zoom: true, body: true, range: "pct" });
   let st = fresh();
   const { view, params } = readHash();
   if (view === "compare" && params.get("s")) { try { st = { ...fresh(), ...JSON.parse(params.get("s")) }; } catch { /* ignore */ } }
@@ -109,7 +109,7 @@ export async function initCompare() {
     const figures = sexes().map(sx => {
       const rs = rows.filter(r => r.sex === sx && r.mean != null), w = r => r.n_total ?? r.n ?? 0, people = rs.reduce((a, r) => a + w(r), 0);
       const mean = !rs.length ? null : people ? rs.reduce((a, r) => a + r.mean * w(r), 0) / people : rs.reduce((a, r) => a + r.mean, 0) / rs.length;
-      return { sex: sx, label: SEX_LABEL[sx], color: SEX_COLOR[sx], mean, people, groups: rs.length };
+      return { sex: sx, label: SEX_LABEL[sx], color: SEX_COLOR[sx], mean, people, groups: rs.length, pct: mixPercentiles(rs) };
     });
     if (!st.body) return null;
     return h("div", { class: "cmp-top-card" }, bodyMap({ key: st.m, label: label(st.m), unit: unitOf(st.m), figures, zoom: st.zoom, onZoom: () => { st.zoom = !st.zoom; render(false); } }));
@@ -126,26 +126,42 @@ export async function initCompare() {
     [["mean-desc", "Sort: highest mean first"], ["mean-asc", "Lowest mean first"], ["n-desc", "Largest sample first"], ["year-desc", "Newest survey first"], ["name-asc", "Name A–Z"]]
       .map(([v, t]) => h("option", { value: v, selected: v === st.sort }, t)));
 
+  const rangeSelect = () => h("select", { class: "input", style: { width: "auto" }, "aria-label": "Range shown", onchange: e => { st.range = e.target.value; render(false); } },
+    [["pct", "Range: 5th–95th percentile"], ["sd", "Range: ± 1 SD"]].map(([v, t]) => h("option", { value: v, selected: v === st.range }, t)));
+
   function rankingView() {
     const rows = sortRows(roll.filter(r => r.measure_key === st.m && sexes().includes(r.sex) && passRoll(r)).map(r => ({
       ...r, label: `${r.country} · ${r.service_role}${st.sex === "MF" ? ` (${r.sex})` : ""}`, color: SEX_COLOR[r.sex], n: r.n_total,
       extra: [["surveys", r.n_surveys], ["years", r.year_min === r.year_max ? r.year_min : `${r.year_min}–${r.year_max}`]],
     })));
-    lastExport = () => toCSV(["country", "role", "sex", "measure", "unit", "people", "mean", "sd", "surveys", "mean_range_low", "mean_range_high", "first_year_min", "first_year_max", "sources"],
-      rows.map(r => [r.country, r.service_role, r.sex, label(st.m), unitOf(st.m), r.n_total, r.mean, r.sd, r.n_surveys, r.mean_min, r.mean_max, r.year_min, r.year_max, r.sources]));
+    const basisOf = new Map(rows.map(r => [`${r.country}|${r.service_role}|${SEX_LABEL[r.sex]}`, r.pct_basis]));
+    lastExport = () => toCSV(["country", "role", "sex", "measure", "unit", "people", "mean", "sd", "p5", "p50", "p95", "percentile_basis", "surveys", "mean_range_low", "mean_range_high", "first_year_min", "first_year_max", "sources"],
+      rows.map(r => [r.country, r.service_role, r.sex, label(st.m), unitOf(st.m), r.n_total, r.mean, r.sd, r.p5, r.p50, r.p95, r.pct_basis, r.n_surveys, r.mean_min, r.mean_max, r.year_min, r.year_max, r.sources]));
     $("#cmp-count").replaceChildren(`${rows.length} group${rows.length === 1 ? "" : "s"} `, h("small", {}, `${label(st.m)} · ${sexes().map(s => SEX_LABEL[s]).join(" & ")}`));
     const shown = st.all ? rows : rows.slice(0, 40);
     const legend = st.sex === "MF" ? h("div", { class: "legend" }, ["M", "F"].map(s => h("span", { class: "key" }, h("span", { class: "swatch-dot", style: { background: `var(${SEX_COLOR[s]})` } }), SEX_LABEL[s]))) : "";
     const table = dataTable({
-      columns: ["Country", "Role", "Sex", "People", "Mean", "SD", "Surveys", "First year", "Sources"], numeric: new Set(["People", "Mean", "SD", "Surveys"]), pageSize: 50,
-      rows: rows.map(r => [r.country, r.service_role, SEX_LABEL[r.sex], r.n_total, r.mean, r.sd || null, r.n_surveys, r.year_min === r.year_max ? String(r.year_min) : `${r.year_min}–${r.year_max}`, r.sources]),
+      columns: ["Country", "Role", "Sex", "People", "Mean", "SD", "P5", "P50", "P95", "Surveys", "First year", "Sources"], numeric: new Set(["People", "Mean", "SD", "P5", "P50", "P95", "Surveys"]), pageSize: 50,
+      rows: rows.map(r => [r.country, r.service_role, SEX_LABEL[r.sex], r.n_total, r.mean, r.sd || null, r.p5, r.p50, r.p95, r.n_surveys, r.year_min === r.year_max ? String(r.year_min) : `${r.year_min}–${r.year_max}`, r.sources]),
       wrap: new Set(["Sources"]),
-      cellRender: (c, v) => c === "People" || c === "Surveys" ? fmtInt(v) : c === "Mean" || c === "SD" ? fmtFixed(v, 1) : c === "Sources" ? sourceLinks(String(v)) : (v ?? "—") });
+      cellRender: (c, v, row) => {
+        if (c === "People" || c === "Surveys") return fmtInt(v);
+        if (c === "Mean" || c === "SD") return fmtFixed(v, 1);
+        if (c === "P5" || c === "P50" || c === "P95") {
+          if (v == null) return "—";
+          const est = basisOf.get(`${row[0]}|${row[1]}|${row[2]}`) !== "reported";
+          return est ? h("span", { title: "Estimated: not reported by every source, so taken from mean and SD (normal approximation) where missing" }, `≈ ${fmtFixed(v, 1)}`) : fmtFixed(v, 1);
+        }
+        return c === "Sources" ? sourceLinks(String(v)) : (v ?? "—");
+      } });
     return h("div", {},
-      h("div", { class: "toolbar" }, sortSelect(), h("span", { class: "muted small" }, `Dot = mean, line = ± 1 SD. ${rows.length > 40 && !st.all ? "Showing the first 40." : ""}`),
+      h("div", { class: "toolbar" }, sortSelect(), rangeSelect(),
+        h("span", { class: "muted small" }, `${st.range === "sd" ? "Dot = mean, line = ± 1 SD." : "Dot = mean, tick = median (P50), line = 5th to 95th percentile."} ${rows.length > 40 && !st.all ? "Showing the first 40." : ""}`),
         rows.length > 40 ? h("button", { class: "btn small", type: "button", onclick: () => { st.all = !st.all; render(false); } }, st.all ? "Show top 40" : `Show all ${rows.length}`) : null),
-      h("div", { class: topClass() }, bodyCard(rows), h("div", { style: { minWidth: 0 } }, legend, dotplot(shown, { unit: unitOf(st.m), measure: label(st.m) }))),
-      h("h3", { style: { fontSize: ".95rem", margin: "16px 0 6px" } }, "Table"), table);
+      h("div", { class: topClass() }, bodyCard(rows), h("div", { style: { minWidth: 0 } }, legend, dotplot(shown, { unit: unitOf(st.m), measure: label(st.m), range: st.range }))),
+      h("h3", { style: { fontSize: ".95rem", margin: "16px 0 6px" } }, "Table"),
+      h("p", { class: "small muted", style: { margin: "0 0 6px" } }, "P5, P50 and P95 are the 5th, 50th (median) and 95th percentiles. A group made of several surveys combines them as a mixture weighted by sample size. ≈ marks values that are not reported by every source and were estimated from the mean and SD (normal approximation)."),
+      table);
   }
 
   function sourceLinks(text) {
@@ -183,7 +199,7 @@ export async function initCompare() {
       rows.length ? h("div", { class: "table-wrap" }, h("table", { class: "data" },
         h("thead", {}, h("tr", {}, h("th", {}, "Country"), h("th", {}, "Role"), h("th", { class: "num" }, "People"), keys.map(k => h("th", { class: "num" }, label(k), h("div", { class: "small muted", style: { fontWeight: 400 } }, unitOf(k)))))),
         h("tbody", {}, rows.map(r => h("tr", {}, h("td", {}, r.country), h("td", {}, r.role), h("td", { class: "num" }, fmtInt(r.n)),
-          keys.map(k => { const v = r.vals[k]; return h("td", { class: "num", style: v ? { background: shade(rank(k, v.mean)) } : {}, title: v ? `${v.n_surveys} survey(s), n=${fmtInt(v.n_total)}` : "not available" }, v ? fmtNum(v.mean, 1) : "—"); }))))))
+          keys.map(k => { const v = r.vals[k]; return h("td", { class: "num", style: v ? { background: shade(rank(k, v.mean)) } : {}, title: v ? `${v.n_surveys} survey(s), n=${fmtInt(v.n_total)}${v.p5 != null ? `; P5 ${fmtNum(v.p5, 1)}, P50 ${fmtNum(v.p50, 1)}, P95 ${fmtNum(v.p95, 1)}` : ""}` : "not available" }, v ? fmtNum(v.mean, 1) : "—"); }))))))
         : h("div", { class: "empty" }, "No groups with two or more of these measures for this selection."));
   }
 
@@ -192,20 +208,20 @@ export async function initCompare() {
     const sexClause = st.sex === "MF" ? "AND sex IN ('M','F')" : `AND sex = '${st.sex}'`;
     const data = await objects(`SELECT * FROM aggregates WHERE measure_key = ? AND is_primary = 1 ${sexClause} ${civ} ORDER BY country, service_role, year_start`, [st.m]);
     const rows = data.filter(r => (!st.countries.length || st.countries.includes(r.country)) && (!st.roles.length || st.roles.includes(r.service_role)) && (r.n || 0) >= st.minN);
-    const cols = ["Country", "Role", "Population", "Sex", "Year", "People", "Mean", "SD", "P5", "P95", "Source", "Quality"];
+    const cols = ["Country", "Role", "Population", "Sex", "Year", "People", "Mean", "SD", "P5", "P50", "P95", "Source", "Quality"];
     const qual = { computed: "Computed from raw data", A: "A: tables parsed and checked", B: "B: OCR, passed consistency checks", C: "C: read from a web article" };
-    lastExport = () => toCSV(["country", "role", "population", "sex", "year", "people", "mean", "sd", "p5", "p95", "source_id", "source_file", "page", "quality", "notes"],
-      rows.map(r => [r.country, r.service_role, r.population, r.sex, r.year_start, r.n, r.mean, r.sd, r.p5, r.p95, r.source_id, r.source_file, r.page, r.origin, r.notes]));
+    lastExport = () => toCSV(["country", "role", "population", "sex", "year", "people", "mean", "sd", "p5", "p50", "p95", "source_id", "source_file", "page", "quality", "notes"],
+      rows.map(r => [r.country, r.service_role, r.population, r.sex, r.year_start, r.n, r.mean, r.sd, r.p5, r.p50, r.p95, r.source_id, r.source_file, r.page, r.origin, r.notes]));
     $("#cmp-count").replaceChildren(`${fmtInt(rows.length)} population${rows.length === 1 ? "" : "s"} `, h("small", {}, `${label(st.m)} · ${sexes().map(s => SEX_LABEL[s]).join(" & ")}`));
     return h("div", {},
       h("div", { class: topClass() }, bodyCard(rows),
         h("p", { class: "small muted", style: { marginTop: 0 } }, "One row per population in each source. Where a survey appears in several sources, the best one is shown (computed from raw data, then checked tables, then OCR). Source links open the paper; the page number is where the table is. The body map shows the n-weighted mean of the populations listed.")),
-      dataTable({ columns: cols, numeric: new Set(["Year", "People", "Mean", "SD", "P5", "P95"]), pageSize: 50, wrap: new Set(["Population"]),
-        rows: rows.map(r => [r.country, r.service_role, r.population, SEX_LABEL[r.sex], r.year_start, r.n, r.mean, r.sd, r.p5, r.p95, [r.source_id, r.source_file, r.page], r.origin]),
+      dataTable({ columns: cols, numeric: new Set(["Year", "People", "Mean", "SD", "P5", "P50", "P95"]), pageSize: 50, wrap: new Set(["Population"]),
+        rows: rows.map(r => [r.country, r.service_role, r.population, SEX_LABEL[r.sex], r.year_start, r.n, r.mean, r.sd, r.p5, r.p50, r.p95, [r.source_id, r.source_file, r.page], r.origin]),
         cellRender: (c, v) => {
           if (c === "Year") return v ?? "—";
           if (c === "People") return v == null ? "—" : fmtInt(v);
-          if (["Mean", "SD", "P5", "P95"].includes(c)) return fmtFixed(v, 1);
+          if (["Mean", "SD", "P5", "P50", "P95"].includes(c)) return fmtFixed(v, 1);
           if (c === "Source") {
             const [sid, file, page] = v, p = paperByFile[file];
             const href = p ? `${p.open_copy_url}${page ? `#page=${page}` : ""}` : /^https?:/.test(file) ? file : file.startsWith("data/") ? file : null;
