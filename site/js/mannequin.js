@@ -1,5 +1,6 @@
 // Body map: a mannequin (male or female) that shows where a measurement is taken and zooms in to that part of the body.
 import { h, fmtInt, fmtFixed } from "./util.js";
+import { DATA } from "./bodydata.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const s = (tag, attrs = {}, ...kids) => {
@@ -11,54 +12,15 @@ const s = (tag, attrs = {}, ...kids) => {
 
 // ---- geometry ---------------------------------------------------------------------------------
 // Standing figure, seen from the front: floor at y=450, top of head at y=10, so a height of f x stature sits at Y(f).
+// The figures are shaded views of two CC0 human base meshes (Blender Studio): standing from the front, seated from the side.
+// bodydata.js holds the landmarks and silhouettes measured on those meshes, in the same SVG units.
 const Y = f => 450 - 440 * f;
 const CX = 100;
 // 3:4 viewports; the whole figure fits in BASE, zooming shrinks the box around the marker.
 const BASE = { stand: { x: -72.5, y: -5, w: 345, h: 460 }, sit: { x: 0, y: 0, w: 300, h: 400 } };
-const SEAT = 258, FLOOR = 360;
-
-function closed(pts) {
-  const n = pts.length;
-  let d = `M${pts[0]}`;
-  for (let i = 0; i < n; i++) {
-    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
-    d += `C${p1[0] + (p2[0] - p0[0]) / 6},${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6},${p2[1] - (p3[1] - p1[1]) / 6} ${p2}`;
-  }
-  return d + "Z";
-}
-// Right half of a symmetric outline (first and last point on the centre line) -> full closed outline.
-const sym = R => [...R.map(([x, y]) => [CX + x, y]), ...R.slice(1, -1).reverse().map(([x, y]) => [CX - x, y])];
-const mirror = p => p.l ? { l: [200 - p.l[0], p.l[1], 200 - p.l[2], p.l[3], p.l[4]] } : { e: [200 - p.e[0], ...p.e.slice(1)] };
-
-function standParts(sex) {
-  const F = sex === "F";
-  const torso = closed(sym(F
-    ? [[0, 86], [24, 90], [49, 95], [51, 105], [45, 132], [38, 160], [34, 177], [41, 205], [50, 224], [44, 243], [0, 247]]
-    : [[0, 86], [26, 90], [55, 95], [57, 105], [48, 130], [43, 160], [39, 178], [44, 210], [46, 224], [40, 243], [0, 247]]));
-  const half = F
-    ? [{ l: [146, 102, 154, 170, 17] }, { l: [154, 170, 160, 240, 12] }, { l: [160, 240, 162, 276, 9] },
-       { l: [79, 238, 81, 322, 37] }, { l: [81, 326, 84, 432, 22] }, { e: [85, 444, 11, 6.5] }]
-    : [{ l: [150, 102, 159, 172, 19] }, { l: [159, 172, 165, 243, 14] }, { l: [165, 243, 167, 282, 10] },
-       { l: [79, 238, 81, 322, 38] }, { l: [81, 326, 84, 432, 24] }, { e: [85, 444, 11, 6.5] }];
-  // The left-hand limbs are drawn from the right-hand ones by mirroring about x = 100.
-  const rightArm = half.slice(0, 3), leg = half.slice(3);
-  return [
-    { e: [CX, 38, F ? 17.5 : 19, F ? 27.5 : 28.5] }, { d: "M91 58L109 58L112 94L88 94Z" }, { d: torso },
-    ...rightArm, ...rightArm.map(mirror), ...leg, ...leg.map(mirror),
-  ];
-}
-
-function sitParts(sex) {
-  const F = sex === "F";
-  const torso = closed(F
-    ? [[100, 92], [126, 96], [140, 112], [147, 128], [138, 152], [134, 185], [140, 216], [140, SEAT], [88, SEAT], [72, 234], [76, 196], [82, 150], [88, 112]]
-    : [[100, 92], [128, 96], [141, 118], [142, 150], [138, 185], [141, 216], [140, SEAT], [88, SEAT], [76, 234], [78, 196], [84, 150], [88, 112]]);
-  return [
-    { e: [120, 56, F ? 21.5 : 23, F ? 28 : 29] }, { d: "M141 52L150 62L141 65Z" }, { l: [116, 82, 113, 100, 17] }, { d: torso },
-    { l: [110, 106, 116, 184, F ? 15 : 17] }, { l: [116, 184, 170, 190, F ? 11 : 13] }, { l: [170, 190, 196, 192, 9] },
-    { l: [98, 236, 205, 236, F ? 42 : 44] }, { l: [205, 236, 201, 336, F ? 26 : 28] }, { l: [201, 336, 200, 348, 19] }, { l: [200, 352, 243, 352, 14] },
-  ];
-}
+const SEAT = 258;
+const dataOf = sex => DATA[sex === "F" ? "F" : "M"];
+const floorOf = sex => dataOf(sex).G.floorY;
 
 // ---- where each measure is taken ----------------------------------------------------------------
 const vdim = (x, y1, y2, leads = [], dots = []) => ({ k: "v", x, y1, y2, leads, dots });
@@ -66,85 +28,93 @@ const hdim = (y, x1, x2, leads = [], dots = []) => ({ k: "h", y, x1, x2, leads, 
 const circ = (cx, cy, rx, ry = rx * .2, v = false) => ({ k: "c", cx, cy, rx, ry, v });
 const stand = (...m) => ({ pose: "stand", m });
 const sit = (...m) => ({ pose: "sit", m });
-// Height of a landmark above the floor (fraction of stature); dimension line on the left, landmark at x = lx.
-const heightTo = (f, lx) => stand(vdim(14, Y(f), 450, [[14, Y(f), lx, Y(f)]], [[lx, Y(f)]]));
-const breadth = (y, half) => stand(hdim(y, CX - half, CX + half, [], [[CX - half, y], [CX + half, y]]));
-// Distance from the seat up to a landmark, seated.
-const seatTo = (x, y, lx) => sit(vdim(x, y, SEAT, [[x, y, lx, y]], [[lx, y]]));
-const floorTo = (x, y, lx) => sit(vdim(x, y, FLOOR, [[x, y, lx, y]], [[lx, y]]));
+const near = (o, y) => o[Math.round(y / 2) * 2];
 
-const SPEC = {
-  stature: heightTo(1, CX), cervicale_height: heightTo(.85, 93), suprasternale_height: heightTo(.815, CX), acromion_height: heightTo(.818, 45),
-  trochanterion_height: heightTo(.53, 56), iliocristale_height: heightTo(.61, 62), crotch_height: heightTo(.47, CX), waist_height: heightTo(.62, 62),
-  mass: { pose: "stand", m: [], tint: true }, bmi: { pose: "stand", m: [], tint: true }, body_fat_percent: { pose: "stand", m: [], tint: true },
+function buildSpec(sex) {
+  const D = dataOf(sex), L = D.L, G = D.G, dz = G.eye[1] - L.eyeY;
+  const hw = y => near(D.tw, y) ?? 40;
+  const keys = Object.keys(D.runs).map(Number).sort((a, b) => a - b);
+  const rowRuns = y => D.runs[keys.reduce((best, k) => Math.abs(k - y) < Math.abs(best - y) ? k : best, keys[0])];
+  const midRun = y => rowRuns(y).find(([a, b]) => a <= CX && CX <= b) || [CX - 30, CX + 30];
+  const right = y => rowRuns(y).filter(([a, b]) => a > CX || (a + b) / 2 > CX + 1);
+  const outer = y => { const [a, b] = midRun(y); return (b - a) / 2; };
+  const leg = y => { const r = right(y).filter(([a, b]) => (a + b) / 2 < 152 && b > CX); return r.length ? r.reduce((p, q) => Math.abs((q[0] + q[1]) / 2 - 130) < Math.abs((p[0] + p[1]) / 2 - 130) ? q : p) : [CX + 8, CX + 38]; };
+  const armPts = [[L.shoulderX, Y(.815)], [L.elbowX, L.elbowY], [L.wristX, L.wristY], [L.fingerX, L.fingerY]];
+  const armX = y => { for (let i = 0; i < 3; i++) { const [x0, y0] = armPts[i], [x1, y1] = armPts[i + 1]; if (y <= y1 || i === 2) return x0 + (x1 - x0) * Math.min(1, Math.max(0, (y - y0) / (y1 - y0))); } };
+  const armHalf = (y, dflt) => { const r = right(y).filter(([a, b]) => (a + b) / 2 > armX(y) - 12 && (a + b) / 2 < armX(y) + 12); return r.length ? (r[0][1] - r[0][0]) / 2 : dflt; };
+  const [yb, hb] = (() => { let best = [90, 0]; for (let y = 84; y <= 120; y += 2) if (outer(y) > best[1]) best = [y, outer(y)]; return best; })();
+  const brow = L.eyeY - 9, headHalf = outer(brow);
+  const heightTo = (y, lx) => stand(vdim(14, y, 450, [[14, y, lx, y]], [[lx, y]]));
+  const breadth = (y, half) => stand(hdim(y, CX - half, CX + half, [], [[CX - half, y], [CX + half, y]]));
+  const legCirc = y => { const [a, b] = leg(y); return stand(circ((a + b) / 2, y, (b - a) / 2)); };
+  const armCirc = (y, dflt) => stand(circ(armX(y), y, armHalf(y, dflt), armHalf(y, dflt) * .22));
+  const seatTo = (x, y, lx) => sit(vdim(x, y, SEAT, [[x, y, lx, y]], [[lx, y]]));
+  const yf = G.floorY + 14, yBut = L.buttY + dz;
+  const pop = [G.kneeJoint[0] - 13, G.kneeJoint[1] + 19];
+  const [ex, ey] = G.elbow, [fx, fy] = G.finger, yFore = Math.max(fy, ey) + 14;
+  const handLen = .108 * 440, wy = L.fingerY - handLen, handMid = wy + .55 * handLen, hx = y => L.wristX + (L.fingerX - L.wristX) * Math.min(1, Math.max(0, (y - L.wristY) / (L.fingerY - L.wristY)));
+  const hy = wy + .5 * handLen, hhalf = .044 * L.u, h0 = armX(hy) - hhalf, h1 = armX(hy) + hhalf;
+  const foot = leg(440);
+  return {
+    stature: heightTo(10, CX), cervicale_height: heightTo(Y(.85), CX - hw(Y(.85))), suprasternale_height: heightTo(Y(.815), CX), acromion_height: heightTo(L.acromionY, 200 - L.acromionX),
+    trochanterion_height: heightTo(Y(.53), CX - outer(Y(.53))), iliocristale_height: heightTo(Y(.61), CX - hw(Y(.61))), crotch_height: heightTo(L.crotchY, CX), waist_height: heightTo(L.waistY, CX - hw(L.waistY)),
+    mass: { pose: "stand", m: [], tint: true }, bmi: { pose: "stand", m: [], tint: true }, body_fat_percent: { pose: "stand", m: [], tint: true },
 
-  chest_circumference: stand(circ(CX, 133, 50)), waist_circumference: stand(circ(CX, 176, 41)), buttock_circumference: stand(circ(CX, 224, 49)),
-  neck_circumference: stand(circ(CX, 86, 14)), shoulder_circumference: stand(circ(CX, 108, 62, 10)), head_circumference: stand(circ(CX, 28, 20, 4)),
-  thigh_circumference: stand(circ(79, 262, 21)), lower_thigh_circumference: stand(circ(80, 305, 17)), knee_circumference: stand(circ(81, 325, 17)),
-  calf_circumference: stand(circ(82, 362, 14)), ankle_circumference: stand(circ(84, 425, 12)), heel_ankle_circumference: stand(circ(84, 437, 14)),
-  wrist_circumference: stand(circ(165, 244, 8)), biceps_circumference_flexed: stand(circ(156, 125, 12)), biceps_circumference_relaxed: stand(circ(156, 125, 12)),
-  forearm_circumference_flexed: stand(circ(161, 193, 10)), hand_circumference: stand(circ(167, 268, 7)),
-  vertical_trunk_circumference: stand(circ(CX, 170, 28, 98, true)), scye_circumference: stand(circ(148, 112, 9, 22, true)),
-  ball_of_foot_circumference: sit(circ(222, 352, 8, 8, true)),
+    chest_circumference: stand(circ(CX, L.chestY, hw(L.chestY))), waist_circumference: stand(circ(CX, L.waistY, hw(L.waistY))), buttock_circumference: stand(circ(CX, L.buttY, outer(L.buttY))),
+    neck_circumference: stand(circ(CX, L.neckY, hw(L.neckY))), shoulder_circumference: stand(circ(CX, yb + 8, hb, 10)), head_circumference: stand(circ(CX, brow, headHalf, 4)),
+    thigh_circumference: legCirc(276), lower_thigh_circumference: legCirc(305), knee_circumference: legCirc(L.kneeY),
+    calf_circumference: legCirc(366), ankle_circumference: legCirc(L.ankleY), heel_ankle_circumference: legCirc(438),
+    wrist_circumference: armCirc(wy + 3, 8), biceps_circumference_flexed: armCirc(Y(.815) + .45 * (L.elbowY - Y(.815)), 13), biceps_circumference_relaxed: armCirc(Y(.815) + .45 * (L.elbowY - Y(.815)), 13),
+    forearm_circumference_flexed: armCirc(L.elbowY + .2 * (L.wristY - L.elbowY), 11), hand_circumference: stand(circ(armX(handMid), handMid, hhalf * .9, hhalf * .2)),
+    vertical_trunk_circumference: stand(circ(CX, (L.neckY + L.crotchY) / 2, hw(L.waistY) * .7, (L.crotchY - L.neckY) / 2, true)),
+    scye_circumference: stand(circ(CX + hw(122) + 4, 116, 8, 22, true)),
+    ball_of_foot_circumference: sit(circ(G.footToeBall, G.floorY - 7, 7, 7, true)),
 
-  bideltoid_breadth: breadth(98, 62), biacromial_breadth: breadth(90, 49), chest_breadth: breadth(133, 48), hip_breadth: breadth(222, 46),
-  hip_breadth_sitting: breadth(222, 46), waist_breadth: breadth(177, 39), head_breadth: breadth(40, 19), bizygomatic_breadth: breadth(46, 16),
-  interpupillary_breadth: breadth(36, 9),
-  hand_breadth: stand(hdim(268, 161, 173, [], [[161, 268], [173, 268]])), foot_breadth: stand(hdim(444, 74, 96, [], [[74, 444], [96, 444]])),
-  hand_length: stand(vdim(180, 245, 283, [[180, 245, 163, 245], [180, 283, 168, 283]], [[163, 245], [168, 283]])),
-  palm_length: stand(vdim(180, 245, 268, [[180, 245, 163, 245], [180, 268, 168, 268]], [[163, 245], [168, 268]])),
-  span: stand(hdim(120, -40, 240, [], [[-40, 120], [240, 120]])),
+    bideltoid_breadth: breadth(yb, hb), biacromial_breadth: breadth(L.acromionY, L.acromionX - CX), chest_breadth: breadth(L.chestY, hw(L.chestY)), hip_breadth: breadth(L.hipY, outer(L.hipY)),
+    hip_breadth_sitting: breadth(L.hipY, outer(L.hipY)), waist_breadth: breadth(L.waistY, hw(L.waistY)), head_breadth: breadth(brow, headHalf), bizygomatic_breadth: breadth(L.eyeY + 3, headHalf * .9),
+    interpupillary_breadth: breadth(L.eyeY, 8),
+    hand_breadth: stand(hdim(hy, h0, h1, [], [[h0, hy], [h1, hy]])), foot_breadth: stand(hdim(444, foot[0], foot[1], [], [[foot[0], 444], [foot[1], 444]])),
+    hand_length: stand(vdim(L.fingerX + 16, wy, L.fingerY, [[L.fingerX + 16, wy, armX(wy) + 3, wy], [L.fingerX + 16, L.fingerY, L.fingerX + 3, L.fingerY]], [[armX(wy) + 3, wy], [L.fingerX + 3, L.fingerY]])),
+    palm_length: stand(vdim(L.fingerX + 16, wy, handMid, [[L.fingerX + 16, wy, armX(wy) + 3, wy], [L.fingerX + 16, handMid, armX(handMid) + 8, handMid]], [[armX(wy) + 3, wy], [armX(handMid) + 8, handMid]])),
+    span: stand(hdim(L.acromionY + 8, -40, 240, [], [[-40, L.acromionY + 8], [240, L.acromionY + 8]])),
 
-  sitting_height: seatTo(40, 27, 97), eye_height_sitting: seatTo(40, 50, 138), acromion_height_sitting: seatTo(40, 104, 108),
-  elbow_rest_height: seatTo(50, 192, 116), thigh_clearance: sit(vdim(165, 214, SEAT, [], [[165, 214]])),
-  knee_height_sitting: floorTo(250, 214, 220), popliteal_height: sit(vdim(176, SEAT, FLOOR, [], [[176, SEAT]])),
-  buttock_knee_length: sit(hdim(290, 76, 227, [[76, 240, 76, 290], [227, 258, 227, 290]], [[76, 240], [227, 236]])),
-  buttock_popliteal_length: sit(hdim(310, 76, 190, [[76, 240, 76, 310], [190, 258, 190, 310]], [[76, 240], [190, SEAT]])),
-  chest_depth: sit(hdim(135, 85, 142, [], [[85, 135], [142, 135]])), buttock_depth: sit(hdim(236, 76, 142, [], [[76, 236], [142, 236]])),
-  shoulder_elbow_length: sit(vdim(104, 104, 192, [], [[104, 104], [116, 192]])),
-  forearm_hand_length: sit(hdim(206, 116, 201, [[116, 192, 116, 206], [201, 194, 201, 206]], [[116, 190], [201, 192]])),
-  foot_length: sit(hdim(372, 193, 250, [[193, 360, 193, 372], [250, 360, 250, 372]], [[193, 359], [250, 359]])),
-  head_length: sit(hdim(46, 97, 143, [], [[97, 46], [143, 46]])), menton_sellion_length: sit(vdim(150, 46, 84, [[150, 46, 142, 46], [150, 84, 138, 84]], [[142, 46], [138, 84]])),
-  ear_length: sit(vdim(100, 48, 68, [], [[100, 48], [100, 68]])),
-};
+    sitting_height: seatTo(40, G.headTop[1], G.headTop[0]), eye_height_sitting: seatTo(40, G.eye[1], G.eye[0] + 4), acromion_height_sitting: seatTo(40, G.acromion[1], G.acromion[0]),
+    elbow_rest_height: seatTo(52, G.olecranonY, ex), thigh_clearance: sit(vdim(G.thighTop[0], G.thighTop[1], SEAT, [], [[G.thighTop[0], G.thighTop[1]]])),
+    knee_height_sitting: sit(vdim(G.kneeFront[0] + 16, G.kneeTop[1], G.floorY, [[G.kneeFront[0] + 16, G.kneeTop[1], G.kneeTop[0], G.kneeTop[1]]], [[G.kneeTop[0], G.kneeTop[1]]])),
+    popliteal_height: sit(vdim(pop[0] - 16, pop[1], G.floorY, [[pop[0] - 16, pop[1], pop[0], pop[1]]], [pop])),
+    buttock_knee_length: sit(hdim(yf, 76, G.kneeFront[0], [[76, yBut, 76, yf], [G.kneeFront[0], G.kneeFront[1], G.kneeFront[0], yf]], [[76, yBut], G.kneeFront])),
+    buttock_popliteal_length: sit(hdim(yf, 76, pop[0], [[76, yBut, 76, yf], [pop[0], pop[1], pop[0], yf]], [[76, yBut], pop])),
+    chest_depth: sit(hdim(L.chestY + dz, near(D.td, L.chestY)[1], near(D.td, L.chestY)[0], [], [[near(D.td, L.chestY)[1], L.chestY + dz], [near(D.td, L.chestY)[0], L.chestY + dz]])),
+    buttock_depth: sit(hdim(yBut, near(D.td, L.buttY)[1], near(D.td, L.buttY)[0], [], [[near(D.td, L.buttY)[1], yBut], [near(D.td, L.buttY)[0], yBut]])),
+    shoulder_elbow_length: sit(vdim(56, G.acromion[1], ey, [[56, G.acromion[1], G.acromion[0], G.acromion[1]], [56, ey, ex, ey]], [G.acromion, G.elbow])),
+    forearm_hand_length: sit(hdim(yFore, ex, fx, [[ex, ey, ex, yFore], [fx, fy, fx, yFore]], [G.elbow, G.finger])),
+    foot_length: sit(hdim(yf, G.heel, G.toe, [[G.heel, G.floorY, G.heel, yf], [G.toe, G.floorY, G.toe, yf]], [[G.heel, G.floorY], [G.toe, G.floorY]])),
+    head_length: sit(hdim(G.browZ, G.opistho, G.glabellaY, [], [[G.opistho, G.browZ], [G.glabellaY, G.browZ]])),
+    menton_sellion_length: sit(vdim(G.sellion[0] + 14, G.sellion[1], G.menton[1], [[G.sellion[0] + 14, G.sellion[1], G.sellion[0], G.sellion[1]], [G.sellion[0] + 14, G.menton[1], G.menton[0], G.menton[1]]], [G.sellion, G.menton])),
+    ear_length: sit(vdim(G.ear[0] - 16, G.ear[1], G.ear[2], [[G.ear[0] - 16, G.ear[1], G.ear[0], G.ear[1]], [G.ear[0] - 16, G.ear[2], G.ear[0], G.ear[2]]], [[G.ear[0], G.ear[1]], [G.ear[0], G.ear[2]]])),
+    _regions: [
+      [/foot|heel|instep|toe|ball_of/, "sit", { cx: (G.heel + G.toe) / 2, cy: G.floorY - 6, rx: (G.toe - G.heel) / 2 + 8, ry: 16 }],
+      [/head|ear|face|zygom|sellion|menton|tragion|nose|mouth|chin|eye|interpupil|orbit|cranial|brow|lip/, "stand", { cx: CX, cy: 42, rx: 30, ry: 38 }],
+      [/hand|palm|thumb|finger|knuckle|grip/, "stand", { cx: (L.wristX + L.fingerX) / 2, cy: (L.wristY + L.fingerY) / 2, rx: 16, ry: 30 }],
+      [/thigh|knee|calf|leg|inseam|crotch|ankle|tibi|popliteal/, "stand", { cx: 200 - (leg(340)[0] + leg(340)[1]) / 2, cy: (L.crotchY + 440) / 2, rx: 30, ry: (440 - L.crotchY) / 2 + 6 }],
+      [/sleeve|arm|elbow|biceps|forearm|axilla/, "stand", { cx: (L.shoulderX + L.wristX) / 2, cy: (Y(.815) + L.wristY) / 2, rx: 26, ry: (L.wristY - Y(.815)) / 2 + 8 }],
+      [/waist|chest|hip|buttock|trunk|torso|rise|back|bust|shoulder|scye|stern|rib/, "stand", { cx: CX, cy: (yb + L.crotchY) / 2, rx: hb + 4, ry: (L.crotchY - yb) / 2 + 4 }],
+    ],
+  };
+}
 
-// Measures without an exact landmark: highlight the body region they belong to.
-const REGIONS = [
-  [/foot|heel|instep|toe|ball_of/, "sit", { cx: 222, cy: 350, rx: 38, ry: 16 }],
-  [/head|ear|face|zygom|sellion|menton|tragion|nose|mouth|chin|eye|interpupil|orbit|cranial|brow|lip/, "stand", { cx: CX, cy: 38, rx: 30, ry: 38 }],
-  [/hand|palm|thumb|finger|knuckle|grip/, "stand", { cx: 167, cy: 268, rx: 16, ry: 28 }],
-  [/thigh|knee|calf|leg|inseam|crotch|ankle|tibi|popliteal/, "stand", { cx: 82, cy: 340, rx: 30, ry: 105 }],
-  [/sleeve|arm|elbow|biceps|forearm|axilla/, "stand", { cx: 158, cy: 175, rx: 22, ry: 95 }],
-  [/waist|chest|hip|buttock|trunk|torso|rise|back|bust|shoulder|scye|stern|rib/, "stand", { cx: CX, cy: 160, rx: 60, ry: 85 }],
-];
-
-export function specFor(key) {
+const specCache = {};
+export function specFor(key, sex = "M") {
+  const sx = sex === "F" ? "F" : "M";
+  const SPEC = specCache[sx] || (specCache[sx] = buildSpec(sx));
   const k = key.replace(/^other:/, "");
-  if (SPEC[k]) return { ...SPEC[k], kind: "exact" };
+  if (SPEC[k] && k !== "_regions") return { ...SPEC[k], kind: "exact" };
   if (/(^|_)(mass|weight|bmi|fat)(_|$)/.test(k)) return { ...SPEC.mass, kind: "exact" };
-  const hit = REGIONS.find(([re]) => re.test(k));
+  const hit = SPEC._regions.find(([re]) => re.test(k));
   return hit ? { pose: hit[1], m: [{ k: "r", ...hit[2] }], kind: "region" } : { pose: "stand", m: [], kind: "none" };
 }
 
 // ---- drawing --------------------------------------------------------------------------------------
-const OUTLINE = 2.6;
-function partsGroup(parts, mode, extra = {}) {
-  const g = s("g", extra);
-  for (const p of parts) {
-    const stroke = mode === "line";
-    if (p.l) {
-      const [x1, y1, x2, y2, w] = p.l;
-      g.append(s("line", { x1, y1, x2, y2, "stroke-width": w + (stroke ? OUTLINE : 0), "stroke-linecap": "round", stroke: stroke ? "var(--text-3)" : mode === "tint" ? "var(--accent)" : "var(--surface)" }));
-    } else {
-      const el = p.e ? s("ellipse", { cx: p.e[0], cy: p.e[1], rx: p.e[2], ry: p.e[3] }) : s("path", { d: p.d });
-      if (stroke) { el.setAttribute("fill", "var(--text-3)"); el.setAttribute("stroke", "var(--text-3)"); el.setAttribute("stroke-width", OUTLINE); el.setAttribute("stroke-linejoin", "round"); }
-      else el.setAttribute("fill", mode === "tint" ? "var(--accent)" : "var(--surface)");
-      g.append(el);
-    }
-  }
-  return g;
-}
-
 const ACC = { stroke: "var(--accent)", fill: "none", "vector-effect": "non-scaling-stroke", "stroke-width": 2.5, "stroke-linecap": "round" };
 function markerEls(m, r) {
   const out = [], line = (x1, y1, x2, y2, extra = {}) => s("line", { ...ACC, x1, y1, x2, y2, ...extra });
@@ -206,18 +176,25 @@ function animate(svg, key, to) {
   requestAnimationFrame(step);
 }
 
-function figure(sexCode, spec, zoom, name) {
+let maskId = 0;
+function figure(sexCode, key, zoom, name) {
   const sex = sexCode === "F" ? "F" : "M";
-  const parts = spec.pose === "stand" ? standParts(sex) : sitParts(sex);
+  const spec = specFor(key, sex);
+  const sp = dataOf(sex).sprite[spec.pose === "stand" ? "stand" : "sit"];
   const box = zoom ? targetBox(spec.pose, spec.m) : BASE[spec.pose];
   const r = box.w / 62;
   const svg = s("svg", { role: "img", "aria-label": `${name}: where it is measured on the ${sex === "F" ? "female" : "male"} body`, preserveAspectRatio: "xMidYMid meet" });
   const B = BASE[spec.pose];
+  const img = () => s("image", { href: `img/body/${sex}_${spec.pose === "stand" ? "stand" : "sit"}.webp`, x: sp.x, y: sp.y, width: sp.w, height: sp.h });
   if (spec.pose === "stand") svg.append(s("line", { x1: B.x + 20, y1: 451, x2: B.x + B.w - 20, y2: 451, stroke: "var(--line-strong)", "stroke-width": 1.2, "vector-effect": "non-scaling-stroke" }));
   else svg.append(
-    s("path", { d: `M66 110V${SEAT + 1}H232M20 ${FLOOR}H290`, fill: "none", stroke: "var(--line-strong)", "stroke-width": 1.4, "vector-effect": "non-scaling-stroke" }));
-  svg.append(partsGroup(parts, "line"), partsGroup(parts, "fill"));
-  if (spec.tint) svg.append(partsGroup(parts, "tint", { opacity: .32 }));
+    s("path", { d: `M66 110V${SEAT + 1}H232M20 ${floorOf(sex)}H290`, fill: "none", stroke: "var(--line-strong)", "stroke-width": 1.4, "vector-effect": "non-scaling-stroke" }));
+  svg.append(img());
+  if (spec.tint) {
+    const id = `mq-mask-${++maskId}`;
+    svg.append(s("mask", { id, maskUnits: "userSpaceOnUse", x: sp.x, y: sp.y, width: sp.w, height: sp.h }, img()),
+      s("rect", { x: sp.x, y: sp.y, width: sp.w, height: sp.h, fill: "var(--accent)", opacity: .45, mask: `url(#${id})` }));
+  }
   svg.append(s("g", {}, ...spec.m.flatMap(m => markerEls(m, r))));
   animate(svg, `${sexCode}|${spec.pose}`, { ...box, pose: spec.pose });
   return svg;
@@ -225,7 +202,7 @@ function figure(sexCode, spec, zoom, name) {
 
 /** figures: [{ sex: "M" | "F" | "both", label, color, mean, people, groups }] */
 export function bodyMap({ key, label, unit, figures, zoom, onZoom }) {
-  const spec = specFor(key);
+  const spec = specFor(key, figures[0] && figures[0].sex);
   const note = spec.kind === "region" ? "No single landmark for this measure: the body region is highlighted."
     : spec.kind === "none" ? "This measure is not tied to one place on the body."
     : spec.tint ? "A whole-body measure." : "";
@@ -234,7 +211,7 @@ export function bodyMap({ key, label, unit, figures, zoom, onZoom }) {
     h("div", { class: "mq-head" }, h("b", {}, "Where it is measured"),
       h("button", { class: "btn small", type: "button", "aria-pressed": String(zoom), onclick: onZoom, title: "Zoom the figure to the measured area" }, zoom ? "Zoom: on" : "Zoom: off")),
     h("div", { class: "mq-figs" }, figures.map(f => h("figure", { class: "mq-fig" },
-      figure(f.sex, spec, zoom, label),
+      figure(f.sex, key, zoom, label),
       h("figcaption", {},
         h("span", { class: "mq-sex" }, h("i", { class: "swatch-dot", style: { background: `var(${f.color})` } }), f.label),
         h("b", { class: "mq-val" }, fmt(f.mean)),
