@@ -246,7 +246,7 @@ export function dotplot(rows, { unit = "", measure = "", minSd = false, range = 
     const row = s("g", { tabindex: 0, class: "dot-row", "aria-label": `${r.label}: mean ${fmtNum(r.mean)} ${unit}, n ${fmtInt(r.n)}` });
     row.append(s("rect", { x: 0, y: cy - rowH / 2, width: W, height: rowH, fill: "transparent" }));
     row.append(s("text", { x: M.l - 8, y: cy + 4, "text-anchor": "end", fill: "var(--text)", "font-size": 12 }, trunc(r.label, 34)));
-    const [a, b] = span(r), hasSpan = pct && r.p5 != null && r.p95 != null || !!r.sd;
+    const [a, b] = span(r), hasSpan = (pct && r.p5 != null && r.p95 != null) || (!pct && r.sd);
     if (hasSpan) row.append(s("line", { x1: x(a), x2: x(b), y1: cy, y2: cy, stroke: `var(${r.color})`, "stroke-width": 2, "stroke-linecap": "round", opacity: .55 }));
     if (pct && r.p50 != null) row.append(s("line", { x1: x(r.p50), x2: x(r.p50), y1: cy - 6, y2: cy + 6, stroke: `var(${r.color})`, "stroke-width": 2, "stroke-linecap": "round" }));
     row.append(s("circle", { cx: x(r.mean), cy, r: 5, fill: `var(${r.color})`, stroke: "var(--surface)", "stroke-width": 2 }));
