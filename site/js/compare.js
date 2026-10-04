@@ -3,6 +3,7 @@
 import { h, $, $$, fmtInt, fmtNum, fmtFixed, dataTable, toCSV, download, readHash, writeHash, toast } from "./util.js";
 import { objects } from "./db.js";
 import { dotplot } from "./charts.js";
+import { bodyMap } from "./mannequin.js";
 
 const SEX_COLOR = { M: "--s1", F: "--s2", both: "--s3" };
 const SEX_LABEL = { M: "Men", F: "Women", both: "Mixed / not stated" };
@@ -24,7 +25,7 @@ export async function initCompare() {
   const label = k => M[k]?.label || otherLabel[k] || k.replace(/^other:/, "").replace(/_/g, " ");
   const unitOf = k => M[k]?.unit || "mm";
 
-  const fresh = () => ({ m: "stature", sex: "M", countries: [], roles: [], sub: "ranking", sort: "mean-desc", minN: 100, civilians: false, all: false, matrixRole: "" });
+  const fresh = () => ({ m: "stature", sex: "M", countries: [], roles: [], sub: "ranking", sort: "mean-desc", minN: 100, civilians: false, all: false, matrixRole: "", zoom: true });
   let st = fresh();
   const { view, params } = readHash();
   if (view === "compare" && params.get("s")) { try { st = { ...fresh(), ...JSON.parse(params.get("s")) }; } catch { /* ignore */ } }
@@ -102,6 +103,17 @@ export async function initCompare() {
   const passRoll = r => (!st.countries.length || st.countries.includes(r.country)) && (!st.roles.length || st.roles.includes(r.service_role)) && r.n_total >= st.minN;
   const sexes = () => (st.sex === "MF" ? ["M", "F"] : [st.sex]);
 
+  // Mannequin card: the selected measure on a male / female body, with the n-weighted mean of the groups currently shown.
+  function bodyCard(rows) {
+    const figures = sexes().map(sx => {
+      const rs = rows.filter(r => r.sex === sx && r.mean != null), w = r => r.n_total ?? r.n ?? 0, people = rs.reduce((a, r) => a + w(r), 0);
+      const mean = !rs.length ? null : people ? rs.reduce((a, r) => a + r.mean * w(r), 0) / people : rs.reduce((a, r) => a + r.mean, 0) / rs.length;
+      return { sex: sx, label: SEX_LABEL[sx], color: SEX_COLOR[sx], mean, people, groups: rs.length };
+    });
+    return h("div", { class: "cmp-top-card" }, bodyMap({ key: st.m, label: label(st.m), unit: unitOf(st.m), figures, zoom: st.zoom, onZoom: () => { st.zoom = !st.zoom; render(false); } }));
+  }
+  const topClass = () => "cmp-top" + (sexes().length > 1 ? " two" : "");
+
   function sortRows(rows) {
     const [k, d] = st.sort.split("-"), dir = d === "asc" ? 1 : -1;
     const get = { mean: r => r.mean, n: r => r.n_total, name: r => r.label, sd: r => r.sd, year: r => r.year_max }[k];
@@ -130,7 +142,8 @@ export async function initCompare() {
     return h("div", {},
       h("div", { class: "toolbar" }, sortSelect(), h("span", { class: "muted small" }, `Dot = mean, line = ± 1 SD. ${rows.length > 40 && !st.all ? "Showing the first 40." : ""}`),
         rows.length > 40 ? h("button", { class: "btn small", type: "button", onclick: () => { st.all = !st.all; render(false); } }, st.all ? "Show top 40" : `Show all ${rows.length}`) : null),
-      legend, dotplot(shown, { unit: unitOf(st.m), measure: label(st.m) }), h("h3", { style: { fontSize: ".95rem", margin: "16px 0 6px" } }, "Table"), table);
+      h("div", { class: topClass() }, bodyCard(rows), h("div", { style: { minWidth: 0 } }, legend, dotplot(shown, { unit: unitOf(st.m), measure: label(st.m) }))),
+      h("h3", { style: { fontSize: ".95rem", margin: "16px 0 6px" } }, "Table"), table);
   }
 
   function sourceLinks(text) {
@@ -183,7 +196,8 @@ export async function initCompare() {
       rows.map(r => [r.country, r.service_role, r.population, r.sex, r.year_start, r.n, r.mean, r.sd, r.p5, r.p95, r.source_id, r.source_file, r.page, r.origin, r.notes]));
     $("#cmp-count").replaceChildren(`${fmtInt(rows.length)} population${rows.length === 1 ? "" : "s"} `, h("small", {}, `${label(st.m)} · ${sexes().map(s => SEX_LABEL[s]).join(" & ")}`));
     return h("div", {},
-      h("p", { class: "small muted", style: { marginTop: 0 } }, "One row per population in each source. Where a survey appears in several sources, the best one is shown (computed from raw data, then checked tables, then OCR). Source links open the paper; the page number is where the table is."),
+      h("div", { class: topClass() }, bodyCard(rows),
+        h("p", { class: "small muted", style: { marginTop: 0 } }, "One row per population in each source. Where a survey appears in several sources, the best one is shown (computed from raw data, then checked tables, then OCR). Source links open the paper; the page number is where the table is. The body map shows the n-weighted mean of the populations listed.")),
       dataTable({ columns: cols, numeric: new Set(["Year", "People", "Mean", "SD", "P5", "P95"]), pageSize: 50, wrap: new Set(["Population"]),
         rows: rows.map(r => [r.country, r.service_role, r.population, SEX_LABEL[r.sex], r.year_start, r.n, r.mean, r.sd, r.p5, r.p95, [r.source_id, r.source_file, r.page], r.origin]),
         cellRender: (c, v) => {
