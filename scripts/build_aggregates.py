@@ -9,8 +9,9 @@ Inputs
 
 Outputs
   aggregates/aggregates.csv   every row, with origin, survey_group and is_primary
-  aggregates/rollup.csv       one row per country x service_role x sex x measure: n-weighted mean and
-                              pooled SD over the primary rows (distinct surveys only)
+  aggregates/rollup.csv       one row per country x service_role x sex x measure: n-weighted mean,
+                              pooled SD and the 5th/50th/95th percentiles over the primary rows
+                              (distinct surveys only)
 
 Rules for `is_primary`: rows that describe the same population (same survey_group, country, role, sex
 and measure) are duplicates: keep the one with the larger n, ties going to the better origin (computed
@@ -25,6 +26,7 @@ import re
 import sqlite3
 import statistics
 from collections import defaultdict
+from statistics import NormalDist
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -156,6 +158,52 @@ def part_of_total(rows):
     return parts
 
 
+_NORM = NormalDist()
+Z95 = _NORM.inv_cdf(0.95)
+
+
+def row_dist(r):
+    """Distribution of one row as (p5, p50, p95, reported). The quantile function is linear in z through these
+    three points, so the reported percentiles are reproduced exactly. Rows without percentiles are treated as normal
+    (mean +/- 1.645 SD); a missing median is replaced by the mean. None when the row has neither percentiles nor an SD."""
+    m, sd = num(r["mean"]), num(r["sd"])
+    a, b, c = num(r["p5"]), num(r["p50"]), num(r["p95"])
+    if a is not None and c is not None and a < c:
+        mid = b if b is not None and a <= b <= c else (m if m is not None and a <= m <= c else (a + c) / 2)
+        mid = min(max(mid, a + 1e-9), c - 1e-9)
+        return a, mid, c, b is not None and a <= b <= c
+    if m is not None and sd:
+        return m - Z95 * sd, m, m + Z95 * sd, False
+    return None
+
+
+def _cdf(x, d):
+    a, m, c, _ = d
+    z = -Z95 * (m - x) / (m - a) if x < m else Z95 * (x - m) / (c - m)
+    return _NORM.cdf(z)
+
+
+def mixture_quantiles(dists, weights, ps=(0.05, 0.5, 0.95)):
+    """Quantiles of the n-weighted mixture of the row distributions."""
+    if len(dists) == 1:
+        a, m, c, _ = dists[0]
+        return [{0.05: a, 0.5: m, 0.95: c}[p] for p in ps]
+    W = sum(weights)
+    lo = min(d[0] - 3 * (d[1] - d[0]) for d in dists)
+    hi = max(d[2] + 3 * (d[2] - d[1]) for d in dists)
+    out = []
+    for p in ps:
+        l, h = lo, hi
+        for _ in range(80):
+            x = (l + h) / 2
+            if sum(w * _cdf(x, d) for d, w in zip(dists, weights)) / W < p:
+                l = x
+            else:
+                h = x
+        out.append((l + h) / 2)
+    return out
+
+
 def rollup(rows):
     labels = {m["key"]: m["label"] for m in load_measures()}
     parts = part_of_total(rows)
@@ -180,10 +228,19 @@ def rollup(rows):
         # A pooled SD is only meaningful when every contributing row has an SD.
         sd = math.sqrt(ss / (N - 1)) if N > 1 and all(num(r["sd"]) for r in rs) else None
         years = [int(r["year_start"]) for r in rs if r["year_start"]]
+        dists = [row_dist(r) for r in rs]
+        if all(dists):
+            p5, p50, p95 = mixture_quantiles(dists, ns)
+            basis = "reported" if all(d[3] for d in dists) else "estimated" if not any(d[3] for d in dists) else "mixed"
+        else:
+            p5 = p50 = p95 = None
+            basis = ""
         out.append({
             "country": country, "service_role": role, "sex": sex, "measure_key": key,
             "measure_label": (olabel or rs[0]["measure_label"]) if key.startswith("other:") else labels[key],
             "n_total": int(N), "mean": round(M, 2), "sd": round(sd, 2) if sd is not None else "",
+            "p5": round(p5, 2) if p5 is not None else "", "p50": round(p50, 2) if p50 is not None else "",
+            "p95": round(p95, 2) if p95 is not None else "", "pct_basis": basis,
             "n_surveys": len({r["survey_group"] for r in rs}), "mean_min": round(min(ms), 2), "mean_max": round(max(ms), 2),
             "year_min": min(years) if years else "", "year_max": max(years) if years else "",
             "sources": "; ".join(sorted({r["source_id"] for r in rs}))})
@@ -199,7 +256,7 @@ def main():
         w.writeheader()
         w.writerows(rows)
     roll = rollup(rows)
-    fields = ["country", "service_role", "sex", "measure_key", "measure_label", "n_total", "mean", "sd", "n_surveys",
+    fields = ["country", "service_role", "sex", "measure_key", "measure_label", "n_total", "mean", "sd", "p5", "p50", "p95", "pct_basis", "n_surveys",
               "mean_min", "mean_max", "year_min", "year_max", "sources"]
     with open(AGG / "rollup.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")

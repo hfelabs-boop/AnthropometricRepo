@@ -215,6 +215,8 @@ export function bodyMap({ key, label, unit, figures, zoom, onZoom }) {
       h("figcaption", {},
         h("span", { class: "mq-sex" }, h("i", { class: "swatch-dot", style: { background: `var(${f.color})` } }), f.label),
         h("b", { class: "mq-val" }, fmt(f.mean)),
+        f.pct ? h("span", { class: "mq-pct", title: "5th, 50th (median) and 95th percentile of the groups shown, combined and weighted by sample size" },
+          [["P5", f.pct[0]], ["P50", f.pct[1]], ["P95", f.pct[2]]].map(([k, v]) => h("span", {}, h("i", {}, k), fmtFixed(v, unit === "mm" ? 0 : 1)))) : null,
         h("span", { class: "small muted" }, f.groups ? `${label} · mean of ${fmtInt(f.groups)} group${f.groups === 1 ? "" : "s"}${f.people ? `, ${fmtInt(f.people)} people` : ""}` : `${label} · no data for this selection`))))),
     note ? h("p", { class: "small muted", style: { margin: 0 } }, note) : null);
 }

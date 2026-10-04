@@ -156,3 +156,30 @@ export function dataTable({ columns, rows, numeric = new Set(), pageSize = 50, s
   render();
   return root;
 }
+
+// ---- distribution of a group from its mean / SD / reported percentiles -------------------------------
+const Z95 = 1.6448536269514722;
+const erf = x => { const t = 1 / (1 + .3275911 * Math.abs(x)), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - .284496736) * t + .254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; };
+const Phi = z => .5 * (1 + erf(z / Math.SQRT2));
+
+/** Quantile function of a row linear in z through (p5, p50, p95); rows without percentiles are normal (mean ± 1.645 SD). */
+export function rowDist(r) {
+  const m = r.mean, sd = r.sd, a = r.p5, b = r.p50, c = r.p95;
+  if (a != null && c != null && a < c) {
+    const rep = b != null && b >= a && b <= c;
+    const mid = Math.min(Math.max(rep ? b : m != null && m >= a && m <= c ? m : (a + c) / 2, a + 1e-9), c - 1e-9);
+    return { a, m: mid, c, reported: rep };
+  }
+  return m != null && sd ? { a: m - Z95 * sd, m, c: m + Z95 * sd, reported: false } : null;
+}
+
+/** [p5, p50, p95] of the n-weighted mixture of the groups, or null if no group has a usable distribution. */
+export function mixPercentiles(rows, weight = r => r.n_total ?? r.n ?? 0) {
+  const ds = rows.map(r => ({ d: rowDist(r), w: weight(r) })).filter(x => x.d && x.w > 0);
+  if (!ds.length) return null;
+  if (ds.length === 1) return [ds[0].d.a, ds[0].d.m, ds[0].d.c];
+  const W = ds.reduce((t, x) => t + x.w, 0);
+  const cdf = x => ds.reduce((t, { d, w }) => t + w * Phi(x < d.m ? -Z95 * (d.m - x) / (d.m - d.a) : Z95 * (x - d.m) / (d.c - d.m)), 0) / W;
+  const lo0 = Math.min(...ds.map(x => x.d.a - 3 * (x.d.m - x.d.a))), hi0 = Math.max(...ds.map(x => x.d.c + 3 * (x.d.c - x.d.m)));
+  return [.05, .5, .95].map(p => { let lo = lo0, hi = hi0; for (let i = 0; i < 60; i++) { const x = (lo + hi) / 2; if (cdf(x) < p) lo = x; else hi = x; } return (lo + hi) / 2; });
+}

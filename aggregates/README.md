@@ -7,7 +7,7 @@ Only four surveys publish individual-level data. To cover more countries, servic
 |---|---|
 | `raw/*.csv` | Rows extracted from papers, one file per extraction run. `raw/*.md` describe how each run was done, what was dropped and why. |
 | `aggregates.csv` | Everything merged, plus the statistics computed from the four raw datasets. `is_primary = 1` marks the row used when several sources describe the same population. |
-| `rollup.csv` | One row per country × role × sex × measure: sample-size-weighted mean and pooled SD over the primary rows. |
+| `rollup.csv` | One row per country × role × sex × measure: sample-size-weighted mean, pooled SD and the 5th / 50th / 95th percentiles (`p5`, `p50`, `p95`) over the primary rows. A group made of several surveys combines the surveys' distributions as a mixture weighted by sample size. Each survey's percentiles are the ones it reports; where it reports none they are estimated from its mean and SD (normal approximation). `pct_basis` says which: `reported` (every survey), `mixed`, or `estimated` (none); blank when a group has neither percentiles nor SDs. |
 | `survey_groups.csv` | Says which populations in different papers are the same survey, so it is counted once. |
 
 ## Sources (rows)
