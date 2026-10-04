@@ -287,3 +287,18 @@ footer.site { max-width: 1320px; margin: 0 auto; padding: 16px; color: var(--tex
 .seg.wrap button { border-left: 0; border-top: 1px solid var(--line); text-align: center; }
 .seg.wrap button:nth-child(-n+2) { border-top: 0; }
 .seg.wrap button:nth-child(even) { border-left: 1px solid var(--line); }
+
+/* Body map (mannequin) on the By country & role view */
+.cmp-top { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 10px; }
+.cmp-top.two { grid-template-columns: 380px minmax(0, 1fr); }
+@media (max-width: 860px) { .cmp-top, .cmp-top.two { grid-template-columns: minmax(0, 1fr); } }
+.mq-card { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); min-width: 0; }
+.mq-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .85rem; }
+.mq-figs { display: flex; gap: 10px; justify-content: center; }
+.mq-fig { flex: 1 1 0; min-width: 0; max-width: 250px; margin: 0; display: grid; gap: 6px; align-content: start; }
+.mq-fig svg { display: block; width: 100%; aspect-ratio: 3 / 4; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.mq-fig figcaption { display: grid; gap: 2px; }
+.mq-sex { display: inline-flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--text-2); }
+.mq-val { font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.mq-sex .swatch-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.cmp-top.solo { grid-template-columns: minmax(0, 1fr); }
