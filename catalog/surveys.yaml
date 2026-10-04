@@ -475,7 +475,7 @@ surveys:
   citations:
     - "DRDC report p803174 (authors and number not confirmed; the site blocks automated access)."
     - "Shu C, et al. (2015). Data Processing and Analysis for the 2012 Canadian Forces 3D Anthropometric Survey. Procedia Manufacturing 3:3745-3752 (open access)."
-    - "Mangan B, Szyszlo K, Angel H (2018). CFAS - Lessons Learned. D68-3/056-2018E-PDF."
+    - "Mangan B, Szyszlo K, Angel H (2018). 2012 Canadian Forces Anthropometric Survey - Lessons learned (January - April 2012). Contract report DRDC-RDDC-2018-C056; D68-3/056-2018E-PDF."
   reports:
     - {label: "DRDC report", url: "https://cradpdf.drdc-rddc.gc.ca/PDFS/unc328/p803174_A1b.pdf"}
     - {label: "Shu et al. 2015 (ScienceDirect)", url: "https://www.sciencedirect.com/science/article/pii/S2351978915008148"}
@@ -892,7 +892,7 @@ surveys:
   year_start: 2003
   n_total: 2296
   citations:
-    - "Al Wardi YM, Al Sabei SH, Jeevarathinam S (2016). Eastern bodies in western cockpits: An anthropometric study in the Oman military aviation. Cogent Engineering 3(1):1269384. doi:10.1080/23311916.2016.1269384 (online 29 Dec 2016)."
+    - "Al Wardi YM, Jeevarathinam S, Al Sabei SH (2016). Eastern bodies in western cockpits: An anthropometric study in the Oman military aviation. Cogent Engineering 3(1):1269384. doi:10.1080/23311916.2016.1269384 (online 29 Dec 2016)."
   reports:
     - {label: "Cogent Engineering (open access)", url: "https://doi.org/10.1080/23311916.2016.1269384"}
     - {label: "ResearchGate", url: "https://www.researchgate.net/publication/311520114"}

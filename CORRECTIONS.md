@@ -36,3 +36,9 @@ This file lists what the September 2026 verification pass changed or could not c
 ## Link-check caveat
 
 The automated checker (`python scripts/fetch.py check-links`) gets HTTP 403 from `apps.dtic.mil`, Taylor & Francis, ScienceDirect, ResearchGate, and DOIs that resolve to those sites. These hosts use bot protection that rejects scripted requests from cloud IP addresses. [`catalog/link_status.csv`](catalog/link_status.csv) marks these links as `blocked`, not `broken`. Check them in a browser. DTIC also sometimes serves a "scheduled maintenance" page instead of the PDF.
+
+## Found while listing the papers this project could not read (2026-09-29)
+
+- **Oman (#47):** the authors of the *Cogent Engineering* paper are **Al Wardi, Jeevarathinam and Al Sabei**, in that order (Crossref and OpenAlex agree). The earlier summary listed Al Sabei second and Jeevarathinam third.
+- **CFAS lessons learned (#21):** the exact title is *2012 Canadian Forces Anthropometric Survey - Lessons learned (January - April 2012)*, contract report DRDC-RDDC-2018-C056 (catalogue no. D68-3/056-2018E-PDF).
+- **Not read in full text:** see [`docs/papers_to_obtain.md`](docs/papers_to_obtain.md) for 12 journal articles and 7 reports, each with a verified citation and a direct link.

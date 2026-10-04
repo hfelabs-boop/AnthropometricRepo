@@ -34,8 +34,11 @@ def main():
         shutil.copyfileobj(src, dst)
 
     (OUT / "catalog").mkdir()
-    for name in ("surveys.csv", "surveys.json", "additional_reports.csv", "link_status.csv"):
+    for name in ("surveys.csv", "surveys.json", "additional_reports.csv", "link_status.csv", "papers.csv", "papers.json"):
         shutil.copy(ROOT / "catalog" / name, OUT / "catalog" / name)
+    (OUT / "aggregates").mkdir()
+    for name in ("aggregates.csv", "rollup.csv", "SPEC.md"):
+        shutil.copy(ROOT / "aggregates" / name, OUT / "aggregates" / name)
     shutil.copytree(ROOT / "data", OUT / "data")
     size = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file()) / 1e6
     print(f"built public/ ({size:.1f} MB)")

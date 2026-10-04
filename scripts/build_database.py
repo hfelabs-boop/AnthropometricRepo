@@ -74,6 +74,32 @@ def read_rows(path, enc):
         return list(csv.DictReader(f))
 
 
+def load_csv_table(db, name, path, types, indexes=()):
+    """Create table `name` from a CSV, converting the listed numeric columns."""
+    rows = list(csv.DictReader(open(path, newline="", encoding="utf-8")))
+    cols = list(rows[0].keys()) if rows else []
+    if not cols:
+        return 0
+    db.execute(f"CREATE TABLE {name} (" + ", ".join(f'"{c}" {types.get(c, "TEXT")}' for c in cols) + ")")
+    conv = lambda c, v: (None if v == "" else (float(v) if types.get(c) == "REAL" else int(float(v)) if types.get(c) == "INTEGER" else v))
+    db.executemany(f"INSERT INTO {name} VALUES ({','.join('?' * len(cols))})", [[conv(c, r[c]) for c in cols] for r in rows])
+    for ix in indexes:
+        db.execute(f"CREATE INDEX {name}_{ix.replace(',', '_')} ON {name}({ix})")
+    return len(rows)
+
+
+def load_extra_tables(db):
+    """Aggregates extracted from papers, their rollup by country/role, and the paper index (if built)."""
+    agg = ROOT / "aggregates"
+    real = dict.fromkeys(["mean", "sd", "p5", "p50", "p95", "mean_min", "mean_max"], "REAL")
+    ints = dict.fromkeys(["page", "year_start", "n", "is_primary", "n_total", "n_surveys", "year_min", "year_max", "pages", "aggregate_rows"], "INTEGER")
+    if (agg / "aggregates.csv").exists():
+        load_csv_table(db, "aggregates", agg / "aggregates.csv", {**real, **ints}, ["country,service_role", "measure_key", "source_id"])
+        load_csv_table(db, "rollup", agg / "rollup.csv", {**real, **ints}, ["country,service_role", "measure_key"])
+    if (ROOT / "catalog" / "papers.csv").exists():
+        load_csv_table(db, "papers", ROOT / "catalog" / "papers.csv", {**ints, "size_mb": "REAL"})
+
+
 def build(out):
     measures = list(csv.DictReader(open(ROOT / "database/harmonized_measures.csv", encoding="utf-8")))
     mkeys = [m["key"] for m in measures]
@@ -179,6 +205,7 @@ def build(out):
     # Convenience view: subjects with the dataset name and year attached.
     db.execute("""CREATE VIEW people AS SELECT d.name AS survey, d.year_start AS survey_year, s.*
                   FROM subjects s JOIN datasets d ON d.id = s.dataset""")
+    load_extra_tables(db)
     db.commit()
     db.execute("VACUUM")
     n = db.execute("SELECT COUNT(*) FROM subjects").fetchone()[0]

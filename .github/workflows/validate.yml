@@ -19,3 +19,8 @@ jobs:
         run: python scripts/fetch.py verify
       - name: Database and website build
         run: python scripts/build_site.py
+      - name: Aggregate statistics validate and are up to date
+        run: |
+          python scripts/validate_aggregates.py
+          python scripts/build_aggregates.py
+          git diff --exit-code aggregates/
