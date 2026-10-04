@@ -11,6 +11,7 @@ def render(V,T,view,px_per_m,W,H,x0,z_floor_px,ss=2):
     """view 'front': camera looks along +Y (model faces -Y). 'side': looks along -X (screen right = -Y, i.e. facing right)."""
     N=vnormals(V,T)
     if view=="front": sx,sz,dep=V[:,0],V[:,2],V[:,1]; Nx,Nz,Nd=N[:,0],N[:,2],N[:,1]; sgn=-1  # toward camera = -Y
+    elif view=="back": sx,sz,dep=-V[:,0],V[:,2],-V[:,1]; Nx,Nz,Nd=-N[:,0],N[:,2],-N[:,1]; sgn=-1  # camera behind, screen right = model -x
     else:             sx,sz,dep=-V[:,1],V[:,2],-V[:,0]; Nx,Nz,Nd=-N[:,1],N[:,2],-N[:,0]; sgn=-1
     # camera at -depth side looking toward +depth; nearer = smaller dep
     X=(sx-x0)*px_per_m*ss; Yp=z_floor_px*ss-sz*px_per_m*ss

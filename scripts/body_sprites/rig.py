@@ -48,6 +48,16 @@ def pose_and_export(tag,pose):
     for s,sg in (("L",1),("R",-1)):
         if pose=="stand":
             set_dir(ao,"uarm."+s,(sg*.30,0,-1)); set_dir(ao,"farm."+s,(sg*.22,-.04,-1)); set_dir(ao,"hand."+s,(sg*.20,-.05,-1))
+        elif pose=="reach":
+            set_dir(ao,"uarm."+s,(sg*.05,-1,0)); set_dir(ao,"farm."+s,(sg*.04,-1,0)); set_dir(ao,"hand."+s,(sg*.03,-1,0))
+        elif pose=="up":
+            set_dir(ao,"uarm."+s,(sg*.10,-.02,1)); set_dir(ao,"farm."+s,(sg*.06,-.02,1)); set_dir(ao,"hand."+s,(sg*.04,-.02,1))
+        elif pose=="sitleg":
+            set_dir(ao,"thigh."+s,(sg*.06,-1,-.02)); set_dir(ao,"shin."+s,(sg*.04,-1,.02)); set_dir(ao,"foot."+s,(sg*.02,-.25,1))
+            set_dir(ao,"uarm."+s,(sg*.10,.04,-1)); set_dir(ao,"farm."+s,(sg*.04,-1,-.12)); set_dir(ao,"hand."+s,(sg*.03,-1,-.2))
+        elif pose=="situp":
+            set_dir(ao,"thigh."+s,(sg*.10,-1,-.02)); set_dir(ao,"shin."+s,(sg*.02,.03,-1)); set_dir(ao,"foot."+s,(0,-1,-.05))
+            set_dir(ao,"uarm."+s,(sg*.10,-.02,1)); set_dir(ao,"farm."+s,(sg*.06,-.02,1)); set_dir(ao,"hand."+s,(sg*.04,-.02,1))
         else:
             set_dir(ao,"thigh."+s,(sg*.10,-1,-.02)); set_dir(ao,"shin."+s,(sg*.02,.03,-1)); set_dir(ao,"foot."+s,(0,-1,-.05))
             set_dir(ao,"uarm."+s,(sg*.10,.04,-1)); set_dir(ao,"farm."+s,(sg*.04,-1,-.12)); set_dir(ao,"hand."+s,(sg*.03,-1,-.2))
@@ -56,5 +66,6 @@ def pose_and_export(tag,pose):
     J={b.name:[list(ao.matrix_world@b.head),list(ao.matrix_world@b.tail)] for b in ao.pose.bones}
     import json; json.dump(J,open(f"out/{tag}_{pose}_joints.json","w"))
     np.savez(f"out/{tag}_{pose}.npz",V=V,T=T,H=H); print(tag,pose,V.shape,"min",V.min(0).round(3),"max",V.max(0).round(3))
+import sys
 for tag in "MF":
-    for pose in ("stand","sit"): pose_and_export(tag,pose)
+    for pose in sys.argv[sys.argv.index("--")+1:]: pose_and_export(tag,pose)
