@@ -4,6 +4,7 @@ import { h, $, $$, fmtInt, fmtNum, fmtFixed, dataTable, toCSV, download, readHas
 import { objects } from "./db.js";
 import { dotplot } from "./charts.js";
 import { bodyMap } from "./mannequin.js";
+import { categoryOf, categoryOrder } from "./measurecat.js";
 
 const SEX_COLOR = { M: "--s1", F: "--s2", both: "--s3" };
 const SEX_LABEL = { M: "Men", F: "Women", both: "Mixed / not stated" };
@@ -25,7 +26,7 @@ export async function initCompare() {
   const label = k => M[k]?.label || otherLabel[k] || k.replace(/^other:/, "").replace(/_/g, " ");
   const unitOf = k => M[k]?.unit || "mm";
 
-  const fresh = () => ({ m: "stature", sex: "M", countries: [], roles: [], sub: "ranking", sort: "mean-desc", minN: 100, civilians: false, all: false, matrixRole: "", zoom: true, body: true, range: "pct" });
+  const fresh = () => ({ m: "stature", sex: "M", countries: [], roles: [], sub: "ranking", sort: "mean-desc", minN: 100, cat: "", civilians: false, all: false, matrixRole: "", zoom: true, body: true, range: "pct" });
   let st = fresh();
   const { view, params } = readHash();
   if (view === "compare" && params.get("s")) { try { st = { ...fresh(), ...JSON.parse(params.get("s")) }; } catch { /* ignore */ } }
@@ -35,6 +36,12 @@ export async function initCompare() {
   const cover = {};
   for (const r of roll) (cover[r.measure_key] ||= new Set()).add(`${r.country}|${r.service_role}`);
   const measureKeys = Object.keys(cover).sort((a, b) => (M[a] ? 0 : 1) - (M[b] ? 0 : 1) || cover[b].size - cover[a].size || label(a).localeCompare(label(b)));
+  const catOf = k => categoryOf(k, M[k]?.category);
+  const catNames = categoryOrder([...new Set(measureKeys.map(catOf))]);
+  const catCount = Object.fromEntries(catNames.map(c => [c, measureKeys.filter(k => catOf(k) === c).length]));
+  const searchText = k => `${label(k)} ${k.replace(/^other:/, "").replace(/_/g, " ")} ${catOf(k)}`.toLowerCase();
+  const searchIndex = new Map(measureKeys.map(k => [k, searchText(k)]));
+  let measureQuery = "";
   const countries = [...new Set(roll.map(r => r.country))].sort();
   const roles = [...new Set(roll.map(r => r.service_role))].sort();
   const countCountry = Object.fromEntries(countries.map(c => [c, new Set(roll.filter(r => r.country === c).map(r => r.measure_key + r.sex + r.service_role)).size]));
@@ -76,16 +83,60 @@ export async function initCompare() {
       })));
   }
 
+  // Measure picker: pick a category, type to search any word of the name, then click a result. Enter takes the top match.
+  function measurePicker() {
+    const MAX = 300;
+    let active = 0, shown = [];
+    const input = h("input", { class: "input", type: "search", placeholder: `Search ${measureKeys.length} measures…`, "aria-label": "Search measures",
+      autocomplete: "off", value: measureQuery });
+    const catSel = h("select", { class: "input", "aria-label": "Measure category" },
+      h("option", { value: "" }, `All categories (${measureKeys.length})`),
+      catNames.map(c => h("option", { value: c, selected: c === st.cat }, `${c} (${catCount[c]})`)));
+    const list = h("div", { class: "mpick-list", role: "listbox", "aria-label": "Measures" });
+    const count = h("div", { class: "small muted", "aria-live": "polite" });
+    const pick = k => { st.m = k; render(); };
+    const refresh = () => {
+      const terms = measureQuery.toLowerCase().split(/\s+/).filter(Boolean);
+      const hits = measureKeys.filter(k => (!st.cat || catOf(k) === st.cat) && terms.every(t => searchIndex.get(k).includes(t)));
+      if (!st.cat) hits.sort((a, b) => catNames.indexOf(catOf(a)) - catNames.indexOf(catOf(b)));
+      shown = hits.slice(0, MAX); active = Math.min(active, Math.max(0, shown.length - 1));
+      count.textContent = hits.length === measureKeys.length ? `${hits.length} measures` : `${hits.length} of ${measureKeys.length} measures${hits.length > MAX ? `, showing the first ${MAX}` : ""}`;
+      const rows = [];
+      shown.forEach((k, i) => {
+        if (!st.cat && (i === 0 || catOf(shown[i - 1]) !== catOf(k))) rows.push(h("div", { class: "mpick-cat", role: "presentation" }, catOf(k)));
+        rows.push(h("button", { type: "button", role: "option", class: "mpick-opt" + (i === active ? " active" : ""), "aria-selected": String(k === st.m), "data-k": k,
+          title: `${label(k)} · ${unitOf(k)} · ${cover[k].size} country/role groups`, onclick: () => pick(k) },
+          h("span", { class: "mpick-name" }, label(k)), h("span", { class: "mpick-n" }, cover[k].size)));
+      });
+      list.replaceChildren(...(rows.length ? rows : [h("div", { class: "empty small", style: { padding: "10px" } }, "No measure matches. Try one word, or choose All categories.")]));
+    };
+    const move = d => {
+      if (!shown.length) return;
+      active = (active + d + shown.length) % shown.length;
+      list.querySelectorAll(".mpick-opt").forEach((b, i) => b.classList.toggle("active", i === active));
+      list.querySelectorAll(".mpick-opt")[active]?.scrollIntoView({ block: "nearest" });
+    };
+    input.addEventListener("input", () => { measureQuery = input.value; active = 0; refresh(); });
+    input.addEventListener("keydown", e => {
+      if (e.key === "ArrowDown") { e.preventDefault(); move(1); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); move(-1); }
+      else if (e.key === "Enter" && shown[active]) { e.preventDefault(); pick(shown[active]); }
+    });
+    catSel.addEventListener("change", () => { st.cat = catSel.value; active = 0; save(); refresh(); });
+    refresh();
+    return h("div", { class: "field mpick" }, h("label", {}, "Measure"),
+      h("div", { class: "mpick-sel" }, h("b", {}, label(st.m)), h("span", { class: "small muted" }, ` ${catOf(st.m)} · ${unitOf(st.m)}${M[st.m] ? "" : " · as published"}`)),
+      catSel, input, count, list,
+      h("span", { class: "small muted" }, "Type any words of the name (waist, hand breadth, skinfold). The number is how many country/role groups have the measure."));
+  }
+
   function renderFilters() {
     const f = $("#cmp-filters");
-    const measureSel = h("select", { class: "input", "aria-label": "Measure", onchange: e => { st.m = e.target.value; render(); } },
-      measureKeys.map(k => h("option", { value: k, selected: k === st.m }, `${label(k)}${M[k] ? "" : " (as published)"} [${cover[k].size}]`)));
     const inRoll = roll.filter(r => r.measure_key === st.m);
     const cCount = new Map(), rCount = new Map();
     for (const r of inRoll) { cCount.set(r.country, (cCount.get(r.country) || 0) + 1); rCount.set(r.service_role, (rCount.get(r.service_role) || 0) + 1); }
     f.replaceChildren(
-      h("div", { class: "field" }, h("label", {}, "Measure"), measureSel,
-        h("span", { class: "small muted" }, `Unit: ${unitOf(st.m)}. The number in brackets is how many country/role groups have it.`)),
+      measurePicker(),
       h("div", { class: "field" }, h("span", { class: "field-label" }, "Sex"),
         h("div", { class: "seg wrap", role: "group", "aria-label": "Sex" },
           [["M", "Men"], ["F", "Women"], ["both", "Mixed / not stated"], ["MF", "Men vs women"]].map(([v, t]) =>
@@ -246,7 +297,7 @@ export async function initCompare() {
   }
 
   $("#cmp-body-toggle").addEventListener("click", () => { st.body = !st.body; render(false); });
-  $("#cmp-reset").addEventListener("click", () => { st = fresh(); render(); });
+  $("#cmp-reset").addEventListener("click", () => { st = fresh(); measureQuery = ""; render(); });
   $("#cmp-share").addEventListener("click", async () => { try { await navigator.clipboard.writeText(location.href); toast("Link copied"); } catch { toast("Copy the address bar to share"); } });
   $("#cmp-export").addEventListener("click", () => lastExport && download("country-role-aggregates.csv", lastExport()));
   await render();
