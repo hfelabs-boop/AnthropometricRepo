@@ -35,7 +35,7 @@ import sys  # noqa: E402
 sys.path.insert(0, str(ROOT / "scripts"))
 from validate_aggregates import COLUMNS  # noqa: E402
 
-OUT_COLUMNS = COLUMNS + ["origin", "survey_group", "is_primary"]
+OUT_COLUMNS = COLUMNS + ["origin", "survey_group", "is_primary", "official_doc", "official_body", "official_basis"]
 DATASETS = {  # dataset -> (survey_id, country, service_role, year_start, source_file)
     "ansur_1988": ("ansur-1988", "United States", "Army", 1987, "data/ansur-1988/"),
     "ansur_ii_2012": ("ansur-ii-2012", "United States", "Army", 2010, "data/ansur-ii-2012/"),
@@ -112,6 +112,17 @@ def paper_rows():
             r["survey_group"] = group or f"{r['source_id']}|{r['population']}"
             rows.append(r)
     return rows
+
+
+def mark_official(rows):
+    """Flag rows whose survey is documented in an official defence or standards document (aggregates/official_documents.csv).
+    official_basis: 'document table' = values read from the document; 'survey microdata' = computed from the survey's public individual-level data."""
+    reg = {r["source_id"]: r for r in csv.DictReader(open(AGG / "official_documents.csv", encoding="utf-8"))}
+    for r in rows:
+        o = reg.get(r["source_id"])
+        r["official_doc"] = o["document_id"] if o else ""
+        r["official_body"] = o["issuing_body"] if o else ""
+        r["official_basis"] = ("survey microdata" if r["origin"] == "computed" else "document table") if o else ""
 
 
 def num(x):
@@ -235,7 +246,10 @@ def rollup(rows):
         else:
             p5 = p50 = p95 = None
             basis = ""
+        off = [r for r in rs if r["official_doc"]]
         out.append({
+            "official_docs": "; ".join(sorted({r["official_doc"] for r in off})),
+            "official_share": round(sum(num(r["n"]) for r in off) / N, 2),
             "country": country, "service_role": role, "sex": sex, "measure_key": key,
             "measure_label": (olabel or rs[0]["measure_label"]) if key.startswith("other:") else labels[key],
             "n_total": int(N), "mean": round(M, 2), "sd": round(sd, 2) if sd is not None else "",
@@ -251,12 +265,13 @@ def rollup(rows):
 def main():
     rows = computed_rows() + paper_rows()
     mark_primary(rows)
+    mark_official(rows)
     with open(AGG / "aggregates.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=OUT_COLUMNS, lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
     roll = rollup(rows)
-    fields = ["country", "service_role", "sex", "measure_key", "measure_label", "n_total", "mean", "sd", "p5", "p50", "p95", "pct_basis", "n_surveys",
+    fields = ["country", "service_role", "sex", "measure_key", "measure_label", "n_total", "mean", "sd", "p5", "p50", "p95", "pct_basis", "official_docs", "official_share", "n_surveys",
               "mean_min", "mean_max", "year_min", "year_max", "sources"]
     with open(AGG / "rollup.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")

@@ -1,0 +1,16 @@
+source_id,document_id,issuing_body,doc_type,reference,title,verified,note
+rp1024-vol2,NASA RP-1024 Vol. II (compiled in DOD-HDBK-743A),NASA / US Department of Defense,NASA reference publication; DoD handbook,DTIC ADA473152,"Anthropometric Source Book Vol. II (Webb Associates, 1978); DOD-HDBK-743A Anthropometry of U.S. Military Personnel (Metric), 13 Feb 1991",yes,Rows are read from RP-1024 Vol. II. DOD-HDBK-743A is catalogued with it but its tables were not compared line by line with these rows.
+ansur-1988,NATICK/TR-89/044,US Army Natick RD&E Center,DoD technical report,DTIC ADA225094,1988 Anthropometric Survey of U.S. Army Personnel: Methods and Summary Statistics,yes,
+ansur-1988-pilots,NATICK/TR-91/040,US Army Natick RD&E Center,DoD technical report,DTIC ADA241952,ANSUR 1988 pilot summary statistics,yes,
+ansur-ii-2012,NATICK/TR-15/007,US Army Natick RD&E Center,DoD technical report,DTIC ADA611869,2012 Anthropometric Survey of U.S. Army Personnel: Methods and Summary Statistics,yes,
+ansur-ii-pilots,NATICK/TR-16/013,US Army Natick RD&E Center,DoD technical report,DTIC ADA634277,2012 US Army pilot survey,yes,
+mc-ansur-2010,NATICK/TR-13/018,US Army Natick RD&E Center,DoD technical report,DTIC ADA581918,2010 Anthropometric Survey of U.S. Marine Corps Personnel: Methods and Summary Statistics,yes,
+canada-cf-1996,NATICK/TR-96/031,US Army Natick RD&E Center,DoD technical report,DTIC ADA310612,Canadian Forces matched database validation,yes,
+usaf-1967,AGARD-AG-205,NATO AGARD,NATO technical report,DTIC ADA010674,A Review of Anthropometric Data of German Air Force and United States Air Force Flying Personnel 1967-1968,yes,Values are computed from the public individual-level dataset of this survey. The document describes the survey.
+german-air-force-1967-68,AGARD-AG-205,NATO AGARD,NATO technical report,DTIC ADA010674,A Review of Anthropometric Data of German Air Force and United States Air Force Flying Personnel 1967-1968,yes,
+naval-aviators-1964,NAEC-ACEL-533,US Navy Naval Air Engineering Center,DoD technical report,DTIC AD0626322,Anthropometry of Naval Aviators - 1964,yes,
+latin-american-armed-forces,USATTC Report 7209002,US Army (USATTC),DoD technical report,DTIC AD0759949,Anthropometry of the Latin-American Armed Forces,yes,
+korea,DTIC AD0661625,not verified,DoD-held technical report,DTIC AD0661625,Anthropometric Survey of the Armed Forces of the Republic of Korea,partly,Authors and issuing body not verified in the catalog.
+thai-1964,DTIC AD0450836,not verified,DoD-held technical report,DTIC AD0450836,"Royal Thai Armed Forces, 1964",partly,Issuing body not verified in the catalog.
+awas,DSTO-TR-3006,Defence Science and Technology Organisation (Australian Department of Defence),Allied defence technical report,DTIC ADA610792,A Preliminary Anthropometry Standard for Australian Army Equipment Evaluation,yes,
+asran-2015,DST-Group-TR-3564,Defence Science and Technology Group (Australian Department of Defence),Allied defence technical report,DST-Group-TR-3564,Revised Anthropometry Guidance for the Royal Australian Navy,yes,Values are computed from the public individual-level ASRAN dataset. The document is the official guidance built on this survey.

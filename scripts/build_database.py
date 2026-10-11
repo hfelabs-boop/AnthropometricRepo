@@ -91,7 +91,7 @@ def load_csv_table(db, name, path, types, indexes=()):
 def load_extra_tables(db):
     """Aggregates extracted from papers, their rollup by country/role, and the paper index (if built)."""
     agg = ROOT / "aggregates"
-    real = dict.fromkeys(["mean", "sd", "p5", "p50", "p95", "mean_min", "mean_max"], "REAL")
+    real = dict.fromkeys(["mean", "sd", "p5", "p50", "p95", "mean_min", "mean_max", "official_share"], "REAL")
     ints = dict.fromkeys(["page", "year_start", "n", "is_primary", "n_total", "n_surveys", "year_min", "year_max", "pages", "aggregate_rows"], "INTEGER")
     if (agg / "aggregates.csv").exists():
         load_csv_table(db, "aggregates", agg / "aggregates.csv", {**real, **ints}, ["country,service_role", "measure_key", "source_id"])

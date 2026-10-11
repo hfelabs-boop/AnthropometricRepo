@@ -8,6 +8,7 @@ Only four surveys publish individual-level data. To cover more countries, servic
 | `raw/*.csv` | Rows extracted from papers, one file per extraction run. `raw/*.md` describe how each run was done, what was dropped and why. |
 | `aggregates.csv` | Everything merged, plus the statistics computed from the four raw datasets. `is_primary = 1` marks the row used when several sources describe the same population. |
 | `rollup.csv` | One row per country × role × sex × measure: sample-size-weighted mean, pooled SD and the 5th / 50th / 95th percentiles (`p5`, `p50`, `p95`) over the primary rows. A group made of several surveys combines the surveys' distributions as a mixture weighted by sample size. Each survey's percentiles are the ones it reports; where it reports none they are estimated from its mean and SD (normal approximation). `pct_basis` says which: `reported` (every survey), `mixed`, or `estimated` (none); blank when a group has neither percentiles nor SDs. |
+| `official_documents.csv` | Register of the official defence, standards and NATO/allied documents that surveys in the data come from: `source_id`, document designation (for example `NATICK/TR-89/044`, `AGARD-AG-205`, `DSTO-TR-3006`, `NASA RP-1024 Vol. II (compiled in DOD-HDBK-743A)`), issuing body, type, DTIC/agency reference and a `verified` flag. Edit this file to flag more sources. |
 | `survey_groups.csv` | Says which populations in different papers are the same survey, so it is counted once. |
 
 ## Sources (rows)
@@ -49,3 +50,9 @@ python scripts/build_database.py      # again, to load the aggregates and papers
 Not covered: the scanned handbook DOD-HDBK-743A, CAESAR (no text layer), the Canadian Forces 2012 survey (report blocked) and
 the UK, French, Dutch, Bundeswehr, Russian, Israeli, Indian, Indonesian, Malaysian, Singaporean and Japanese national surveys
 (no public report was found). Several of these appear only as populations inside the NASA source book.
+
+
+## Official-document flags
+
+`aggregates.csv` carries three extra columns, filled from `official_documents.csv` by `scripts/build_aggregates.py`:
+`official_doc` (the document designation), `official_body` (issuer) and `official_basis` (`document table` = values read from that document; `survey microdata` = computed here from the survey's public individual-level data, which the document describes). `rollup.csv` has `official_docs` (the documents behind the group) and `official_share` (share of the group's people that come from them, 0 to 1). Rows from papers, journal articles and national statistics are not flagged. Two entries (`korea`, `thai-1964`) are DTIC reports whose issuing body is not verified in the catalog; they are marked `partly`.
