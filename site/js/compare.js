@@ -135,14 +135,14 @@ export async function initCompare() {
       extra: [["surveys", r.n_surveys], ["years", r.year_min === r.year_max ? r.year_min : `${r.year_min}–${r.year_max}`]],
     })));
     const basisOf = new Map(rows.map(r => [`${r.country}|${r.service_role}|${SEX_LABEL[r.sex]}`, r.pct_basis]));
-    lastExport = () => toCSV(["country", "role", "sex", "measure", "unit", "people", "mean", "sd", "p5", "p50", "p95", "percentile_basis", "surveys", "mean_range_low", "mean_range_high", "first_year_min", "first_year_max", "sources"],
-      rows.map(r => [r.country, r.service_role, r.sex, label(st.m), unitOf(st.m), r.n_total, r.mean, r.sd, r.p5, r.p50, r.p95, r.pct_basis, r.n_surveys, r.mean_min, r.mean_max, r.year_min, r.year_max, r.sources]));
+    lastExport = () => toCSV(["country", "role", "sex", "measure", "unit", "people", "mean", "sd", "p5", "p50", "p95", "percentile_basis", "official_documents", "official_share", "surveys", "mean_range_low", "mean_range_high", "first_year_min", "first_year_max", "sources"],
+      rows.map(r => [r.country, r.service_role, r.sex, label(st.m), unitOf(st.m), r.n_total, r.mean, r.sd, r.p5, r.p50, r.p95, r.pct_basis, r.official_docs, r.official_share, r.n_surveys, r.mean_min, r.mean_max, r.year_min, r.year_max, r.sources]));
     $("#cmp-count").replaceChildren(`${rows.length} group${rows.length === 1 ? "" : "s"} `, h("small", {}, `${label(st.m)} · ${sexes().map(s => SEX_LABEL[s]).join(" & ")}`));
     const shown = st.all ? rows : rows.slice(0, 40);
     const legend = st.sex === "MF" ? h("div", { class: "legend" }, ["M", "F"].map(s => h("span", { class: "key" }, h("span", { class: "swatch-dot", style: { background: `var(${SEX_COLOR[s]})` } }), SEX_LABEL[s]))) : "";
     const table = dataTable({
-      columns: ["Country", "Role", "Sex", "People", "Mean", "SD", "P5", "P50", "P95", "Surveys", "First year", "Sources"], numeric: new Set(["People", "Mean", "SD", "P5", "P50", "P95", "Surveys"]), pageSize: 50,
-      rows: rows.map(r => [r.country, r.service_role, SEX_LABEL[r.sex], r.n_total, r.mean, r.sd || null, r.p5, r.p50, r.p95, r.n_surveys, r.year_min === r.year_max ? String(r.year_min) : `${r.year_min}–${r.year_max}`, r.sources]),
+      columns: ["Country", "Role", "Sex", "People", "Mean", "SD", "P5", "P50", "P95", "Official documents", "Surveys", "First year", "Sources"], numeric: new Set(["People", "Mean", "SD", "P5", "P50", "P95", "Surveys"]), pageSize: 50,
+      rows: rows.map(r => [r.country, r.service_role, SEX_LABEL[r.sex], r.n_total, r.mean, r.sd || null, r.p5, r.p50, r.p95, r.official_docs ? r.official_docs + (r.official_share < 1 ? ` (${Math.round(r.official_share * 100)}%)` : "") : null, r.n_surveys, r.year_min === r.year_max ? String(r.year_min) : `${r.year_min}–${r.year_max}`, r.sources]),
       wrap: new Set(["Sources"]),
       cellRender: (c, v, row) => {
         if (c === "People" || c === "Surveys") return fmtInt(v);
@@ -152,6 +152,7 @@ export async function initCompare() {
           const est = basisOf.get(`${row[0]}|${row[1]}|${row[2]}`) !== "reported";
           return est ? h("span", { title: "Estimated: not reported by every source, so taken from mean and SD (normal approximation) where missing" }, `≈ ${fmtFixed(v, 1)}`) : fmtFixed(v, 1);
         }
+        if (c === "Official documents") return v ? h("span", { title: "Official defence or standards document(s) the survey data come from. A percentage means only that share of the people comes from them; the rest comes from other sources." }, v) : "—";
         return c === "Sources" ? sourceLinks(String(v)) : (v ?? "—");
       } });
     return h("div", {},
@@ -208,16 +209,17 @@ export async function initCompare() {
     const sexClause = st.sex === "MF" ? "AND sex IN ('M','F')" : `AND sex = '${st.sex}'`;
     const data = await objects(`SELECT * FROM aggregates WHERE measure_key = ? AND is_primary = 1 ${sexClause} ${civ} ORDER BY country, service_role, year_start`, [st.m]);
     const rows = data.filter(r => (!st.countries.length || st.countries.includes(r.country)) && (!st.roles.length || st.roles.includes(r.service_role)) && (r.n || 0) >= st.minN);
-    const cols = ["Country", "Role", "Population", "Sex", "Year", "People", "Mean", "SD", "P5", "P50", "P95", "Source", "Quality"];
+    const officialInfo = new Map(rows.filter(r => r.official_doc).map(r => [r.official_doc, { body: r.official_body, basis: r.official_basis }]));
+    const cols = ["Country", "Role", "Population", "Sex", "Year", "People", "Mean", "SD", "P5", "P50", "P95", "Source", "Official document", "Quality"];
     const qual = { computed: "Computed from raw data", A: "A: tables parsed and checked", B: "B: OCR, passed consistency checks", C: "C: read from a web article" };
-    lastExport = () => toCSV(["country", "role", "population", "sex", "year", "people", "mean", "sd", "p5", "p50", "p95", "source_id", "source_file", "page", "quality", "notes"],
-      rows.map(r => [r.country, r.service_role, r.population, r.sex, r.year_start, r.n, r.mean, r.sd, r.p5, r.p50, r.p95, r.source_id, r.source_file, r.page, r.origin, r.notes]));
+    lastExport = () => toCSV(["country", "role", "population", "sex", "year", "people", "mean", "sd", "p5", "p50", "p95", "source_id", "source_file", "page", "official_document", "official_body", "official_basis", "quality", "notes"],
+      rows.map(r => [r.country, r.service_role, r.population, r.sex, r.year_start, r.n, r.mean, r.sd, r.p5, r.p50, r.p95, r.source_id, r.source_file, r.page, r.official_doc, r.official_body, r.official_basis, r.origin, r.notes]));
     $("#cmp-count").replaceChildren(`${fmtInt(rows.length)} population${rows.length === 1 ? "" : "s"} `, h("small", {}, `${label(st.m)} · ${sexes().map(s => SEX_LABEL[s]).join(" & ")}`));
     return h("div", {},
       h("div", { class: topClass() }, bodyCard(rows),
         h("p", { class: "small muted", style: { marginTop: 0 } }, "One row per population in each source. Where a survey appears in several sources, the best one is shown (computed from raw data, then checked tables, then OCR). Source links open the paper; the page number is where the table is. The body map shows the n-weighted mean of the populations listed.")),
       dataTable({ columns: cols, numeric: new Set(["Year", "People", "Mean", "SD", "P5", "P50", "P95"]), pageSize: 50, wrap: new Set(["Population"]),
-        rows: rows.map(r => [r.country, r.service_role, r.population, SEX_LABEL[r.sex], r.year_start, r.n, r.mean, r.sd, r.p5, r.p50, r.p95, [r.source_id, r.source_file, r.page], r.origin]),
+        rows: rows.map(r => [r.country, r.service_role, r.population, SEX_LABEL[r.sex], r.year_start, r.n, r.mean, r.sd, r.p5, r.p50, r.p95, [r.source_id, r.source_file, r.page], r.official_doc || null, r.origin]),
         cellRender: (c, v) => {
           if (c === "Year") return v ?? "—";
           if (c === "People") return v == null ? "—" : fmtInt(v);
@@ -227,6 +229,7 @@ export async function initCompare() {
             const href = p ? `${p.open_copy_url}${page ? `#page=${page}` : ""}` : /^https?:/.test(file) ? file : file.startsWith("data/") ? file : null;
             return href ? h("a", { href, target: file.startsWith("data/") ? null : "_blank", rel: "noopener" }, page ? `${sid}, p. ${page}` : sid) : sid;
           }
+          if (c === "Official document") { const o = officialInfo.get(v); return v ? h("span", { title: o ? `${o.body}. ${o.basis === "survey microdata" ? "Computed from this survey's public individual-level data" : "Values read from the document's tables"}.` : "" }, v) : "—"; }
           if (c === "Quality") return h("span", { class: "tag " + (v === "computed" || v === "A" ? "good" : v === "B" ? "warn" : ""), title: qual[v] }, v === "computed" ? "raw data" : v);
           return v ?? "—";
         } }));
