@@ -56,3 +56,13 @@ the UK, French, Dutch, Bundeswehr, Russian, Israeli, Indian, Indonesian, Malaysi
 
 `aggregates.csv` carries three extra columns, filled from `official_documents.csv` by `scripts/build_aggregates.py`:
 `official_doc` (the document designation), `official_body` (issuer) and `official_basis` (`document table` = values read from that document; `survey microdata` = computed here from the survey's public individual-level data, which the document describes). `rollup.csv` has `official_docs` (the documents behind the group) and `official_share` (share of the group's people that come from them, 0 to 1). Rows from papers, journal articles and national statistics are not flagged. Two entries (`korea`, `thai-1964`) are DTIC reports whose issuing body is not verified in the catalog; they are marked `partly`.
+
+## Reliability
+
+Every row of `aggregates.csv` and every group of `rollup.csv` has `reliability` (`high`, `medium` or `low`) and `reliability_note` (what keeps it below high), set by `scripts/build_aggregates.py`:
+
+* **high**: every contributing source is verified (computed from raw data, a born-digital table parsed and validated, or an official defence document's table that passed the OCR consistency checks), the percentiles are reported by the sources rather than estimated, and there are at least 100 people.
+* **low**: a source was read from a web article without the consistency checks, there are fewer than 30 people (or n is not reported), or there are neither percentiles nor an SD.
+* **medium**: everything in between (OCR of a published paper, percentiles estimated from the mean and SD, or 30 to 99 people).
+
+The By country & role page filters on this grade (default: high and medium) and shows it next to each value.
