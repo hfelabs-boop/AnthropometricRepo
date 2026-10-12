@@ -163,7 +163,7 @@ def reliability(tiers, basis, n):
 def mark_reliability(rows):
     for r in rows:
         d = row_dist(r)
-        basis = "" if d is None else "reported" if d[3] else "estimated"
+        basis = "" if d is None else basis_of([d[3]])
         r["reliability"], r["reliability_note"] = reliability({source_tier(r)}, basis, num(r["n"]))
 
 
@@ -216,18 +216,27 @@ Z95 = _NORM.inv_cdf(0.95)
 
 
 def row_dist(r):
-    """Distribution of one row as (p5, p50, p95, reported). The quantile function is linear in z through these
-    three points, so the reported percentiles are reproduced exactly. Rows without percentiles are treated as normal
-    (mean +/- 1.645 SD); a missing median is replaced by the mean. None when the row has neither percentiles nor an SD."""
+    """Distribution of one row as (p5, p50, p95, reported), reported = (p5, p50, p95) flags, True where the source printed
+    that percentile. The quantile function is linear in z through the three points, so printed percentiles are reproduced
+    exactly. Missing P5 and P95 come from mean +/- 1.645 SD (normal); a missing median is the mean. None when the row has
+    neither P5 and P95 nor an SD."""
     m, sd = num(r["mean"]), num(r["sd"])
     a, b, c = num(r["p5"]), num(r["p50"]), num(r["p95"])
     if a is not None and c is not None and a < c:
-        mid = b if b is not None and a <= b <= c else (m if m is not None and a <= m <= c else (a + c) / 2)
-        mid = min(max(mid, a + 1e-9), c - 1e-9)
-        return a, mid, c, b is not None and a <= b <= c
-    if m is not None and sd:
-        return m - Z95 * sd, m, m + Z95 * sd, False
-    return None
+        rep = (True, True, True)
+    elif m is not None and sd:
+        a, c, rep = m - Z95 * sd, m + Z95 * sd, (False, True, False)
+    else:
+        return None
+    if b is None or not a <= b <= c:
+        b, rep = (m if m is not None and a <= m <= c else (a + c) / 2), (rep[0], False, rep[2])
+    return a, min(max(b, a + 1e-9), c - 1e-9), c, rep
+
+
+def basis_of(flags):
+    """'reported' when every percentile of every row was printed, 'estimated' when none was, else 'mixed'."""
+    flat = [f for fl in flags for f in fl]
+    return "reported" if all(flat) else "estimated" if not any(flat) else "mixed"
 
 
 def _cdf(x, d):
@@ -270,9 +279,18 @@ def rollup(rows):
         n, m = num(r["n"]), num(r["mean"])
         if not n or m is None:
             continue
-        groups[(r["country"], r["service_role"], r["sex"], r["measure_key"], r["measure_label"] if r["measure_key"].startswith("other:") else "")].append(r)
+        groups[(r["country"], r["service_role"], r["sex"], r["measure_key"])].append(r)
     out = []
-    for (country, role, sex, key, olabel), rs in groups.items():
+    for (country, role, sex, key), rs in groups.items():
+        # Low-reliability rows are left out when the group has better ones, so they neither drag the grade down nor
+        # (rows with a mean only) block the percentiles of the whole group.
+        dropped = sum(r["reliability"] == "low" for r in rs)
+        if 0 < dropped < len(rs):
+            rs = [r for r in rs if r["reliability"] != "low"]
+        else:
+            dropped = 0
+        # 'other:' measures are printed under several spellings; label the group with an English one from the largest sample.
+        olabel = min(rs, key=lambda r: (not r["measure_label"].isascii(), -(num(r["n"]) or 0)))["measure_label"]
         ns = [num(r["n"]) for r in rs]
         ms = [num(r["mean"]) for r in rs]
         N = sum(ns)
@@ -284,24 +302,28 @@ def rollup(rows):
         dists = [row_dist(r) for r in rs]
         if all(dists):
             p5, p50, p95 = mixture_quantiles(dists, ns)
-            basis = "reported" if all(d[3] for d in dists) else "estimated" if not any(d[3] for d in dists) else "mixed"
+            basis = basis_of([d[3] for d in dists])
+            estimated = " ".join(p for i, p in enumerate(("p5", "p50", "p95")) if not all(d[3][i] for d in dists))
         else:
             p5 = p50 = p95 = None
-            basis = ""
+            basis = estimated = ""
         off = [r for r in rs if r["official_doc"]]
         grade, why = reliability({source_tier(r) for r in rs}, basis, N)
+        if dropped:
+            why = "; ".join(filter(None, [why, f"excludes {dropped} low-reliability source row{'s' if dropped > 1 else ''}"]))
         out.append({
             "reliability": grade, "reliability_note": why,
             "official_docs": "; ".join(sorted({r["official_doc"] for r in off})),
             "official_share": round(sum(num(r["n"]) for r in off) / N, 2),
             "country": country, "service_role": role, "sex": sex, "measure_key": key,
-            "measure_label": (olabel or rs[0]["measure_label"]) if key.startswith("other:") else labels[key],
+            "measure_label": olabel if key.startswith("other:") else labels[key],
             "n_total": int(N), "mean": round(M, 2), "sd": round(sd, 2) if sd is not None else "",
             "p5": round(p5, 2) if p5 is not None else "", "p50": round(p50, 2) if p50 is not None else "",
-            "p95": round(p95, 2) if p95 is not None else "", "pct_basis": basis,
+            "p95": round(p95, 2) if p95 is not None else "", "pct_basis": basis, "pct_estimated": estimated,
             "n_surveys": len({r["survey_group"] for r in rs}), "mean_min": round(min(ms), 2), "mean_max": round(max(ms), 2),
             "year_min": min(years) if years else "", "year_max": max(years) if years else "",
-            "sources": "; ".join(sorted({r["source_id"] for r in rs}))})
+            "sources": "; ".join(sorted({r["source_id"] for r in rs})),
+            "survey_groups": "; ".join(sorted({r["survey_group"] for r in rs}))})
     out.sort(key=lambda r: (r["country"], r["service_role"], r["sex"], r["measure_key"]))
     return out
 
@@ -316,8 +338,8 @@ def main():
         w.writeheader()
         w.writerows(rows)
     roll = rollup(rows)
-    fields = ["country", "service_role", "sex", "measure_key", "measure_label", "n_total", "mean", "sd", "p5", "p50", "p95", "pct_basis", "reliability", "reliability_note", "official_docs", "official_share", "n_surveys",
-              "mean_min", "mean_max", "year_min", "year_max", "sources"]
+    fields = ["country", "service_role", "sex", "measure_key", "measure_label", "n_total", "mean", "sd", "p5", "p50", "p95", "pct_basis", "pct_estimated", "reliability", "reliability_note", "official_docs", "official_share", "n_surveys",
+              "mean_min", "mean_max", "year_min", "year_max", "sources", "survey_groups"]
     with open(AGG / "rollup.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         w.writeheader()

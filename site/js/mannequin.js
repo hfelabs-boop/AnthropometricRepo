@@ -164,23 +164,21 @@ export function bodyMap({ key, label, unit, figures, zoom, onZoom }) {
 
 /**
  * A card of figures for one measure, each labelled with one value: one percentile for men and women, or P5, P50 and
- * P95 of one sex. Unzoomed, a length measure's figures are drawn to scale with their values (the largest at full size,
- * proportions unchanged) so the differences show; values far apart (smallest under 60% of the largest) are not scaled.
+ * P95 of one sex. With `scale` ({ min, max } of every value on the page) and zoom off, each figure is drawn in proportion
+ * to its value (the largest at full size, proportions unchanged), unless the values are far apart (min under 60% of max).
  * figures: [{ id, sex: "M" | "F" | "both", head, value, approx, sub, color }]
  */
-export function valueCard({ key, label, unit, title, figures, zoom, onZoom }) {
-  const vals = figures.map(f => f.value).filter(v => v != null && v > 0);
-  const max = Math.max(...vals);
-  const scaled = !zoom && unit === "mm" && vals.length > 1 && Math.min(...vals) / max >= .6;
-  const fmt = v => `${unit === "mm" ? fmtInt(Math.round(v)) : fmtFixed(v, 1)} ${unit}`;
+export function valueCard({ key, label, unit, title, figures, zoom, onZoom, scale }) {
+  const scaled = !!scale && !zoom && scale.max > 0 && scale.min / scale.max >= .6;
+  const fmt = v => `${unit === "mm" ? fmtInt(Math.round(v)) : fmtFixed(v, unit === "ratio" ? 2 : 1)}\u00a0${unit}`;
   return h("div", { class: "mq-card" },
     h("div", { class: "mq-head" }, h("b", {}, title),
       onZoom ? h("button", { class: "btn small", type: "button", "aria-pressed": String(zoom), onclick: onZoom, title: "Zoom the figures to the measured area" }, zoom ? "Zoom: on" : "Zoom: off") : null),
     h("div", { class: "mq-figs" }, figures.map(f => h("figure", { class: "mq-fig" + (f.value == null ? " nodata" : "") },
-      figure(f.sex, key, zoom, `${label}, ${f.head}`, { scale: scaled && f.value != null ? f.value / max : 1, id: f.id }),
+      figure(f.sex, key, zoom, `${label}, ${f.head}`, { scale: scaled && f.value != null ? f.value / scale.max : 1, id: f.id }),
       h("figcaption", {},
         h("span", { class: "mq-sex" }, h("i", { class: "swatch-dot", style: { background: `var(${f.color})` } }), f.head),
-        h("b", { class: "mq-val" }, f.value == null ? "No data" : `${f.approx ? "≈ " : ""}${fmt(f.value)}`),
+        h("b", { class: "mq-val" }, f.value == null ? "—" : `${f.approx ? "≈\u00a0" : ""}${fmt(f.value)}`),
         f.sub ? h("span", { class: "small muted" }, f.sub) : null)))),
-    scaled ? h("p", { class: "small muted", style: { margin: 0 } }, "Figures are drawn to scale with the value; body proportions are not changed.") : null);
+    scaled ? h("p", { class: "small muted", style: { margin: 0 } }, "Figures are drawn to one scale with the values; body proportions are not changed.") : null);
 }

@@ -162,15 +162,16 @@ const Z95 = 1.6448536269514722;
 const erf = x => { const t = 1 / (1 + .3275911 * Math.abs(x)), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - .284496736) * t + .254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; };
 const Phi = z => .5 * (1 + erf(z / Math.SQRT2));
 
-/** Quantile function of a row linear in z through (p5, p50, p95); rows without percentiles are normal (mean ± 1.645 SD). */
+/** Quantile function of a row linear in z through (p5, p50, p95). Missing P5 and P95 come from mean ± 1.645 SD (normal), a
+ * missing median from the mean. rep = [p5, p50, p95] flags, true where the source printed that percentile. */
 export function rowDist(r) {
-  const m = r.mean, sd = r.sd, a = r.p5, b = r.p50, c = r.p95;
-  if (a != null && c != null && a < c) {
-    const rep = b != null && b >= a && b <= c;
-    const mid = Math.min(Math.max(rep ? b : m != null && m >= a && m <= c ? m : (a + c) / 2, a + 1e-9), c - 1e-9);
-    return { a, m: mid, c, reported: rep };
-  }
-  return m != null && sd ? { a: m - Z95 * sd, m, c: m + Z95 * sd, reported: false } : null;
+  const m = r.mean, sd = r.sd;
+  let a = r.p5, b = r.p50, c = r.p95, rep;
+  if (a != null && c != null && a < c) rep = [true, true, true];
+  else if (m != null && sd) { a = m - Z95 * sd; c = m + Z95 * sd; rep = [false, true, false]; }
+  else return null;
+  if (b == null || b < a || b > c) { b = m != null && m >= a && m <= c ? m : (a + c) / 2; rep[1] = false; }
+  return { a, m: Math.min(Math.max(b, a + 1e-9), c - 1e-9), c, rep, reported: rep.every(Boolean) };
 }
 
 /** [p5, p50, p95] of the n-weighted mixture of the groups, or null if no group has a usable distribution. */
