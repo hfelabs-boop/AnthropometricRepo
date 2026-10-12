@@ -170,7 +170,7 @@ export function bodyMap({ key, label, unit, figures, zoom, onZoom }) {
  */
 export function valueCard({ key, label, unit, title, figures, zoom, onZoom, scale }) {
   const scaled = !!scale && !zoom && scale.max > 0 && scale.min / scale.max >= .6;
-  const fmt = v => `${unit === "mm" ? fmtInt(Math.round(v)) : fmtFixed(v, unit === "ratio" ? 2 : 1)}\u00a0${unit}`;
+  const fmt = v => `${unit === "mm" ? fmtInt(Math.round(v)) : fmtFixed(v, unit === "ratio" ? 2 : 1)} ${unit}`;
   return h("div", { class: "mq-card" },
     h("div", { class: "mq-head" }, h("b", {}, title),
       onZoom ? h("button", { class: "btn small", type: "button", "aria-pressed": String(zoom), onclick: onZoom, title: "Zoom the figures to the measured area" }, zoom ? "Zoom: on" : "Zoom: off") : null),

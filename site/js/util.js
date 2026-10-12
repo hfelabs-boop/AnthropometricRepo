@@ -168,7 +168,11 @@ export function rowDist(r) {
   const m = r.mean, sd = r.sd;
   let a = r.p5, b = r.p50, c = r.p95, rep;
   if (a != null && c != null && a < c) rep = [true, true, true];
-  else if (m != null && sd) { a = m - Z95 * sd; c = m + Z95 * sd; rep = [false, true, false]; }
+  else if (m != null && sd) {
+    // a lone printed tail is kept (when it is on the right side of the estimate's mean); only the missing one is estimated
+    const ka = a != null && a < m + Z95 * sd, kc = c != null && c > m - Z95 * sd;
+    a = ka ? a : m - Z95 * sd; c = kc ? c : m + Z95 * sd; rep = [ka, true, kc];
+  }
   else return null;
   if (b == null || b < a || b > c) { b = m != null && m >= a && m <= c ? m : (a + c) / 2; rep[1] = false; }
   return { a, m: Math.min(Math.max(b, a + 1e-9), c - 1e-9), c, rep, reported: rep.every(Boolean) };

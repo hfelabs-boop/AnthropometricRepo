@@ -342,10 +342,12 @@ table.dtable thead { position: sticky; top: 0; z-index: 2; }
 table.dtable thead th { position: static; }
 table.dtable thead th.sel { background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); }
 table.dtable td.num { white-space: nowrap; }
-.mq-val { white-space: nowrap; }
-.cmp-design-cards .mq-figs { justify-content: flex-start; }
-.cmp-design-cards .mq-fig { flex: 0 1 150px; max-width: 150px; }
+.cmp-design-cards .mq-figs { justify-content: flex-start; flex-wrap: wrap; }
+.cmp-design-cards .mq-fig { flex: 0 0 140px; max-width: 140px; }
 .cmp-info-head { font-size: .9rem; }
 .cmp-sexpick { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .cmp-nodata { align-content: start; }
 @media (max-width: 700px) { .subtabs { flex-wrap: wrap; overflow-x: visible; } }
+.toolbar .btn { white-space: normal; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.cmp-quick { margin: 0 0 10px; gap: 10px 16px; align-items: flex-end; }
+.cmp-quick .field { margin: 0; }

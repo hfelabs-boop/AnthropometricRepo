@@ -21,6 +21,7 @@ aggregates/survey_groups.csv; without an entry a paper's rows are only compared 
 Usage: python scripts/build_aggregates.py   (run scripts/build_database.py first)
 """
 import csv
+import json
 import math
 import re
 import sqlite3
@@ -43,6 +44,7 @@ DATASETS = {  # dataset -> (survey_id, country, service_role, year_start, source
     "usaf_1967": ("usaf-1967", "United States", "Aircrew", 1967, "data/usaf-1967/"),
 }
 ORIGIN_RANK = {"computed": 0, "A": 1, "B": 2, "C": 3}
+REL_RANK = {"high": 0, "medium": 1, "low": 2}
 
 
 def load_measures():
@@ -225,7 +227,9 @@ def row_dist(r):
     if a is not None and c is not None and a < c:
         rep = (True, True, True)
     elif m is not None and sd:
-        a, c, rep = m - Z95 * sd, m + Z95 * sd, (False, True, False)
+        # a lone printed tail is kept (when it is on the right side of the estimate's mean); only the missing one is estimated
+        ka, kc = a is not None and a < m + Z95 * sd, c is not None and c > m - Z95 * sd
+        a, c, rep = (a if ka else m - Z95 * sd), (c if kc else m + Z95 * sd), (ka, True, kc)
     else:
         return None
     if b is None or not a <= b <= c:
@@ -289,6 +293,14 @@ def rollup(rows):
             rs = [r for r in rs if r["reliability"] != "low"]
         else:
             dropped = 0
+        # A survey that prints one measure under two spellings counts once: keep its best row (grade, printed percentiles, n).
+        best = {}
+        for r in rs:
+            d = row_dist(r)
+            score = (-REL_RANK[r["reliability"]], sum(d[3]) if d else -1, num(r["n"]) or 0)
+            if r["survey_group"] not in best or score > best[r["survey_group"]][0]:
+                best[r["survey_group"]] = (score, r)
+        rs = [r for _, r in best.values()]
         # 'other:' measures are printed under several spellings; label the group with an English one from the largest sample.
         olabel = min(rs, key=lambda r: (not r["measure_label"].isascii(), -(num(r["n"]) or 0)))["measure_label"]
         ns = [num(r["n"]) for r in rs]
@@ -323,7 +335,7 @@ def rollup(rows):
             "n_surveys": len({r["survey_group"] for r in rs}), "mean_min": round(min(ms), 2), "mean_max": round(max(ms), 2),
             "year_min": min(years) if years else "", "year_max": max(years) if years else "",
             "sources": "; ".join(sorted({r["source_id"] for r in rs})),
-            "survey_groups": "; ".join(sorted({r["survey_group"] for r in rs}))})
+            "survey_groups": json.dumps(sorted({r["survey_group"] for r in rs}), ensure_ascii=False)})
     out.sort(key=lambda r: (r["country"], r["service_role"], r["sex"], r["measure_key"]))
     return out
 
