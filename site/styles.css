@@ -315,3 +315,26 @@ footer.site { max-width: 1320px; margin: 0 auto; padding: 16px; color: var(--tex
 .mpick-opt[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); font-weight: 600; }
 .mpick-name { min-width: 0; overflow-wrap: anywhere; }
 .mpick-n { flex: none; font-size: .75rem; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* By country & role: survey title, design values */
+.cmp-title { display: grid; gap: 0; margin-bottom: 8px; }
+.cmp-title h2 { margin: 0; font-size: 1.3rem; letter-spacing: -.01em; text-wrap: balance; }
+.cmp-design-info { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 8px 10px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); font-size: .86rem; }
+.cmp-relitem { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.cmp-design-cards { display: flex; flex-wrap: wrap; gap: 12px; align-items: stretch; }
+.cmp-design-cards .mq-card { height: 100%; box-sizing: border-box; }
+.mq-fig.nodata svg { opacity: .35; }
+.cmp-choose p { margin: 4px 0 10px; color: var(--text-2); }
+.cmp-choose-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.cmp-choose-list .btn { display: grid; gap: 2px; text-align: left; justify-items: start; padding: 8px 10px; }
+table.dtable { width: auto; min-width: 100%; }
+table.dtable thead th { text-align: right; }
+table.dtable thead th:first-child, table.dtable thead tr:first-child th:nth-child(2) { text-align: left; }
+table.dtable th.grp { text-align: center; border-left: 1px solid var(--line); }
+table.dtable td.num, table.dtable th.num { font-variant-numeric: tabular-nums; }
+table.dtable th.sel, table.dtable td.sel { background: color-mix(in srgb, var(--accent) 10%, transparent); font-weight: 600; }
+table.dtable tr.cur td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
+table.dtable tr.cur td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+table.dtable tr.cat td { background: var(--surface-2); font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); padding-top: 5px; padding-bottom: 5px; }
+.linklike { border: 0; background: none; padding: 0; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.linklike:hover { color: var(--accent); text-decoration: underline; }

@@ -35,7 +35,7 @@ import sys  # noqa: E402
 sys.path.insert(0, str(ROOT / "scripts"))
 from validate_aggregates import COLUMNS  # noqa: E402
 
-OUT_COLUMNS = COLUMNS + ["origin", "survey_group", "is_primary", "official_doc", "official_body", "official_basis"]
+OUT_COLUMNS = COLUMNS + ["origin", "survey_group", "is_primary", "official_doc", "official_body", "official_basis", "reliability", "reliability_note"]
 DATASETS = {  # dataset -> (survey_id, country, service_role, year_start, source_file)
     "ansur_1988": ("ansur-1988", "United States", "Army", 1987, "data/ansur-1988/"),
     "ansur_ii_2012": ("ansur-ii-2012", "United States", "Army", 2010, "data/ansur-ii-2012/"),
@@ -123,6 +123,48 @@ def mark_official(rows):
         r["official_doc"] = o["document_id"] if o else ""
         r["official_body"] = o["issuing_body"] if o else ""
         r["official_basis"] = ("survey microdata" if r["origin"] == "computed" else "document table") if o else ""
+
+
+def source_tier(r):
+    """verified: computed from raw data, a validated born-digital table, or an official defence document's table (OCR that
+    passed the consistency checks); checked: OCR of a published paper that passed the consistency checks; unchecked: read from
+    a web article's text or tables without the consistency checks."""
+    if r["origin"] in ("computed", "A") or (r["origin"] == "B" and r["official_doc"]):
+        return "verified"
+    return "checked" if r["origin"] == "B" else "unchecked"
+
+
+def reliability(tiers, basis, n):
+    """(grade, reasons). high: every source verified, percentiles reported by the sources (not estimated), at least 100 people.
+    low: a source that was not cross-checked, fewer than 30 people (or n not reported), or neither percentiles nor an SD.
+    medium: everything in between. Reasons list what keeps the grade below high."""
+    why = []
+    if "unchecked" in tiers:
+        why.append("values read from a web article, not cross-checked")
+    if n is None:
+        why.append("sample size not reported")
+    elif n < 30:
+        why.append("fewer than 30 people")
+    if not basis:
+        why.append("no percentiles or SD reported")
+    if why:
+        return "low", "; ".join(why)
+    if "checked" in tiers:
+        why.append("OCR of a published paper (passed the consistency checks)")
+    if basis == "estimated":
+        why.append("percentiles estimated from mean and SD")
+    elif basis == "mixed":
+        why.append("some percentiles estimated from mean and SD")
+    if n < 100:
+        why.append("fewer than 100 people")
+    return ("medium" if why else "high"), "; ".join(why)
+
+
+def mark_reliability(rows):
+    for r in rows:
+        d = row_dist(r)
+        basis = "" if d is None else "reported" if d[3] else "estimated"
+        r["reliability"], r["reliability_note"] = reliability({source_tier(r)}, basis, num(r["n"]))
 
 
 def num(x):
@@ -247,7 +289,9 @@ def rollup(rows):
             p5 = p50 = p95 = None
             basis = ""
         off = [r for r in rs if r["official_doc"]]
+        grade, why = reliability({source_tier(r) for r in rs}, basis, N)
         out.append({
+            "reliability": grade, "reliability_note": why,
             "official_docs": "; ".join(sorted({r["official_doc"] for r in off})),
             "official_share": round(sum(num(r["n"]) for r in off) / N, 2),
             "country": country, "service_role": role, "sex": sex, "measure_key": key,
@@ -266,12 +310,13 @@ def main():
     rows = computed_rows() + paper_rows()
     mark_primary(rows)
     mark_official(rows)
+    mark_reliability(rows)
     with open(AGG / "aggregates.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=OUT_COLUMNS, lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
     roll = rollup(rows)
-    fields = ["country", "service_role", "sex", "measure_key", "measure_label", "n_total", "mean", "sd", "p5", "p50", "p95", "pct_basis", "official_docs", "official_share", "n_surveys",
+    fields = ["country", "service_role", "sex", "measure_key", "measure_label", "n_total", "mean", "sd", "p5", "p50", "p95", "pct_basis", "reliability", "reliability_note", "official_docs", "official_share", "n_surveys",
               "mean_min", "mean_max", "year_min", "year_max", "sources"]
     with open(AGG / "rollup.csv", "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
