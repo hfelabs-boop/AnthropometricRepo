@@ -12,7 +12,7 @@
 | `raw_columns` | | Descriptions of the raw columns. USAF 1967 variables include their HSIAC names. |
 | `surveys`, `survey_links` | 49, … | The full catalog and every report and data link. |
 | `aggregates` | 11,100 | Every mean/SD/n extracted from published papers plus statistics computed from the four datasets, with country, role, source file and page. See [`../aggregates/README.md`](../aggregates/README.md). |
-| `rollup` | 7,060 | Country × role × sex × measure averages, SD and P5/P50/P95 (`pct_basis` = reported / mixed / estimated; `official_docs` / `official_share` = official defence documents behind the group) over the primary `aggregates` rows. |
+| `rollup` | 6,968 | Country × role × sex × measure averages, SD and P5/P50/P95 (`pct_basis` = reported / mixed / estimated; `official_docs` / `official_share` = official defence documents behind the group; `reliability` / `reliability_note` = high, medium or low and why; `pct_estimated` = which of p5 p50 p95 are estimated; `survey_groups` = JSON list of the surveys combined) over the primary `aggregates` rows. |
 | `papers` | 258 | The paper index: original link, free copy, pages, and how many rows were extracted. |
 
 ## Harmonization

@@ -6,7 +6,7 @@ Only four surveys publish individual-level data. To cover more countries, servic
 | File | What it is |
 |---|---|
 | `raw/*.csv` | Rows extracted from papers, one file per extraction run. `raw/*.md` describe how each run was done, what was dropped and why. |
-| `aggregates.csv` | Everything merged, plus the statistics computed from the four raw datasets. `is_primary = 1` marks the row used when several sources describe the same population. |
+| `aggregates.csv` | Everything merged, plus the statistics computed from the four raw datasets. `is_primary = 1` marks the row used when several sources describe the same population (printed percentiles win, then the larger n, then the better origin; spelling variants of one measure count as one). |
 | `rollup.csv` | One row per country × role × sex × measure: sample-size-weighted mean, pooled SD and the 5th / 50th / 95th percentiles (`p5`, `p50`, `p95`) over the primary rows. A group made of several surveys combines the surveys' distributions as a mixture weighted by sample size. Each survey's percentiles are the ones it reports; where it reports none they are estimated from its mean and SD (normal approximation). `pct_basis` says which: `reported` (every survey), `mixed`, or `estimated` (none); blank when a group has neither percentiles nor SDs. |
 | `official_documents.csv` | Register of the official defence, standards and NATO/allied documents that surveys in the data come from: `source_id`, document designation (for example `NATICK/TR-89/044`, `AGARD-AG-205`, `DSTO-TR-3006`, `NASA RP-1024 Vol. II (compiled in DOD-HDBK-743A)`), issuing body, type, DTIC/agency reference and a `verified` flag. Edit this file to flag more sources. |
 | `survey_groups.csv` | Says which populations in different papers are the same survey, so it is counted once. |
@@ -56,3 +56,21 @@ the UK, French, Dutch, Bundeswehr, Russian, Israeli, Indian, Indonesian, Malaysi
 
 `aggregates.csv` carries three extra columns, filled from `official_documents.csv` by `scripts/build_aggregates.py`:
 `official_doc` (the document designation), `official_body` (issuer) and `official_basis` (`document table` = values read from that document; `survey microdata` = computed here from the survey's public individual-level data, which the document describes). `rollup.csv` has `official_docs` (the documents behind the group) and `official_share` (share of the group's people that come from them, 0 to 1). Rows from papers, journal articles and national statistics are not flagged. Two entries (`korea`, `thai-1964`) are DTIC reports whose issuing body is not verified in the catalog; they are marked `partly`.
+
+## Reliability
+
+Every row of `aggregates.csv` and every group of `rollup.csv` has `reliability` (`high`, `medium` or `low`) and `reliability_note` (what keeps it below high), set by `scripts/build_aggregates.py`:
+
+* **high**: every contributing source is verified (computed from raw data, a born-digital table parsed and validated, or an official defence document's table that passed the OCR consistency checks), the percentiles are reported by the sources rather than estimated, and there are at least 100 people.
+* **low**: a source was read from a web article without the consistency checks, there are fewer than 30 people (or n is not reported), or there are neither percentiles nor an SD.
+* **medium**: everything in between (OCR of a published paper, percentiles estimated from the mean and SD, or 30 to 99 people).
+
+The By country & role page filters on this grade (default: high and medium) and shows it next to each value.
+
+## Roll-up details
+
+* One roll-up group has one row per survey: a survey that prints a measure under two spellings counts once (its best row).
+* Low-reliability rows are left out of a group when it has better ones, and the note says so (`excludes N low-reliability source rows`). A group made only of low rows stays low. Rows without a sample size never enter the roll-up; they appear in the Every population tab only.
+* `p5`, `p50` and `p95` use the sources' printed values. A missing P5 or P95 is estimated from the mean and SD (normal; lognormal when the normal estimate would reach zero, as for skinfolds), a missing median from the mean. `pct_basis` is `reported`, `mixed` or `estimated` for the whole group and `pct_estimated` lists which of `p5 p50 p95` are estimated.
+* `survey_groups` is a JSON list of the surveys combined in the group (ids can contain `;`).
+* The NASA RP-1024 populations are never treated as parts of a total by sample size: each S-number is its own survey, and its totals are stated in the notes.

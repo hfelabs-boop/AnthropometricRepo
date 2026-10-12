@@ -113,15 +113,22 @@ function animate(svg, key, to) {
   requestAnimationFrame(step);
 }
 
+// Viewport that draws the figure at `scale` of full size, standing on the same floor (scaled about the bottom centre).
+function scaleBox(B, scale) {
+  if (!(scale > 0 && scale < 1)) return B;
+  const w = B.w / scale, hh = B.h / scale;
+  return { x: B.x + B.w / 2 - w / 2, y: B.y + B.h - hh, w, h: hh };
+}
+
 let maskId = 0;
-function figure(sexCode, key, zoom, name) {
+function figure(sexCode, key, zoom, name, opts = {}) {
   const sex = sexCode === "F" ? "F" : "M", D = dataOf(sex);
   const spec = resolve(key, sex), PO = POSES[spec.pose], sp = D.sprite[PO.img];
-  const box = zoom ? targetBox(spec.pose, spec.m) : PO.base;
+  const box = zoom ? targetBox(spec.pose, spec.m) : scaleBox(PO.base, opts.scale);
   const r = box.w / 62;
   const svg = s("svg", { role: "img", "aria-label": `${name}: where it is measured on the ${sex === "F" ? "female" : "male"} body`, preserveAspectRatio: "xMidYMid meet" });
   const B = PO.base, img = () => s("image", { href: `img/body/${sex}_${PO.img}.webp`, x: sp.x, y: sp.y, width: sp.w, height: sp.h });
-  if (PO.ground === "floor") svg.append(s("line", { x1: B.x + 20, y1: 451, x2: B.x + B.w - 20, y2: 451, stroke: "var(--line-strong)", "stroke-width": 1.2, "vector-effect": "non-scaling-stroke" }));
+  if (PO.ground === "floor") svg.append(s("line", { x1: B.x - B.w, y1: 451, x2: B.x + 2 * B.w, y2: 451, stroke: "var(--line-strong)", "stroke-width": 1.2, "vector-effect": "non-scaling-stroke" }));
   else svg.append(s("path", { d: `M${D.wall.sit_back} 110V${SEAT + 1}H232M${B.x + 20} ${D.G.floorY}H${B.x + B.w - 10}`, fill: "none", stroke: "var(--line-strong)", "stroke-width": 1.4, "vector-effect": "non-scaling-stroke" }));
   svg.append(img());
   if (spec.tint) {
@@ -130,7 +137,7 @@ function figure(sexCode, key, zoom, name) {
       s("rect", { x: sp.x, y: sp.y, width: sp.w, height: sp.h, fill: "var(--accent)", opacity: .45, mask: `url(#${id})` }));
   }
   svg.append(s("g", {}, ...spec.m.flatMap(m => markerEls(m, r))));
-  animate(svg, `${sexCode}|${spec.pose}`, { ...box, pose: spec.pose });
+  animate(svg, `${sexCode}|${spec.pose}|${opts.id || ""}`, { ...box, pose: spec.pose });
   return svg;
 }
 
@@ -140,7 +147,8 @@ export function bodyMap({ key, label, unit, figures, zoom, onZoom }) {
   const note = spec.kind === "region" ? "No single landmark for this measure: the body region is highlighted."
     : spec.kind === "none" ? (/^age$/.test(key) ? "Age is a demographic variable, not a body dimension." : "This measure is not tied to one place on the body.")
     : spec.desc || (spec.tint ? "A whole-body measure." : "");
-  const fmt = v => v == null ? "—" : `${fmtFixed(v, unit === "mm" ? 0 : 1)} ${unit}`;
+  const dec = unit === "mm" ? 0 : unit === "ratio" ? 2 : 1;
+  const fmt = v => v == null ? "—" : `${fmtFixed(v, dec)} ${unit}`;
   return h("div", { class: "mq-card" },
     h("div", { class: "mq-head" }, h("b", {}, "Where it is measured"),
       h("button", { class: "btn small", type: "button", "aria-pressed": String(zoom), onclick: onZoom, title: "Zoom the figure to the measured area" }, zoom ? "Zoom: on" : "Zoom: off")),
@@ -150,7 +158,28 @@ export function bodyMap({ key, label, unit, figures, zoom, onZoom }) {
         h("span", { class: "mq-sex" }, h("i", { class: "swatch-dot", style: { background: `var(${f.color})` } }), f.label),
         h("b", { class: "mq-val" }, fmt(f.mean)),
         f.pct ? h("span", { class: "mq-pct", title: "5th, 50th (median) and 95th percentile of the groups shown, combined and weighted by sample size" },
-          [["P5", f.pct[0]], ["P50", f.pct[1]], ["P95", f.pct[2]]].map(([k, v]) => h("span", {}, h("i", {}, k), fmtFixed(v, unit === "mm" ? 0 : 1)))) : null,
+          [["P5", f.pct[0]], ["P50", f.pct[1]], ["P95", f.pct[2]]].map(([k, v]) => h("span", {}, h("i", {}, k), fmtFixed(v, dec)))) : null,
         h("span", { class: "small muted" }, f.groups ? `${label} · mean of ${fmtInt(f.groups)} group${f.groups === 1 ? "" : "s"}${f.people ? `, ${fmtInt(f.people)} people` : ""}` : `${label} · no data for this selection`))))),
     note ? h("p", { class: "small muted", style: { margin: 0 } }, note) : null);
+}
+
+/**
+ * A card of figures for one measure, each labelled with one value: one percentile for men and women, or P5, P50 and
+ * P95 of one sex. With `scale` ({ min, max } of every value on the page) and zoom off, each figure is drawn in proportion
+ * to its value (the largest at full size, proportions unchanged), unless the values are far apart (min under 60% of max).
+ * figures: [{ id, sex: "M" | "F" | "both", head, value, approx, sub, color }]
+ */
+export function valueCard({ key, label, unit, title, figures, zoom, onZoom, scale }) {
+  const scaled = !!scale && !zoom && scale.max > 0 && scale.min / scale.max >= .6;
+  const fmt = v => `${unit === "mm" ? fmtInt(Math.round(v)) : fmtFixed(v, unit === "ratio" ? 2 : 1)} ${unit}`;
+  return h("div", { class: "mq-card" },
+    h("div", { class: "mq-head" }, h("b", {}, title),
+      onZoom ? h("button", { class: "btn small", type: "button", "aria-pressed": String(zoom), onclick: onZoom, title: "Zoom the figures to the measured area" }, zoom ? "Zoom: on" : "Zoom: off") : null),
+    h("div", { class: "mq-figs" }, figures.map(f => h("figure", { class: "mq-fig" + (f.value == null ? " nodata" : "") },
+      figure(f.sex, key, zoom, `${label}, ${f.head}`, { scale: scaled && f.value != null ? f.value / scale.max : 1, id: f.id }),
+      h("figcaption", {},
+        h("span", { class: "mq-sex" }, h("i", { class: "swatch-dot", style: { background: `var(${f.color})` } }), f.head),
+        h("b", { class: "mq-val" }, f.value == null ? "—" : `${f.approx ? "≈\u00a0" : ""}${fmt(f.value)}`),
+        f.sub ? h("span", { class: "small muted" }, f.sub) : null)))),
+    scaled ? h("p", { class: "small muted", style: { margin: 0 } }, "Figures are drawn to one scale with the values; body proportions are not changed.") : null);
 }

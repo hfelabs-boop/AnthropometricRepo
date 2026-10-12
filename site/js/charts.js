@@ -219,7 +219,7 @@ function scatterPanel(groups, dom, { xLabel, yLabel, xUnit, yUnit, compact }) {
  * Bars would have to start at zero and hide the differences, so this uses dots.
  * rows: [{label, sub, mean, sd, n, color: "--s1", group?, extra?: [[k, v]]}]
  */
-export function dotplot(rows, { unit = "", measure = "", minSd = false, range = "sd" } = {}) {
+export function dotplot(rows, { unit = "", measure = "", minSd = false, range = "sd", dec = 1 } = {}) {
   if (!rows.length) return h("div", { class: "empty" }, "Nothing to plot for this selection.");
   const rowH = 26, W = 760, M = { t: 14, r: 24, b: 40, l: 250 };
   const H = M.t + M.b + rows.length * rowH;
@@ -250,7 +250,7 @@ export function dotplot(rows, { unit = "", measure = "", minSd = false, range = 
     if (hasSpan) row.append(s("line", { x1: x(a), x2: x(b), y1: cy, y2: cy, stroke: `var(${r.color})`, "stroke-width": 2, "stroke-linecap": "round", opacity: .55 }));
     if (pct && r.p50 != null) row.append(s("line", { x1: x(r.p50), x2: x(r.p50), y1: cy - 6, y2: cy + 6, stroke: `var(${r.color})`, "stroke-width": 2, "stroke-linecap": "round" }));
     row.append(s("circle", { cx: x(r.mean), cy, r: 5, fill: `var(${r.color})`, stroke: "var(--surface)", "stroke-width": 2 }));
-    row.append(s("text", { x: Math.min(W - 4, x(hasSpan ? b : r.mean) + 8), y: cy + 4, fill: "var(--text-2)", "font-size": 11 }, fmtNum(r.mean, 1)));
+    row.append(s("text", { x: Math.min(W - 4, x(hasSpan ? b : r.mean) + 8), y: cy + 4, fill: "var(--text-2)", "font-size": 11 }, fmtNum(r.mean, dec)));
     svg.append(row);
     r._el = row; r._cy = cy;
   });
@@ -259,9 +259,9 @@ export function dotplot(rows, { unit = "", measure = "", minSd = false, range = 
   const show = r => {
     const box = svg.getBoundingClientRect(), k = box.width / W;
     tip.show(Math.min(x(r.mean), W - 200) * k, r._cy * k, r.label, [
-      { color: r.color, value: `${fmtNum(r.mean, 1)} ${unit}`, label: "mean" },
-      ...(r.sd ? [{ color: r.color, value: `${fmtNum(r.sd, 1)} ${unit}`, label: "SD" }] : []),
-      ...(r.p5 != null ? [["P5", r.p5], ["P50", r.p50], ["P95", r.p95]].filter(([, v]) => v != null).map(([k2, v]) => ({ color: r.color, value: `${fmtNum(v, 1)} ${unit}`, label: k2 })) : []),
+      { color: r.color, value: `${fmtNum(r.mean, dec)} ${unit}`, label: "mean" },
+      ...(r.sd ? [{ color: r.color, value: `${fmtNum(r.sd, dec)} ${unit}`, label: "SD" }] : []),
+      ...(r.p5 != null ? [["P5", r.p5], ["P50", r.p50], ["P95", r.p95]].filter(([, v]) => v != null).map(([k2, v]) => ({ color: r.color, value: `${fmtNum(v, dec)} ${unit}`, label: k2 })) : []),
       { color: r.color, value: fmtInt(r.n), label: "people" },
       ...(r.extra || []).map(([k2, v]) => ({ color: r.color, value: v, label: k2 }))]);
   };
