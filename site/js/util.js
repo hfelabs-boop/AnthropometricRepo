@@ -162,16 +162,26 @@ const Z95 = 1.6448536269514722;
 const erf = x => { const t = 1 / (1 + .3275911 * Math.abs(x)), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - .284496736) * t + .254829592) * t * Math.exp(-x * x); return x >= 0 ? y : -y; };
 const Phi = z => .5 * (1 + erf(z / Math.SQRT2));
 
-/** Quantile function of a row linear in z through (p5, p50, p95). Missing P5 and P95 come from mean ± 1.645 SD (normal), a
- * missing median from the mean. rep = [p5, p50, p95] flags, true where the source printed that percentile. */
+/** P5 and P95 from a mean and SD: normal (mean ± 1.645 SD); when that would reach zero or below (a positive, skewed measure
+ * such as a skinfold or body fat) lognormal with the same mean and SD. med is the lognormal median in that case, else null. */
+export function estimatedTails(m, sd) {
+  const a = m - Z95 * sd, c = m + Z95 * sd;
+  if (a > 0 || m <= 0) return { a, c, med: null };
+  const s2 = Math.log(1 + (sd / m) ** 2), mu = Math.log(m) - s2 / 2;
+  return { a: Math.exp(mu - Z95 * Math.sqrt(s2)), c: Math.exp(mu + Z95 * Math.sqrt(s2)), med: Math.exp(mu) };
+}
+
+/** Quantile function of a row linear in z through (p5, p50, p95). Missing P5 and P95 come from estimatedTails, a missing median
+ * from the mean (or the lognormal median). rep = [p5, p50, p95] flags, true where the source printed that percentile. */
 export function rowDist(r) {
   const m = r.mean, sd = r.sd;
   let a = r.p5, b = r.p50, c = r.p95, rep;
   if (a != null && c != null && a < c) rep = [true, true, true];
   else if (m != null && sd) {
     // a lone printed tail is kept (when it is on the right side of the estimate's mean); only the missing one is estimated
-    const ka = a != null && a < m + Z95 * sd, kc = c != null && c > m - Z95 * sd;
-    a = ka ? a : m - Z95 * sd; c = kc ? c : m + Z95 * sd; rep = [ka, true, kc];
+    const e = estimatedTails(m, sd), ka = a != null && a < m + Z95 * sd, kc = c != null && c > m - Z95 * sd;
+    a = ka ? a : e.a; c = kc ? c : e.c; rep = [ka, e.med == null, kc];
+    if (e.med != null && b == null) b = e.med;
   }
   else return null;
   if (b == null || b < a || b > c) { b = m != null && m >= a && m <= c ? m : (a + c) / 2; rep[1] = false; }

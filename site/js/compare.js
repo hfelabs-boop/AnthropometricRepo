@@ -22,7 +22,7 @@ const LENGTH_UNITS = ["mm", "cm", "0.1 mm", "in", "m"];
 // Sidebar categories whose measures are heights or lengths of the whole body or a limb: only those scale the figures.
 const SCALE_CATS = ["Heights (standing)", "Seated", "Limbs & reach"];
 // Girths, breadths and depths in those categories (hip breadth sitting, waist depth ...) are not heights or lengths.
-const NOT_LENGTH = /circumference|girth|perimeter|breadth|width|depth|diameter|thickness|clearance/;
+const NOT_LENGTH = /circumference|girth|perimeter|breadth|width|depth|diameter|thickness|clearance|^shoulder_length$|neck_length|^elbow_rest_height$/;
 const MATRIX_MEASURES = ["stature", "mass", "bmi", "sitting_height", "chest_circumference", "waist_circumference",
   "head_circumference", "hand_length", "foot_length", "buttock_knee_length"];
 
@@ -162,7 +162,7 @@ export async function initCompare() {
       e.groups.add(`${r.country}|${r.service_role}`); e.sexes.add(r.sex);
     }
     const one = scoped() && st.country && st.role;
-    const nameOf = k => M[k]?.label || (one && avail.get(k)?.label) || label(k);
+    const nameOf = label;
     const badge = k => { const e = avail.get(k); return one ? ["M", "F", "both"].filter(x => e.sexes.has(x)).map(x => ({ M: "M", F: "F", both: "mixed" }[x])).join(" ") : e.groups.size; };
     const keys = measureKeys.filter(k => avail.has(k));
     if (st.cat && !keys.some(k => catOf(k) === st.cat)) st.cat = "";
@@ -173,7 +173,7 @@ export async function initCompare() {
       catNames.map(c => [c, keys.filter(k => catOf(k) === c).length]).filter(([, n]) => n).map(([c, n]) => h("option", { value: c, selected: c === st.cat }, `${c} (${n})`)));
     const list = h("div", { class: "mpick-list", role: "listbox", "aria-label": "Measures" });
     const count = h("div", { class: "small muted", "aria-live": "polite" });
-    const pick = k => { st.m = k; render().then(() => $("#cmp-msearch")?.focus({ preventScroll: true })); };
+    const pick = k => { const top = list.scrollTop; st.m = k; render().then(() => { const l = $(".mpick-list"); if (l) l.scrollTop = top; $("#cmp-msearch")?.focus({ preventScroll: true }); }); };
     const refresh = () => {
       const terms = measureQuery.toLowerCase().split(/\s+/).filter(Boolean);
       const hits = keys.filter(k => (!st.cat || catOf(k) === st.cat) && terms.every(t => searchIndex.get(k).includes(t)));
@@ -187,7 +187,7 @@ export async function initCompare() {
           title: `${nameOf(k)} · ${unitOf(k)} · ${one ? `sexes: ${badge(k)}` : `${badge(k)} country/role groups`}`, onclick: () => pick(k) },
           h("span", { class: "mpick-name" }, nameOf(k)), h("span", { class: "mpick-n" }, badge(k))));
       });
-      list.replaceChildren(...(rows.length ? rows : [h("div", { class: "empty small", style: { padding: "10px" } }, keys.length ? "No measure matches. Try one word, or choose All categories." : `No measures with data for ${shownWhere()} at this reliability level.`)]));
+      list.replaceChildren(...(rows.length ? rows : [h("div", { class: "empty small", style: { padding: "10px" } }, keys.length ? "No measure matches. Try one word, or choose All categories." : `No measures with data for ${shownWhere()} with the current filters.`)]));
     };
     const move = d => {
       if (!shown.length) return;
@@ -205,15 +205,16 @@ export async function initCompare() {
     refresh();
     return h("div", { class: "field mpick" }, h("label", {}, "3. Measure"),
       h("div", { class: "mpick-sel" }, h("b", {}, nameOf(st.m)), h("span", { class: "small muted" }, ` ${catOf(st.m)} · ${unitOf(st.m)}${M[st.m] ? "" : " · as published"}`),
-        avail.has(st.m) ? null : h("div", { class: "small", style: { color: "var(--warn)" } }, `No data for ${shownWhere()}${measureHere(st.m) ? " at this reliability level" : ""}. Pick another measure.`)),
+        avail.has(st.m) ? null : h("div", { class: "small", style: { color: "var(--warn)" } }, `No data for ${shownWhere()}${measureHere(st.m) ? " with the current filters" : ""}. Pick another measure.`)),
       catSel, input, count, list,
       h("span", { class: "small muted" }, `Type any words of the name (waist, hand breadth, skinfold). ${one ? "The letters show which sexes have data." : "The number is how many country/role groups have the measure."}`));
   }
 
-  let moreOpen = false, typeTimer = 0;
+  let moreOpen = false, typeTimer = 0, keyed = false;
   // Country and role are selects: typing letters (or pressing arrows) fires change on every key, and rebuilding the sidebar at
-  // once would restart the browser's type-ahead. Wait a moment after the last change.
-  const typeAhead = () => { clearTimeout(typeTimer); typeTimer = setTimeout(render, 450); };
+  // once would restart the browser's type-ahead (a one-second window). After a key, wait that long after the last one; a mouse pick renders at once.
+  const typeAhead = () => { clearTimeout(typeTimer); typeTimer = 0; if (!keyed) { render(); return; } typeTimer = setTimeout(() => { typeTimer = 0; render(); }, 1000); };
+  const typeKeys = { onkeydown: () => { keyed = true; if (typeTimer) { clearTimeout(typeTimer); typeTimer = setTimeout(() => { typeTimer = 0; render(); }, 1000); } }, onpointerdown: () => { keyed = false; } };
   const seg = (labelText, items, value, onPick, wrap = true) => h("div", { class: "field" }, h("span", { class: "field-label" }, labelText),
     h("div", { class: "seg" + (wrap ? " wrap" : ""), role: "group", "aria-label": labelText.replace(/^\d+\. /, "") },
       items.map(([v, t]) => h("button", { type: "button", "aria-pressed": String(value === v), onclick: () => onPick(v) }, t))));
@@ -223,7 +224,7 @@ export async function initCompare() {
     if (list.length < 2) return list.length ? h("p", { class: "small muted", style: { margin: "-4px 0 10px" } }, `Survey: ${surveyName(list[0])}`) : "";
     return h("div", { class: "field" }, h("label", { for: "cmp-survey" }, "Survey"),
       h("select", { class: "input", id: "cmp-survey", onchange: e => { st.survey = e.target.value; render(); } },
-        h("option", { value: "" }, `All ${list.filter(inCombined).length} surveys combined`),
+        h("option", { value: "" }, (n => n === 1 ? "The 1 survey in the combined values" : `All ${n} surveys combined`)(list.filter(inCombined).length)),
         list.map(x => h("option", { value: x.survey_group, selected: x.survey_group === st.survey },
           `${x.year ?? "year not given"} · ${x.population}${surveyN(x) ? ` (n ${surveyN(x)})` : ""}${inCombined(x) ? "" : " · not in the combined values"}`))),
       st.survey ? null : h("span", { class: "small muted" }, "Combined values pool surveys from different years. Pick one survey to use it on its own."));
@@ -237,14 +238,14 @@ export async function initCompare() {
     const design = st.sub === "design";
     f.replaceChildren(...[
       h("div", { class: "field" }, h("label", { for: "cmp-country" }, "1. Country"),
-        h("select", { class: "input", id: "cmp-country", onchange: e => { st.country = e.target.value; st.survey = ""; if (st.role && !(st.country ? rolesOf.get(st.country) : allRoles).has(st.role)) st.role = ""; if (!design) st.only = !!(st.country || st.role); typeAhead(); } },
+        h("select", { class: "input", id: "cmp-country", ...typeKeys, onchange: e => { st.country = e.target.value; st.survey = ""; if (st.role && !(st.country ? rolesOf.get(st.country) : allRoles).has(st.role)) st.role = ""; if (!design) st.only = !!(st.country || st.role); typeAhead(); } },
           h("option", { value: "" }, `All countries (${countries.length})`),
           countries.map(c => h("option", { value: c, selected: c === st.country }, `${c} (${plural(rolesOf.get(c).size, "role")})`)))),
       h("div", { class: "field" }, h("label", { for: "cmp-role" }, "2. Role"),
-        h("select", { class: "input", id: "cmp-role", onchange: e => { st.role = e.target.value; st.survey = ""; if (!design) st.only = !!(st.country || st.role); typeAhead(); } },
+        h("select", { class: "input", id: "cmp-role", ...typeKeys, onchange: e => { st.role = e.target.value; st.survey = ""; if (!design) st.only = !!(st.country || st.role); typeAhead(); } },
           h("option", { value: "" }, design && st.country ? "Choose a role…" : "All roles"),
           [...roleMap].map(([r]) => [r, okMeasures(r)]).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-            .map(([r, n]) => h("option", { value: r, selected: r === st.role }, `${r} (${plural(n, "measure")}${n ? "" : " at this reliability level"})`)))),
+            .map(([r, n]) => h("option", { value: r, selected: r === st.role }, `${r} (${plural(n, "measure")}${n ? "" : " with the current filters"})`)))),
       design && st.country && st.role ? surveyField() : null,
       measurePicker(),
       design ? seg("4. Percentile", PCTS, st.pct, v => { st.pct = v; render(); }, false) : null,
@@ -259,7 +260,7 @@ export async function initCompare() {
       design ? null : h("details", { class: "facet", open: moreOpen, ontoggle: e => { moreOpen = e.target.open; } }, h("summary", {}, "More filters"),
         h("div", { class: "facet-body" },
           h("div", { class: "field" }, h("label", { for: "cmp-minn" }, "Minimum people per group"),
-            h("input", { class: "input", id: "cmp-minn", type: "number", min: 0, step: 50, value: st.minN, onchange: e => { st.minN = +e.target.value || 0; render(); } })),
+            h("input", { class: "input", id: "cmp-minn", type: "number", min: 0, step: 50, value: st.minN, oninput: e => { st.minN = +e.target.value || 0; clearTimeout(typeTimer); typeTimer = setTimeout(() => { typeTimer = 0; render(); }, 700); } })),
           h("label", { class: "check" }, h("input", { type: "checkbox", checked: st.civilians, onchange: e => { st.civilians = e.target.checked; render(); } }),
             h("span", { class: "lbl" }, "Include civilian reference samples"), h("span", { class: "n" }, "every population only")))),
       h("p", { class: "small muted" }, "Values for one country and role combine its surveys, weighted by sample size. Surveys span the 1940s to the 2020s; use ", h("i", {}, "Every population"), " to see each survey on its own."),
@@ -313,6 +314,7 @@ export async function initCompare() {
       ...r, label: `${r.country} · ${r.service_role}${st.sex === "MF" ? ` (${r.sex})` : ""}`, color: SEX_COLOR[r.sex], n: r.n_total,
       extra: [["surveys", r.n_surveys], ["years", yearsText(r)]],
     })));
+    const dec = unitOf(st.m) === "ratio" ? 2 : 1;
     const groupOf = new Map(rows.map(r => [`${r.country}|${r.service_role}|${SEX_LABEL[r.sex]}`, r]));
     lastExport = () => toCSV(["country", "role", "sex", "measure", "unit", "people", "mean", "sd", "p5", "p50", "p95", "percentile_basis", "reliability", "reliability_note", "official_documents", "official_share", "surveys", "mean_range_low", "mean_range_high", "first_year_min", "first_year_max", "sources"],
       rows.map(r => [r.country, r.service_role, r.sex, label(st.m), unitOf(st.m), r.n_total, r.mean, r.sd, r.p5, r.p50, r.p95, r.pct_basis, r.reliability, r.reliability_note, r.official_docs, r.official_share, r.n_surveys, r.mean_min, r.mean_max, r.year_min, r.year_max, r.sources]));
@@ -325,11 +327,11 @@ export async function initCompare() {
       wrap: new Set(["Sources"]),
       cellRender: (c, v, row) => {
         if (c === "People" || c === "Surveys") return fmtInt(v);
-        if (c === "Mean" || c === "SD") return fmtFixed(v, 1);
+        if (c === "Mean" || c === "SD") return fmtFixed(v, dec);
         if (c === "P5" || c === "P50" || c === "P95") {
           if (v == null) return "—";
           const est = isApprox(groupOf.get(`${row[0]}|${row[1]}|${row[2]}`), c.toLowerCase());
-          return est ? h("span", { title: "Estimated: not reported by every source, so taken from mean and SD (normal approximation) where missing" }, `≈\u00a0${fmtFixed(v, 1)}`) : fmtFixed(v, 1);
+          return est ? h("span", { title: "Estimated: not reported by every source, so taken from mean and SD (normal approximation) where missing" }, `≈\u00a0${fmtFixed(v, dec)}`) : fmtFixed(v, dec);
         }
         if (c === "Official documents") return v ? h("span", { title: "Official defence or standards document(s) the survey data come from. A percentage means only that share of the people comes from them; the rest comes from other sources." }, v) : "—";
         if (c === "Reliability") { const [, g, n] = v.split("|"); return h("span", {}, relTag(g, n), n ? h("div", { class: "small muted" }, n) : null); }
@@ -339,7 +341,7 @@ export async function initCompare() {
       h("div", { class: "toolbar" }, sortSelect(), rangeSelect(), clearScope(),
         h("span", { class: "muted small" }, `${st.range === "sd" ? "Dot = mean, line = ± 1 SD." : "Dot = mean, tick = median (P50), line = 5th to 95th percentile."} ${rows.length > 40 && !st.all ? "Showing the first 40." : ""}`),
         rows.length > 40 ? h("button", { class: "btn small", type: "button", onclick: () => { st.all = !st.all; render(false); } }, st.all ? "Show top 40" : `Show all ${rows.length}`) : null),
-      h("div", { class: topClass() }, bodyCard(rows), h("div", { style: { minWidth: 0 } }, legend, dotplot(shown, { unit: unitOf(st.m), measure: label(st.m), range: st.range }))),
+      h("div", { class: topClass() }, bodyCard(rows), h("div", { style: { minWidth: 0 } }, legend, dotplot(shown, { unit: unitOf(st.m), measure: label(st.m), range: st.range, dec: unitOf(st.m) === "ratio" ? 2 : 1 }))),
       h("h3", { style: { fontSize: ".95rem", margin: "16px 0 6px" } }, "Table"),
       h("p", { class: "small muted", style: { margin: "0 0 6px" } }, "P5, P50 and P95 are the 5th, 50th (median) and 95th percentiles. A group made of several surveys combines them as a mixture weighted by sample size. ≈ marks values that are not reported by every source and were estimated from the mean and SD (normal approximation)."),
       table);
@@ -387,6 +389,7 @@ export async function initCompare() {
     const sexClause = st.sex === "MF" ? "AND sex IN ('M','F')" : `AND sex = '${st.sex}'`;
     const data = await objects(`SELECT * FROM aggregates WHERE measure_key = ? AND is_primary = 1 ${sexClause} ${civ} ORDER BY country, service_role, year_start`, [st.m]);
     const base = data.filter(r => inScope(r) && (r.n || 0) >= st.minN), rows = base.filter(relOK);
+    const dec = unitOf(st.m) === "ratio" ? 2 : 1;
     const officialInfo = new Map(rows.filter(r => r.official_doc).map(r => [r.official_doc, { body: r.official_body, basis: r.official_basis }]));
     const cols = ["Country", "Role", "Population", "Sex", "Year", "People", "Mean", "SD", "P5", "P50", "P95", "Source", "Official document", "Quality", "Reliability"];
     const qual = { computed: "Computed from raw data", A: "A: tables parsed and checked", B: "B: OCR, passed consistency checks", C: "C: read from a web article" };
@@ -402,7 +405,7 @@ export async function initCompare() {
         cellRender: (c, v) => {
           if (c === "Year") return v ?? "—";
           if (c === "People") return v == null ? "—" : fmtInt(v);
-          if (["Mean", "SD", "P5", "P50", "P95"].includes(c)) return fmtFixed(v, 1);
+          if (["Mean", "SD", "P5", "P50", "P95"].includes(c)) return fmtFixed(v, dec);
           if (c === "Source") {
             const [sid, file, page] = v, p = paperByFile[file];
             const href = p ? `${p.open_copy_url}${page ? `#page=${page}` : ""}` : /^https?:/.test(file) ? file : file.startsWith("data/") ? file : null;
@@ -459,8 +462,10 @@ export async function initCompare() {
       if (!o || better(r, o) > 0) grp.set(k, r);
     }
     const get = (k, sx) => { const r = grp.get(`${k}|${sx}`); return r && okRow(r) ? r : null; };
-    const dLabel = k => M[k]?.label || ["M", "F", "both"].map(sx => grp.get(`${k}|${sx}`)?.measure_label).find(Boolean) || label(k);
+    const dLabel = label;
+    const published = k => ["M", "F", "both"].map(sx => grp.get(`${k}|${sx}`)?.measure_label).find(Boolean) || "";
     const unit = unitOf(st.m), name = dLabel(st.m), title = $("#cmp-title").textContent;
+    const comb = surveysOf(st.country, st.role).filter(inCombined);
     const tSexes = st.sex === "MF" ? ["M", "F"] : [st.sex];
     const sexesHere = ["M", "F", "both"].filter(sx => [...grp.keys()].some(k => k.endsWith(`|${sx}`)));
     const sexPick = list => list.length ? h("span", { class: "cmp-sexpick" }, list.map(sx => h("button", { class: "btn small", type: "button", onclick: () => { st.sex = sx; render(); } }, `Show ${SEX_LABEL[sx].toLowerCase()}`))) : "";
@@ -481,7 +486,7 @@ export async function initCompare() {
         okRow(r) ? null : h("span", { class: "small muted" }, "(hidden by the filters)"),
         r.reliability_note ? h("span", { class: "small muted" }, r.reliability_note) : null, precision(r))),
       h("div", { class: "small muted" }, `Sources: ${[...new Set(selRows.flatMap(r => r.sources.split("; ")))].join("; ")}${years.length ? ` · measured ${Math.min(...years)}${Math.max(...years) !== Math.min(...years) ? `–${Math.max(...years)}` : ""}` : ""}`,
-        !st.survey && nSurveys > 1 ? ` · combines ${nSurveys} surveys; choose one under Survey to use it on its own` : ""),
+        !st.survey && (nSurveys > 1 || comb.length > nSurveys) ? ` · ${nSurveys > 1 ? `combines ${nSurveys}` : "rests on 1"} of the ${comb.length} surveys; choose one under Survey to use it on its own` : ""),
       h("details", { class: "small muted" }, h("summary", {}, "What High, Medium and Low mean"),
         h("p", { style: { margin: "4px 0" } }, h("b", {}, "High: "), "every source is raw data, a checked digital table or an official defence document; the percentiles are printed by the source; 100 people or more."),
         h("p", { style: { margin: "4px 0" } }, h("b", {}, "Medium: "), "OCR of a published paper, percentiles estimated from the mean and SD (marked ≈), or 30 to 99 people."),
@@ -490,13 +495,13 @@ export async function initCompare() {
 
     // Body charts: one scale for every figure on the page, and only for whole-body or limb lengths.
     const fig = (id, sx, head, r, p) => ({ id, sex: sx, head, color: SEX_COLOR[sx], value: r ? r[p] : null, approx: r ? isApprox(r, p) : false,
-      sub: r ? `${PCT_LABEL[p]}${r.n_total ? ` · n ${fmtInt(r.n_total)}` : ""}` : grp.get(`${st.m}|${sx}`) ? "Hidden by the reliability filter" : "No data" });
+      sub: r ? (r[p] == null ? "Mean only, no SD or percentiles" : `${PCT_LABEL[p]}${r.n_total ? ` · n ${fmtInt(r.n_total)}` : ""}`) : grp.get(`${st.m}|${sx}`) ? "Hidden by the reliability filter" : "No data" });
     const aSexes = ["M", "F"].some(sx => get(st.m, sx)) || !get(st.m, "both") && ["M", "F"].some(sx => grp.get(`${st.m}|${sx}`)) ? ["M", "F"] : ["both"];
     const cardSexes = st.sex === "MF" ? ["M", "F"] : [st.sex];
     const figsA = aSexes.map(sx => fig(`a${sx}`, sx, SEX_LABEL[sx], get(st.m, sx), st.pct));
     const figsB = cardSexes.map(sx => PCTS.map(([p, l]) => fig(`b${sx}${p}`, sx, `${l} ${SEX_LABEL[sx].toLowerCase()}`, get(st.m, sx), p)));
     const allVals = [...figsA, ...figsB.flat()].map(f => f.value).filter(v => v != null && v > 0);
-    const scale = SCALE_CATS.includes(catOf(st.m)) && !NOT_LENGTH.test(st.m) && unit === "mm" && allVals.length > 1 ? { max: Math.max(...allVals), min: Math.min(...allVals) } : null;
+    const scale = SCALE_CATS.includes(catOf(st.m)) && !NOT_LENGTH.test(st.m.replace(/^other:/, "")) && unit === "mm" && allVals.length > 1 ? { max: Math.max(...allVals), min: Math.min(...allVals) } : null;
     const onZoom = () => { st.dzoom = !st.dzoom; render(false); };
     const card = (title2, figures, flex) => h("div", { style: { flex, minWidth: 0 } }, valueCard({ key: st.m, label: name, unit, zoom: st.dzoom, onZoom, title: title2, figures, scale }));
     const cards = !st.body || !selRows.length ? null : h("div", { class: "cmp-design-cards" },
@@ -532,7 +537,7 @@ export async function initCompare() {
       h("tbody", {}, rows.flatMap((k, i) => [
         groupRows && (i === 0 || catOf(rows[i - 1]) !== catOf(k)) ? h("tr", { class: "cat" }, h("td", { colspan: 2 + head2.length }, catOf(k))) : null,
         h("tr", { class: k === st.m ? "cur" : "" },
-          h("td", {}, h("button", { type: "button", class: "linklike", title: "Show this measure on the body charts", onclick: () => { st.m = k; render(); } }, dLabel(k)),
+          h("td", {}, h("button", { type: "button", class: "linklike", title: published(k) && published(k) !== dLabel(k) ? `Show on the body charts. Printed in the source as: ${published(k)}` : "Show this measure on the body charts", onclick: () => { st.m = k; render(); } }, dLabel(k)),
             gradeMark(k) ? h("span", { class: "muted", title: gradeOf(k) === "low" ? "Low reliability" : "Medium reliability" }, gradeMark(k)) : null),
           h("td", {}, unitOf(k)),
           head2.map(([sx, p]) => {
@@ -567,9 +572,9 @@ export async function initCompare() {
         try { await navigator.clipboard.writeText(copyText()); toast("Table copied as text"); } catch { toast("Select the table and copy it"); }
       }
     };
-    const csvNum = (v, u) => v == null ? "" : u === "mm" ? Math.round(v) : +v.toFixed(u === "ratio" ? 2 : 1);
+    const csvNum = (v, u) => v == null ? "" : u === "mm" ? Math.round(v) : +fmtFixed(v, u === "ratio" ? 2 : 1).replace(/,/g, "");
     lastExportName = `${slug(title)}-design-values.csv`;
-    lastExport = () => toCSV(["country", "role", "survey", "measure", "unit",
+    lastExport = !rows.length ? null : () => toCSV(["country", "role", "survey", "measure", "unit",
       ...tSexes.flatMap(sx => [...PCTS.map(([, l]) => `${SEX_LABEL[sx]} ${l}`), `${SEX_LABEL[sx]} estimated`, `${SEX_LABEL[sx]} reliability`, `${SEX_LABEL[sx]} reliability note`]), "sources"],
       rows.map(k => [st.country, st.role, title.split(" · ").slice(2).join(" · ") || "all surveys combined", dLabel(k), unitOf(k),
         ...tSexes.flatMap(sx => {
@@ -583,12 +588,14 @@ export async function initCompare() {
     // Why the table is empty: the sex has no data in this group, or the reliability filter hid everything.
     const sexWord = tSexes.map(sx => SEX_LABEL[sx].toLowerCase()).join(" or ");
     const others = ["M", "F", "both"].filter(sx => !tSexes.includes(sx) && scopeKeys.some(k => get(k, sx)));
+    const othersHidden = ["M", "F", "both"].filter(sx => !tSexes.includes(sx) && scopeKeys.some(k => grp.has(`${k}|${sx}`)));
+    const elsewhere = tSexes.some(sx => measureKeys.some(k => get(k, sx)));
     const scopeWord = st.scope === "measure" ? name : st.scope === "category" ? cat : "any measure";
     const empty = h("div", { class: "empty" }, !allTotal
-      ? [`No ${sexWord} data in ${title}. `, sexPick(sexesHere.filter(sx => !tSexes.includes(sx)))]
+      ? [`No ${sexWord} data in ${title}. `, sexPick(sexesHere.filter(sx => !tSexes.includes(sx) && measureKeys.some(k => get(k, sx))))]
       : hidden ? `${hidden === 1 ? "The only measure" : `All ${hidden} measures`} here ${hidden === 1 ? "is" : "are"} below the reliability filter. Choose a wider level under Reliability.`
       : others.length ? [`No ${sexWord} data for ${scopeWord} in ${title}; ${others.map(sx => SEX_LABEL[sx].toLowerCase()).join(" and ")} data exist. `, sexPick(others)]
-      : `No ${st.scope === "measure" ? "values" : "measures"} for ${title}.`);
+      : `No ${sexWord} data for ${scopeWord} in ${title}${othersHidden.length ? `; ${othersHidden.map(sx => SEX_LABEL[sx].toLowerCase()).join(" and ")} data exist but are below the reliability filter` : ""}${elsewhere && st.scope !== "all" ? `; ${sexWord} data exist for other measures, choose All measures above` : ""}.`);
     const relWord = { high: "Only high-reliability data are listed", medium: "Only high- and medium-reliability data are listed", all: "All reliability levels are listed, including low" }[st.rel];
     const quick = h("div", { class: "toolbar cmp-quick" },
       seg("Percentile", PCTS, st.pct, v => { st.pct = v; render(); }, false),
@@ -614,14 +621,16 @@ export async function initCompare() {
   async function render(withFilters = true) {
     if (st.survey && !surveysOf(st.country, st.role).some(x => x.survey_group === st.survey)) st.survey = "";
     surveyData = st.sub === "design" && st.country && st.role && st.survey ? await loadSurvey() : null;
-    const list = st.sub === "design" && st.country && st.role ? surveysOf(st.country, st.role) : [];
-    const sv = surveyData ? list.find(x => x.survey_group === st.survey) : list.length === 1 ? list[0] : null;
-    const yrs = list.map(x => x.year).filter(Boolean);
-    $("#cmp-title").textContent = shownWhere() + (sv ? ` · ${surveyName(sv)}` : list.length > 1
-      ? ` · all ${list.length} surveys combined${yrs.length ? ` (${Math.min(...yrs)}${Math.max(...yrs) > Math.min(...yrs) ? `–${Math.max(...yrs)}` : ""})` : ""}` : "");
+    const list = st.sub === "design" && st.country && st.role ? surveysOf(st.country, st.role) : [], comb = list.filter(inCombined);
+    const sv = surveyData ? list.find(x => x.survey_group === st.survey) : comb.length === 1 ? comb[0] : null;
+    const yrs = comb.map(x => x.year).filter(Boolean);
+    $("#cmp-title").textContent = shownWhere() + (sv ? ` · ${surveyName(sv)}` : comb.length > 1
+      ? ` · all ${comb.length} surveys combined${yrs.length ? ` (${Math.min(...yrs)}${Math.max(...yrs) > Math.min(...yrs) ? `–${Math.max(...yrs)}` : ""})` : ""}` : "");
     // Rebuilding the page must not move it or lose the keyboard focus.
     const winY = window.scrollY, sb = $("#compare-sidebar"), sbY = sb.scrollTop, a = document.activeElement;
     const host = a?.closest?.("#cmp-filters, #cmp-body")?.id, fid = a?.id, grp = a?.closest?.("[role=group]")?.getAttribute("aria-label"), txt = a?.textContent;
+    const CTRL = h => `#${h} button, #${h} select, #${h} summary`;
+    const ctrl = a && host && a !== document.body ? [a.tagName, a.getAttribute("aria-label"), (a.textContent || "").trim().slice(0, 40), [...$$(CTRL(host))].indexOf(a)] : null;
     if (withFilters) {
       renderFilters();
       sb.scrollTop = sbY;
@@ -633,7 +642,9 @@ export async function initCompare() {
     const body = $("#cmp-body");
     body.replaceChildren(st.sub === "design" ? designView() : st.sub === "ranking" ? rankingView() : st.sub === "matrix" ? matrixView() : await detailView());
     $("#cmp-export").disabled = !lastExport;
-    const t = fid ? document.getElementById(fid) : grp && host ? [...$$(`#${host} [role=group][aria-label="${grp}"] button`)].find(b => b.textContent === txt) : null;
+    const t = fid ? document.getElementById(fid) : grp && host ? [...$$(`#${host} [role=group][aria-label="${grp}"] button`)].find(b => b.textContent === txt)
+      : ctrl ? (list => list.find(b => b.tagName === ctrl[0] && b.getAttribute("aria-label") === ctrl[1] && (b.textContent || "").trim().slice(0, 40) === ctrl[2])
+        || (list[ctrl[3]]?.tagName === ctrl[0] && list[ctrl[3]].getAttribute("aria-label") === ctrl[1] ? list[ctrl[3]] : null))([...$$(CTRL(host))]) : null;
     t?.focus({ preventScroll: true });
     window.scrollTo(window.scrollX, winY);
   }

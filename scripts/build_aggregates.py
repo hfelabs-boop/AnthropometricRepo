@@ -177,12 +177,12 @@ def num(x):
 
 
 def mark_primary(rows):
-    """One row per population x country x role x sex x measure; larger n wins, then better origin."""
+    """One row per population x country x role x sex x measure (the measure key already merges spelling variants of one
+    dimension): printed percentiles win, then the larger n, then the better origin."""
     best = {}
     for i, r in enumerate(rows):
-        measure = r["measure_key"] if not r["measure_key"].startswith("other:") else r["measure_label"].lower()
-        key = (r["survey_group"], r["country"], r["service_role"], r["sex"], measure)
-        score = (-(num(r["n"]) or 0), ORIGIN_RANK[r["origin"]])
+        key = (r["survey_group"], r["country"], r["service_role"], r["sex"], r["measure_key"])
+        score = (0 if num(r["p5"]) is not None and num(r["p95"]) is not None else 1, -(num(r["n"]) or 0), ORIGIN_RANK[r["origin"]])
         if key not in best or score < best[key][0]:
             best[key] = (score, i)
     keep = {i for _, i in best.values()}
@@ -199,7 +199,7 @@ def part_of_total(rows):
     """
     groups = defaultdict(list)
     for i, r in enumerate(rows):
-        if r["is_primary"] and num(r["n"]) and num(r["mean"]) is not None and r["population_type"] != "civilian":
+        if r["is_primary"] and num(r["n"]) and num(r["mean"]) is not None and r["population_type"] != "civilian" and r["source_id"] != "rp1024-vol2":
             measure = r["measure_key"] if not r["measure_key"].startswith("other:") else r["measure_label"].lower()
             groups[(r["source_id"], r["country"], r["service_role"], r["sex"], measure)].append(i)
     parts = set()
@@ -217,6 +217,18 @@ _NORM = NormalDist()
 Z95 = _NORM.inv_cdf(0.95)
 
 
+def estimated_tails(m, sd):
+    """P5 and P95 estimated from a mean and SD: normal (mean +/- 1.645 SD); when that would reach zero or below (a strictly
+    positive, skewed measure such as a skinfold or body fat) lognormal with the same mean and SD. The third value is the
+    lognormal median in that case (a median estimate, since it is not the mean), else None."""
+    a, c = m - Z95 * sd, m + Z95 * sd
+    if a > 0 or m <= 0:
+        return a, c, None
+    s2 = math.log(1 + (sd / m) ** 2)
+    mu = math.log(m) - s2 / 2
+    return math.exp(mu - Z95 * math.sqrt(s2)), math.exp(mu + Z95 * math.sqrt(s2)), math.exp(mu)
+
+
 def row_dist(r):
     """Distribution of one row as (p5, p50, p95, reported), reported = (p5, p50, p95) flags, True where the source printed
     that percentile. The quantile function is linear in z through the three points, so printed percentiles are reproduced
@@ -229,7 +241,10 @@ def row_dist(r):
     elif m is not None and sd:
         # a lone printed tail is kept (when it is on the right side of the estimate's mean); only the missing one is estimated
         ka, kc = a is not None and a < m + Z95 * sd, c is not None and c > m - Z95 * sd
-        a, c, rep = (a if ka else m - Z95 * sd), (c if kc else m + Z95 * sd), (ka, True, kc)
+        ea, ec, em = estimated_tails(m, sd)
+        a, c, rep = (a if ka else ea), (c if kc else ec), (ka, em is None and True, kc)
+        if em is not None and b is None:
+            b = em
     else:
         return None
     if b is None or not a <= b <= c:
