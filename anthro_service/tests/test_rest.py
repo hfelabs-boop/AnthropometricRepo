@@ -2,10 +2,16 @@
 from __future__ import annotations
 
 import csv
+import http.client
+import importlib.util
 import io
 import os
+import socket
+import subprocess
 import sys
+import time
 import unittest
+import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -174,6 +180,55 @@ class Rest(unittest.TestCase):
         self.assertEqual((r.status_code, r.json()["error"]["code"]), (500, "internal_error"))
         self.assertNotIn("boom", r.text)  # no internals in the answer
 
+    def test_a_misspelled_parameter_is_an_error_not_a_silent_default(self):
+        for path, params, want in (("/v1/mannequin", {**Q, "percentiles": "95"}, "percentile"), ("/v1/compare", {"measure": "stature", "country": "Germany"}, "countries"),
+                                   ("/v1/mannequin", {**Q, "percentile": 95, "measure": "stature"}, "measures"), ("/v1/design-values", {**Q, "percentile": 95}, "percentiles"),
+                                   ("/v1/measures", {"query": "head"}, "q"), ("/v1/measures/stature", {"x": 1}, None)):
+            r = self.c.get(path, params=params)
+            self.assertEqual(r.status_code, 422, (path, params))
+            e = r.json()["error"]
+            self.assertEqual(e["code"], "bad_request")
+            self.assertIn("Unknown parameter", e["message"])
+            if want:
+                self.assertIn(f"'{want}'", e["hint"])
+        self.assertEqual(self.c.get("/v1/mannequin", params={**Q, "percentile": 95, "format": "csv"}).status_code, 200)  # every declared parameter still works
+
+    def test_json_declares_utf8_and_the_spec_stays_plain(self):
+        for path in ("/v1/meta", "/v1/nonexistent", "/v1/design-values?country=Narnia&role=x"):
+            self.assertEqual(self.c.get(path).headers["content-type"], "application/json; charset=utf-8", path)
+        r = self.c.get("/v1/design-values", params={**Q, "measures": "bmi"})
+        self.assertIn("kg/m²", r.content.decode("utf-8"))
+        spec = self.c.get("/openapi.json").json()
+        self.assertIn("application/json", spec["paths"]["/v1/meta"]["get"]["responses"]["200"]["content"])
+
+    def test_a_crash_is_a_json_500_with_the_usual_headers(self):
+        from unittest import mock
+        quiet = TestClient(create_app(), raise_server_exceptions=False)
+        with mock.patch("anthro_service.core.Repo.meta", side_effect=RuntimeError("boom")):
+            r = quiet.get("/v1/meta", headers={"Origin": "https://tool.example.org"})
+        self.assertEqual((r.status_code, r.json()["error"]["code"]), (500, "internal_error"))
+        self.assertEqual(r.headers["x-data-version"], REPO.data_version)
+        self.assertEqual(r.headers["access-control-allow-origin"], "*")
+
+    def test_the_texts_of_the_spec_match_the_behaviour(self):
+        spec = self.c.get("/openapi.json").json()
+        text = json.dumps(spec)
+        self.assertNotIn("BMI)", spec["paths"]["/v1/mannequin"]["get"]["description"])
+        self.assertIn("(stature, body mass, sitting height)", spec["paths"]["/v1/mannequin"]["get"]["description"])
+        measures = spec["paths"]["/v1/measures"]["get"]["responses"]["200"]
+        self.assertNotIn("XML", measures["description"])
+        self.assertEqual(sorted(measures["content"]), ["application/json", "text/csv"])
+        self.assertEqual(self.c.get("/v1/measures", params={"format": "xml"}).status_code, 422)
+        self.assertIn("latest", text)
+
+    def test_csv_headers_are_clean_ascii(self):
+        r = self.c.get("/v1/mannequin", params={"country": "Czech Republic", "role": "Army", "sex": "M", "percentile": 95, "min_reliability": "all", "format": "csv"})
+        self.assertEqual(r.status_code, 200)
+        notes = r.headers["x-notes"]
+        self.assertTrue(notes.isascii() and "?" not in notes.split("(listed")[0] and not any(ord(ch) < 32 for ch in notes))
+        self.assertIn("JSON and XML answers", notes)  # the CSV has no unavailable rows: it says where they are
+        self.assertIn("kozni", notes)  # accents are dropped, not turned into '?'
+
     def test_head_and_read_only(self):
         for path in ("/v1/health", "/v1/meta", "/v1/mannequin?country=USA&role=Army&sex=M"):
             r = self.c.head(path)
@@ -219,6 +274,60 @@ class Rest(unittest.TestCase):
         d = ET.fromstring(self.c.get("/v1/design-values", params={**Q, "measures": "stature", "format": "xml"}).content)
         m = d.find("measure")
         self.assertTrue({"sources", "nSurveys", "yearMin", "officialDocuments"} <= set(m.attrib))
+
+
+def free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@unittest.skipIf(TestClient is None, "fastapi / httpx not installed")
+class RealServer(unittest.TestCase):
+    """HEAD through a real uvicorn, on both HTTP backends: the TestClient cannot show the httptools failure (a body-less answer with a Content-Length)."""
+
+    def run_server(self, backend: str):
+        if backend == "httptools" and importlib.util.find_spec("httptools") is None:
+            if os.environ.get("REQUIRE_SERVICE_DEPS") == "1":
+                self.fail("httptools is required (REQUIRE_SERVICE_DEPS=1) but not installed")
+            self.skipTest("httptools is not installed")
+        port = free_port()
+        p = subprocess.Popen([sys.executable, "-W", "ignore", "-m", "uvicorn", "anthro_service.rest:app", "--port", str(port), "--http", backend, "--log-level", "warning"],
+                             cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        self.addCleanup(lambda: (p.terminate(), p.wait(10)))
+        for _ in range(100):
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+                return port, p
+            except OSError:
+                time.sleep(0.1)
+        self.fail("the server did not start")
+
+    def check(self, backend: str):
+        port, proc = self.run_server(backend)
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        for _ in range(3):  # the same keep-alive connection: one broken HEAD would close it
+            conn.request("HEAD", "/v1/meta")
+            r = conn.getresponse()
+            self.assertEqual((r.status, r.read()), (200, b""))
+            head_length = r.getheader("content-length")
+            conn.request("GET", "/v1/meta")
+            g = conn.getresponse()
+            self.assertEqual(g.status, 200)
+            self.assertEqual(str(len(g.read())), head_length)
+        conn.request("HEAD", "/v1/nonexistent")
+        self.assertEqual(conn.getresponse().status, 404)
+        conn.close()
+        proc.terminate()
+        err = proc.stderr.read()
+        self.assertNotIn("Exception in ASGI application", err)
+        self.assertNotIn("Content-Length", err)
+
+    def test_head_with_h11(self):
+        self.check("h11")
+
+    def test_head_with_httptools(self):
+        self.check("httptools")
 
 
 @unittest.skipIf(TestClient is None, "fastapi / httpx not installed")

@@ -59,6 +59,14 @@ def ok(tool: str, args: dict | None = None) -> dict:
     return json.loads(text)
 
 
+def pytest_importorskip(name: str):
+    """The module, or skip the test (jsonschema comes with mcp, so this only skips on an odd install)."""
+    try:
+        return __import__(name)
+    except ImportError:
+        raise unittest.SkipTest(f"{name} is not installed") from None
+
+
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -99,7 +107,7 @@ class Tools(unittest.TestCase):
         want = REPO.design_values("United States", "Army", "M", ["stature", "mass"], percentiles=[5, 50, 95])
         for names in (["stature", "mass"], "stature,mass"):
             got = ok("get_design_values", {"country": "USA", "role": "Army", "sex": "M", "measures": names, "percentiles": [5, 50, 95]})
-            self.assertEqual(got["measures"], json.loads(json.dumps(want["measures"])))
+            self.assertEqual(got["measures"], [mcp_server._slim(m) for m in json.loads(json.dumps(want["measures"]))])
         self.assertEqual(ok("get_design_values", {"country": "USA", "role": "Army", "measures": "stature", "percentiles": "5,97.5"})["percentiles"], ["p5", "p97.5"])
 
     def test_the_cap_puts_harmonized_first_and_says_what_it_left_out(self):
@@ -109,6 +117,7 @@ class Tools(unittest.TestCase):
         self.assertTrue(all(d["harmonized"] for d in m["dimensions"]))
         self.assertEqual(set(m["values"]), {d["key"] for d in m["dimensions"]})
         self.assertEqual(set(m["units"]), set(m["values"]))
+        self.assertLessEqual(set(m["caution"]), set(m["values"]))  # caution is cut with the values
         self.assertEqual(m["core"], full["core"])  # core keeps stature and mass even when the list is cut
         self.assertRegex(m["notes"][-1], rf"Showing 5 of {full['count']} measures.*Left out: .*\d+ [A-Z]")
         d = ok("get_design_values", {"country": "United States", "role": "Army", "limit": 60})
@@ -116,6 +125,78 @@ class Tools(unittest.TestCase):
         every = REPO.design_values("United States", "Army", "M")["measures"]
         self.assertEqual(sum(x["harmonized"] for x in d["measures"]), min(60, sum(x["harmonized"] for x in every)))  # all harmonized measures come before any as-published one
         self.assertIn("Left out", d["notes"][-1])
+
+    def test_empty_fields_are_left_out_and_equal_bases_collapse(self):
+        d = ok("get_design_values", {"country": "United States", "role": "Army", "measures": ["stature"], "survey": "latest"})["measures"][0]
+        self.assertNotIn("reliability_note", d)
+        self.assertNotIn("survey_spread_pct", d)
+        self.assertEqual(d["basis"], "reported")
+        self.assertNotIn("percentile_basis", d)
+        mixed = ok("get_design_values", {"country": "United States", "role": "Air Force", "measures": ["sitting_height"], "percentiles": [5, 50, 95, 97.5]})["measures"][0]
+        self.assertIn("percentile_basis", mixed)  # differing bases stay explicit
+        sizes = len(call("get_design_values", {"country": "United States", "role": "Army"})[1])
+        self.assertLess(sizes, 46000)
+
+    def test_categories_are_capped_like_everything_unnamed(self):
+        d = ok("get_design_values", {"country": "United States", "role": "Army", "categories": ["head-face"], "limit": 5})
+        self.assertEqual((len(d["measures"]), d["truncated"]), (5, True))
+        self.assertNotIn("choose categories", d["notes"][-1])  # the caller already did
+        err, text = call("get_design_values", {"country": "United States", "role": "Army", "measures": [f"m{i}" for i in range(201)]})
+        self.assertTrue(err)
+        self.assertIn("at most 200", text)
+
+    def test_misspelled_arguments_are_errors_not_silent_defaults(self):
+        for tool, args in (("get_design_values", {"country": "US", "role": "Army", "percentile": 97.5}), ("get_design_values", {"country": "US", "role": "Army", "measure": "stature"}),
+                           ("get_mannequin_dimensions", {"country": "US", "role": "Army", "percentiles": [95]}), ("compare_populations", {"measure": "stature", "country": "Germany"}),
+                           ("search_measures", {"q": "head"})):
+            err, text = call(tool, args)
+            self.assertTrue(err, (tool, args))
+            self.assertIn("Extra inputs are not permitted", text)
+        schema = lambda t: getattr(t, "inputSchema", None) or t.input_schema
+        self.assertTrue(all(schema(t).get("additionalProperties") is False for t in self.tools().values()))
+
+    def test_every_default_in_every_schema_is_valid(self):
+        jsonschema = pytest_importorskip("jsonschema")
+        schema = lambda t: getattr(t, "inputSchema", None) or t.input_schema
+        for name, t in self.tools().items():
+            sch = schema(t)
+            for prop, spec in sch["properties"].items():
+                if "default" in spec:
+                    jsonschema.validate(spec["default"], spec)  # an explicit null / the default must satisfy the property's own schema
+            jsonschema.Draft202012Validator.check_schema(sch)
+        jsonschema.validate({"measure": "stature", "survey": None, "sex": "F"}, schema(self.tools()["compare_populations"]))
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.validate({"measure": "stature", "survey": "ansur"}, schema(self.tools()["compare_populations"]))
+
+    def test_country_names_with_commas_work_as_strings(self):
+        for names in ("Multiple: Turkey, Greece, Italy", ["Multiple: Turkey, Greece, Italy"]):
+            c = ok("compare_populations", {"measure": "stature", "countries": names, "survey": "latest"})
+            self.assertEqual({r["country"] for r in c["results"]}, {"Multiple: Turkey, Greece, Italy"})
+        c = ok("compare_populations", {"measure": "stature", "countries": "Germany, Japan", "limit": 50})
+        self.assertEqual({r["country"] for r in c["results"]}, {"Germany", "Japan"})
+
+    def test_get_measure_can_reach_every_population(self):
+        m = ok("get_measure", {"key": "stature", "country": "Germany"})
+        self.assertEqual({p["country"] for p in m["populations"]}, {"Germany"})
+        self.assertFalse(m["truncated"])
+        big = ok("get_measure", {"key": "stature", "limit": 200})
+        self.assertEqual((len(big["populations"]), big["truncated"]), (big["total_populations"], False))
+        small = ok("get_measure", {"key": "stature", "limit": 10})
+        self.assertIn("Showing 10 of", small["note"])
+
+    def test_an_unmatchable_measure_has_no_dangling_label(self):
+        err, text = call("get_design_values", {"country": "United States", "role": "Army", "measures": ["zzzzqq"]})
+        self.assertTrue(err)
+        self.assertNotIn("(0)", text)
+        self.assertNotIn("Closest matches", text)
+        err, text = call("get_design_values", {"country": "United States", "role": "Army", "measures": ["weight"]})
+        self.assertIn("Closest matches", text)
+        self.assertIn("mass", text)
+
+    def test_blank_source_is_a_client_error(self):
+        err, text = call("get_source", {"source_id": ""})
+        self.assertTrue(err)
+        self.assertIn("No source id given", text)
 
     def test_named_measures_are_never_cut_and_limits_are_validated(self):
         names = ["stature", "mass", "sitting_height"]
@@ -157,7 +238,7 @@ class Tools(unittest.TestCase):
     def test_discovery_tools_and_totals(self):
         c = ok("list_countries")
         self.assertEqual(c["count"], len(REPO.countries()))
-        self.assertLess(len(json.dumps(c)), 20000)  # compact: the details are in list_roles
+        self.assertLess(len(call("list_countries")[1]), 20000)  # the text the client receives (indented); the details are in list_roles
         r = ok("list_roles", {"country": "Israel"})
         self.assertEqual(r["name"], "Israel")
         self.assertIn("surveys", r["roles"][0])
@@ -219,8 +300,11 @@ class Transports(unittest.TestCase):
         return status
 
     def serve(self, *extra):
+        return self.serve_transport("streamable-http", *extra)
+
+    def serve_transport(self, transport: str, *extra):
         port = free_port()
-        p = subprocess.Popen([sys.executable, "-W", "ignore", "-m", "anthro_service", "mcp", "--transport", "streamable-http", "--port", str(port), *extra],
+        p = subprocess.Popen([sys.executable, "-W", "ignore", "-m", "anthro_service", "mcp", "--transport", transport, "--port", str(port), *extra],
                              cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         self.addCleanup(lambda: (p.terminate(), p.wait(10), p.stderr.close()))
         for _ in range(100):
@@ -242,6 +326,48 @@ class Transports(unittest.TestCase):
         self.assertEqual(self.post(port, "good.example"), 200)
         self.assertEqual(self.post(port, f"evil.example:{port}"), 421)
 
+    def post_origin(self, port: int, origin: str, host: str | None = None) -> int:
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        c.request("POST", "/mcp", self.INIT, {"Host": host or f"127.0.0.1:{port}", "Origin": origin, "Content-Type": "application/json", "Accept": "application/json, text/event-stream"})
+        status = c.getresponse().status
+        c.close()
+        return status
+
+    def test_origins_are_enforced(self):
+        port = self.serve()
+        self.assertEqual(self.post_origin(port, "http://evil.example"), 403)
+        self.assertEqual(self.post_origin(port, f"http://localhost:{port}"), 200)
+        port = self.serve("--host", "0.0.0.0", "--allowed-host", "good.example", "--allowed-origin", "https://app.example.org/")
+        self.assertEqual(self.post_origin(port, "https://app.example.org", f"good.example:{port}"), 200)
+        self.assertEqual(self.post_origin(port, "https://evil.example", f"good.example:{port}"), 403)
+
+    def test_sse_checks_hosts_too(self):
+        port = self.serve_transport("sse", "--host", "0.0.0.0", "--allowed-host", "good.example")
+        for host, want in ((f"good.example:{port}", 200), (f"evil.example:{port}", 421)):
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+            c.request("GET", "/sse", headers={"Host": host, "Accept": "text/event-stream"})
+            r = c.getresponse()
+            self.assertEqual(r.status, want, host)
+            c.close()
+
+    def test_allow_list_mistakes_stop_the_server_with_a_message(self):
+        sec = mcp_server._security
+        for hosts, origins in ((["*.example.org"], None), (["https://mcp.example.org"], None), (["a/b"], None), ([" "], None), (None, ["mcp.example.org"]), (None, ["https://*.example.org"])):
+            with self.assertRaises(SystemExit) as cm:
+                sec("0.0.0.0", hosts, origins)
+            self.assertIn("anthro_service", str(cm.exception))
+        with self.assertRaises(SystemExit) as cm:
+            sec("0.0.0.0", None, ["https://app.example.org"])  # origins without hosts would lock every remote client out
+        self.assertIn("--allowed-host", str(cm.exception))
+        ok_ = sec("0.0.0.0", ["MCP.Example.org."], ["HTTPS://App.Example.org/"])  # case, a trailing dot and a trailing slash are tolerated
+        self.assertIn("mcp.example.org:*", ok_.allowed_hosts)
+        self.assertIn("https://app.example.org", ok_.allowed_origins)
+        self.assertIsNotNone(sec("127.0.0.1", None, ["https://app.example.org"]))
+
+    def test_http_flags_are_ignored_on_stdio_with_a_warning(self):
+        p = subprocess.run([sys.executable, "-W", "ignore", "-m", "anthro_service", "mcp", "--allowed-host", "x.example"], cwd=ROOT, input="", capture_output=True, text=True, timeout=60)
+        self.assertIn("only apply to the HTTP transports", p.stderr)
+
     def test_loopback_server_refuses_foreign_hosts(self):
         port = self.serve()
         self.assertEqual(self.post(port, f"127.0.0.1:{port}"), 200)
@@ -259,7 +385,7 @@ class Transports(unittest.TestCase):
             p.stdin.write("\n".join(json.dumps(m) for m in msgs) + "\n")
             p.stdin.flush()
             lines = []
-            while {m.get("id") for m in lines} < {1, 2, 3}:
+            while not {1, 2, 3} <= {m.get("id") for m in lines}:  # notifications (no id) may arrive in between
                 line = p.stdout.readline()
                 self.assertTrue(line, "the server closed stdout before answering")
                 lines.append(json.loads(line))  # a non-JSON line raises here

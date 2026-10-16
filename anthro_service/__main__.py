@@ -23,8 +23,8 @@ def main(argv: list | None = None) -> int:
 
     m = sub.add_parser("mcp", help="run the MCP server")
     m.add_argument("--transport", choices=["stdio", "streamable-http", "sse"], default="stdio")
-    m.add_argument("--host", default="127.0.0.1")
-    m.add_argument("--port", type=int, default=8001)
+    m.add_argument("--host", help="HTTP transports: address to listen on (default 127.0.0.1)")
+    m.add_argument("--port", type=int, help="HTTP transports: port (default 8001)")
     m.add_argument("--allowed-host", action="append", default=[], metavar="NAME", help="HTTP transports: a Host header value to accept (repeatable), e.g. mcp.example.org or mcp.example.org:8001. "
                    "Without it, a non-loopback --host accepts any Host header (the server has no authentication).")
     m.add_argument("--allowed-origin", action="append", default=[], metavar="URL", help="HTTP transports: a browser Origin to accept (repeatable), e.g. https://app.example.org")
@@ -47,7 +47,9 @@ def main(argv: list | None = None) -> int:
             uvicorn.run("anthro_service.rest:app", host=a.host, port=a.port, reload=a.reload)
         elif a.cmd == "mcp":
             from .mcp_server import main as run_mcp
-            run_mcp(a.transport, a.host, a.port, a.allowed_host, a.allowed_origin)
+            if a.transport == "stdio" and (a.host or a.port or a.allowed_host or a.allowed_origin):
+                print("anthro_service: --host, --port, --allowed-host and --allowed-origin only apply to the HTTP transports; ignored for stdio.", file=sys.stderr)
+            run_mcp(a.transport, a.host or "127.0.0.1", a.port or 8001, a.allowed_host, a.allowed_origin)
         else:
             from .rest import create_app
             text = json.dumps(create_app().openapi(), indent=2, ensure_ascii=False) + "\n"

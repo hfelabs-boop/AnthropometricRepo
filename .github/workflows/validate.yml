@@ -40,7 +40,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - run: pip install fastapi uvicorn httpx pytest "${{ matrix.mcp }}"
+      - run: pip install fastapi uvicorn httptools httpx pytest "${{ matrix.mcp }}"
       - name: API, MCP and static snapshot tests
         env:
           REQUIRE_SERVICE_DEPS: "1"

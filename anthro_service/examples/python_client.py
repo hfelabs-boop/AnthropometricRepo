@@ -21,7 +21,10 @@ def get(base: str, path: str, **params):
         with urllib.request.urlopen(url, timeout=30) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
-        err = json.load(e).get("error", {})
+        try:
+            err = json.load(e).get("error", {})
+        except ValueError:  # not our API (for example the static site, which has no /v1 endpoints)
+            raise SystemExit(f"HTTP {e.code} for {url}: this is not the live API (the static files are described in the README; see examples/design_table.py).")
         raise SystemExit(f"{err.get('code', e.code)}: {err.get('message')}  {err.get('hint') or ''}  {err.get('available') or ''}")
 
 

@@ -418,7 +418,7 @@
         ],
         "responses": {
           "200": {
-            "description": "JSON by default; CSV or XML with format=csv or format=xml.",
+            "description": "JSON by default; CSV with format=csv.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1073,7 +1073,7 @@
           "values"
         ],
         "summary": "Dimension set for one percentile (boundary or reference manikin)",
-        "description": "One value per dimension at a single percentile, plus `core` (stature, body mass, sitting height, BMI) and a flat `values` map of key to number. Use it to size a manikin; call it three times (5, 50, 95) for a small, medium and large manikin.",
+        "description": "One value per dimension at a single percentile, plus `core` (stature, body mass, sitting height) and a flat `values` map of key to number. Use it to size a manikin; call it three times (5, 50, 95) for a small, medium and large manikin.",
         "operationId": "mannequin_v1_mannequin_get",
         "security": [
           {

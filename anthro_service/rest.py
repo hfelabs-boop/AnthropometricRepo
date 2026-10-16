@@ -7,6 +7,7 @@ Environment:
 """
 from __future__ import annotations
 
+import difflib
 import hmac
 import logging
 import os
@@ -20,7 +21,7 @@ from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBea
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import models as M
-from .core import ApiError, Repo, VERSION, get_repo
+from .core import ApiError, BadRequest, Repo, VERSION, get_repo
 from .formats import MEDIA, RENDER, csv_headers, measures_csv
 
 log = logging.getLogger("anthro_service")
@@ -86,6 +87,60 @@ def guard(x_api_key: Annotated[str | None, Depends(api_key)] = None, auth: Annot
         raise Unauthorized("Missing or invalid API key.", "Send it as X-API-Key: <key> or Authorization: Bearer <key>.")
 
 
+class UTF8JSON(JSONResponse):
+    """JSON that declares its charset on the wire (Windows PowerShell 5.1 reads a response without one as ISO-8859-1 and garbles 'kg/m²'),
+    while the OpenAPI document keeps the plain media type application/json."""
+    media_type = "application/json"
+
+    def init_headers(self, headers=None):
+        super().init_headers(headers)
+        self.raw_headers = [(k, b"application/json; charset=utf-8" if k == b"content-type" else v) for k, v in self.raw_headers]
+
+
+class HeadAsGet:
+    """Pure ASGI wrapper: answer HEAD like GET without the body. It hands the app a copy of the scope, so the server still sees a HEAD request
+    (uvicorn's httptools backend only tolerates a body-less response with a Content-Length for HEAD)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope["method"] != "HEAD":
+            return await self.app(scope, receive, send)
+
+        async def no_body(message):
+            if message["type"] == "http.response.body":
+                message = {**message, "body": b""}
+            await send(message)
+
+        await self.app({**scope, "method": "GET"}, receive, no_body)
+
+
+ALIASES = {"query": "q", "search": "q", "text": "q", "keyword": "q", "word": "q", "percentile": "percentiles", "pct": "percentile", "p": "percentile"}
+
+
+def _declared(dependant) -> set:
+    names = {p.alias or p.name for p in dependant.query_params}
+    for sub in dependant.dependencies:
+        names |= _declared(sub)
+    return names
+
+
+def strict_params(request: Request):
+    """Reject query parameters the endpoint does not have: a misspelled `percentiles` on /v1/mannequin would otherwise silently return the P50 manikin."""
+    dependant = getattr(request.scope.get("route"), "dependant", None)
+    if dependant is None:
+        return
+    known = _declared(dependant)
+    for name in request.query_params.keys():
+        if name not in known:
+            close = difflib.get_close_matches(name, sorted(known), n=2, cutoff=0.6)
+            if ALIASES.get(name) in known and ALIASES[name] not in close:
+                close.insert(0, ALIASES[name])
+            raise BadRequest(f"Unknown parameter '{name}' for this endpoint.", (f"Did you mean {' or '.join(repr(c) for c in close)}? " if close else "") +
+                             "The parameters of each endpoint are in /docs (note: /v1/mannequin takes `percentile`, /v1/design-values takes `percentiles`, /v1/compare takes `countries`).", sorted(known))
+
+
 def _list(s: str | None) -> list | None:
     if s is None or not s.strip():
         return None
@@ -111,33 +166,33 @@ def _send(kind: str, data, fmt: str):
 def create_app(data_dir: str | None = None) -> FastAPI:
     repo: Repo = get_repo(data_dir)
 
-    app = FastAPI(title="Military Anthropometry API", version=VERSION, description=DESCRIPTION, openapi_tags=TAGS,
+    app = FastAPI(title="Military Anthropometry API", version=VERSION, description=DESCRIPTION, openapi_tags=TAGS, default_response_class=UTF8JSON,
                   contact={"name": "Repository", "url": "https://github.com/hfelabs-boop/AnthropometricRepo"})
-    app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in os.environ.get("ANTHRO_CORS_ORIGINS", "*").split(",") if o.strip()],
-                       allow_methods=["GET", "HEAD", "OPTIONS"], allow_headers=["X-API-Key", "Authorization", "Content-Type"],
-                       expose_headers=["X-Data-Version", "X-Total-Count", "X-Disclaimer", "X-Notes", "X-Hidden-By-Reliability"])
 
     @app.middleware("http")
     async def headers(request: Request, call_next):
-        head = request.method == "HEAD"
-        if head:  # FastAPI routes only GET; answer HEAD with the GET headers and no body
-            request.scope["method"] = "GET"
-        resp = await call_next(request)
+        try:
+            resp = await call_next(request)
+        except Exception:  # answered here, inside CORS and this middleware, so the error carries the same headers as every other answer
+            log.exception("unhandled error for %s", request.url.path)
+            resp = UTF8JSON({"error": {"code": "internal_error", "message": "Internal error.", "hint": "This is a bug in the service; please report the request."}}, status_code=500)
         resp.headers["X-Data-Version"] = repo.data_version
         if request.method == "GET" and resp.status_code == 200 and request.url.path.startswith("/v1/") and "Cache-Control" not in resp.headers:
             if request.url.path == "/v1/health":
                 resp.headers["Cache-Control"] = "no-store"
             else:
                 resp.headers["Cache-Control"] = ("private" if os.environ.get("ANTHRO_API_KEYS", "").strip() else "public") + ", max-age=3600"
-        if head:
-            async for _ in resp.body_iterator:
-                pass
-            resp = Response(status_code=resp.status_code, headers=dict(resp.headers))
         return resp
+
+    # added after `headers`, so they wrap it: CORS around the middleware above, HEAD handling around everything
+    app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in os.environ.get("ANTHRO_CORS_ORIGINS", "*").split(",") if o.strip()],
+                       allow_methods=["GET", "HEAD", "OPTIONS"], allow_headers=["X-API-Key", "Authorization", "Content-Type"],
+                       expose_headers=["X-Data-Version", "X-Total-Count", "X-Disclaimer", "X-Notes", "X-Hidden-By-Reliability"])
+    app.add_middleware(HeadAsGet)
 
     @app.exception_handler(ApiError)
     async def api_error(_: Request, e: ApiError):
-        return JSONResponse({"error": e.to_dict()}, status_code=e.status, headers={"WWW-Authenticate": 'Bearer realm="anthro"'} if e.status == 401 else None)
+        return UTF8JSON({"error": e.to_dict()}, status_code=e.status, headers={"WWW-Authenticate": 'Bearer realm="anthro"'} if e.status == 401 else None)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(_: Request, e: StarletteHTTPException):
@@ -147,21 +202,16 @@ def create_app(data_dir: str | None = None) -> FastAPI:
         body = {"code": code, "message": str(e.detail) if e.status_code not in (404, 405) else {404: "Not found.", 405: "Method not allowed."}[e.status_code]}
         if hint:
             body["hint"] = hint
-        return JSONResponse({"error": body}, status_code=e.status_code, headers=getattr(e, "headers", None))
+        return UTF8JSON({"error": body}, status_code=e.status_code, headers=getattr(e, "headers", None))
 
     @app.exception_handler(RequestValidationError)
     async def invalid(_: Request, e: RequestValidationError):
         first = e.errors()[0] if e.errors() else {}
         where = ".".join(str(x) for x in first.get("loc", []) if x not in ("query", "path"))
-        return JSONResponse({"error": {"code": "bad_request", "message": f"{where}: {first.get('msg', 'invalid request')}".strip(": ")}}, status_code=422)
-
-    @app.exception_handler(Exception)
-    async def crash(request: Request, e: Exception):
-        log.exception("unhandled error for %s", request.url.path)
-        return JSONResponse({"error": {"code": "internal_error", "message": "Internal error.", "hint": "This is a bug in the service; please report the request."}}, status_code=500)
+        return UTF8JSON({"error": {"code": "bad_request", "message": f"{where}: {first.get('msg', 'invalid request')}".strip(": ")}}, status_code=422)
 
     err = {404: {"model": M.ErrorResponse}, 422: {"model": M.ErrorResponse}}
-    v1 = APIRouter(prefix="/v1", dependencies=[Depends(guard)], responses={**err, 401: {"model": M.ErrorResponse}})
+    v1 = APIRouter(prefix="/v1", dependencies=[Depends(guard), Depends(strict_params)], responses={**err, 401: {"model": M.ErrorResponse}})
 
     @app.get("/", include_in_schema=False)
     def root():
@@ -187,7 +237,7 @@ def create_app(data_dir: str | None = None) -> FastAPI:
     def categories():
         return repo.categories()
 
-    @v1.get("/measures", tags=["catalog"], response_model=list[M.MeasureItem], summary="Search measures", responses={200: {**TABLE[200], "content": {"text/csv": TABLE[200]["content"]["text/csv"]}}},
+    @v1.get("/measures", tags=["catalog"], response_model=list[M.MeasureItem], summary="Search measures", responses={200: {"description": "JSON by default; CSV with format=csv.", "content": {"text/csv": TABLE[200]["content"]["text/csv"]}}},
             description="Measures with data, filtered by words in the name (`q`; whole words and common synonyms such as weight = mass, width = breadth), category, and optionally by population. "
                         "Best matches first: harmonized measures before as-published ones. `X-Total-Count` gives the number of matches before `limit`.")
     def measures(response: Response, q: Annotated[str | None, Query(description="Words in the name, e.g. `waist hip` or `sitting height`.")] = None,
@@ -233,7 +283,7 @@ def create_app(data_dir: str | None = None) -> FastAPI:
         return design(country, role, sex, measures, categories, percentiles, min_reliability, survey, stats, format)
 
     @v1.get("/mannequin", tags=["values"], response_model=M.Mannequin, responses=TABLE, summary="Dimension set for one percentile (boundary or reference manikin)",
-            description="One value per dimension at a single percentile, plus `core` (stature, body mass, sitting height, BMI) and a flat `values` map "
+            description="One value per dimension at a single percentile, plus `core` (stature, body mass, sitting height) and a flat `values` map "
                         "of key to number. Use it to size a manikin; call it three times (5, 50, 95) for a small, medium and large manikin.")
     def mannequin(country: CountryQ, role: RoleQ, sex: SexQ = "M",
                   percentile: Annotated[float, Query(ge=0.1, le=99.9, description="Percentile, 0.1 to 99.9.", examples=[95])] = 50,

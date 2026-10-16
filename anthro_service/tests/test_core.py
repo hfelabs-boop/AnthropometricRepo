@@ -395,6 +395,139 @@ class Compare(unittest.TestCase):
             REPO.compare("stature", survey="ansur-ii-2012")
 
 
+class LatestSurvey(unittest.TestCase):
+    def test_a_skipped_newer_survey_is_named_not_hidden(self):
+        """Thailand's 2005 survey (n=4030) has 6 of 53 measures: `latest` is the 1962 survey, and both the answer and the vintage note say so."""
+        d = REPO.design_values("Thailand", "Army", "M", ["stature", "mass"], survey="latest")
+        self.assertEqual(d["population"]["survey"]["year"], 1962)
+        text = " ".join(d["notes"])
+        self.assertIn("A newer survey", text)
+        self.assertIn("2005", text)
+        self.assertIn("covers only 6 of 53 measures", text)
+        combined = " ".join(REPO.design_values("Thailand", "Army", "M", ["stature", "mass"])["notes"])
+        self.assertIn("survey=latest gives", combined)
+        self.assertNotIn("for current personnel use survey=latest", combined)  # it would hand out the older survey
+        good = " ".join(REPO.design_values("United States", "Army", "M", ["stature"])["notes"])
+        self.assertIn("for current personnel use survey=latest (now 'ANSUR II 2012', 2010)", good)
+
+    def test_the_choice_is_usable_deterministic_and_has_the_core_dimensions(self):
+        # Germany Tri-service: a dropped low-reliability duplicate must not win the alphabetical tie-break
+        d = REPO.design_values("Germany", "Tri-service", "both", survey="latest")
+        self.assertEqual(d["count"], REPO.design_values("Germany", "Tri-service", "both")["count"])
+        self.assertIn(d["population"]["survey"]["id"], {s["id"] for s in REPO.surveys("Germany", "Tri-service")["surveys"] if s["in_combined_values"]})
+        # Japan Pilots: the undated survey that has stature beats a dated one that has none
+        self.assertIn("stature", REPO.mannequin("Japan", "Pilots", "both", 50, survey="latest")["values"])
+        # populations whose latest survey was all low reliability must fall back to a usable one
+        for c, role, sex in (("Chile", "Recruits/trainees", "M"), ("Brazil", "Cadre/other military", "M")):
+            self.assertGreater(REPO.design_values(c, role, sex, survey="latest")["count"], 0, (c, role))
+        for c in REPO.countries():
+            for role in c["roles"]:
+                for sex in role["sexes"]:
+                    first = REPO._latest_choice(c["name"], role["name"], sex)
+                    self.assertEqual(first, REPO._latest_choice(c["name"], role["name"], sex))
+
+    def test_a_thinner_set_than_the_combined_values_is_announced(self):
+        """The note appears exactly when `latest` has under 70% of the measures the combined values have."""
+        seen = set()
+        for c, role, sex in (("Japan", "Pilots", "both"), ("Israel", "Recruits/trainees", "M"), ("United States", "Army", "M"), ("Thailand", "Army", "M"), ("Germany", "Tri-service", "both")):
+            lat = REPO.design_values(c, role, sex, survey="latest")
+            whole = sum(1 for r in REPO._roll[(c, role, sex)].values() if r["reliability"] in ("high", "medium"))
+            said = any("measures the combined values have" in n for n in lat["notes"])
+            self.assertEqual(said, lat["count"] < 0.7 * whole, (c, role))
+            seen.add(said)
+        self.assertEqual(seen, {True, False})  # the check is exercised in both directions
+
+    def test_undated_surveys_are_flagged(self):
+        d = REPO.design_values("Ecuador", "Recruits/trainees", "M", ["stature"])
+        self.assertTrue(any("no recorded year" in n for n in d["notes"]), d["notes"])
+
+
+class Hygiene(unittest.TestCase):
+    def test_reading_a_measure_never_changes_the_catalog(self):
+        before = (REPO.meta()["counts"], len(REPO.measures()), REPO.categories())
+        orphans = [k for k in REPO._measures if k not in REPO._cover]
+        self.assertTrue(orphans)
+        for k in orphans:
+            with self.assertRaises(NotFound):
+                REPO.measure(k)
+        self.assertEqual((REPO.meta()["counts"], len(REPO.measures()), REPO.categories()), before)
+        self.assertEqual(sum(c["measures"] for c in REPO.categories()), REPO.meta()["counts"]["measures"])
+        for c in REPO.categories():
+            self.assertEqual(len(REPO.measures(category=c["id"])), c["measures"], c["name"])
+        # ... yet a measure that has only a mean in one survey can still be asked for with survey=
+        self.assertIn("other:eye_height_standing", REPO._measures)
+
+    def test_blank_source_id_is_a_client_error(self):
+        for blank in ("", "  "):
+            with self.assertRaises(BadRequest):
+                REPO.source(blank)
+        self.assertEqual(REPO.source("ansur-ii-2012")["id"], "ansur-ii-2012")
+
+    def test_search_understands_what_people_type(self):
+        k = lambda q, n=3: [m["key"] for m in REPO.measures(q=q, limit=n)]
+        self.assertEqual(k("height", 1), ["stature"])
+        self.assertEqual(k("body height", 1), ["stature"])
+        self.assertEqual(k("standing height", 1), ["stature"])
+        self.assertEqual(k("sitting_height", 1), ["sitting_height"])
+        self.assertEqual(k("other:waist_hip_ratio", 1), ["other:waist_hip_ratio"])
+        self.assertEqual(k("eye height (sitting)", 1), ["eye_height_sitting"])
+        self.assertIn("other:waist_hip_ratio", k("waist-to-hip ratio"))
+        self.assertEqual(k("STATURE", 1), ["stature"])
+        self.assertEqual(k("weight", 1), ["mass"])
+        self.assertEqual(k("weight", 2)[1], "other:weight_as_reported")  # the plain word in a name beats bmi, which matches only through the synonym
+        import time
+        t = time.time()
+        self.assertTrue(REPO.measures(q=" ".join(["a"] * 20000)) is not None)
+        self.assertLess(time.time() - t, 1.0)  # terms are capped and de-duplicated
+        self.assertEqual(len(REPO.measures(q="(*")), len(REPO.measures()))  # punctuation only = no search words
+
+    def test_unknown_measures_get_useful_suggestions(self):
+        for typed, want in (("weight", "mass"), ("body_height", "stature"), ("statur", "stature")):
+            with self.assertRaises(NotFound) as cm:
+                REPO.design_values("United States", "Army", "M", [typed])
+            self.assertIn(want, cm.exception.available, typed)
+            self.assertTrue(cm.exception.close)
+        with self.assertRaises(NotFound) as cm:
+            REPO.design_values("United States", "Army", "M", ["zzzzqq"])
+        self.assertFalse(cm.exception.available)  # nothing to suggest: no empty list
+        self.assertEqual(REPO.design_values("United States", "Army", "M", ["STATURE", "Sitting Height"])["count"], 2)
+
+    def test_notes_say_why_something_is_missing(self):
+        def notes(*a, **kw):
+            return " ".join(REPO.mannequin(*a, **kw)["notes"])
+        self.assertIn("Body mass does not exist for this sex, only for mixed / not stated", notes("Germany", "Aircrew", "M", 95))
+        self.assertIn("Stature is not available as a harmonized measure here, only as 'other:stature_as_reported'", notes("United States", "Air Force", "F", 95))
+        self.assertIn("Sitting height does not exist for this population at any reliability level", notes("Israel", "Recruits/trainees", "M", 95))
+        self.assertIn("Only 4 dimensions are available for this population, none of them seated", notes("Israel", "Recruits/trainees", "M", 95))
+        self.assertIn("hidden by the reliability filter", notes("Switzerland", "Recruits/trainees", "M", 50))
+        self.assertNotIn("Only", notes("United States", "Army", "M", 50))
+        self.assertNotIn("does not exist", notes("United States", "Army", "M", 50, measures=["stature"]))  # asked for one thing: no essentials lecture
+
+    def test_caution_is_not_noise(self):
+        m = REPO.mannequin("United States", "Army", "M", 95)
+        self.assertNotIn("age", m["caution"])  # a sample descriptor, not a body dimension
+        self.assertTrue(any("do not set it independently" in w for w in m["caution"]["bmi"]))
+        for why in m["caution"].values():
+            self.assertFalse("medium reliability" in " ".join(why) and any(w == "estimated from mean and SD" for w in why))  # one reason, not two for the same fact
+
+    def test_compare_notes_follow_the_data(self):
+        single = REPO.compare("stature", "M", 50, countries=["New Zealand", "Multiple: Turkey, Greece, Italy"], min_reliability="high")
+        self.assertTrue(all(x["n_surveys"] == 1 for x in single["results"]))
+        self.assertFalse(any("pool" in n or "combine" in n for n in single["notes"]), single["notes"])
+        gb = REPO.compare("stature", "M", 95, countries=["United Kingdom", "France", "United States"])
+        self.assertTrue(any("mixed / not stated" in n and "United Kingdom" in n for n in gb["notes"]), gb["notes"])
+
+    def test_counts_name_their_unit(self):
+        c = REPO.meta()["counts"]
+        self.assertEqual((c["country_role_groups"], c["populations"]), (len(REPO._groups), len(REPO._roll)))
+        self.assertGreater(c["populations"], c["country_role_groups"])
+
+    def test_the_implausible_malaysian_sd_is_gone(self):
+        d = REPO.design_values("Malaysia", "Army", "M", ["stature"], min_reliability="low")["measures"][0]
+        self.assertIsNone(d["sd"])
+        self.assertIsNone(d["percentiles"]["p95"])
+
+
 class DataVersion(unittest.TestCase):
     def make(self, t: Path) -> Path:
         for name in ("aggregates/rollup.csv", "aggregates/aggregates.csv", "aggregates/official_documents.csv", "database/harmonized_measures.csv",
@@ -466,23 +599,51 @@ class Formats(unittest.TestCase):
 
 class Snapshot(unittest.TestCase):
     def test_snapshot_matches_the_live_values(self):
+        """Every population, every file: the static files say what the live service says (values, mannequin, latest variants, links)."""
         with tempfile.TemporaryDirectory() as t:
             r = snapshot.build(t)
             base = Path(t) / "api" / "v1"
-            index = json.loads((base / "index.json").read_text(encoding="utf-8"))
+            load = lambda url: json.loads((base / url.split("/api/v1/")[1]).read_text(encoding="utf-8"))
+            index = load("/api/v1/index.json")
             self.assertEqual(r["populations"], len(index["populations"]))
-            self.assertEqual(r["populations"], len({(x["country_id"], x["role_id"], x["sex"]) for x in index["populations"]}))
             self.assertEqual(r["populations"], len(REPO._roll))
-            for entry in random.Random(1).sample(index["populations"], 12):
-                got = json.loads((base / entry["values_json"].split("/api/v1/")[1]).read_text(encoding="utf-8"))
-                want = REPO.design_values(entry["country_id"], entry["role_id"], entry["sex"], percentiles=[5, 50, 95], min_reliability="low")
-                self.assertEqual(got, json.loads(json.dumps(want)))
-                self.assertTrue((base / entry["values_csv"].split("/api/v1/")[1]).read_text(encoding="utf-8").startswith("country,role,sex"))
-                m = json.loads((base / entry["mannequin_json"].split("/api/v1/")[1]).read_text(encoding="utf-8"))
-                self.assertEqual(m["percentiles"]["p95"]["values"], REPO.mannequin(entry["country_id"], entry["role_id"], entry["sex"], 95)["values"])
+            self.assertEqual(r["populations"], REPO.meta()["counts"]["populations"])
+            self.assertEqual(r["files"], sum(1 for f in base.rglob("*") if f.is_file()))
+            empty = latest_files = 0
+            for e in index["populations"]:
+                args = (e["country_id"], e["role_id"], e["sex"])
+                want = REPO.design_values(*args, percentiles=[5, 50, 95], min_reliability="low")
+                self.assertEqual(load(e["values_json"]), json.loads(json.dumps(want)))
+                self.assertTrue((base / e["values_csv"].split("/api/v1/")[1]).read_text(encoding="utf-8").startswith("country,role,sex"))
+                variants = [(e["mannequin_json"], None)]
+                if e["latest_survey"]:
+                    latest_files += 1
+                    self.assertEqual(load(e["latest_values_json"]), json.loads(json.dumps(REPO.design_values(*args, percentiles=[5, 50, 95], min_reliability="low", survey="latest"))))
+                    variants.append((e["latest_mannequin_json"], "latest"))
+                for url, survey in variants:
+                    answers = {p: REPO.mannequin(*args, p, survey=survey) for p in (5, 50, 95)}
+                    if not any(a["dimensions"] for a in answers.values()):  # nothing at high or medium reliability: no file, and the index says so
+                        empty += 1
+                        self.assertIsNone(url, args)
+                        continue
+                    f = load(url)
+                    m50 = answers[50]
+                    self.assertEqual(f["population"], m50["population"], args)  # the surveys and years behind THESE dimensions
+                    self.assertEqual(f["hidden_by_reliability"], m50["hidden_by_reliability"], args)
+                    for p, a in answers.items():
+                        got = f["percentiles"][f"p{p}"]
+                        self.assertEqual((got["values"], got["core"], got["caution"], got["unavailable"], got["count"]), (a["values"], a["core"], a["caution"], a["unavailable"], a["count"]), (args, p))
+                        self.assertEqual(got["basis"], {d["key"]: d["basis"] for d in a["dimensions"]})
+                    for key, d in f["dimensions"].items():
+                        want_d = next(x for x in m50["dimensions"] if x["key"] == key)
+                        self.assertEqual({k: d[k] for k in ("unit", "n", "reliability", "years", "sources")}, {k: want_d[k] for k in ("unit", "n", "reliability", "years", "sources")})
+                        self.assertEqual(f["units"][key], d["unit"])
+            self.assertGreater(empty, 0)
+            self.assertGreater(latest_files, 5)
             for name in ("meta", "countries", "measures", "categories"):
                 self.assertTrue(json.loads((base / f"{name}.json").read_text(encoding="utf-8")))
             self.assertEqual(len(json.loads((base / "measures.json").read_text(encoding="utf-8"))), REPO.meta()["counts"]["measures"])
+            self.assertEqual(sum(c["measures"] for c in json.loads((base / "categories.json").read_text(encoding="utf-8"))), REPO.meta()["counts"]["measures"])
 
     def test_the_build_needs_no_third_party_packages(self):
         code = "import sys, builtins\nreal = builtins.__import__\n" \

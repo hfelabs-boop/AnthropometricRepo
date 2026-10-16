@@ -4,7 +4,7 @@ The website build (scripts/build_site.py) writes it to public/api/v1/, so the Ve
     /api/v1/index.json
     /api/v1/populations/{country}/{role}/{sex}.json|csv      P5, P50, P95 of every measure, all reliability levels, all surveys combined
     /api/v1/populations/{country}/{role}/{sex}.latest.json|csv   the same for the most recent survey alone (only where the combined values span more than 15 years)
-    /api/v1/mannequin/{country}/{role}/{sex}.json            P5, P50, P95 boundary dimension sets (high and medium reliability): values, units,
+    /api/v1/mannequin/{country}/{role}/{sex}.json            P5, P50, P95 boundary dimension sets (high and medium reliability; absent when there are none): values, units,
                                                               basis, caution flags, and per dimension sample size, years and sources
 without a server. Uses only the standard library. The population files are the live API's answer for P5/P50/P95 at every reliability
 level; the mannequin file is the live /v1/mannequin answer reorganised to one file per population (see the README). Other percentiles,
@@ -44,21 +44,29 @@ def _write_population(repo: Repo, root: Path, c: dict, r: dict, sex: str, survey
     rel = f"populations/{c['id']}/{r['id']}/{sex}{suffix}"
     _dump(root / f"{rel}.json", values)
     _write_csv(root / f"{rel}.csv", design_csv(values))
-    boundary, dims = {}, {}
+    boundary, dims, answers = {}, {}, {}
     for p in PERCENTILES:
         try:
             m = repo.mannequin(c["id"], r["id"], sex, p, survey=survey)
         except ApiError:
             continue
+        answers[p] = m
         for d in m["dimensions"]:  # what does not depend on the percentile is written once per file
             dims.setdefault(d["key"], {k: d[k] for k in ("name", "category", "unit", "n", "reliability", "years", "sources", "n_surveys", "survey_spread_pct")})
         boundary[f"p{p}"] = {"core": m["core"], "values": m["values"], "basis": {d["key"]: d["basis"] for d in m["dimensions"]}, "caution": m["caution"],
                              "count": m["count"], "unavailable": m["unavailable"]}
-    mannequin = {"population": values["population"], "min_reliability": "medium", "units": {k: d["unit"] for k, d in dims.items()}, "dimensions": dims, "percentiles": boundary,
-                 "notes": values["notes"] + ["Each dimension is the stated percentile of that dimension alone: a boundary case, not a typical body."]}
+    result = {"values": values, "values_json": f"/{BASE}/{rel}.json", "values_csv": f"/{BASE}/{rel}.csv", "mannequin_json": None}
+    if not dims:  # nothing at high or medium reliability: no file rather than an empty one (the design-values file still has everything)
+        return result
+    p50 = answers.get(50) or next(iter(answers.values()))
+    notes = [n for n in p50["notes"] if not n.startswith(("Percentile 50 of each", "Every dimension is percentile"))]
+    mannequin = {"population": p50["population"], "min_reliability": "medium", "hidden_by_reliability": p50["hidden_by_reliability"],
+                 "units": {k: d["unit"] for k, d in dims.items()}, "dimensions": dims, "percentiles": boundary,
+                 "notes": notes + ["Each dimension is the stated percentile of that dimension alone: a boundary case, not a typical body."]}
     mrel = f"mannequin/{c['id']}/{r['id']}/{sex}{suffix}"
     _dump(root / f"{mrel}.json", mannequin)
-    return {"values": values, "values_json": f"/{BASE}/{rel}.json", "values_csv": f"/{BASE}/{rel}.csv", "mannequin_json": f"/{BASE}/{mrel}.json"}
+    result["mannequin_json"] = f"/{BASE}/{mrel}.json"
+    return result
 
 
 def build(out: str | Path, repo: Repo | None = None) -> dict:
@@ -73,7 +81,7 @@ def build(out: str | Path, repo: Repo | None = None) -> dict:
                 combined = _write_population(repo, root, c, r, sex, None, "")
                 if combined is None:
                     continue
-                files += 3
+                files += 2 + bool(combined["mannequin_json"])
                 entry = {"country": c["name"], "country_id": c["id"], "role": r["name"], "role_id": r["id"], "sex": sex, "measures": combined["values"]["count"],
                          "values_json": combined["values_json"], "values_csv": combined["values_csv"], "mannequin_json": combined["mannequin_json"],
                          "latest_survey": None}
@@ -81,7 +89,7 @@ def build(out: str | Path, repo: Repo | None = None) -> dict:
                 if years and years[1] - years[0] > 15:  # the combined values mix decades: also offer the most recent survey alone
                     latest = _write_population(repo, root, c, r, sex, "latest", ".latest")
                     if latest:
-                        files += 3
+                        files += 2 + bool(latest["mannequin_json"])
                         entry.update({"latest_survey": latest["values"]["population"]["survey"], "latest_values_json": latest["values_json"], "latest_values_csv": latest["values_csv"],
                                       "latest_mannequin_json": latest["mannequin_json"]})
                 populations.append(entry)

@@ -56,7 +56,9 @@ COUNTRY_ALIASES = {"usa": "United States", "us": "United States", "u.s.": "Unite
                    "korea": "South Korea", "republic of korea": "South Korea", "czechia": "Czech Republic", "holland": "Netherlands",
                    "russian federation": "Russia", "ksa": "Saudi Arabia", "rsa": "South Africa", "viet nam": "Vietnam", "turkiye": "Turkey"}
 # a few words people use that the measure names do not (query word -> words that are searched instead)
-SYNONYMS = {"weight": ["mass"], "width": ["breadth"], "wide": ["breadth"], "length": ["length"], "tall": ["height"]}
+SYNONYMS = {"weight": ["mass"], "width": ["breadth"], "wide": ["breadth"], "tall": ["stature"], "height": ["stature"]}
+MAX_QUERY_TERMS = 12
+STOP_WORDS = {"to", "of", "the", "and", "a", "an", "in", "for", "on", "at", "by", "with"}
 # whole queries -> harmonized keys that answer them (listed first in a search)
 PHRASE_KEYS = {
     "shoulder breadth": ["bideltoid_breadth", "biacromial_breadth"], "shoulder width": ["bideltoid_breadth", "biacromial_breadth"],
@@ -65,6 +67,8 @@ PHRASE_KEYS = {
     "eye height": ["eye_height_sitting"], "sitting eye height": ["eye_height_sitting"], "body weight": ["mass"], "weight": ["mass"],
     "arm reach": ["thumbtip_reach", "span"], "reach": ["thumbtip_reach", "span"], "knee height": ["knee_height_sitting", "popliteal_height"],
     "chest width": ["chest_breadth"], "head size": ["head_circumference", "head_length", "head_breadth"],
+    "height": ["stature"], "body height": ["stature"], "standing height": ["stature"], "tall": ["stature"], "how tall": ["stature"],
+    "lower leg": ["popliteal_height", "knee_height_sitting"], "body mass": ["mass"], "body weight kg": ["mass"],
 }
 SEX_NAMES = {"M": "men", "F": "women", "both": "mixed / not stated"}
 DEFAULT_PERCENTILES = (5, 50, 95)
@@ -154,14 +158,15 @@ Z_MIN = abs(_ND.inv_cdf(0.001))  # the lowest percentile the service allows (0.1
 
 
 def skewed_positive(p5: float, p50: float, p95: float) -> bool:
-    """True when a measure is positive but so right-skewed that the straight line through P5, P50, P95 (linear in the normal score)
-    would reach zero or below before P0.1. Its tails are then extended on the log scale, which cannot go negative."""
+    """True when the straight line through P5, P50, P95 (linear in the normal score) would reach zero or below before P0.1, that is when the
+    lower half of the distribution is wider than about 53% of the median (typical for skinfolds, body fat, ages). The tail below P5 is then
+    extended on the log scale, which cannot go negative; it also replaces the (still positive) straight-line values between P0.1 and P5."""
     return p5 > 0 and p50 > p5 and p50 - Z_MIN / Z95 * (p50 - p5) <= 0
 
 
 def quantile(p5: float, p50: float, p95: float, p: float) -> float:
     """Value at percentile p (0 < p < 100) on the line through (z(5), p5), (z(50), p50), (z(95), p95), linear in the normal score.
-    Below P5 the line is replaced by its log-scale equivalent for strongly right-skewed positive measures (see skewed_positive)."""
+    Below P5 the line is replaced by its log-scale equivalent for measures whose lower half is very wide (see skewed_positive)."""
     if p == 5:
         return p5
     if p == 50:
@@ -234,9 +239,10 @@ class Repo:
         for r in roll:
             if r["measure_key"].startswith("other:"):
                 votes[r["measure_key"]][r["measure_label"]] += 1
-        for r in agg:  # keys that never reached the roll-up (mean-only rows) can still be asked for with survey=...
-            if r["measure_key"] not in self._measures and r["measure_key"] not in votes and r["measure_label"]:
-                votes[r["measure_key"]][r["measure_label"]] += 1
+        for r in agg:  # keys that never reached the roll-up (mean-only rows) can still be asked for with survey=... (same rows the single-survey path reads)
+            if (r["is_primary"] == "1" and r["population_type"] != "civilian" and "#sub" not in r["survey_group"] and _f(r["mean"]) is not None
+                    and r["measure_key"] not in self._measures and r["measure_key"] not in votes):
+                votes[r["measure_key"]][r["measure_label"] or r["measure_key"]] += 1
         for k, v in votes.items():  # the most common label, English-looking ones first
             name = sorted(v.items(), key=lambda kv: (not kv[0].isascii(), -kv[1], kv[0]))[0][0]
             self._measures[k] = {"key": k, "name": name, "category": category_of(k), "unit": other_unit.get(k, "mm"), "note": None, "harmonized": False}
@@ -259,10 +265,11 @@ class Repo:
             g = self._groups.setdefault((r["country"], r["service_role"]), {"sexes": set(), "measures": set()})
             g["sexes"].add(r["sex"])
             g["measures"].add(r["measure_key"])
-        self._cover: dict = defaultdict(set)
+        cover: dict = defaultdict(set)
         for (c, role, sex), rows in self._roll.items():
             for k in rows:
-                self._cover[k].add((c, role))
+                cover[k].add((c, role))
+        self._cover = dict(cover)  # a plain dict: looking a key up must never add it
 
         # name indexes: ids (slugs) and display names, case-insensitive
         self._countries = sorted({c for c, _ in self._groups})
@@ -368,16 +375,26 @@ class Repo:
             raise BadRequest(f"At most {MAX_PERCENTILES} percentiles per request.")
         return out
 
+    def _measure_key(self, m: str) -> str | None:
+        """A measure key from what was typed: exact, other:-prefixed, or lower-cased with spaces as underscores (Stature, sitting height)."""
+        for cand in (m, f"other:{m}", m.lower(), m.lower().replace(" ", "_"), f"other:{m.lower().replace(' ', '_')}"):
+            if cand in self._measures:
+                return cand
+        return None
+
     def _measure_keys(self, measures) -> list:
         keys = []
         for m in measures:
             m = str(m).strip()
             if not m:
                 continue
-            k = m if m in self._measures else f"other:{m}" if f"other:{m}" in self._measures else None
+            k = self._measure_key(m)
             if k is None:
-                close = [x for x in difflib.get_close_matches(m, list(self._measures), n=5, cutoff=0.6)]
-                raise NotFound(f"Unknown measure '{m}'.", "Search measures by name (GET /v1/measures?q=waist, or the search_measures tool). Keys look like stature, mass, sitting_height or other:waist_hip_ratio.", close, True)
+                close = [x["key"] for x in self.measures(q=m.replace("_", " "), limit=5)]  # the word search knows synonyms (weight = mass) and phrases (body height = stature)
+                close += [x for x in difflib.get_close_matches(m, list(self._measures), n=5, cutoff=0.6) if x not in close]
+                close = close[:5]
+                raise NotFound(f"Unknown measure '{m}'.", "Search measures by name (GET /v1/measures?q=waist, or the search_measures tool). Keys look like stature, mass, sitting_height or other:waist_hip_ratio.",
+                               close or None, bool(close))
             if k not in keys:
                 keys.append(k)
         if not keys:
@@ -386,12 +403,19 @@ class Repo:
             raise BadRequest(f"At most {MAX_MEASURES} measures per request.")
         return keys
 
+    def knows_country(self, name: str) -> bool:
+        """True when `name` as a whole is a country (some names contain commas, so lists cannot be split blindly)."""
+        return bool(self._country_ix.get(str(name).strip().lower()) or self._country_ix.get(slug(name)))
+
+    def knows_role(self, name: str) -> bool:
+        return bool(self._any_role_ix.get(str(name).strip().lower()) or self._any_role_ix.get(slug(name)))
+
     # ------------------------------------------------------------------ catalog queries
     def meta(self) -> dict:
         return {
             "name": "Military Anthropometry API", "version": VERSION, "data_version": self.data_version, "repository": REPOSITORY,
             "counts": {"countries": sum(1 for c in self._countries if not c.startswith("Multiple:")), "pooled_samples": sum(1 for c in self._countries if c.startswith("Multiple:")),
-                       "populations": len(self._groups), "measures": len(self._cover), "values": sum(len(r) for r in self._roll.values()),
+                       "country_role_groups": len(self._groups), "populations": len(self._roll), "measures": len(self._cover), "values": sum(len(r) for r in self._roll.values()),
                        "surveys": sum(n for k, n in self._survey_count.items() if k in self._groups)},
             "units": "Lengths in millimetres, body mass in kilograms, BMI in kg/m2, age in years; as-published measures keep their printed unit (%, ratio, degrees ...). Each measure lists its unit.",
             "reliability_levels": RELIABILITY_LEVELS,
@@ -400,7 +424,7 @@ class Repo:
                 "pooled": "P5, P50 and P95 of the n-weighted mixture of several surveys, each of which printed its percentiles: no single source prints this number",
                 "estimated": "estimated from the mean and SD (normal; lognormal for positive skewed measures)",
                 "interpolated": "between P5 and P95, on the line linear in the normal score through P5, P50 and P95",
-                "extrapolated": "beyond P5 or P95 on the same line; for strongly right-skewed positive measures (skinfolds, body fat) the lower tail follows the same line on the log scale so it never goes below zero; less certain the further out",
+                "extrapolated": "beyond P5 or P95 on the same line; where that line would reach zero before P0.1 (the lower half wider than about 53% of the median: skinfolds, body fat, ages) the part below P5 follows it on the log scale so it never goes below zero; less certain the further out",
             },
             "attribution": ATTRIBUTION, "disclaimer": DISCLAIMER,
         }
@@ -440,8 +464,13 @@ class Repo:
                 raise NotFound(f"Unknown role '{role}'.", None, self._all_roles)
         sx = self._sex(sex) if sex else None
         cat = self._category(category) if category else None
-        text = " ".join(str(q or "").lower().split())
-        alts = [[t] + SYNONYMS.get(t, []) for t in text.split()]
+        raw = str(q or "").lower()[:200]
+        terms = [t for t in dict.fromkeys(re.findall(r"[a-z0-9]+", raw)) if t not in STOP_WORDS]
+        if terms and terms[0] == "other" and raw.lstrip().startswith("other:"):
+            terms = terms[1:]  # the key prefix, not a word of the name
+        terms = terms[:MAX_QUERY_TERMS]
+        text = " ".join(terms)
+        alts = [[t] + SYNONYMS.get(t, []) for t in terms]
         pats = [[re.compile(r"\b" + re.escape(a)) for a in group] for group in alts]
         phrase = [k for k in PHRASE_KEYS.get(text, []) if k in self._cover]
         order = category_order({m["category"] for m in self._measures.values()})
@@ -452,7 +481,7 @@ class Repo:
             hay = f"{m['name']} {k.replace('other:', '').replace('_', ' ')} {m['category']}".lower()
             if pats and k not in phrase and not all(any(p.search(hay) for p in group) for group in pats):
                 continue
-            groups = self._cover[k]
+            groups = self._cover[k]  # (country, role) groups; k is in _cover (checked above)
             if c:
                 groups = {g for g in groups if g[0] == c}
             if rl:
@@ -462,7 +491,7 @@ class Repo:
             if (c or rl or sx) and not groups:
                 continue
             words = set(re.findall(r"[a-z0-9]+", m["name"].lower()))
-            exact = sum(1 for group in alts if any(a in words for a in group))
+            exact = sum((2 if group[0] in words else 1) for group in alts if any(a in words for a in group))
             rank = (phrase.index(k) if k in phrase else len(phrase), -exact, not m["harmonized"], -len(groups), order.index(m["category"]), m["name"].lower()) if text else \
                    (order.index(m["category"]), not m["harmonized"], -len(groups), m["name"].lower())
             out.append((rank, {"key": k, "name": m["name"], "category": m["category"], "unit": m["unit"], "note": m["note"], "harmonized": m["harmonized"], "populations": len(groups)}))
@@ -472,12 +501,15 @@ class Repo:
 
     def categories(self) -> list:
         cnt: dict = defaultdict(int)
-        for m in self._measures.values():
-            cnt[m["category"]] += 1
+        for k, m in self._measures.items():
+            if k in self._cover:  # only measures that have values: the counts add up to meta.counts.measures
+                cnt[m["category"]] += 1
         return [{"id": slug(c), "name": c, "measures": cnt[c]} for c in category_order(cnt)]
 
     def measure(self, key: str) -> dict:
         k = self._measure_keys([key])[0]
+        if k not in self._cover:
+            raise NotFound(f"'{k}' has no values in the combined data.", "It exists only as a mean in single surveys: ask for it with design-values and survey=<id>.")
         m = dict(self._measures[k])
         m["harmonized"] = m.pop("harmonized", False)
         pops = []
@@ -501,7 +533,9 @@ class Repo:
         return {"country": c, "country_id": slug(c), "role": r, "role_id": slug(r), "surveys": out}
 
     def source(self, source_id: str) -> dict:
-        sid = str(source_id)
+        sid = str(source_id).strip()
+        if not sid:
+            raise BadRequest("No source id given.", "Take an id from the 'sources' field of a value.")
         survey = self._survey_catalog.get(sid)
         papers = [p for p in self._papers if p["survey_id"] == sid or p["paper_id"] == sid]
         off = self._official.get(sid)
@@ -522,20 +556,33 @@ class Repo:
         return out
 
     # ------------------------------------------------------------------ values
-    def _latest_survey(self, country: str, role: str, sex: str) -> str | None:
-        """Most recent well-covered survey: at least 100 people (when any survey has that many) and at least half as many
-        measures as the best-covered survey of the population, so a late survey that measured only stature does not win."""
+    def _latest_choice(self, country: str, role: str, sex: str) -> tuple:
+        """(group of the most recent usable survey or None, newer sizeable surveys that were passed over because they cover too few measures).
+        Usable = has medium or high reliability rows for this sex. Among those: at least 100 people when any has that many, at least half as many
+        measures as the best-covered one, and stature plus mass when any has both; then the newest dated survey (undated ones only when no dated
+        one qualifies), preferring one that is part of the combined values, then the larger one."""
         cands = []
         for (c, r, sg), info in self._survey_info.items():
             if (c, r) != (country, role) or sex not in info["sexes"]:
                 continue
-            cands.append((sg, info, len({x["measure_key"] for x in self._survey_rows[(c, r, sg)] if x["sex"] == sex})))
+            keys = {x["measure_key"] for x in self._survey_rows[(c, r, sg)] if x["sex"] == sex and x["reliability"] != "low"}
+            if keys:
+                cands.append((sg, info, len(keys), {"stature", "mass"} <= keys))
         if not cands:
-            return None
-        best = max(n for _, _, n in cands)
-        good = [x for x in cands if x[2] * 2 >= best]
-        big = [x for x in good if x[1]["n"].get(sex, 0) >= 100] or good
-        return max(big, key=lambda x: (x[1]["year"] or 0, x[1]["n"].get(sex, 0), x[0]))[0]
+            return None, []
+        best = max(x[2] for x in cands)
+        pool = [x for x in cands if x[2] * 2 >= best]
+        pool = [x for x in pool if x[1]["n"].get(sex, 0) >= 100] or pool
+        pool = [x for x in pool if x[3]] or pool
+        used = self._survey_used[(country, role)]
+        chosen = max(pool, key=lambda x: (x[1]["year"] is not None, x[1]["year"] or 0, x[0] in used, x[1]["n"].get(sex, 0), x[2], x[0]))
+        year = chosen[1]["year"]
+        skipped = sorted((x for x in cands if x is not chosen and x[1]["year"] and (year is None or x[1]["year"] > year) and x[1]["n"].get(sex, 0) >= 100),
+                         key=lambda x: (-x[1]["year"], x[0]))
+        return chosen[0], [{"id": slug(x[0]), "name": x[1]["name"], "year": x[1]["year"], "n": x[1]["n"].get(sex, 0), "measures": x[2], "best": best} for x in skipped]
+
+    def _latest_survey(self, country: str, role: str, sex: str) -> str | None:
+        return self._latest_choice(country, role, sex)[0]
 
     def _single_survey(self, country: str, role: str, survey: str, sex: str) -> tuple:
         """(rows of one survey for one sex, the survey's group name). survey='latest' picks the most recent well-covered survey;
@@ -604,7 +651,7 @@ class Repo:
             e["printed_name"] = row["label"]
         return e
 
-    def _vintage_note(self, c: str, r: str, sex: str, groups: set, years: list | None) -> str | None:
+    def _vintage_note(self, c: str, r: str, sex: str, groups: set, years: list | None, row_groups: list | None = None) -> str | None:
         """Warn when the combined values mix surveys decades apart (body size and landmark definitions changed)."""
         if not years or years[1] - years[0] <= 15:
             return None
@@ -612,15 +659,34 @@ class Repo:
         total = sum(i["n"].get(sex, 0) for _, i in info)
         parts = [f"The combined values mix surveys from {years[0]} to {years[1]}."]
         if info and total:
-            top = max(info, key=lambda x: x[1]["n"].get(sex, 0))[1]
+            top_sg, top = max(info, key=lambda x: x[1]["n"].get(sex, 0))
             share = round(100 * top["n"].get(sex, 0) / total)
-            if share >= 30 and top["year"]:
+            behind = sum(1 for g in (row_groups or []) if top_sg in g)
+            if share >= 30 and top["year"] and behind * 2 >= len(row_groups or [1]):  # only when it stands behind most of the returned values
                 parts.append(f"{share}% of the people are from {top['name']} ({top['year']}).")
-        latest = self._latest_survey(c, r, sex)
+        latest, skipped = self._latest_choice(c, r, sex)
         if latest:
             li = self._survey_info[(c, r, latest)]
-            parts.append(f"Body size and landmark definitions changed over such a period: for current personnel use survey=latest (now '{li['name']}', {li['year']}) or choose a survey from the survey list.")
+            when = f", {li['year']}" if li["year"] else ""
+            if skipped:
+                s0 = skipped[0]
+                parts.append(f"survey=latest gives '{li['name']}'{when}, because the newer '{s0['name']}' ({s0['year']}, {s0['n']} people) covers only {s0['measures']} of {s0['best']} measures; "
+                             f"request that survey by id ({s0['id']}) for the measures it has.")
+            else:
+                parts.append(f"Body size and landmark definitions changed over such a period: for current personnel use survey=latest (now '{li['name']}'{when}) or choose a survey from the survey list.")
         return " ".join(parts)
+
+    def _latest_notes(self, c: str, r: str, sx: str, raw: str | None, returned: int, level: str, whole: bool) -> list:
+        """What survey=latest cost: a thinner set than the combined values, or newer surveys that were passed over."""
+        notes = []
+        _, skipped = self._latest_choice(c, r, sx)
+        for s0 in skipped[:2]:
+            notes.append(f"A newer survey, '{s0['name']}' ({s0['year']}, {s0['n']} people), covers only {s0['measures']} of {s0['best']} measures and is not used by survey=latest; request it by id ({s0['id']}) for the measures it has.")
+        if whole:
+            combined = sum(1 for row in self._roll.get((c, r, sx), {}).values() if row["reliability"] in MIN_REL[level])
+            if combined and returned < 0.7 * combined:
+                notes.append(f"survey=latest has {returned} of the {combined} measures the combined values have at this reliability level; the others exist only in other surveys.")
+        return notes
 
     def design_values(self, country: str, role: str, sex: str = "M", measures=None, categories=None, percentiles=None, min_reliability: str = "medium",
                       survey: str | None = None, include_stats: bool = True) -> dict:
@@ -641,7 +707,7 @@ class Repo:
         if not rows:
             have = [s for s in ("M", "F", "both") if (self._single_survey(c, r, survey, s)[0] if survey else self._roll.get((c, r, s)))]
             raise NotFound(f"No {SEX_NAMES[sx]} data for {c} / {r}" + (f" in survey '{survey}'." if survey else "."), "Choose a sex that has data.", have)
-        out, hidden, used = [], 0, set()
+        out, hidden, used, row_groups = [], 0, set(), []
         for k, row in rows.items():
             if keys is not None and k not in keys:
                 continue
@@ -652,6 +718,7 @@ class Repo:
                 continue
             out.append(self._entry(row, ps, include_stats))
             used.update(row["surveys"])
+            row_groups.append(row["surveys"])
         missing = [k for k in keys if k not in rows] if keys is not None else []
         order = category_order({m["category"] for m in self._measures.values()})
         out.sort(key=lambda e: (order.index(e["category"]), not e["harmonized"], e["name"].lower()))
@@ -669,11 +736,48 @@ class Repo:
         if any(p not in DEFAULT_PERCENTILES for p in ps):
             notes.append("Percentiles other than 5, 50 and 95 are interpolated or extrapolated from P5, P50 and P95; see percentile_basis.")
         if not survey:
-            vintage = self._vintage_note(c, r, sx, used, span)
+            vintage = self._vintage_note(c, r, sx, used, span, row_groups)
             if vintage:
                 notes.append(vintage)
+            undated = [sg for sg in used if (c, r, sg) in self._survey_info and self._survey_info[(c, r, sg)]["year"] is None]
+            if undated:
+                notes.append(f"{len(undated)} of the {sum(1 for sg in used if (c, r, sg) in self._survey_info)} combined surveys have no recorded year, so 'years' may understate the span.")
+        elif str(survey).strip().lower() == "latest":
+            notes += self._latest_notes(c, r, sx, survey_raw, len(out), level, keys is None and cats is None)
         return {"population": population, "percentiles": [pkey(p) for p in ps], "min_reliability": level, "count": len(out), "hidden_by_reliability": hidden,
                 "measures": out, "notes": notes}
+
+    def _essentials_notes(self, country: str, role: str, sex: str, survey, by: dict, d: dict, p: float, min_reliability: str, count: int) -> list:
+        """Say what a manikin set lacks and why: stature, body mass and sitting height by cause, and a short set as a whole."""
+        c, r, sx = self._country(country), None, self._sex(sex)
+        r = self._role(c, role)
+        notes = []
+        for label, key in (("Stature", "stature"), ("Body mass", "mass"), ("Sitting height", "sitting_height")):
+            if key in by:
+                continue
+            roll = self._roll.get((c, r, sx), {})
+            alt = f"other:{key}_as_reported"
+            filtered = any(k in roll and roll[k]["reliability"] not in MIN_REL[self._min_rel(min_reliability)] for k in (key, alt))
+            elsewhere = [SEX_NAMES[s2] for s2 in ("M", "F", "both") if s2 != sx and key in self._roll.get((c, r, s2), {})]
+            if survey:
+                why = "is not in this survey"
+            elif key in roll and roll[key]["p5"] is None:
+                why = "has only a mean for this population, no percentiles"
+            elif filtered:
+                why = "is hidden by the reliability filter (min_reliability=low shows it)"
+            elif alt in roll:
+                why = f"is not available as a harmonized measure here, only as '{alt}'"
+            elif elsewhere:
+                why = "does not exist for this sex, only for " + " and ".join(elsewhere)
+            else:
+                why = "does not exist for this population at any reliability level"
+            notes.append(f"{label} {why}.")
+        if count < 30 and not survey:
+            seated = any(x["category"] == "Seated" for x in by.values())
+            notes.append(f"Only {count} dimensions are available for this population" + ("" if seated else ", none of them seated") + ": check that they are enough for your manikin.")
+        elif count < 30:
+            notes.append(f"Only {count} dimensions are available in this survey" + ("" if any(x["category"] == "Seated" for x in by.values()) else ", none of them seated") + ".")
+        return notes
 
     def mannequin(self, country: str, role: str, sex: str = "M", percentile: float = 50, measures=None, categories=None, min_reliability: str = "medium",
                   survey: str | None = None) -> dict:
@@ -697,11 +801,15 @@ class Repo:
         for x in dims:
             why = []
             if x["reliability"] != "high":
-                why.append(f"{x['reliability']} reliability")
-            if x["basis"] in ("estimated", "extrapolated"):
-                why.append(x["basis"])
-            if x["survey_spread_pct"] is not None and x["survey_spread_pct"] > 5:
-                why.append(f"the surveys' means differ by {x['survey_spread_pct']:g}%")
+                why.append(f"{x['reliability']} reliability" + (" (estimated from mean and SD)" if x["basis"] == "estimated" else ""))
+            elif x["basis"] == "estimated":
+                why.append("estimated from mean and SD")
+            if x["basis"] == "extrapolated":
+                why.append("extrapolated beyond P5/P95")
+            if x["survey_spread_pct"] is not None and x["survey_spread_pct"] > 5 and x["category"] != "Demographics":
+                why.append(f"the surveys' means differ by {x['survey_spread_pct']:g}% (body size changed over time, or the landmarks differ; see survey=latest)")
+            if x["key"] == "bmi" and "stature" in by and "mass" in by:
+                why.append("derived from mass and stature: do not set it independently of them")
             if why:
                 caution[x["key"]] = why
         notes = list(d["notes"])
@@ -709,12 +817,11 @@ class Repo:
                      f"Every dimension is percentile {ps[0]:g} of that dimension alone: a boundary case, not a typical body.")
         if unavailable:
             names = ", ".join(x["name"] for x in unavailable[:8]) + (" ..." if len(unavailable) > 8 else "")
-            notes.append(f"{len(unavailable)} measure(s) have a mean but no percentiles and are left out (see 'unavailable'): {names}.")
-        lacking = [n for n, k in (("stature", "stature"), ("body mass", "mass")) if k not in by]
-        if lacking and not measures and not categories:
-            notes.append("No " + " or ".join(lacking) + " at this percentile for this population and reliability level.")
+            notes.append(f"{len(unavailable)} measure(s) have a mean but no percentiles and are left out (listed under 'unavailable' in the JSON and XML answers): {names}.")
+        if not measures and not categories:
+            notes += self._essentials_notes(country, role, sex, survey, by, d, ps[0], min_reliability, len(dims))
         if caution:
-            notes.append(f"{len(caution)} dimension(s) need care (see 'caution'): lower reliability, estimated or extrapolated values, or surveys that disagree.")
+            notes.append(f"{len(caution)} dimension(s) need care (see 'caution'): lower reliability, estimated or extrapolated values, surveys that differ, or derived values.")
         return {"population": d["population"], "percentile": ps[0], "min_reliability": d["min_reliability"], "count": len(dims), "hidden_by_reliability": d["hidden_by_reliability"],
                 "core": core, "values": {x["key"]: x["value"] for x in dims}, "units": {x["key"]: x["unit"] for x in dims}, "caution": caution,
                 "dimensions": dims, "unavailable": unavailable, "notes": notes}
@@ -735,17 +842,18 @@ class Repo:
         if rset is not None and None in rset:
             raise NotFound("Unknown role in 'roles'.", None, self._all_roles)
         m = self._measures[k]
-        res = []
+        usable = lambda row: row["reliability"] in MIN_REL[level] and (row["n"] or 0) >= int(min_n) and None not in (row["p5"], row["p50"], row["p95"])
+        res, in_combined = [], set()
         for (c, role, s), rows in self._roll.items():
             if s != sx or (cset and c not in cset) or (rset and role not in rset):
                 continue
+            if k in rows and usable(rows[k]):
+                in_combined.add((c, role))
             if latest:
                 rows = self._single_survey(c, role, "latest", s)[0]
-            if k not in rows:
+            if k not in rows or not usable(rows[k]):
                 continue
             row = rows[k]
-            if row["reliability"] not in MIN_REL[level] or (row["n"] or 0) < int(min_n) or row["p5"] is None or row["p50"] is None or row["p95"] is None:
-                continue
             e = self._entry(row, [p], True)
             res.append({"country": c, "country_id": slug(c), "role": role, "role_id": slug(role), "value": e["percentiles"][pkey(p)], "basis": e["percentile_basis"][pkey(p)],
                         "mean": e["mean"], "n": row["n"], "reliability": row["reliability"], "sources": row["sources"], "years": e["years"], "n_surveys": e["n_surveys"]})
@@ -753,10 +861,15 @@ class Repo:
         total = len(res)
         notes = [DISCLAIMER]
         years = [y for x in res if x["years"] for y in x["years"] if y]
+        pooled = any(x["n_surveys"] > 1 for x in res)
         if latest:
             notes.append("Each population's most recent well-covered survey, not all its surveys combined; see 'years' for the year of each.")
+            lost = sorted(in_combined - {(x["country"], x["role"]) for x in res})
+            if lost:
+                notes.append(f"{len(lost)} population(s) are in the combined comparison but their latest survey has no usable value for this measure (missing, or too unreliable, small or without percentiles), so they are left out: "
+                             + "; ".join(f"{c} / {role}" for c, role in lost[:6]) + (" ..." if len(lost) > 6 else "") + ".")
         elif years and max(years) - min(years) > 15:
-            notes.append(f"The rows mix surveys from {min(years)} to {max(years)} and combine several surveys per population; for current personnel compare with survey=latest.")
+            notes.append(f"The rows come from surveys between {min(years)} and {max(years)}" + (" and some pool several surveys per population; for current personnel compare with survey=latest." if pooled else "."))
         no_data = {}
         if cset:
             no_data["countries"] = sorted(c for c in cset if not any(x["country"] == c for x in res))
@@ -764,8 +877,14 @@ class Repo:
             no_data["roles"] = sorted(r for r in rset if not any(x["role"] == r for x in res))
         no_data = {key: v for key, v in no_data.items() if v}
         if no_data:
+            only_other = []
+            for c in no_data.get("countries", []):
+                other = sorted({SEX_NAMES[s2] for (c2, _r, s2), rows in self._roll.items() if c2 == c and s2 != sx and k in rows})
+                if other:
+                    only_other.append(f"{c} (only {' / '.join(other)})")
+            reason = f"; with another sex there is data for: {', '.join(only_other)}" if only_other else ""
             notes.append("No result for " + "; ".join(f"{key}: {', '.join(v)}" for key, v in no_data.items()) +
-                         f" (no {SEX_NAMES[sx]} {m['name'].lower()} at this reliability level and sample size).")
+                         f": no {SEX_NAMES[sx]} {m['name'].lower()} at this reliability level and sample size{reason}.")
         if limit and total > int(limit):
             res = res[: int(limit)]
             notes.append(f"Showing the first {len(res)} of {total} populations; raise 'limit' or narrow with countries, roles or min_n.")

@@ -49,11 +49,16 @@ class Docs(unittest.TestCase):
     def test_documented_numbers_match_the_data(self):
         counts = REPO.meta()["counts"]
         text = TEXT[SERVICE / "README.md"]
-        self.assertIn(f"{counts['measures']} measures in {counts['populations']} populations", text)
+        self.assertIn(f"{counts['measures']} measures in {counts['populations']} populations (country × role × sex; {counts['country_role_groups']} country × role groups)", text)
         self.assertIn(f"{counts['countries']} countries and {counts['pooled_samples']} pooled", text)
-        self.assertIn(f"values ({counts['values']})", text)
+        self.assertIn(f"country × role groups ({counts['country_role_groups']}), populations ({counts['populations']}: with sex), measures that have data ({counts['measures']}), values ({counts['values']})", text)
         self.assertIn(f"surveys that can be listed ({counts['surveys']})", text)
-        self.assertIn(f"measures that have data ({counts['measures']})", text)
+        none = sum(1 for e in REPO.countries() for r in e["roles"] for sex in r["sexes"]
+                   if not any(REPO.mannequin(e["id"], r["id"], sex, p)["dimensions"] for p in (5, 50, 95)))
+        self.assertIn(f"{none} populations have none and no file", text)
+        from anthro_service import formats
+        self.assertGreater(len(formats.design_csv(REPO.design_values("United States", "Army", "M", percentiles=[5, 50, 95], min_reliability="low"))), 32767)  # WEBSERVICE's cell limit
+        self.assertIn("which the largest files exceed", text)
         used = {s for rows in REPO._roll.values() for row in rows.values() for s in row["sources"]}
         with_licence = sum(1 for s in used if REPO.source(s).get("licence"))
         self.assertIn(f"{with_licence} of the {len(used)} sources", text)
@@ -82,8 +87,9 @@ class Docs(unittest.TestCase):
         self.assertEqual(shown["population"]["years"], real["population"]["years"])
         self.assertEqual(shown["population"]["surveys_combined"], real["population"]["surveys_combined"])
         self.assertEqual(set(shown), {"population", "percentile", "core", "values", "units", "caution", "dimensions", "unavailable", "notes"})
-        st = next(d for d in real["dimensions"] if d["key"] == "stature")
-        self.assertEqual(shown["dimensions"][0], {k: st[k] for k in shown["dimensions"][0]})
+        first = shown["dimensions"][0]
+        self.assertEqual(first, {k: real["dimensions"][0][k] for k in first})  # dimensions are ordered by category, so the example starts with body mass
+        self.assertEqual(first["key"], "mass")
 
     def test_the_vba_module_has_crlf_endings(self):
         raw = (SERVICE / "examples" / "AnthroApi.bas").read_bytes()

@@ -8,6 +8,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+import unicodedata
 import xml.etree.ElementTree as ET
 
 
@@ -79,7 +80,9 @@ def csv_headers(d: dict) -> dict:
 
 
 def _ascii(s: str) -> str:
-    return s.encode("ascii", "replace").decode("ascii").replace("\r", " ").replace("\n", " ")
+    """HTTP header values: ASCII only, no control characters (accented letters lose their accents instead of becoming '?')."""
+    plain = "".join(ch for ch in unicodedata.normalize("NFKD", s) if not unicodedata.combining(ch))
+    return re.sub(r"[\x00-\x1f\x7f]+", " ", plain.encode("ascii", "replace").decode("ascii"))
 
 
 _ILLEGAL_XML = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]")

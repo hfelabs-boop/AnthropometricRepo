@@ -29,14 +29,30 @@ def slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
+SEXES = {"m": "M", "male": "M", "men": "M", "man": "M", "f": "F", "female": "F", "women": "F", "woman": "F",
+         "both": "both", "mixed": "both", "b": "both", "unknown": "both", "not-stated": "both"}
+
+
+def sex_code(text: str) -> str:
+    code = SEXES.get(text.strip().lower())
+    if not code:
+        sys.exit(f"--sex must be M, F or both (male, female, men and women also work), not '{text}'.")
+    return code
+
+
+def static_url(base: str, country: str, role: str, sex: str, survey: str | None) -> str:
+    """Static files are keyed by ids; the combined file always exists, the .latest file only where the combined values span more than 15 years (see index.json)."""
+    return f"{base.rstrip('/')}/populations/{slug(country)}/{slug(role)}/{sex}{'.latest' if survey else ''}.json"
+
+
 def fetch(base: str, country: str, role: str, sex: str, measures: str | None, min_reliability: str, survey: str | None) -> dict:
     """Live API: /v1/design-values (names or ids, any characters). Static files: /populations/{id}/{id}/{sex}[.latest].json (ids only)."""
     if base.rstrip("/").endswith("/api/v1"):  # static files: all reliability levels, filtered by the caller
         if survey not in (None, "latest"):
             sys.exit("The static files hold the combined values and the latest survey only; use the live API for other surveys.")
-        url = f"{base.rstrip('/')}/populations/{slug(country)}/{slug(role)}/{sex.upper() if sex.upper() in ('M', 'F') else 'both'}{'.latest' if survey else ''}.json"
+        url = static_url(base, country, role, sex_code(sex), survey)
     else:  # live API
-        params = {"country": country, "role": role, "sex": sex, "percentiles": "5,50,95", "min_reliability": min_reliability}
+        params = {"country": country, "role": role, "sex": sex_code(sex), "percentiles": "5,50,95", "min_reliability": min_reliability}
         if measures:
             params["measures"] = measures
         if survey:
@@ -50,7 +66,11 @@ def fetch(base: str, country: str, role: str, sex: str, measures: str | None, mi
             err = json.load(e).get("error", {})
         except ValueError:
             err = {}
-        sys.exit(f"HTTP {e.code} for {url}\n{err.get('message', '')} {err.get('hint', '')}")
+        message = f"{err.get('message', '')} {err.get('hint', '')}".strip()
+        if not err and "/api/v1" in base:  # a static file that does not exist
+            message = ("The static files are keyed by ids (see index.json: lower-case slugs such as united-states / air-force; aliases like UK are not understood there)."
+                       + (" The .latest files exist only where the combined values span more than 15 years: drop --survey, or use the live API." if survey else ""))
+        sys.exit(f"HTTP {e.code} for {url}\n{message}")
 
 
 def main():
@@ -70,11 +90,11 @@ def main():
     rows = [m for m in d["measures"] if RANK[m["reliability"]] <= RANK[a.min_reliability] and (want is None or m["key"] in want)]
     f = sys.stdout if a.out == "-" else open(a.out, "w", newline="", encoding="utf-8")
     w = csv.writer(f)
-    w.writerow(["parameter", "unit", "P5", "P50", "P95", "n", "reliability", "basis", "year_min", "year_max", "name"])
+    w.writerow(["parameter", "unit", "P5", "P50", "P95", "n", "reliability", "percentile_basis", "year_min", "year_max", "name"])
     for m in rows:
         p = m["percentiles"]
         y = m["years"] or ["", ""]
-        w.writerow([MAPPING.get(m["key"], m["key"]), m["unit"], p["p5"], p["p50"], p["p95"], m["n"], m["reliability"], m["percentile_basis"]["p50"], y[0], y[1], m["name"]])
+        w.writerow([MAPPING.get(m["key"], m["key"]), m["unit"], p["p5"], p["p50"], p["p95"], m["n"], m["reliability"], " ".join(f"{k}:{b}" for k, b in m["percentile_basis"].items()), y[0], y[1], m["name"]])
     if f is not sys.stdout:
         f.close()
     print(f"{len(rows)} dimensions for {d['population']['country']} / {d['population']['role']} / {d['population']['sex_name']}"
