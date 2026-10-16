@@ -26,8 +26,8 @@ PERCENTILES = (5, 50, 95)
 BASE = "api/v1"
 
 
-STATIC_SENTENCE = ("The static files hold the combined values and, where the combined values span many years, the latest survey (the .latest files); other surveys, other percentiles "
-                   "and reliability filters need the live API.")
+STATIC_SENTENCE = ("The static files hold the combined values and, where the combined values span many years, the latest survey (the .latest files); the populations files hold every "
+                   "reliability level; other surveys and other percentiles need the live API.")
 
 
 def static_note(note: str, in_latest_file: bool, has_latest: bool) -> str:
@@ -38,9 +38,16 @@ def static_note(note: str, in_latest_file: bool, has_latest: bool) -> str:
                   rf"{Ref} is \1, because \2; that newer survey is only available from the live API.", note)
     note = re.sub(r"and is not used by survey=latest; request it by id \([^)]*\) for the measures it has\.", "and is not used here; it is only available from the live API.", note)
     note = note.replace("survey=latest has ", "This latest-survey file has " if in_latest_file else "The latest survey has ")
-    note = re.sub(r"; set min_reliability=low to include them\.", "; the live API can include them (min_reliability=low).", note)
-    note = re.sub(r"\(min_reliability=low shows it\)", "(the live API shows it with min_reliability=low)", note)
+    note = re.sub(r"; set min_reliability=low to include them\.", "; every reliability level is in the populations file of this population.", note)
+    note = re.sub(r"\(min_reliability=low shows it\)", "(the populations file of this population has every reliability level)", note)
     return note.replace("(see 'caution')", "(see 'caution' under each percentile)")
+
+
+def static_caution(text: str, in_latest_file: bool, has_latest: bool) -> str:
+    """Caution reasons end in '; see survey=latest)': a static reader is pointed to the .latest file when there is one, and to nothing otherwise."""
+    if in_latest_file or not has_latest:
+        return text.replace("; see survey=latest)", ")")
+    return text.replace("; see survey=latest)", "; see the .latest file)")
 
 
 def _dump(path: Path, data) -> None:
@@ -66,6 +73,8 @@ def _write_population(repo: Repo, root: Path, c: dict, r: dict, sex: str, survey
     _dump(root / f"{rel}.json", values)
     _write_csv(root / f"{rel}.csv", design_csv(values))
     boundary, dims, answers = {}, {}, {}
+    pop_years = values["population"]["years"] or [0, 0]
+    spread_years = pop_years[1] - pop_years[0]
     for p in PERCENTILES:
         try:
             m = repo.mannequin(c["id"], r["id"], sex, p, survey=survey)
@@ -74,7 +83,7 @@ def _write_population(repo: Repo, root: Path, c: dict, r: dict, sex: str, survey
         answers[p] = m
         for d in m["dimensions"]:  # what does not depend on the percentile is written once per file
             dims.setdefault(d["key"], {k: d[k] for k in ("name", "category", "unit", "n", "reliability", "years", "sources", "n_surveys", "survey_spread_pct")})
-        boundary[f"p{p}"] = {"core": m["core"], "values": m["values"], "basis": {d["key"]: d["basis"] for d in m["dimensions"]}, "caution": m["caution"],
+        boundary[f"p{p}"] = {"core": m["core"], "values": m["values"], "basis": {d["key"]: d["basis"] for d in m["dimensions"]}, "caution": {k: [static_caution(w, bool(survey), spread_years > VINTAGE_YEARS) for w in why] for k, why in m["caution"].items()},
                              "count": m["count"], "unavailable": m["unavailable"]}
     result = {"values": values, "values_json": f"/{BASE}/{rel}.json", "values_csv": f"/{BASE}/{rel}.csv", "mannequin_json": None}
     if not dims:  # nothing at high or medium reliability: no file rather than an empty one (the design-values file still has everything)

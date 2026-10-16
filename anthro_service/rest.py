@@ -12,6 +12,7 @@ import hmac
 import logging
 import os
 import re
+from collections import Counter
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, Path, Query, Request
@@ -24,6 +25,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from . import models as M
 from .core import ApiError, BadRequest, Repo, VERSION, get_repo
 from .formats import MEDIA, RENDER, csv_headers, measures_csv
+from .origins import clean_origin
 
 log = logging.getLogger("anthro_service")
 
@@ -145,10 +147,10 @@ def cors_origins() -> list:
         return ["*"]
     out = []
     for o in raw:
-        norm = o.rstrip("/").lower()
-        if not re.fullmatch(r"https?://[a-z0-9.\-]+(:\d{1,5})?|https?://\[[0-9a-f:.]+\](:\d{1,5})?", norm):
-            raise ValueError(f"ANTHRO_CORS_ORIGINS: '{o}' is not an origin such as https://app.example.org (scheme, host and optional port, no path); use * for any origin.")
-        out.append(norm)
+        try:
+            out.append(clean_origin(o))
+        except ValueError as e:
+            raise ValueError(f"ANTHRO_CORS_ORIGINS: {e}; use * for any origin.") from None
     return out
 
 
@@ -168,11 +170,11 @@ def strict_params(request: Request):
     if dependant is None:
         return
     known = _declared(dependant)
-    for name in set(request.query_params.keys()):
-        times = len(request.query_params.getlist(name))
+    counts = Counter(k for k, _ in request.query_params.multi_items())  # one pass: a request with thousands of parameters stays cheap
+    for name, times in counts.items():
         if name in known and times > 1:  # FastAPI would silently keep the last one
             raise BadRequest(f"Parameter '{name}' was given {times} times.", "Give each parameter once; lists are comma separated, for example measures=stature,mass.", sorted(known))
-    for name in request.query_params.keys():
+    for name in counts:
         if name not in known:
             close = difflib.get_close_matches(name, sorted(known), n=2, cutoff=0.6)
             if ALIASES.get(name) in known and ALIASES[name] not in close:

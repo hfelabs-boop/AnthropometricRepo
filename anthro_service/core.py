@@ -58,6 +58,7 @@ COUNTRY_ALIASES = {"usa": "United States", "us": "United States", "u.s.": "Unite
 # a few words people use that the measure names do not (query word -> words that are searched instead)
 SYNONYMS = {"weight": ["mass"], "width": ["breadth"], "wide": ["breadth"], "tall": ["stature"], "height": ["stature"]}
 MAX_QUERY_TERMS = 12
+MAX_NAMES = 200  # entries in a comma separated list of countries or roles
 VINTAGE_YEARS = 15  # combined values spanning more years than this get a warning, and a .latest static file
 STOP_WORDS = {"to", "of", "the", "and", "a", "an", "in", "for", "on", "at", "by", "with"}
 # whole queries -> harmonized keys that answer them (listed first in a search)
@@ -290,6 +291,7 @@ class Repo:
                 self._role_ix[c][role.lower()] = role
                 self._role_ix[c][slug(role)] = role
         self._all_roles = sorted({role for _, role in self._groups})
+        self._name_pieces = max([n.count(",") + 1 for n in [*self._countries, *self._all_roles]] + [1])  # the most comma separated pieces of any name
         self._any_role_ix = {}
         for role in self._all_roles:
             self._any_role_ix[role.lower()] = role
@@ -406,14 +408,16 @@ class Repo:
 
     def split_names(self, text: str, kind: str = "country") -> list:
         """Split a comma separated list of countries or roles. Two country names contain commas ('Multiple: Turkey, Greece, Italy'), so neighbouring
-        pieces are joined as long as the joined text is a known name and the pieces alone are not."""
+        pieces are joined when the joined text is a known name; no name has more than `_name_pieces` pieces, which bounds the work."""
         known = self.knows_country if kind == "country" else self.knows_role
         pieces = [x.strip() for x in str(text).split(",") if x.strip()]
+        if len(pieces) > MAX_NAMES:
+            raise BadRequest(f"At most {MAX_NAMES} names per list.")
         out, i = [], 0
         while i < len(pieces):
-            for j in range(len(pieces), i, -1):  # the longest run of pieces that is a known name
+            for j in range(min(len(pieces), i + self._name_pieces), i + 1, -1):  # the longest run (at least two pieces) that is a known name
                 joined = ", ".join(pieces[i:j])
-                if j - i > 1 and known(joined):
+                if known(joined):
                     out.append(joined)
                     i = j
                     break
@@ -720,7 +724,8 @@ class Repo:
             notes.append(f"A newer survey, '{s0['name']}' ({s0['year']}, {s0['n']} people), {s0['why']} and is not used by survey=latest; request it by id ({s0['id']}) for the measures it has.")
         chosen = self._latest_choice(c, r, sx)[0]
         if chosen and self._survey_info[(c, r, chosen)]["year"] is None:
-            notes.append("The year of this survey is not recorded, so its recency could not be checked against the other surveys.")
+            others = any(sg != chosen and (c2, r2) == (c, r) and sx in info["sexes"] for (c2, r2, sg), info in self._survey_info.items())
+            notes.append("The year of this survey is not recorded" + (", so its recency could not be checked against the other surveys." if others else "."))
         if whole:
             combined = sum(1 for row in self._roll.get((c, r, sx), {}).values() if row["reliability"] in MIN_REL[level])
             if combined and returned < 0.7 * combined:
@@ -806,7 +811,9 @@ class Repo:
                 continue
             alt = f"other:{key}_as_reported"
             filtered = any(k in roll and roll[k]["reliability"] not in MIN_REL[level] for k in (key, alt))
-            elsewhere = [SEX_NAMES[s2] for s2 in ("M", "F", "both") if s2 != sx and key in rows_of(s2)]
+            other_sexes = [s2 for s2 in ("M", "F", "both") if s2 != sx and key in rows_of(s2)]
+            elsewhere = [SEX_NAMES[s2] for s2 in other_sexes if rows_of(s2)[key]["reliability"] in MIN_REL[level] and rows_of(s2)[key]["p5"] is not None]
+            below = [SEX_NAMES[s2] for s2 in other_sexes if SEX_NAMES[s2] not in elsewhere]
             if key in roll and roll[key]["p5"] is None:
                 why = f"has only a mean in {where}, no percentiles"
             elif filtered:
@@ -815,15 +822,17 @@ class Repo:
                 why = f"is not available as a harmonized measure here, only as '{alt}'"
             elif elsewhere:
                 why = "does not exist for this sex, only for " + " and ".join(elsewhere)
+            elif below:
+                why = "does not exist for this sex; for " + " and ".join(below) + " it exists only below the reliability filter (min_reliability=low shows it)"
             elif survey:
                 why = "is not in this survey"
             else:
                 why = "does not exist for this population at any reliability level"
             notes.append(f"{label} {why}.")
-        if count < 30:
+        if 0 < count < 30:
             seated = any(x["category"] == "Seated" for x in by.values())
             notes.append(f"Only {count} {'dimension is' if count == 1 else 'dimensions are'} available in {where}" + ("" if seated else ", none of them seated") +
-                         (": check that they are enough for your manikin." if count else "."))
+                         ": check that they are enough for your manikin.")
         return notes
 
     def mannequin(self, country: str, role: str, sex: str = "M", percentile: float = 50, measures=None, categories=None, min_reliability: str = "medium",

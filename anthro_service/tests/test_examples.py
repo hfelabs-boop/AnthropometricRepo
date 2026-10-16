@@ -56,8 +56,11 @@ class StaticFiles(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         snapshot.build(cls.tmp.name)
-        handler = partial(http.server.SimpleHTTPRequestHandler, directory=cls.tmp.name)
-        handler.log_message = lambda *a: None
+        class Quiet(http.server.SimpleHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+        handler = partial(Quiet, directory=cls.tmp.name)
         cls.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}/api/v1"
@@ -66,6 +69,7 @@ class StaticFiles(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.server.shutdown()
+        cls.server.server_close()
         cls.tmp.cleanup()
 
     def rows(self, *argv):
@@ -75,7 +79,7 @@ class StaticFiles(unittest.TestCase):
 
     def test_sex_aliases_reach_the_right_file_not_the_mixed_one(self):
         men, err = self.rows("--country", "Czech Republic", "--role", "Army", "--sex", "male", "--measures", "age")
-        self.assertIn("men", err)
+        self.assertIn("/ men (", err)  # the summary line names the population; 'men' alone also occurs in 'measurements'
         self.assertNotIn("mixed / not stated", err)
         both, err = self.rows("--country", "Czech Republic", "--role", "Army", "--sex", "not stated", "--measures", "age")
         self.assertIn("mixed / not stated", err)
@@ -99,6 +103,27 @@ class StaticFiles(unittest.TestCase):
         self.assertIn("no such measure in this file: wingspan", err)
         code, out, err = run(self.table, ["--base", self.base, "--measures", "wingspan"])
         self.assertEqual(code, 2)
+
+    def test_every_key_of_a_static_file_selects_itself(self):
+        """A name must never take over an exact key; a name shared by a harmonized and an other: row prefers the harmonized one."""
+        for country, role, sex in (("united-states", "army", "M"), ("united-states", "pilots", "M"), ("united-states", "aircrew", "M"), ("serbia", "cadets", "M")):
+            with open(Path(self.tmp.name) / "api" / "v1" / "populations" / country / role / f"{sex}.json", encoding="utf-8") as f:
+                rows = json.load(f)["measures"]
+            for m in rows:
+                self.assertEqual(self.table.wanted_keys(m["key"], rows), [m["key"]], (country, role, m["key"]))
+        rows = json.load(open(Path(self.tmp.name) / "api" / "v1" / "populations" / "united-states" / "army" / "M.json", encoding="utf-8"))["measures"]
+        self.assertEqual(self.table.wanted_keys("Waist circumference (omphalion)", rows), ["waist_circumference"])  # the printed name
+        self.assertEqual(self.table.wanted_keys("waist circumference natural indentation", rows), ["other:waist_circumference_natural_indentation"])  # key without 'other:'
+        self.assertEqual(self.table.wanted_keys("WAIST BACK LENGTH (NATURAL INDENTATION)", rows), ["other:waist_back_length_natural_indentation"])  # name in any case
+        with self.assertRaises(SystemExit):
+            self.table.wanted_keys("-", rows)  # a name that normalises to nothing must not select a random row
+
+    def test_a_static_survey_id_and_a_filtered_level_are_explained(self):
+        code, out, err = run(self.table, ["--base", self.base, "--survey", "ansur-ii-2012"])
+        self.assertIn("latest survey only", str(code))  # only the combined file and 'latest' exist as static files
+        code, out, err = run(self.table, ["--base", self.base, "--country", "Netherlands", "--role", "Army", "--sex", "M", "--measures", "stature", "--min-reliability", "high"])
+        self.assertIsNone(code, err)
+        self.assertRegex(err, r"\d+ value\(s\) below 'high' reliability left out; use --min-reliability low")
 
     def test_stdout_lines_end_in_a_single_newline(self):
         code, out, err = run(self.table, ["--base", self.base, "--measures", "stature"])

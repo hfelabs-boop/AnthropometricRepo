@@ -8,7 +8,6 @@ Works with mcp 1.x (FastMCP, 1.22 and later) and mcp 2.x (MCPServer).
 from __future__ import annotations
 
 import logging
-import re
 import sys
 from collections import Counter
 from typing import Annotated
@@ -16,6 +15,7 @@ from typing import Annotated
 from pydantic import Field
 
 from .core import ApiError, VERSION, get_repo
+from .origins import clean_host, clean_origin
 
 try:  # mcp 2.x
     from mcp.server.mcpserver import MCPServer as _Server
@@ -304,25 +304,18 @@ _forbid_unknown_arguments()
 LOOPBACK = ("127.0.0.1", "localhost", "::1")
 
 
-HOST_RE = re.compile(r"([a-z0-9-]+(\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])(:(\d{1,5}|\*))?")
-ORIGIN_RE = re.compile(r"(https?)://([a-z0-9-]+(\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])(:(\d{1,5}))?")
-
-
 def _clean_host(v: str) -> str:
-    h = v.strip().lower().rstrip(".")
-    if not HOST_RE.fullmatch(h):
-        sys.exit(f"anthro_service: --allowed-host expects one host name such as mcp.example.org or mcp.example.org:8001 (repeat the flag for several), not '{v}'.")
-    return h
+    try:
+        return clean_host(v)
+    except ValueError as e:
+        sys.exit(f"anthro_service: --allowed-host expects one host (repeat the flag for several): {e}.")
 
 
 def _clean_origin(v: str) -> str:
-    o = v.strip().lower().rstrip("/")
-    m = ORIGIN_RE.fullmatch(o)
-    if not m:
-        sys.exit(f"anthro_service: --allowed-origin expects one origin such as https://app.example.org (scheme, host and optional port, no path; repeat the flag for several), not '{v}'.")
-    if m.group(5) and (m.group(1), m.group(5)) in (("https", "443"), ("http", "80")):  # browsers send no port for the default one
-        o = f"{m.group(1)}://{m.group(2)}"
-    return o
+    try:
+        return clean_origin(v)
+    except ValueError as e:
+        sys.exit(f"anthro_service: --allowed-origin expects one origin (repeat the flag for several): {e}.")
 
 
 def _security(host: str, allowed_hosts, allowed_origins) -> TransportSecuritySettings:

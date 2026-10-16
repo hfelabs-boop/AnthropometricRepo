@@ -76,15 +76,22 @@ def fetch(base: str, country: str, role: str, sex: str, measures: str | None, mi
 
 
 def wanted_keys(measures: str, rows: list) -> list:
-    """Match --measures entries (keys, names, any case, spaces for underscores) against the rows of a static file; say what matched nothing."""
-    index = {}
-    for m in rows:
-        for alias in (m["key"], m["key"].replace("other:", ""), m["name"]):
-            index[re.sub(r"[^a-z0-9]+", "_", alias.lower()).strip("_")] = m["key"]
+    """Match --measures entries against the rows of a static file. An exact key always selects itself; otherwise the key without 'other:' and then the
+    printed name are tried (any case, spaces for underscores); a name shared by several rows prefers the harmonized one. Entries that match nothing are reported.
+    A name that contains a comma cannot be given here (the list is split on commas): use its key."""
+    norm = lambda text: re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+    by_key = {m["key"]: m["key"] for m in rows}
+    by_norm_key = {norm(m["key"]): m["key"] for m in rows}
+    by_short, by_name = {}, {}
+    for m in sorted(rows, key=lambda m: m["key"].startswith("other:"), reverse=True):  # harmonized rows are written last, so they win a shared name
+        by_short[norm(m["key"].replace("other:", ""))] = m["key"]
+        if norm(m["name"]):
+            by_name[norm(m["name"])] = m["key"]
     keys, missing = [], []
-    for entry in (x for x in measures.split(",") if x.strip()):
-        key = index.get(re.sub(r"[^a-z0-9]+", "_", entry.lower()).strip("_"))
-        (keys if key else missing).append(key or entry.strip())
+    for entry in (x.strip() for x in measures.split(",") if x.strip()):
+        n = norm(entry)
+        key = by_key.get(entry) or by_norm_key.get(n) or by_short.get(n) or by_name.get(n)
+        (keys if key else missing).append(key or entry)
     if missing:
         print(f"no such measure in this file: {', '.join(missing)}", file=sys.stderr)
         if not keys:
@@ -110,6 +117,11 @@ def main(argv=None):
     if static and a.measures:
         keep = set(wanted_keys(a.measures, d["measures"]))
         rows = [m for m in rows if m["key"] in keep]
+        d["measures"] = [m for m in d["measures"] if m["key"] in keep]
+    if static:  # the static file holds every reliability level: say what this level left out (the live API says it in its notes)
+        below = sum(1 for m in d["measures"] if RANK[m["reliability"]] > RANK[a.min_reliability])
+        if below:
+            print(f"{below} value(s) below '{a.min_reliability}' reliability left out; use --min-reliability low to include them.", file=sys.stderr)
     f = sys.stdout if a.out == "-" else open(a.out, "w", newline="", encoding="utf-8")
     w = csv.writer(f, lineterminator="\n" if f is sys.stdout else "\r\n")  # a text-mode stdout on Windows would turn \r\n into \r\r\n
     w.writerow(["parameter", "unit", "P5", "P50", "P95", "n", "reliability", "percentile_basis", "year_min", "year_max", "name"])

@@ -673,6 +673,81 @@ class Round3(unittest.TestCase):
             self.assertEqual(second["files"], sum(1 for f in (Path(t) / "api" / "v1").rglob("*") if f.is_file()))
 
 
+class Round4(unittest.TestCase):
+    def test_splitting_a_name_list_costs_time_in_proportion_to_its_length(self):
+        import time
+        self.assertEqual(REPO._name_pieces, max(n.count(",") + 1 for n in [*REPO._countries, *REPO._all_roles]))
+        t = time.time()
+        REPO.split_names(",".join(["Germany"] * 200))
+        REPO.split_names(",".join(["a"] * 200), "role")
+        self.assertLess(time.time() - t, 1.0)  # it was cubic: 800 names took 24 s
+        with self.assertRaises(BadRequest):
+            REPO.split_names(",".join(["Germany"] * 201))
+        self.assertEqual(REPO.split_names("Multiple: Turkey, Greece, Italy, Multiple: Turkey, Greece, Italy"), ["Multiple: Turkey, Greece, Italy"] * 2)
+
+    def test_a_missing_year_is_only_compared_when_there_is_something_to_compare_with(self):
+        only = " ".join(REPO.design_values("Angola", "Cadets", "both", survey="latest", min_reliability="low")["notes"])
+        self.assertIn("The year of this survey is not recorded.", only)
+        self.assertNotIn("other surveys", only)
+        several = " ".join(REPO.design_values("Ecuador", "Recruits/trainees", "M", survey="latest")["notes"])
+        self.assertIn("not recorded, so its recency could not be checked against the other surveys", several)
+
+    def test_the_other_sex_hint_is_not_a_dead_end(self):
+        korea = " ".join(REPO.mannequin("South Korea", "Army", "M", 50)["notes"])
+        self.assertIn("Stature does not exist for this sex; for women it exists only below the reliability filter", korea)
+        self.assertNotIn("only for women", korea)  # women's values are low reliability too: switching sex would return nothing as well
+        self.assertNotIn("Only 0 dimensions", korea)
+        self.assertIn("only for mixed / not stated", " ".join(REPO.mannequin("Germany", "Aircrew", "M", 50)["notes"]))
+
+    def test_corrected_source_rows(self):
+        men = REPO.design_values("Australia", "Army", "M", ["other:front_length"])["measures"][0]
+        women = REPO.design_values("Australia", "Army", "F", ["other:front_length"])["measures"][0]
+        self.assertEqual((men["mean"], men["sd"], men["percentiles"]["p50"]), (362.0, 24.0, 362.0))  # mean and SD had been swapped between the sexes
+        self.assertEqual((women["mean"], women["sd"], women["percentiles"]["p50"]), (332.0, 20.8, 332.0))
+        leg = REPO.design_values("Indonesia", "Army", "M", ["other:leg_length"], min_reliability="low")["measures"][0]
+        self.assertEqual((leg["mean"], leg["sd"], leg["percentiles"]["p95"]), (1027.1, None, None))  # P95 1450 was 3.6 SD above the mean
+        self.assertNotIn("other:leg_length", REPO.mannequin("Indonesia", "Army", "M", 95)["values"])
+
+    def test_inconsistent_percentiles_are_caught_at_the_source(self):
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import validate_aggregates as va
+        known, ranges = va.keys_and_ranges()
+
+        def problems(**fields):
+            with tempfile.TemporaryDirectory() as t:
+                f = Path(t) / "x.csv"
+                row = dict.fromkeys(va.COLUMNS, "")
+                row.update(source_id="s", source_file="f", population="p", country="Australia", population_type="military", service_role="Army", sex="M", measure_key="other:front_length",
+                           measure_label="Front length", unit_original="mm", quality="A")
+                row.update(fields)
+                with open(f, "w", newline="", encoding="utf-8") as fh:
+                    w = csv.DictWriter(fh, fieldnames=va.COLUMNS)
+                    w.writeheader()
+                    w.writerow(row)
+                return va.validate(f, known, ranges)[0]
+        self.assertTrue(problems(mean="332", sd="20.8", n="100", p5="323", p50="362", p95="403"))  # the swapped AWAS row
+        self.assertTrue(problems(mean="1027.1", sd="117.4", n="268", p5="940", p95="1450"))  # P95 3.6 SD above the mean
+        self.assertFalse(problems(mean="362", sd="24", n="100", p5="323", p50="362", p95="403"))
+        self.assertFalse(problems(mean="332", sd="20.8", n="100"))  # no percentiles: nothing to contradict
+        self.assertFalse(problems(mean="548", sd="37", n="100", p5="438", p50="558", p95="558", measure_key="other:crotch_waist_preferred_posterior"))  # preference scales are not body dimensions
+
+    def test_host_and_origin_strings(self):
+        from anthro_service.origins import clean_host, clean_origin
+        self.assertEqual(clean_host("Anthro_MCP:8001"), "anthro_mcp:8001")  # container names use underscores
+        self.assertEqual(clean_host("Bücher.example"), "xn--bcher-kva.example")
+        self.assertEqual(clean_host("mcp.example.org."), "mcp.example.org")
+        self.assertEqual(clean_origin("https://App.Example:443/"), "https://app.example")
+        self.assertEqual(clean_origin("http://my_web:3000"), "http://my_web:3000")
+        self.assertEqual(clean_origin("http://x.example:80"), "http://x.example")
+        self.assertEqual(clean_origin("https://x.example:8443"), "https://x.example:8443")
+        for bad in ("a,b", "*.x", "a:", "a/b", "https://x", "", " "):
+            with self.assertRaises(ValueError):
+                clean_host(bad)
+        for bad in ("x.example", "https://x.example/app", "https://*.x", "https://a,https://b", "ftp://x", "https://x:"):
+            with self.assertRaises(ValueError):
+                clean_origin(bad)
+
+
 class DataVersion(unittest.TestCase):
     def make(self, t: Path) -> Path:
         for name in ("aggregates/rollup.csv", "aggregates/aggregates.csv", "aggregates/official_documents.csv", "database/harmonized_measures.csv",
@@ -765,6 +840,37 @@ class Snapshot(unittest.TestCase):
             self.assertNotIn(live_only, text)  # advice a static reader cannot follow
         self.assertEqual(notes[-1], snapshot.STATIC_SENTENCE)
 
+    def test_static_notes_and_files_have_the_documented_shape(self):
+        """Literal expectations for a few populations (the live-versus-static comparison above uses the same functions, so it cannot catch a wrong rewrite)."""
+        with tempfile.TemporaryDirectory() as t:
+            snapshot.build(t)
+            base = Path(t) / "api" / "v1"
+            get = lambda rel: json.loads((base / rel).read_text(encoding="utf-8"))
+            army = get("populations/united-states/army/M.json")
+            self.assertIn("The combined values mix surveys from 1966 to 2010. Body size and landmark definitions changed over such a period: for current personnel use the .latest file "
+                          "(now 'ANSUR II 2012', 2010).", army["notes"])
+            thai = get("populations/thailand/army/M.json")
+            self.assertTrue(any(("The .latest file is 'Royal Thai Army 1962-63', 1962, because the newer 'Royal Thai Army personnel, men, 20-60 y' (2005, 4030 people) covers only 6 of 53 "
+                                             "measures; that newer survey is only available from the live API.") in n for n in thai["notes"]), thai["notes"])
+            korea = get("mannequin/south-korea/cadets/M.json") if (base / "mannequin/south-korea/cadets/M.json").exists() else None
+            self.assertIsNone(korea)  # all low reliability: no mannequin file
+            swiss = get("mannequin/switzerland/recruits-trainees/M.json")
+            self.assertIn("every reliability level is in the populations file of this population", " ".join(swiss["notes"]))
+            m = get("mannequin/united-states/army/M.json")
+            self.assertEqual(set(m), {"population", "min_reliability", "hidden_by_reliability", "units", "dimensions", "percentiles", "notes"})
+            self.assertEqual(set(m["dimensions"]["stature"]), {"name", "category", "unit", "n", "reliability", "years", "sources", "n_surveys", "survey_spread_pct"})
+            self.assertEqual(set(m["percentiles"]["p95"]), {"core", "values", "basis", "caution", "count", "unavailable"})
+            self.assertIn("(body size changed over time, or the landmarks differ; see the .latest file)", " ".join(w for why in m["percentiles"]["p95"]["caution"].values() for w in why))
+            index = get("index.json")
+            entry = next(e for e in index["populations"] if (e["country_id"], e["role_id"], e["sex"]) == ("united-states", "army", "M"))
+            self.assertEqual(set(entry), {"country", "country_id", "role", "role_id", "sex", "measures", "values_json", "values_csv", "mannequin_json", "latest_survey",
+                                          "latest_values_json", "latest_values_csv", "latest_mannequin_json"})
+            self.assertEqual(entry["latest_survey"], {"id": "ansur-ii-2012", "name": "ANSUR II 2012", "year": 2010})
+            self.assertEqual(entry["latest_values_json"], "/api/v1/populations/united-states/army/M.latest.json")
+            self.assertIsNotNone(index.get("attribution"))
+            raw = (base / "populations/serbia/cadets/M.json").read_text(encoding="utf-8")
+            self.assertNotIn("\\u04", raw)  # non-ASCII names stay readable instead of \\uXXXX escapes
+
     def test_snapshot_matches_the_live_values(self):
         """Every population, every file: the static files say what the live service says (values, mannequin, latest variants, links)."""
         with tempfile.TemporaryDirectory() as t:
@@ -800,9 +906,14 @@ class Snapshot(unittest.TestCase):
                     self.check_mannequin_notes(f["notes"], m50["notes"], survey == "latest")
                     self.assertEqual(f["population"], m50["population"], args)  # the surveys and years behind THESE dimensions
                     self.assertEqual(f["hidden_by_reliability"], m50["hidden_by_reliability"], args)
+                    span_years = (want["population"]["years"] or [0, 0])
                     for p, a in answers.items():
                         got = f["percentiles"][f"p{p}"]
-                        self.assertEqual((got["values"], got["core"], got["caution"], got["unavailable"], got["count"]), (a["values"], a["core"], a["caution"], a["unavailable"], a["count"]), (args, p))
+                        live_caution = {k: [snapshot.static_caution(w, survey == "latest", span_years[1] - span_years[0] > VINTAGE_YEARS) for w in why] for k, why in a["caution"].items()}
+                        self.assertEqual((got["values"], got["core"], got["caution"], got["unavailable"], got["count"]), (a["values"], a["core"], live_caution, a["unavailable"], a["count"]), (args, p))
+                        self.assertNotIn("survey=latest", json.dumps(got["caution"]))  # a static reader cannot pass it
+                        if survey != "latest" and not e["latest_survey"]:
+                            self.assertNotIn(".latest file", json.dumps(got["caution"]))  # and must not be sent to a file that does not exist
                         self.assertEqual(got["basis"], {d["key"]: d["basis"] for d in a["dimensions"]})
                     for key, d in f["dimensions"].items():
                         want_d = next(x for x in m50["dimensions"] if x["key"] == key)

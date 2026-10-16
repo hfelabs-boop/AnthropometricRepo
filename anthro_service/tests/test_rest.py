@@ -208,6 +208,33 @@ class Rest(unittest.TestCase):
             self.assertIn(pooled, {x["country"] for x in r.json()["results"]})
         self.assertEqual({x["country"] for x in self.c.get("/v1/compare", params={"measure": "stature", "countries": f"Germany,{pooled}", "limit": 50}).json()["results"]}, {"Germany", pooled})
 
+    def test_a_request_with_thousands_of_parameters_and_a_huge_name_list_stay_cheap(self):
+        import time
+        t = time.time()
+        r = self.c.get("/v1/meta?" + "&".join(f"a{i}=" for i in range(8000)))
+        self.assertEqual(r.status_code, 422)
+        self.assertLess(time.time() - t, 2.0)  # it was quadratic: 10000 parameters took 3 s
+        t = time.time()
+        r = self.c.get("/v1/compare", params={"measure": "stature", "countries": ",".join(["Germany"] * 5000)})
+        self.assertEqual(r.status_code, 422)
+        self.assertIn("At most 200 names", r.json()["error"]["message"])
+        self.assertLess(time.time() - t, 2.0)
+
+    def test_cors_origins_may_use_underscores_and_drop_default_ports(self):
+        from anthro_service.rest import cors_origins
+        saved = os.environ.get("ANTHRO_CORS_ORIGINS")
+        try:
+            os.environ["ANTHRO_CORS_ORIGINS"] = "http://my_web:3000, https://app.example.org:443"
+            self.assertEqual(cors_origins(), ["http://my_web:3000", "https://app.example.org"])
+            c = TestClient(create_app())
+            r = c.get("/v1/health", headers={"Origin": "https://app.example.org"})
+            self.assertEqual(r.headers["access-control-allow-origin"], "https://app.example.org")  # what a browser sends: no :443
+        finally:
+            if saved is None:
+                os.environ.pop("ANTHRO_CORS_ORIGINS", None)
+            else:
+                os.environ["ANTHRO_CORS_ORIGINS"] = saved
+
     def test_every_answer_has_the_data_version_and_json_the_charset(self):
         pre = self.c.options("/v1/meta", headers={"Origin": "https://a.example", "Access-Control-Request-Method": "GET"})
         self.assertEqual((pre.status_code, pre.headers["x-data-version"]), (200, REPO.data_version))
