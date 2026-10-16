@@ -25,6 +25,9 @@ def main(argv: list | None = None) -> int:
     m.add_argument("--transport", choices=["stdio", "streamable-http", "sse"], default="stdio")
     m.add_argument("--host", default="127.0.0.1")
     m.add_argument("--port", type=int, default=8001)
+    m.add_argument("--allowed-host", action="append", default=[], metavar="NAME", help="HTTP transports: a Host header value to accept (repeatable), e.g. mcp.example.org or mcp.example.org:8001. "
+                   "Without it, a non-loopback --host accepts any Host header (the server has no authentication).")
+    m.add_argument("--allowed-origin", action="append", default=[], metavar="URL", help="HTTP transports: a browser Origin to accept (repeatable), e.g. https://app.example.org")
 
     sn = sub.add_parser("snapshot", help="write static JSON/CSV files")
     sn.add_argument("--out", default="public", help="directory that receives api/v1/ (default: public)")
@@ -44,7 +47,7 @@ def main(argv: list | None = None) -> int:
             uvicorn.run("anthro_service.rest:app", host=a.host, port=a.port, reload=a.reload)
         elif a.cmd == "mcp":
             from .mcp_server import main as run_mcp
-            run_mcp(a.transport, a.host, a.port)
+            run_mcp(a.transport, a.host, a.port, a.allowed_host, a.allowed_origin)
         else:
             from .rest import create_app
             text = json.dumps(create_app().openapi(), indent=2, ensure_ascii=False) + "\n"
@@ -54,7 +57,7 @@ def main(argv: list | None = None) -> int:
             else:
                 sys.stdout.write(text)
     except ImportError as e:
-        sys.exit(f"Missing package: {e.name}. Install the service requirements:  pip install -r anthro_service/requirements.txt")
+        sys.exit(f"Cannot import {e.name!r} ({e}). Install the service requirements into this Python:  pip install -r anthro_service/requirements.txt")
     return 0
 
 

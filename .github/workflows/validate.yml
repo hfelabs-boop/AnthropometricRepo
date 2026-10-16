@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        mcp: ["mcp>=1.9,<2", "mcp>=2,<3"]
+        mcp: ["mcp==1.22.0", "mcp>=1.22,<2", "mcp>=2,<3"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -42,4 +42,6 @@ jobs:
           node-version: "20"
       - run: pip install fastapi uvicorn httpx pytest "${{ matrix.mcp }}"
       - name: API, MCP and static snapshot tests
+        env:
+          REQUIRE_SERVICE_DEPS: "1"
         run: python -m pytest anthro_service/tests -q

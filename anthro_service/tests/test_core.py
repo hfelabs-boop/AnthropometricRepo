@@ -110,12 +110,34 @@ class Values(unittest.TestCase):
         units = {m["key"]: m["unit"] for m in d["measures"]}
         self.assertEqual((units["stature"], units["mass"], units["bmi"]), ("mm", "kg", "kg/m²"))
         low = REPO.design_values("United States", "Army", "M", min_reliability="low")
-        self.assertEqual(len(low["notes"]), 1 + (1 if low["hidden_by_reliability"] else 0))
         self.assertEqual(low["hidden_by_reliability"], 0)
-        self.assertEqual(len(d["notes"]), 2)
+        self.assertFalse(any("hidden" in n for n in low["notes"]))
+        self.assertTrue(any("hidden" in n for n in d["notes"]))
 
 
 class Quantiles(unittest.TestCase):
+    def test_skewed_positive_tails_never_go_negative(self):
+        """P5=40, P50=117, P95=180 (a real waist-hip distance): the straight line reaches zero before P0.1, the log scale does not."""
+        v = [quantile(40, 117, 180, p) for p in (0.1, 0.5, 1, 2.5, 5, 10, 50, 95, 99.9)]
+        self.assertTrue(all(x > 0 for x in v), v)
+        self.assertEqual(v, sorted(v))
+        self.assertEqual((v[4], v[6], v[7]), (40, 117, 180))
+        self.assertAlmostEqual(v[0], 15.576, places=2)
+
+    def test_symmetric_measures_keep_the_straight_line(self):
+        z = 1.6448536269514722
+        self.assertAlmostEqual(quantile(1600, 1750, 1900, 0.1), 1750 - 3.090232306167813 / z * 150, places=6)
+
+    def test_no_served_value_is_negative_for_a_positive_measure(self):
+        """Tiny positive tails may round to 0.0 (a skinfold at P0.1); none may be below zero."""
+        bad = []
+        for r in read("aggregates/rollup.csv"):
+            if r["p5"] and r["p50"] and r["p95"] and float(r["p5"]) > 0:
+                d = REPO.design_values(r["country"], r["service_role"], r["sex"], [r["measure_key"]], percentiles=[0.1, 1, 2.5], min_reliability="low")
+                for m in d["measures"]:
+                    bad += [(r["country"], r["service_role"], m["key"], p, v) for p, v in m["percentiles"].items() if v is not None and v < 0]
+        self.assertEqual(bad, [], bad[:5])
+
     def test_exact_at_printed_points(self):
         self.assertEqual((quantile(1600, 1750, 1900, 5), quantile(1600, 1750, 1900, 50), quantile(1600, 1750, 1900, 95)), (1600, 1750, 1900))
 
@@ -231,9 +253,170 @@ class Lookups(unittest.TestCase):
                 shutil.copy(ROOT / name, t / name)
             r = Repo(t)
             self.assertEqual(r.meta()["counts"]["measures"], REPO.meta()["counts"]["measures"])
-            self.assertEqual(r.meta()["data_version"], REPO.meta()["data_version"])
+            self.assertRegex(r.meta()["data_version"], r"^[0-9a-f]{12}$")
         with self.assertRaises(Exception):
             Repo("/nonexistent/path")
+
+
+class Provenance(unittest.TestCase):
+    def test_every_survey_of_every_population_can_be_queried(self):
+        """list_surveys offers an id: asking for it must never crash, at any reliability level (a mean-only measure once raised KeyError)."""
+        n = 0
+        for c in REPO.countries():
+            for role in c["roles"]:
+                for sv in REPO.surveys(c["id"], role["id"])["surveys"]:
+                    for sex in sv["sexes"]:
+                        d = REPO.design_values(c["id"], role["id"], sex, survey=sv["id"], min_reliability="low")
+                        REPO.mannequin(c["id"], role["id"], sex, 50, survey=sv["id"], min_reliability="low")
+                        self.assertEqual(d["population"]["survey"]["id"], sv["id"])
+                        n += 1
+        self.assertGreater(n, 300)
+
+    def test_surveys_combined_are_the_surveys_of_the_returned_values(self):
+        for c, role, sex, kw in (("United States", "Army", "M", {}), ("United States", "Army", "F", {}), ("Australia", "Army", "M", {}), ("Japan", "Air Force", "F", {}),
+                                 ("Germany", "Tri-service", "M", {}), ("United States", "Army", "M", {"measures": ["stature"]}), ("United States", "Army", "M", {"min_reliability": "high"})):
+            d = REPO.design_values(c, role, sex, **kw)
+            ids = {s["id"] for s in d["population"]["surveys_combined"]}
+            used = {slug(sg) for m in d["measures"] for sg in REPO._roll[(c, role, sex)][m["key"]]["surveys"] if (c, role, sg) in REPO._survey_info}
+            self.assertEqual(ids, used, (c, role, sex, kw))
+            self.assertTrue(ids)
+        men = {s["id"] for s in REPO.design_values("United States", "Army", "M")["population"]["surveys_combined"]}
+        self.assertNotIn("rp1024-vol2-s5-wac-separatee-1946", men)  # a women's survey is not part of the men's values
+
+    def test_basis_pooled_versus_reported(self):
+        multi = REPO.design_values("United States", "Army", "M", ["stature"])["measures"][0]
+        self.assertGreater(multi["n_surveys"], 1)
+        self.assertEqual(set(multi["percentile_basis"].values()), {"pooled"})
+        single = REPO.design_values("United States", "Army", "M", ["stature"], survey="ansur-ii-2012")["measures"][0]
+        self.assertEqual((single["n_surveys"], set(single["percentile_basis"].values())), (1, {"reported"}))
+        self.assertIsNone(single["survey_spread_pct"])
+        self.assertIsNotNone(multi["survey_spread_pct"])
+
+    def test_latest_survey_and_the_vintage_note(self):
+        combined = REPO.design_values("United States", "Army", "M", ["stature"])
+        self.assertTrue(any("survey=latest" in n and "1966 to 2010" in n for n in combined["notes"]), combined["notes"])
+        latest = REPO.design_values("United States", "Army", "M", ["stature"], survey="latest")
+        self.assertEqual(latest["population"]["survey"]["id"], "ansur-ii-2012")
+        self.assertFalse(any("survey=latest" in n for n in latest["notes"]))
+        self.assertEqual(REPO.mannequin("United States", "Army", "F", 50, survey="latest")["population"]["survey"]["id"], "ansur-ii-2012")
+        for c in REPO.countries():  # 'latest' never crashes and never picks a survey without data for the sex
+            for role in c["roles"]:
+                for sex in role["sexes"]:
+                    try:
+                        d = REPO.design_values(c["id"], role["id"], sex, survey="latest", min_reliability="low")
+                    except NotFound:
+                        continue
+                    self.assertGreater(d["count"], 0)
+
+    def test_mannequin_reports_what_it_leaves_out(self):
+        m = REPO.mannequin("Israel", "Tri-service", "M", 95, measures=["stature", "mass"], min_reliability="low")
+        self.assertEqual([u["key"] for u in m["unavailable"]], ["stature"])
+        self.assertIsNotNone(m["unavailable"][0]["mean"])
+        self.assertTrue(any("mean but no percentiles" in n for n in m["notes"]))
+        self.assertNotIn("stature_mm", m["core"])
+
+    def test_mannequin_carries_provenance_units_and_cautions(self):
+        m = REPO.mannequin("United States", "Army", "M", 95)
+        self.assertNotIn("bmi", m["core"])  # bmi is not mass / stature^2 of the percentile values; it stays a plain dimension
+        self.assertEqual(set(m["units"]), set(m["values"]))
+        self.assertEqual(m["units"]["mass"], "kg")
+        d = next(x for x in m["dimensions"] if x["key"] == "suprasternale_height")
+        self.assertEqual(d["years"], [1987, 2010])
+        self.assertTrue(d["sources"])
+        self.assertIn("mass", m["caution"])  # soldiers got heavier between the surveys
+        self.assertTrue(any("differ" in why for why in m["caution"]["mass"]))
+        self.assertIn("Percentile 50", " ".join(REPO.mannequin("United States", "Army", "M", 50)["notes"]))
+        self.assertIn("percentile 95", " ".join(m["notes"]))
+
+    def test_counts_agree_with_what_can_be_listed(self):
+        counts = REPO.meta()["counts"]
+        listed = sum(len(REPO.surveys(c["id"], r["id"])["surveys"]) for c in REPO.countries() for r in c["roles"])
+        self.assertEqual(counts["surveys"], listed)
+        self.assertEqual(counts["countries"] + counts["pooled_samples"], len(REPO.countries()))
+        self.assertEqual(counts["measures"], len(REPO.measures()))
+        for c in REPO.countries():
+            for r in c["roles"]:
+                self.assertEqual(r["surveys"], len(REPO.surveys(c["id"], r["id"])["surveys"]))
+                self.assertLessEqual(r["surveys_in_combined_values"], r["surveys"])
+
+
+class Search(unittest.TestCase):
+    def keys(self, q, n=3):
+        return [m["key"] for m in REPO.measures(q=q, limit=n)]
+
+    def test_relevance(self):
+        self.assertEqual(set(self.keys("head")), {"head_circumference", "head_breadth", "head_length"})
+        self.assertEqual(self.keys("shoulder breadth", 2), ["bideltoid_breadth", "biacromial_breadth"])
+        self.assertEqual(self.keys("weight", 1), ["mass"])
+        self.assertEqual(self.keys("waist", 1), ["waist_circumference"])
+        self.assertEqual(self.keys("seat depth", 1), ["buttock_popliteal_length"])
+        self.assertFalse(any("garment" in m["key"] for m in REPO.measures(q="arm")))  # 'arm' is not a word start in 'garment'
+        self.assertTrue(REPO.measures(q="HEAD"))  # case does not matter
+
+    def test_filters_and_flags(self):
+        self.assertTrue(all("harmonized" in m for m in REPO.measures(limit=5)))
+        with self.assertRaises(NotFound) as cm:
+            REPO.measures(category="zzz")
+        self.assertTrue(cm.exception.available)
+        self.assertEqual({m["category"] for m in REPO.measures(category="heights-standing")}, {"Heights (standing)"})
+        self.assertEqual(REPO.measures(q="zzzzz"), [])
+
+    def test_blank_measure_keys_are_a_client_error(self):
+        for fn, args in ((REPO.measure, ("",)), (REPO.measure, ("  ",)), (REPO.compare, ("",)), (REPO.design_values, ("United States", "Army", "M", [""]))):
+            with self.assertRaises(BadRequest):
+                fn(*args)
+
+
+class Compare(unittest.TestCase):
+    def test_total_truncation_and_missing_countries(self):
+        full = REPO.compare("stature", "M", 95)
+        part = REPO.compare("stature", "M", 95, limit=5)
+        self.assertEqual((part["count"], part["total"], part["truncated"]), (5, full["total"], True))
+        self.assertGreater(full["total"], 5)
+        self.assertEqual(part["results"], full["results"][:5])
+        self.assertTrue(any("first 5 of" in n for n in part["notes"]))
+        c = REPO.compare("sitting_height", "M", 50, countries=["United States", "Germany", "Israel"])
+        self.assertIn("Israel", c["no_data"].get("countries", []))
+        self.assertTrue(any("Israel" in n for n in c["notes"]))
+
+
+    def test_compare_latest_uses_each_populations_most_recent_survey(self):
+        combined = REPO.compare("stature", "M", 50, countries=["United States"], roles=["Army"])["results"][0]
+        latest = REPO.compare("stature", "M", 50, countries=["United States"], roles=["Army"], survey="latest")
+        self.assertEqual(latest["survey"], "latest")
+        row = latest["results"][0]
+        self.assertEqual((row["n_surveys"], row["basis"]), (1, "reported"))
+        self.assertEqual(row["value"], REPO.design_values("United States", "Army", "M", ["stature"], survey="latest")["measures"][0]["percentiles"]["p50"])
+        self.assertNotEqual(row["value"], combined["value"])
+        self.assertTrue(any("most recent" in n for n in latest["notes"]))
+        wide = REPO.compare("stature", "M", 50)
+        self.assertTrue(any("survey=latest" in n for n in wide["notes"]), wide["notes"])
+        with self.assertRaises(BadRequest):
+            REPO.compare("stature", survey="ansur-ii-2012")
+
+
+class DataVersion(unittest.TestCase):
+    def make(self, t: Path) -> Path:
+        for name in ("aggregates/rollup.csv", "aggregates/aggregates.csv", "aggregates/official_documents.csv", "database/harmonized_measures.csv",
+                     "catalog/surveys.csv", "catalog/papers.csv"):
+            (t / name).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(ROOT / name, t / name)
+        return t
+
+    def test_every_input_counts_and_line_endings_do_not(self):
+        with tempfile.TemporaryDirectory() as t:
+            t = self.make(Path(t))
+            base = Repo(t).data_version
+            for name in ("aggregates/official_documents.csv", "database/harmonized_measures.csv", "catalog/surveys.csv", "catalog/papers.csv"):
+                f = t / name
+                text = f.read_bytes()
+                f.write_bytes(text + b"\n#")
+                self.assertNotEqual(Repo(t).data_version, base, name)
+                f.write_bytes(text)
+            self.assertEqual(Repo(t).data_version, base)
+            f = t / "aggregates/rollup.csv"
+            f.write_bytes(f.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+            self.assertEqual(Repo(t).data_version, base)
 
 
 class Categories(unittest.TestCase):

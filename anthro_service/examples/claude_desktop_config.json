@@ -1,9 +1,9 @@
 {
   "mcpServers": {
     "anthropometry": {
-      "command": "python",
+      "command": "/path/to/venv/bin/python",
       "args": ["-m", "anthro_service", "mcp"],
-      "cwd": "/path/to/AnthropometricRepo"
+      "env": {"PYTHONPATH": "/path/to/AnthropometricRepo"}
     }
   }
 }

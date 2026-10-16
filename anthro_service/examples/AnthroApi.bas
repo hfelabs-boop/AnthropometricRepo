@@ -3,6 +3,7 @@ Option Explicit
 '
 ' Military anthropometry API from VBA (CATIA V5 / 3DEXPERIENCE VBA, AutoCAD VBA 7.x, Excel, Word ...).
 ' Import this file into the VBA editor (File > Import File). Needs Windows (MSXML 6 and Scripting.Dictionary).
+' The file must keep its CRLF line endings (.gitattributes pins them); if the editor shows one long line, convert it to CRLF.
 '
 ' NOT TESTED INSIDE CATIA OR AUTOCAD: it uses only standard Windows COM objects, but the sample at the bottom
 ' has only been checked by reading. Report problems with the exact error text.
@@ -14,13 +15,15 @@ Public Const ANTHRO_BASE As String = "http://127.0.0.1:8000"
 Public Const ANTHRO_KEY As String = ""
 
 ' Returns a Scripting.Dictionary: measure key (e.g. "stature") -> value as Double, in the measure's unit
-' (millimetres for lengths, kg for mass). `measures` is optional: "stature,mass,sitting_height" ; empty = every dimension.
+' (millimetres for lengths, kg for mass, but check the unit attribute of the XML for others). `measures` is optional: "stature,mass,sitting_height" ; empty = every dimension.
+' `survey` is optional: "latest" = the most recent survey only. Without it the values combine every survey, which can span decades.
 Public Function AnthroMannequin(ByVal country As String, ByVal role As String, ByVal sex As String, _
-                                ByVal percentile As Double, Optional ByVal measures As String = "") As Object
+                                ByVal percentile As Double, Optional ByVal measures As String = "", Optional ByVal survey As String = "") As Object
     Dim url As String
     url = ANTHRO_BASE & "/v1/mannequin?country=" & UrlEnc(country) & "&role=" & UrlEnc(role) & "&sex=" & UrlEnc(sex) & _
           "&percentile=" & Replace(CStr(percentile), ",", ".") & "&format=xml"
     If Len(measures) > 0 Then url = url & "&measures=" & UrlEnc(measures)
+    If Len(survey) > 0 Then url = url & "&survey=" & UrlEnc(survey)   ' "latest" = the most recent survey only; default: all surveys combined
 
     Dim http As Object
     Set http = CreateObject("MSXML2.ServerXMLHTTP.6.0")

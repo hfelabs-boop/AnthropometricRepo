@@ -1,7 +1,7 @@
 # Live REST API (default) or MCP server for the military anthropometry data.
 #   docker build -t anthro-api .
 #   docker run -p 8000:8000 anthro-api                                   REST on :8000, docs at /docs
-#   docker run -p 8001:8001 anthro-api mcp --transport streamable-http --host 0.0.0.0 --port 8001
+#   docker run -p 8001:8001 anthro-api mcp --transport streamable-http --host 0.0.0.0 --port 8001 --allowed-host YOUR.HOST.NAME   (no authentication: trusted network only)
 # Environment: ANTHRO_API_KEYS (comma separated; enables key checking), ANTHRO_CORS_ORIGINS.
 FROM python:3.12-slim
 WORKDIR /app

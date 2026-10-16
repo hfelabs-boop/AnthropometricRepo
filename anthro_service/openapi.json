@@ -2,12 +2,12 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Military Anthropometry API",
-    "description": "\nBody-measurement statistics of **military populations** for digital-human and mannequin tools (CATIA Human Builder, Siemens Jack,\nRAMSIS, AutoCAD scripts, Unreal/Blender add-ons, spreadsheets) and for AI agents.\n\n* **Populations** are *country × role* (Army, Air Force, Navy, Aircrew, Pilots, Recruits/trainees ...) and *sex* (`M`, `F`, `both`).\n* **Design values** give P5, P50 and P95 (or any percentile from 0.1 to 99.9) of every measure, with sample size, reliability and sources.\n* **Mannequin** gives one value per dimension at a single percentile: the dimension set for a boundary or reference manikin.\n* Lengths are **millimetres**, body mass **kg**; every value carries its unit.\n* Every endpoint that returns a table can also return **CSV** or **XML**: add `?format=csv`, or end the last path segment with `.csv` / `.xml` / `.json`.\n* List parameters are comma separated: `measures=stature,mass,sitting_height`.\n\n**Reliability.** `min_reliability` defaults to `medium` (high and medium). `high` keeps only values whose sources are raw data, validated\ntables or official defence documents, with printed percentiles and at least 100 people. `low` (or `all`) includes everything.\n\n**Percentiles.** P5, P50 and P95 are the roll-up values (printed by the sources, or estimated from mean and SD: see `percentile_basis`).\nOther percentiles are interpolated or extrapolated from them. Each dimension is the requested percentile *of that dimension alone*: a set\nof same-percentile dimensions is a boundary case, not a typical body.\n",
+    "description": "\nBody-measurement statistics of **military populations** for digital-human and mannequin tools (CATIA Human Builder, Siemens Jack,\nRAMSIS, AutoCAD scripts, Unreal/Blender add-ons, spreadsheets) and for AI agents.\n\n* **Populations** are *country × role* (Army, Air Force, Navy, Aircrew, Pilots, Recruits/trainees ...) and *sex* (`M`, `F`, `both`).\n* **Design values** give P5, P50 and P95 (or any percentile from 0.1 to 99.9) of every measure, with sample size, reliability and sources.\n* **Mannequin** gives one value per dimension at a single percentile: the dimension set for a boundary or reference manikin.\n* Lengths are **millimetres**, body mass **kg**; every value carries its unit.\n* The value endpoints (`/v1/design-values`, `/v1/mannequin`, `/v1/compare`) can also return **CSV** or **XML**: add `?format=csv` or `?format=xml`; `/v1/populations/{country}/{role}/{sex}`\n  also takes a `.csv` / `.xml` / `.json` suffix on `sex`. `/v1/measures` has CSV too. CSV carries the data only; the notes travel in the `X-Disclaimer`, `X-Notes` and\n  `X-Hidden-By-Reliability` response headers, and XML has a `<notes>` element.\n* In URL **paths** use ids (`united-states`, `recruits-trainees`) or names; names that contain `/` (Recruits/trainees) work too. The query-string forms take names or ids.\n* List parameters are comma separated: `measures=stature,mass,sitting_height`.\n\n**Reliability.** `min_reliability` defaults to `medium` (high and medium). `high` keeps only values whose sources are raw data, validated\ntables or official defence documents, with printed percentiles and at least 100 people. `low` (or `all`) includes everything.\n\n**Percentiles.** P5, P50 and P95 are the roll-up values (see `percentile_basis`: `reported` by the one survey, `pooled` from several surveys, or `estimated` from mean and SD).\nOther percentiles are interpolated or extrapolated from them. Each dimension is the requested percentile *of that dimension alone*: a set\nof same-percentile dimensions is a boundary case, not a typical body.\n\n**Surveys.** By default the values combine every survey of the population, as the website does, which can mix decades (see `n_surveys`, `survey_spread_pct` and the notes).\nPass `survey=latest` for the most recent well-covered survey, or an id from `/v1/populations/{country}/{role}/surveys`.\n",
     "contact": {
       "name": "Repository",
       "url": "https://github.com/hfelabs-boop/AnthropometricRepo"
     },
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "paths": {
     "/v1/health": {
@@ -75,7 +75,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/countries": {
@@ -130,7 +138,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/countries/{country}": {
@@ -140,6 +156,14 @@
         ],
         "summary": "Roles of one country",
         "operationId": "country_roles_v1_countries__country__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "country",
@@ -247,7 +271,15 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/measures": {
@@ -256,8 +288,16 @@
           "catalog"
         ],
         "summary": "Search measures",
-        "description": "Measures with data, filtered by words in the name (`q`), category, and optionally by population.",
+        "description": "Measures with data, filtered by words in the name (`q`; whole words and common synonyms such as weight = mass, width = breadth), category, and optionally by population. Best matches first: harmonized measures before as-published ones. `X-Total-Count` gives the number of matches before `limit`.",
         "operationId": "measures_v1_measures_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "q",
@@ -290,10 +330,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Category name or id, e.g. `seated`.",
+              "description": "Category name or id, e.g. `seated` (see /v1/categories).",
               "title": "Category"
             },
-            "description": "Category name or id, e.g. `seated`."
+            "description": "Category name or id, e.g. `seated` (see /v1/categories)."
           },
           {
             "name": "country",
@@ -378,7 +418,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "JSON by default; CSV or XML with format=csv or format=xml.",
             "content": {
               "application/json": {
                 "schema": {
@@ -387,6 +427,11 @@
                     "$ref": "#/components/schemas/MeasureItem"
                   },
                   "title": "Response Measures V1 Measures Get"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -431,6 +476,14 @@
         ],
         "summary": "One measure and the populations that have it",
         "operationId": "measure_v1_measures__key__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "key",
@@ -493,6 +546,14 @@
         ],
         "summary": "Surveys of a population",
         "operationId": "surveys_v1_populations__country___role__surveys_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "country",
@@ -563,8 +624,16 @@
           "values"
         ],
         "summary": "Design values of one population (P5, P50, P95 or any percentiles)",
-        "description": "The same path works on the static copy of the data: `/api/v1/populations/{country}/{role}/{sex}.json` (or `.csv`), with all reliability levels and the default percentiles 5, 50, 95. `sex` may end in `.json`, `.csv` or `.xml`.",
+        "description": "The same path works on the static copy of the data: `/api/v1/populations/{country}/{role}/{sex}.json` (or `.csv`), with all reliability levels and the default percentiles 5, 50, 95. `sex` may end in `.json`, `.csv` or `.xml`. `country` and `role` take ids or names (`united-states`, `recruits-trainees` or `Recruits/trainees`).",
         "operationId": "population_v1_populations__country___role___sex__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "country",
@@ -684,10 +753,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys).",
+              "description": "Use one survey instead of the combined values: an id from /v1/populations/{country}/{role}/surveys, or `latest` for the most recent well-covered survey.",
               "title": "Survey"
             },
-            "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys)."
+            "description": "Use one survey instead of the combined values: an id from /v1/populations/{country}/{role}/surveys, or `latest` for the most recent well-covered survey."
           },
           {
             "name": "stats",
@@ -721,11 +790,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "JSON by default; CSV or XML with format=csv or format=xml.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DesignValues"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -770,6 +849,14 @@
         ],
         "summary": "Design values (query-string form)",
         "operationId": "design_values_v1_design_values_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "country",
@@ -893,10 +980,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys).",
+              "description": "Use one survey instead of the combined values: an id from /v1/populations/{country}/{role}/surveys, or `latest` for the most recent well-covered survey.",
               "title": "Survey"
             },
-            "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys)."
+            "description": "Use one survey instead of the combined values: an id from /v1/populations/{country}/{role}/surveys, or `latest` for the most recent well-covered survey."
           },
           {
             "name": "stats",
@@ -928,11 +1015,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "JSON by default; CSV or XML with format=csv or format=xml.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DesignValues"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -978,6 +1075,14 @@
         "summary": "Dimension set for one percentile (boundary or reference manikin)",
         "description": "One value per dimension at a single percentile, plus `core` (stature, body mass, sitting height, BMI) and a flat `values` map of key to number. Use it to size a manikin; call it three times (5, 50, 95) for a small, medium and large manikin.",
         "operationId": "mannequin_v1_mannequin_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "country",
@@ -1100,10 +1205,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys).",
+              "description": "Use one survey instead of the combined values: an id from /v1/populations/{country}/{role}/surveys, or `latest` for the most recent well-covered survey.",
               "title": "Survey"
             },
-            "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys)."
+            "description": "Use one survey instead of the combined values: an id from /v1/populations/{country}/{role}/surveys, or `latest` for the most recent well-covered survey."
           },
           {
             "name": "format",
@@ -1125,11 +1230,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "JSON by default; CSV or XML with format=csv or format=xml.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Mannequin"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1174,6 +1289,14 @@
         ],
         "summary": "One measure and percentile across populations",
         "operationId": "compare_v1_compare_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "measure",
@@ -1294,6 +1417,25 @@
             }
           },
           {
+            "name": "survey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "latest",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`latest`: compare each population's most recent survey instead of all its surveys combined.",
+              "title": "Survey"
+            },
+            "description": "`latest`: compare each population's most recent survey instead of all its surveys combined."
+          },
+          {
             "name": "format",
             "in": "query",
             "required": false,
@@ -1313,11 +1455,21 @@
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "JSON by default; CSV or XML with format=csv or format=xml.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Comparison"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -1362,6 +1514,14 @@
         ],
         "summary": "Titles, links and official documents of a source id",
         "operationId": "source_v1_sources__source_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "source_id",
@@ -1467,6 +1627,7 @@
             "type": "string",
             "enum": [
               "reported",
+              "pooled",
               "estimated",
               "interpolated",
               "extrapolated",
@@ -1532,6 +1693,10 @@
               }
             ],
             "title": "Years"
+          },
+          "n_surveys": {
+            "type": "integer",
+            "title": "N Surveys"
           }
         },
         "type": "object",
@@ -1543,7 +1708,8 @@
           "value",
           "basis",
           "reliability",
-          "sources"
+          "sources",
+          "n_surveys"
         ],
         "title": "CompareRow"
       },
@@ -1574,9 +1740,42 @@
             ],
             "title": "Min Reliability"
           },
+          "survey": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Survey",
+            "description": "`latest` when each population's most recent survey was used; null for the combined values."
+          },
           "count": {
             "type": "integer",
-            "title": "Count"
+            "title": "Count",
+            "description": "Rows in `results`."
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Populations that matched before `limit`."
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "no_data": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "No Data",
+            "description": "Requested countries or roles that have no result, under the keys `countries` and `roles`."
           },
           "results": {
             "items": {
@@ -1600,6 +1799,9 @@
           "percentile",
           "min_reliability",
           "count",
+          "total",
+          "truncated",
+          "no_data",
           "results",
           "notes"
         ],
@@ -1701,6 +1903,10 @@
             "type": "string",
             "title": "Category"
           },
+          "harmonized": {
+            "type": "boolean",
+            "title": "Harmonized"
+          },
           "unit": {
             "type": "string",
             "title": "Unit"
@@ -1713,6 +1919,7 @@
             "type": "string",
             "enum": [
               "reported",
+              "pooled",
               "estimated",
               "interpolated",
               "extrapolated",
@@ -1739,6 +1946,51 @@
               "low"
             ],
             "title": "Reliability"
+          },
+          "years": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years",
+            "description": "First and last year of measurement of the surveys behind this value."
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources",
+            "description": "Source ids behind this value."
+          },
+          "n_surveys": {
+            "type": "integer",
+            "title": "N Surveys"
+          },
+          "survey_spread_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Survey Spread Pct"
           }
         },
         "type": "object",
@@ -1746,10 +1998,13 @@
           "key",
           "name",
           "category",
+          "harmonized",
           "unit",
           "value",
           "basis",
-          "reliability"
+          "reliability",
+          "sources",
+          "n_surveys"
         ],
         "title": "Dimension"
       },
@@ -1790,7 +2045,19 @@
               }
             ],
             "title": "Available",
-            "description": "Valid values to choose from, or the closest matches."
+            "description": "Valid values to choose from, or (when `closest` is true) only the nearest matches."
+          },
+          "closest": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closest",
+            "description": "True when `available` holds the nearest matches to what was asked, not every valid value."
           }
         },
         "type": "object",
@@ -1844,7 +2111,7 @@
             },
             "type": "object",
             "title": "Core",
-            "description": "Stature, body mass, sitting height and BMI at this percentile, when available."
+            "description": "Stature (mm), body mass (kg) and sitting height (mm) at this percentile, when available."
           },
           "values": {
             "additionalProperties": {
@@ -1852,7 +2119,26 @@
             },
             "type": "object",
             "title": "Values",
-            "description": "Measure key to value in the measure's unit: the flat dimension set."
+            "description": "Measure key to value in the measure's unit (see `units`): the flat dimension set."
+          },
+          "units": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Units",
+            "description": "Measure key to unit for every key in `values`: millimetres for lengths, but also kg, kg/m2, years, %, N, ratios ..."
+          },
+          "caution": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Caution",
+            "description": "Keys of `values` that need care, with the reasons: lower reliability, estimated or extrapolated, surveys that disagree."
           },
           "dimensions": {
             "items": {
@@ -1860,6 +2146,14 @@
             },
             "type": "array",
             "title": "Dimensions"
+          },
+          "unavailable": {
+            "items": {
+              "$ref": "#/components/schemas/Unavailable"
+            },
+            "type": "array",
+            "title": "Unavailable",
+            "description": "Measures that exist for this population but have only a mean (no percentiles), so they are not in `values`."
           },
           "notes": {
             "items": {
@@ -1878,7 +2172,10 @@
           "hidden_by_reliability",
           "core",
           "values",
+          "units",
+          "caution",
           "dimensions",
+          "unavailable",
           "notes"
         ],
         "title": "Mannequin"
@@ -1912,6 +2209,10 @@
             ],
             "title": "Note"
           },
+          "harmonized": {
+            "type": "boolean",
+            "title": "Harmonized"
+          },
           "populations": {
             "items": {
               "$ref": "#/components/schemas/MeasurePopulation"
@@ -1926,6 +2227,7 @@
           "name",
           "category",
           "unit",
+          "harmonized",
           "populations"
         ],
         "title": "MeasureDetail"
@@ -1959,6 +2261,10 @@
             ],
             "title": "Note"
           },
+          "harmonized": {
+            "type": "boolean",
+            "title": "Harmonized"
+          },
           "populations": {
             "type": "integer",
             "title": "Populations",
@@ -1971,6 +2277,7 @@
           "name",
           "category",
           "unit",
+          "harmonized",
           "populations"
         ],
         "title": "MeasureItem"
@@ -2067,6 +2374,11 @@
               "Heights (standing)"
             ]
           },
+          "harmonized": {
+            "type": "boolean",
+            "title": "Harmonized",
+            "description": "True for the 59 measures defined the same way in every survey; false for as-published measures, whose definition is whatever the source printed."
+          },
           "unit": {
             "type": "string",
             "title": "Unit",
@@ -2136,6 +2448,7 @@
               "type": "string",
               "enum": [
                 "reported",
+                "pooled",
                 "estimated",
                 "interpolated",
                 "extrapolated",
@@ -2144,7 +2457,7 @@
             },
             "type": "object",
             "title": "Percentile Basis",
-            "description": "How each percentile was obtained: reported by the source, estimated from mean and SD, interpolated or extrapolated from P5/P50/P95."
+            "description": "How each percentile was obtained: `reported` by the one survey it comes from, `pooled` from several surveys that each printed theirs (no source prints this exact number), `estimated` from mean and SD, `interpolated` or `extrapolated` from P5/P50/P95."
           },
           "reliability": {
             "type": "string",
@@ -2166,6 +2479,23 @@
             ],
             "title": "Reliability Note",
             "description": "Why the value is not high reliability."
+          },
+          "n_surveys": {
+            "type": "integer",
+            "title": "N Surveys",
+            "description": "Number of surveys combined in this value (1 = a single survey)."
+          },
+          "survey_spread_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Survey Spread Pct",
+            "description": "When several surveys are combined: (largest survey mean - smallest) / combined mean, in percent. Large values mean the surveys disagree (different landmark definitions, or real change in body size over the years)."
           },
           "official_documents": {
             "items": {
@@ -2222,10 +2552,12 @@
           "key",
           "name",
           "category",
+          "harmonized",
           "unit",
           "percentiles",
           "percentile_basis",
           "reliability",
+          "n_surveys",
           "official_documents",
           "sources"
         ],
@@ -2339,7 +2671,13 @@
           },
           "surveys": {
             "type": "integer",
-            "title": "Surveys"
+            "title": "Surveys",
+            "description": "Surveys listed for this population (GET .../surveys)."
+          },
+          "surveys_in_combined_values": {
+            "type": "integer",
+            "title": "Surveys In Combined Values",
+            "description": "Of those, the surveys that contribute to the combined values."
           }
         },
         "type": "object",
@@ -2348,7 +2686,8 @@
           "name",
           "sexes",
           "measures",
-          "surveys"
+          "surveys",
+          "surveys_in_combined_values"
         ],
         "title": "RoleSummary"
       },
@@ -2493,6 +2832,74 @@
           "name"
         ],
         "title": "SurveyRef"
+      },
+      "Unavailable": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "reliability": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Reliability"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "unit",
+          "reliability"
+        ],
+        "title": "Unavailable"
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "description": "Needed only when the server sets ANTHRO_API_KEYS.",
+        "in": "header",
+        "name": "X-API-Key"
+      },
+      "HTTPBearer": {
+        "type": "http",
+        "description": "Alternative to X-API-Key: `Authorization: Bearer <key>`.",
+        "scheme": "bearer"
       }
     }
   },
