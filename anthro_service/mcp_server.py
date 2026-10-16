@@ -8,9 +8,10 @@ Works with mcp 1.x (FastMCP, 1.22 and later) and mcp 2.x (MCPServer).
 from __future__ import annotations
 
 import logging
+import re
 import sys
 from collections import Counter
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import Field
 
@@ -57,6 +58,12 @@ def _make():
 
 mcp = _make()
 
+def _latest_schema(schema: dict) -> None:
+    """Publish the parameter as 'latest' or null; the library validates the value (and accepts 'Latest' or ' latest ' like the other tools)."""
+    schema.pop("type", None)
+    schema["anyOf"] = [{"const": "latest", "type": "string"}, {"type": "null"}]
+
+
 READ_ONLY = ToolAnnotations(readOnlyHint=True, idempotentHint=True, destructiveHint=False, openWorldHint=False)
 
 Country = Annotated[str, Field(description="Country name or id, e.g. 'United States', 'united-states' or 'USA'. See list_countries.")]
@@ -82,10 +89,10 @@ def _as_list(x) -> list | None:
     return items or None
 
 
-def _as_names(x, known) -> list | None:
-    """Like _as_list, but a string that is itself a known name is one name: two countries are called 'Multiple: Turkey, Greece, Italy' and the like."""
-    if isinstance(x, str) and known(x):
-        return [x.strip()]
+def _as_names(x, kind: str) -> list | None:
+    """Like _as_list for countries and roles, but comma-aware: two country names contain commas ('Multiple: Turkey, Greece, Italy')."""
+    if isinstance(x, str):
+        return get_repo().split_names(x, kind) or None
     return _as_list(x)
 
 
@@ -124,7 +131,7 @@ def _run(fn, *a, **kw):
         raise ToolError(f"Internal error ({type(e).__name__}: {e}). This is a bug or a data problem on the server.") from None
 
 
-def _cap(result: dict, limit: int, named: bool) -> dict:
+def _cap(result: dict, limit: int, named: bool, categories_given: bool = False) -> dict:
     """Keep an AI client's context small: at most `limit` measures when none were named (harmonized ones first), and say what was left out."""
     key = "measures" if "measures" in result else "dimensions"
     items = result[key]
@@ -139,8 +146,9 @@ def _cap(result: dict, limit: int, named: bool) -> dict:
         for field in ("values", "units"):
             out[field] = {k: v for k, v in result[field].items() if k in keep}
         out["caution"] = {k: v for k, v in result["caution"].items() if k in keep}
+    ways = ["name the ones you need in 'measures'"] + ([] if categories_given else ["narrow with 'categories'"]) + (["raise 'limit' (at most 200)"] if limit < 200 else [])
     out["notes"] = result["notes"] + [f"Showing {len(kept)} of {total} measures (harmonized ones first). Left out: " + ", ".join(f"{n} {c}" for c, n in left.most_common()) +
-                                      ". Name the ones you need with 'measures', narrow with 'categories', or raise 'limit' (at most 200)."]
+                                      ". To get the rest, " + ", or ".join([", ".join(ways[:-1]), ways[-1]] if len(ways) > 1 else ways) + "."]
     return out
 
 
@@ -154,10 +162,16 @@ def _slim(e: dict) -> dict:
     return out
 
 
+OPTIONAL_TOP = ("core", "caution", "unavailable")
+
+
 def _slimmed(result: dict) -> dict:
     for key in ("measures", "dimensions"):
         if key in result:
             result = {**result, key: [_slim(e) for e in result[key]]}
+    result = {k: v for k, v in result.items() if not (k in OPTIONAL_TOP and not v)}
+    if "population" in result:
+        result["population"] = {k: v for k, v in result["population"].items() if v is not None and v != []}
     return result
 
 
@@ -234,22 +248,22 @@ def get_measure(key: Annotated[str, Field(description="Measure key, e.g. 'statur
 
 @mcp.tool(title="Get design values", annotations=READ_ONLY,
           description="Percentiles (default 5, 50, 95; any from 0.1 to 99.9) of the chosen measures for one population, with mean, SD, sample size, reliability, basis, years and sources. "
-                      "At most 'limit' measures are returned (harmonized ones first) unless you name them in 'measures'. Read 'notes': they say when the combined values span decades. Empty fields are omitted.")
+                      "At most 'limit' measures are returned (harmonized ones first) unless you name them in 'measures'. Read 'notes': they say when the combined values span decades. Empty optional fields (null, [] and {}) are left out.")
 def get_design_values(country: Country, role: Role, sex: Sex = "M", measures: Names = None, categories: Cats = None,
                       percentiles: Annotated[list[float] | str | None, Field(description="Percentiles between 0.1 and 99.9, e.g. [5, 50, 95, 97.5] (default [5, 50, 95]).")] = None,
                       min_reliability: MinRel = "medium", survey: Survey = None, limit: Limit = 60) -> dict:
     names = _as_list(measures)
-    return _slimmed(_cap(_run(lambda: get_repo().design_values(country, role, sex, names, _as_list(categories), _as_floats(percentiles), min_reliability, survey, True)), limit, bool(names)))
+    return _slimmed(_cap(_run(lambda: get_repo().design_values(country, role, sex, names, _as_list(categories), _as_floats(percentiles), min_reliability, survey, True)), limit, bool(names), bool(_as_list(categories))))
 
 
 @mcp.tool(title="Get manikin dimensions", annotations=READ_ONLY,
           description="One value per dimension at a single percentile, plus 'core' (stature, body mass, sitting height), 'units', 'caution' and per-dimension years and sources: the dimension set for a reference or boundary manikin. "
-                      "Call with 5, 50 and 95 for small, medium and large. At most 'limit' dimensions are returned (harmonized ones first) unless you name them in 'measures'. Empty fields are omitted.")
+                      "Call with 5, 50 and 95 for small, medium and large. At most 'limit' dimensions are returned (harmonized ones first) unless you name them in 'measures'. Empty optional fields (null, [] and {}) are left out.")
 def get_mannequin_dimensions(country: Country, role: Role, sex: Sex = "M",
                              percentile: Annotated[float, Field(ge=0.1, le=99.9, description="Percentile between 0.1 and 99.9, e.g. 5, 50 or 95.")] = 50,
                              measures: Names = None, categories: Cats = None, min_reliability: MinRel = "medium", survey: Survey = None, limit: Limit = 60) -> dict:
     names = _as_list(measures)
-    return _slimmed(_cap(_run(lambda: get_repo().mannequin(country, role, sex, percentile, names, _as_list(categories), min_reliability, survey)), limit, bool(names)))
+    return _slimmed(_cap(_run(lambda: get_repo().mannequin(country, role, sex, percentile, names, _as_list(categories), min_reliability, survey)), limit, bool(names), bool(_as_list(categories))))
 
 
 @mcp.tool(title="Compare populations", annotations=READ_ONLY,
@@ -260,10 +274,11 @@ def compare_populations(measure: Annotated[str, Field(description="Measure key, 
                         countries: Annotated[list[str] | str | None, Field(description="Only these countries (names that contain commas, such as 'Multiple: Turkey, Greece, Italy', work as a single string or in a list).")] = None,
                         roles: Annotated[list[str] | str | None, Field(description="Only these roles.")] = None,
                         min_reliability: MinRel = "medium", min_n: Annotated[int, Field(ge=0, description="Ignore populations with fewer people than this.")] = 0, limit: Limit = 15,
-                        survey: Annotated[Literal["latest"] | None, Field(description="'latest' = compare each population's most recent survey instead of all its surveys combined; omit for the combined values.")] = None) -> dict:
+                        survey: Annotated[str | None, Field(description="'latest' = compare each population's most recent survey instead of all its surveys combined; omit for the combined values.",
+                                                            json_schema_extra=_latest_schema)] = None) -> dict:
     def go():
         repo = get_repo()
-        return repo.compare(measure, sex, percentile, _as_names(countries, repo.knows_country), _as_names(roles, repo.knows_role), min_reliability, min_n, limit, survey)
+        return repo.compare(measure, sex, percentile, _as_names(countries, "country"), _as_names(roles, "role"), min_reliability, min_n, limit, survey)
     return _run(go)
 
 
@@ -289,17 +304,24 @@ _forbid_unknown_arguments()
 LOOPBACK = ("127.0.0.1", "localhost", "::1")
 
 
+HOST_RE = re.compile(r"([a-z0-9-]+(\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])(:(\d{1,5}|\*))?")
+ORIGIN_RE = re.compile(r"(https?)://([a-z0-9-]+(\.[a-z0-9-]+)*|\[[0-9a-f:.]+\])(:(\d{1,5}))?")
+
+
 def _clean_host(v: str) -> str:
-    h = v.strip().rstrip("/.").lower()
-    if not h or "://" in h or any(ch in h for ch in "/* \t"):
-        sys.exit(f"anthro_service: --allowed-host expects a host name such as mcp.example.org or mcp.example.org:8001, not '{v}'.")
+    h = v.strip().lower().rstrip(".")
+    if not HOST_RE.fullmatch(h):
+        sys.exit(f"anthro_service: --allowed-host expects one host name such as mcp.example.org or mcp.example.org:8001 (repeat the flag for several), not '{v}'.")
     return h
 
 
 def _clean_origin(v: str) -> str:
-    o = v.strip().rstrip("/").lower()
-    if not o.startswith(("http://", "https://")) or " " in o or "*" in o.split("://", 1)[1].split(":")[0]:
-        sys.exit(f"anthro_service: --allowed-origin expects a URL such as https://app.example.org, not '{v}'.")
+    o = v.strip().lower().rstrip("/")
+    m = ORIGIN_RE.fullmatch(o)
+    if not m:
+        sys.exit(f"anthro_service: --allowed-origin expects one origin such as https://app.example.org (scheme, host and optional port, no path; repeat the flag for several), not '{v}'.")
+    if m.group(5) and (m.group(1), m.group(5)) in (("https", "443"), ("http", "80")):  # browsers send no port for the default one
+        o = f"{m.group(1)}://{m.group(2)}"
     return o
 
 

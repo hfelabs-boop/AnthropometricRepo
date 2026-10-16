@@ -193,6 +193,60 @@ class Tools(unittest.TestCase):
         self.assertIn("Closest matches", text)
         self.assertIn("mass", text)
 
+    def test_compare_accepts_latest_in_any_case_and_explains_other_values(self):
+        for value in ("latest", "Latest", " LATEST "):
+            self.assertEqual(ok("compare_populations", {"measure": "stature", "countries": "Germany", "survey": value})["survey"], "latest")
+        err, text = call("compare_populations", {"measure": "stature", "survey": "ansur-ii-2012"})
+        self.assertTrue(err)
+        self.assertIn("takes survey=latest or nothing", text)  # the library's message, not pydantic's
+        self.assertNotIn("pydantic", text)
+        # the published schema still says 'latest' or null
+        schema = lambda t: getattr(t, "inputSchema", None) or t.input_schema
+        prop = schema(self.tools()["compare_populations"])["properties"]["survey"]
+        self.assertEqual(prop["anyOf"], [{"const": "latest", "type": "string"}, {"type": "null"}])
+
+    def test_measures_and_categories_say_when_they_intersect_to_nothing(self):
+        d = ok("get_design_values", {"country": "US", "role": "Army", "measures": ["stature"], "categories": ["head-face"]})
+        self.assertEqual(d["count"], 0)
+        self.assertTrue(any("combined with AND" in n for n in d["notes"]))
+        self.assertNotIn("core", ok("get_mannequin_dimensions", {"country": "US", "role": "Army", "measures": ["stature"], "categories": ["head-face"]}))
+
+    def test_the_cap_note_only_offers_what_still_helps(self):
+        note = lambda **kw: ok("get_design_values", {"country": "United States", "role": "Army", **kw})["notes"][-1]
+        plain = note(limit=5)
+        self.assertIn("name the ones you need in 'measures'", plain)
+        self.assertIn("narrow with 'categories'", plain)
+        self.assertIn("raise 'limit' (at most 200)", plain)
+        with_categories = note(limit=5, categories=["head-face"])
+        self.assertNotIn("narrow with 'categories'", with_categories)  # the caller already did
+        at_max = note(limit=200)
+        self.assertNotIn("raise 'limit'", at_max)  # nothing left to raise
+        self.assertIn("name the ones you need in 'measures'", at_max)
+
+    def test_empty_optional_fields_are_left_out_at_every_level(self):
+        m = ok("get_mannequin_dimensions", {"country": "Israel", "role": "Army", "percentile": 50, "survey": "latest"})
+        for empty in ("core", "caution", "unavailable"):
+            if empty in m:
+                self.assertTrue(m[empty], empty)  # present only when it holds something
+        self.assertNotIn("surveys_combined", m["population"])  # [] for a single survey
+        d = ok("get_design_values", {"country": "United States", "role": "Army", "measures": ["stature"], "survey": "latest"})
+        self.assertEqual(d["population"]["survey"]["id"], "ansur-ii-2012")
+        self.assertNotIn("surveys_combined", d["population"])
+        combined = ok("get_design_values", {"country": "United States", "role": "Army", "measures": ["stature"]})
+        self.assertNotIn("survey", combined["population"])  # null: not a single survey
+        self.assertIn("surveys_combined", combined["population"])
+        slim = mcp_server._slim({"a": 1, "b": None, "c": [], "d": {}, "e": 0, "percentile_basis": {"p5": "reported", "p50": "reported"}, "x": False})
+        self.assertEqual(slim, {"a": 1, "d": {}, "e": 0, "x": False, "basis": "reported"})  # zero and False are values; None and [] are not
+
+    def test_the_error_text_never_has_an_empty_choice_list(self):
+        from anthro_service.core import ApiError
+        for available, close in (([], True), ([], False), (None, False)):
+            text = mcp_server._message(ApiError("Nothing.", "A hint.", available, close))
+            self.assertNotIn("(0)", text)
+            self.assertNotIn("Closest matches", text)
+            self.assertNotIn("Valid values", text)
+        self.assertIn("Closest matches (2): a; b", mcp_server._message(ApiError("x", None, ["a", "b"], True)))
+
     def test_blank_source_is_a_client_error(self):
         err, text = call("get_source", {"source_id": ""})
         self.assertTrue(err)
@@ -352,10 +406,15 @@ class Transports(unittest.TestCase):
 
     def test_allow_list_mistakes_stop_the_server_with_a_message(self):
         sec = mcp_server._security
-        for hosts, origins in ((["*.example.org"], None), (["https://mcp.example.org"], None), (["a/b"], None), ([" "], None), (None, ["mcp.example.org"]), (None, ["https://*.example.org"])):
+        for hosts, origins in ((["*.example.org"], None), (["https://mcp.example.org"], None), (["a/b"], None), ([" "], None), (["a.example,b.example"], None), (["a.example;b.example"], None),
+                               (["a.example:"], None), (["a.example:abc"], None), (["good.example"], ["mcp.example.org"]), (["good.example"], ["https://*.example.org"]),
+                               (["good.example"], ["https://app.example,https://b.example"]), (["good.example"], ["https://app.example/app"]), (["good.example"], ["https://app.example:"])):
             with self.assertRaises(SystemExit) as cm:
                 sec("0.0.0.0", hosts, origins)
-            self.assertIn("anthro_service", str(cm.exception))
+            self.assertIn("anthro_service", str(cm.exception), (hosts, origins))
+        tidy = sec("0.0.0.0", ["a.example"], ["https://app.example:443", "http://x.example:80/", "https://y.example:8443"])
+        self.assertEqual(tidy.allowed_origins[3:], ["https://app.example", "http://x.example", "https://y.example:8443"])  # default ports are what browsers leave out
+        self.assertEqual(tidy.allowed_origins[:3], ["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"])  # localhost stays allowed
         with self.assertRaises(SystemExit) as cm:
             sec("0.0.0.0", None, ["https://app.example.org"])  # origins without hosts would lock every remote client out
         self.assertIn("--allowed-host", str(cm.exception))
@@ -363,6 +422,20 @@ class Transports(unittest.TestCase):
         self.assertIn("mcp.example.org:*", ok_.allowed_hosts)
         self.assertIn("https://app.example.org", ok_.allowed_origins)
         self.assertIsNotNone(sec("127.0.0.1", None, ["https://app.example.org"]))
+
+    def test_ports_and_hosts_that_look_false_are_still_values(self):
+        from unittest import mock
+        from anthro_service import __main__ as cli
+        with mock.patch.object(mcp_server, "main") as run:
+            cli.main(["mcp", "--transport", "streamable-http", "--port", "0"])
+        self.assertEqual(run.call_args.args[:3], ("streamable-http", "127.0.0.1", 0))
+        with mock.patch.object(mcp_server, "main") as run:
+            cli.main(["mcp", "--transport", "sse", "--host", "localhost", "--port", "9001", "--allowed-host", "x.example"])
+        self.assertEqual(run.call_args.args[:3], ("sse", "localhost", 9001))
+        with self.assertRaises(SystemExit):
+            cli.main(["mcp", "--transport", "streamable-http", "--host", ""])
+        p = subprocess.run([sys.executable, "-W", "ignore", "-m", "anthro_service", "mcp", "--port", "0"], cwd=ROOT, input="", capture_output=True, text=True, timeout=60)
+        self.assertIn("only apply to the HTTP transports", p.stderr)
 
     def test_http_flags_are_ignored_on_stdio_with_a_warning(self):
         p = subprocess.run([sys.executable, "-W", "ignore", "-m", "anthro_service", "mcp", "--allowed-host", "x.example"], cwd=ROOT, input="", capture_output=True, text=True, timeout=60)

@@ -26,9 +26,11 @@ def get(base: str, path: str, **params):
         except ValueError:  # not our API (for example the static site, which has no /v1 endpoints)
             raise SystemExit(f"HTTP {e.code} for {url}: this is not the live API (the static files are described in the README; see examples/design_table.py).")
         raise SystemExit(f"{err.get('code', e.code)}: {err.get('message')}  {err.get('hint') or ''}  {err.get('available') or ''}")
+    except (urllib.error.URLError, TimeoutError) as e:  # HTTPError is a URLError: handled above
+        raise SystemExit(f"cannot reach {base}: {getattr(e, 'reason', e)}\nStart the server with  python -m anthro_service serve  or check --base.")
 
 
-def main():
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--base", default="http://127.0.0.1:8000")
     ap.add_argument("--country", default="United States")
@@ -37,7 +39,7 @@ def main():
     ap.add_argument("--measures", default="stature,mass,sitting_height,eye_height_sitting,buttock_knee_length,hand_length")
     ap.add_argument("--min-reliability", default="medium", choices=["high", "medium", "low"])
     ap.add_argument("--survey", help="a survey id from /v1/populations/{country}/{role}/surveys, or 'latest'; default: all surveys combined")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
 
     # one call per percentile gives the flat {key: value} map a manikin needs
     sets = {p: get(a.base, "/v1/mannequin", country=a.country, role=a.role, sex=a.sex, percentile=p, measures=a.measures, min_reliability=a.min_reliability, survey=a.survey) for p in (5, 50, 95)}

@@ -47,9 +47,11 @@ def main(argv: list | None = None) -> int:
             uvicorn.run("anthro_service.rest:app", host=a.host, port=a.port, reload=a.reload)
         elif a.cmd == "mcp":
             from .mcp_server import main as run_mcp
-            if a.transport == "stdio" and (a.host or a.port or a.allowed_host or a.allowed_origin):
+            if a.host == "":
+                ap.error("--host must not be empty")
+            if a.transport == "stdio" and (a.host is not None or a.port is not None or a.allowed_host or a.allowed_origin):
                 print("anthro_service: --host, --port, --allowed-host and --allowed-origin only apply to the HTTP transports; ignored for stdio.", file=sys.stderr)
-            run_mcp(a.transport, a.host or "127.0.0.1", a.port or 8001, a.allowed_host, a.allowed_origin)
+            run_mcp(a.transport, "127.0.0.1" if a.host is None else a.host, 8001 if a.port is None else a.port, a.allowed_host, a.allowed_origin)
         else:
             from .rest import create_app
             text = json.dumps(create_app().openapi(), indent=2, ensure_ascii=False) + "\n"

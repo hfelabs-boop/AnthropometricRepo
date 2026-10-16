@@ -193,6 +193,81 @@ class Rest(unittest.TestCase):
                 self.assertIn(f"'{want}'", e["hint"])
         self.assertEqual(self.c.get("/v1/mannequin", params={**Q, "percentile": 95, "format": "csv"}).status_code, 200)  # every declared parameter still works
 
+    def test_a_repeated_parameter_is_an_error_not_a_silent_last_wins(self):
+        r = self.c.get("/v1/mannequin", params=[("country", "United States"), ("role", "Army"), ("measures", "stature"), ("measures", "mass")])
+        self.assertEqual(r.status_code, 422)
+        self.assertIn("'measures' was given 2 times", r.json()["error"]["message"])
+        self.assertEqual(self.c.get("/v1/design-values?country=United States&role=Army&percentiles=5&percentiles=95").status_code, 422)
+        self.assertEqual(self.c.get("/v1/mannequin", params={**Q, "measures": "stature,mass"}).status_code, 200)
+
+    def test_pooled_country_names_with_commas_work_in_compare(self):
+        pooled = "Multiple: Turkey, Greece, Italy"
+        for countries in (pooled, "multiple-turkey-greece-italy", f"Germany,{pooled}"):
+            r = self.c.get("/v1/compare", params={"measure": "stature", "countries": countries, "limit": 50})
+            self.assertEqual(r.status_code, 200, countries)
+            self.assertIn(pooled, {x["country"] for x in r.json()["results"]})
+        self.assertEqual({x["country"] for x in self.c.get("/v1/compare", params={"measure": "stature", "countries": f"Germany,{pooled}", "limit": 50}).json()["results"]}, {"Germany", pooled})
+
+    def test_every_answer_has_the_data_version_and_json_the_charset(self):
+        pre = self.c.options("/v1/meta", headers={"Origin": "https://a.example", "Access-Control-Request-Method": "GET"})
+        self.assertEqual((pre.status_code, pre.headers["x-data-version"]), (200, REPO.data_version))
+        spec = self.c.get("/openapi.json")
+        self.assertEqual(spec.headers["content-type"], "application/json; charset=utf-8")
+        self.assertEqual(spec.headers["x-data-version"], REPO.data_version)
+        self.assertEqual(self.c.get("/docs").headers["x-data-version"], REPO.data_version)
+
+    def test_cors_origins_are_validated_and_shared_caches_are_told_to_vary(self):
+        from anthro_service.rest import cors_origins
+        saved = os.environ.get("ANTHRO_CORS_ORIGINS")
+        try:
+            for value, want in (("", ["*"]), ("  ", ["*"]), ("*", ["*"]), ("https://App.Example/", ["https://app.example"]), ("https://a.example, http://b.example:8080", ["https://a.example", "http://b.example:8080"])):
+                os.environ["ANTHRO_CORS_ORIGINS"] = value
+                self.assertEqual(cors_origins(), want, value)
+            for bad in ("app.example", "https://a.example/app", "ftp://a.example", "https://a.example;https://b.example"):
+                os.environ["ANTHRO_CORS_ORIGINS"] = bad
+                with self.assertRaises(ValueError) as cm:
+                    cors_origins()
+                self.assertIn("ANTHRO_CORS_ORIGINS", str(cm.exception))
+            os.environ["ANTHRO_CORS_ORIGINS"] = "https://ok.example"
+            c = TestClient(create_app())
+            for headers, allow in (({}, None), ({"Origin": "https://evil.example"}, None), ({"Origin": "https://ok.example"}, "https://ok.example")):
+                r = c.get("/v1/meta", headers=headers)
+                self.assertEqual(r.headers.get("access-control-allow-origin"), allow, headers)
+                self.assertEqual([t.strip().lower() for t in r.headers["vary"].split(",")].count("origin"), 1, headers)  # once, whoever added it
+        finally:
+            if saved is None:
+                os.environ.pop("ANTHRO_CORS_ORIGINS", None)
+            else:
+                os.environ["ANTHRO_CORS_ORIGINS"] = saved
+
+    def test_the_edge_layer_on_its_own(self):
+        """Vary: Origin must not depend on whether this Starlette version's CORS layer adds it (0.38 to 0.52 do not for refused origins)."""
+        import asyncio
+        from anthro_service.rest import Edge
+
+        def call(headers, vary_origin, method="GET"):
+            sent = []
+
+            async def app(scope, receive, send):
+                self.assertEqual(scope["method"], "GET")  # the app never sees a HEAD
+                await send({"type": "http.response.start", "status": 200, "headers": headers})
+                await send({"type": "http.response.body", "body": b"{}"})
+
+            async def send(message):
+                sent.append(message)
+
+            asyncio.run(Edge(app, "abc123", vary_origin)({"type": "http", "method": method, "path": "/v1/meta"}, None, send))
+            return dict((k.decode(), v.decode()) for k, v in sent[0]["headers"]), sent[1]["body"]
+
+        h, body = call([(b"content-type", b"application/json")], True)
+        self.assertEqual((h["vary"], h["x-data-version"], h["content-type"], body), ("Origin", "abc123", "application/json; charset=utf-8", b"{}"))
+        h, _ = call([(b"content-type", b"text/csv; charset=utf-8"), (b"vary", b"Accept-Encoding")], True)
+        self.assertEqual((h["vary"], h["content-type"]), ("Accept-Encoding, Origin", "text/csv; charset=utf-8"))
+        self.assertEqual(call([(b"vary", b"origin, Accept")], True)[0]["vary"], "origin, Accept")  # already there: not repeated
+        self.assertNotIn("vary", call([], False)[0])
+        self.assertEqual(call([(b"x-data-version", b"keep")], False)[0]["x-data-version"], "keep")
+        self.assertEqual(call([], False, "HEAD")[1], b"")
+
     def test_json_declares_utf8_and_the_spec_stays_plain(self):
         for path in ("/v1/meta", "/v1/nonexistent", "/v1/design-values?country=Narnia&role=x"):
             self.assertEqual(self.c.get(path).headers["content-type"], "application/json; charset=utf-8", path)

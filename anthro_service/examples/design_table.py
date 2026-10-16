@@ -30,7 +30,7 @@ def slug(text: str) -> str:
 
 
 SEXES = {"m": "M", "male": "M", "men": "M", "man": "M", "f": "F", "female": "F", "women": "F", "woman": "F",
-         "both": "both", "mixed": "both", "b": "both", "unknown": "both", "not-stated": "both"}
+         "both": "both", "mixed": "both", "b": "both", "unknown": "both", "not-stated": "both", "not stated": "both"}
 
 
 def sex_code(text: str) -> str:
@@ -71,25 +71,47 @@ def fetch(base: str, country: str, role: str, sex: str, measures: str | None, mi
             message = ("The static files are keyed by ids (see index.json: lower-case slugs such as united-states / air-force; aliases like UK are not understood there)."
                        + (" The .latest files exist only where the combined values span more than 15 years: drop --survey, or use the live API." if survey else ""))
         sys.exit(f"HTTP {e.code} for {url}\n{message}")
+    except (urllib.error.URLError, TimeoutError) as e:  # HTTPError is a URLError: it is handled above
+        sys.exit(f"cannot reach {base}: {getattr(e, 'reason', e)}\nStart the server with  python -m anthro_service serve  or check --base.")
 
 
-def main():
+def wanted_keys(measures: str, rows: list) -> list:
+    """Match --measures entries (keys, names, any case, spaces for underscores) against the rows of a static file; say what matched nothing."""
+    index = {}
+    for m in rows:
+        for alias in (m["key"], m["key"].replace("other:", ""), m["name"]):
+            index[re.sub(r"[^a-z0-9]+", "_", alias.lower()).strip("_")] = m["key"]
+    keys, missing = [], []
+    for entry in (x for x in measures.split(",") if x.strip()):
+        key = index.get(re.sub(r"[^a-z0-9]+", "_", entry.lower()).strip("_"))
+        (keys if key else missing).append(key or entry.strip())
+    if missing:
+        print(f"no such measure in this file: {', '.join(missing)}", file=sys.stderr)
+        if not keys:
+            sys.exit(2)
+    return keys
+
+
+def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--base", default="http://127.0.0.1:8000")
     ap.add_argument("--country", default="United States")
     ap.add_argument("--role", default="Army")
     ap.add_argument("--sex", default="M")
-    ap.add_argument("--measures", help="comma-separated keys; default: every measure with data")
+    ap.add_argument("--measures", help="comma-separated keys or names; default: every measure with data")
     ap.add_argument("--min-reliability", default="medium", choices=["high", "medium", "low"])
     ap.add_argument("--survey", help="'latest' = the most recent survey only (live API: or any survey id); default: all surveys combined")
     ap.add_argument("--out", default="-")
-    a = ap.parse_args()
+    a = ap.parse_args(argv)
 
     d = fetch(a.base, a.country, a.role, a.sex, a.measures, a.min_reliability, a.survey)
-    want = set(a.measures.split(",")) if a.measures else None
-    rows = [m for m in d["measures"] if RANK[m["reliability"]] <= RANK[a.min_reliability] and (want is None or m["key"] in want)]
+    static = "/api/v1" in a.base
+    rows = [m for m in d["measures"] if RANK[m["reliability"]] <= RANK[a.min_reliability]]  # the live API has already applied --measures
+    if static and a.measures:
+        keep = set(wanted_keys(a.measures, d["measures"]))
+        rows = [m for m in rows if m["key"] in keep]
     f = sys.stdout if a.out == "-" else open(a.out, "w", newline="", encoding="utf-8")
-    w = csv.writer(f)
+    w = csv.writer(f, lineterminator="\n" if f is sys.stdout else "\r\n")  # a text-mode stdout on Windows would turn \r\n into \r\r\n
     w.writerow(["parameter", "unit", "P5", "P50", "P95", "n", "reliability", "percentile_basis", "year_min", "year_max", "name"])
     for m in rows:
         p = m["percentiles"]

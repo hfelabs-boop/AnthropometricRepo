@@ -20,6 +20,10 @@ ROLES = {"Army", "Navy", "Marine Corps", "Air Force", "Tri-service", "Aircrew", 
          "Enlisted", "Recruits/trainees", "Nurses", "Cadets", "Cadre/other military", "Civilian"}
 
 
+# SD as a fraction of the mean that a real sample of adults can have (stature about 3.5-4%, sitting height about 3%, body mass 10-20%)
+CV_BOUNDS = {"stature": (0.01, 0.15), "sitting_height": (0.01, 0.15), "mass": (0.03, 0.40)}
+
+
 def keys_and_ranges():
     known = {r["key"] for r in csv.DictReader(open(ROOT / "database/harmonized_measures.csv", encoding="utf-8"))}
     ranges = {}
@@ -62,6 +66,8 @@ def validate(path, known, ranges):
             if r["sd"] and (sd is None or sd < 0): p("bad sd")
             if r["n"] and (n is None or n < 1 or n != int(n)): p("bad n")
             if sd is not None and m and k in ranges and sd > abs(m): p("sd larger than mean")
+            if sd and m and k in CV_BOUNDS and not CV_BOUNDS[k][0] <= sd / abs(m) <= CV_BOUNDS[k][1]:
+                p(f"SD {sd:g} is {100 * sd / abs(m):.2f}% of the mean {m:g}: implausible for {k} (a typo or a unit slip? blank the SD and keep mean and n, as for the Malaysian army stature row)")
             if k in ranges:
                 lo, hi = ranges[k]
                 if not (0.55 * lo <= m <= 1.6 * hi): p(f"mean {m} outside plausible range {lo}..{hi} (check units)")

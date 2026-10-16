@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from anthro_service import ApiError, BadRequest, NotFound, Repo, get_repo  # noqa: E402
 from anthro_service import formats, snapshot  # noqa: E402
-from anthro_service.core import DISCLAIMER, quantile, row_dist, slug  # noqa: E402
+from anthro_service.core import DISCLAIMER, VINTAGE_YEARS, quantile, row_dist, slug  # noqa: E402
 from anthro_service.measurecat import category_of  # noqa: E402
 
 REPO = get_repo()
@@ -479,7 +479,10 @@ class Hygiene(unittest.TestCase):
         t = time.time()
         self.assertTrue(REPO.measures(q=" ".join(["a"] * 20000)) is not None)
         self.assertLess(time.time() - t, 1.0)  # terms are capped and de-duplicated
-        self.assertEqual(len(REPO.measures(q="(*")), len(REPO.measures()))  # punctuation only = no search words
+        for nothing in ("(*", "???", "the", "of", "身高", "((("):  # something was typed but nothing in it can be searched for: no matches, not the whole catalog
+            self.assertEqual(REPO.measures(q=nothing), [], nothing)
+        self.assertEqual(len(REPO.measures(q="")), len(REPO.measures()))  # nothing typed: the whole catalog
+        self.assertTrue(all(not m["harmonized"] for m in REPO.measures(q="other:")))
 
     def test_unknown_measures_get_useful_suggestions(self):
         for typed, want in (("weight", "mass"), ("body_height", "stature"), ("statur", "stature")):
@@ -498,7 +501,7 @@ class Hygiene(unittest.TestCase):
         self.assertIn("Body mass does not exist for this sex, only for mixed / not stated", notes("Germany", "Aircrew", "M", 95))
         self.assertIn("Stature is not available as a harmonized measure here, only as 'other:stature_as_reported'", notes("United States", "Air Force", "F", 95))
         self.assertIn("Sitting height does not exist for this population at any reliability level", notes("Israel", "Recruits/trainees", "M", 95))
-        self.assertIn("Only 4 dimensions are available for this population, none of them seated", notes("Israel", "Recruits/trainees", "M", 95))
+        self.assertIn("Only 4 dimensions are available in this population, none of them seated", notes("Israel", "Recruits/trainees", "M", 95))
         self.assertIn("hidden by the reliability filter", notes("Switzerland", "Recruits/trainees", "M", 50))
         self.assertNotIn("Only", notes("United States", "Army", "M", 50))
         self.assertNotIn("does not exist", notes("United States", "Army", "M", 50, measures=["stature"]))  # asked for one thing: no essentials lecture
@@ -526,6 +529,148 @@ class Hygiene(unittest.TestCase):
         d = REPO.design_values("Malaysia", "Army", "M", ["stature"], min_reliability="low")["measures"][0]
         self.assertIsNone(d["sd"])
         self.assertIsNone(d["percentiles"]["p95"])
+
+
+class Round3(unittest.TestCase):
+    def test_latest_works_for_every_population_and_never_with_a_false_error(self):
+        """survey=latest used to be a 404 ('choose a sex that has data') for the 48 populations whose surveys are all low reliability."""
+        low_only = 0
+        for c in REPO.countries():
+            for role in c["roles"]:
+                for sex in role["sexes"]:
+                    args = (c["id"], role["id"], sex)
+                    combined = REPO.design_values(*args, min_reliability="low")
+                    default = REPO.design_values(*args)
+                    latest_low = REPO.design_values(*args, survey="latest", min_reliability="low")
+                    latest = REPO.design_values(*args, survey="latest")
+                    self.assertGreater(latest_low["count"], 0, args)
+                    if default["count"] == 0:
+                        low_only += 1
+                        self.assertEqual(latest["count"], 0, args)
+                        self.assertTrue(any("hidden because their reliability" in n for n in latest["notes"]), args)  # the same explanation as the combined answer
+                        self.assertTrue(any("hidden because their reliability" in n for n in default["notes"]), args)
+                    self.assertIsNotNone(REPO._latest_choice(c["name"], role["name"], sex)[0], args)
+        self.assertGreater(low_only, 40)
+        self.assertEqual(REPO.compare("stature", "M", 50, min_reliability="low", survey="latest")["total"] >= REPO.compare("stature", "M", 50, survey="latest")["total"], True)
+
+    def test_why_a_survey_was_passed_over_is_stated_correctly(self):
+        japan = " ".join(REPO.design_values("Japan", "Pilots", "both", survey="latest")["notes"])
+        self.assertNotIn("newer", japan)  # the chosen survey is undated: nothing is called newer than it
+        self.assertIn("not recorded", japan)
+        s83 = REPO._latest_choice("Japan", "Pilots", "both")
+        self.assertEqual(s83[1], [])
+        us = REPO._latest_choice("United States", "Aircrew", "M")[1]
+        self.assertTrue(us and "covers only" in us[0]["why"], us)
+        thai = REPO._latest_choice("Thailand", "Army", "M")[1]
+        self.assertEqual((thai[0]["year"], thai[0]["measures"], thai[0]["best"]), (2005, 6, 53))
+        self.assertEqual(thai[0]["why"], "covers only 6 of 53 measures")
+        self.assertTrue(any("not recorded" in n for n in REPO.design_values("Ecuador", "Recruits/trainees", "M", survey="latest")["notes"]))
+
+    def test_the_documented_latest_rules_hold(self):
+        """README: usable (medium/high) surveys, at least 100 people when any has, half the best measure count, stature plus mass when any has both,
+        the newest dated one (undated only when no dated one qualifies), then part of the combined values, then the larger one. Re-implemented here from the CSV."""
+        survey = {}
+        for r in read("aggregates/aggregates.csv"):
+            if r["is_primary"] != "1" or r["population_type"] == "civilian" or "#sub" in r["survey_group"] or num(r["mean"]) is None:
+                continue
+            d = survey.setdefault((r["country"], r["service_role"], r["sex"], r["survey_group"]), {"all": set(), "usable": set(), "n": 0, "year": None})
+            d["all"].add(r["measure_key"])
+            if r["reliability"] != "low":
+                d["usable"].add(r["measure_key"])
+            d["n"] = max(d["n"], int(float(r["n"])) if r["n"] else 0)
+            if r["year_start"]:
+                d["year"] = min(d["year"] or 9999, int(float(r["year_start"])))
+        in_combined = {}
+        for r in read("aggregates/rollup.csv"):
+            for g in json.loads(r["survey_groups"]):
+                in_combined.setdefault((r["country"], r["service_role"]), set()).add(g)
+        by_pop = {}
+        for (c, role, sex, sg), d in survey.items():
+            by_pop.setdefault((c, role, sex), []).append((sg, d))
+        checked = differences = 0
+        for (c, role, sex), items in by_pop.items():
+            usable = [(sg, d, d["usable"]) for sg, d in items if d["usable"]] or [(sg, d, d["all"]) for sg, d in items]
+            best = max(len(k) for _, _, k in usable)
+            pool = [x for x in usable if len(x[2]) * 2 >= best]
+            pool = [x for x in pool if x[1]["n"] >= 100] or pool
+            pool = [x for x in pool if {"stature", "mass"} <= x[2]] or pool
+            top = max(pool, key=lambda x: (x[1]["year"] is not None, x[1]["year"] or 0, x[0] in in_combined.get((c, role), ()), x[1]["n"], len(x[2]), x[0]))
+            got = REPO._latest_choice(c, role, sex)[0]
+            checked += 1
+            if got != top[0]:
+                differences += 1
+                self.fail(f"{c}/{role}/{sex}: service picks {got!r}, the documented rules pick {top[0]!r}")
+        self.assertGreater(checked, 150)
+        self.assertEqual(differences, 0)
+
+    def test_the_essentials_notes_follow_the_survey_path_too(self):
+        n = " ".join(REPO.mannequin("Netherlands", "Army", "M", 95, survey="latest")["notes"])
+        self.assertIn("Body mass is hidden by the reliability filter", n)  # not 'is not in this survey'
+        self.assertNotIn("Body mass is not in this survey", n)
+        self.assertIn("Only 1 dimension is available in this survey", n)
+        mv = " ".join(REPO.mannequin("Malaysia", "Army", "M", 50, min_reliability="low", survey=REPO.surveys("Malaysia", "Army")["surveys"][0]["id"])["notes"])
+        self.assertIn("Stature has only a mean in this survey", mv)
+        self.assertNotIn("Stature is not in this survey", mv)
+        self.assertIn("Sitting height is not in this survey", mv)
+
+    def test_measures_and_categories_combine_with_and_say_so(self):
+        d = REPO.design_values("United States", "Army", "M", ["stature"], categories=["head-face"])
+        self.assertEqual(d["count"], 0)
+        self.assertTrue(any("combined with AND" in n and "stature (Heights (standing))" in n for n in d["notes"]), d["notes"])
+        self.assertFalse(any("No data" in n for n in d["notes"]))
+        self.assertFalse(any("combined with AND" in n for n in REPO.design_values("United States", "Army", "M", ["stature"], categories=["heights-standing"])["notes"]))
+
+    def test_comma_aware_name_lists(self):
+        pooled = "Multiple: Turkey, Greece, Italy"
+        self.assertEqual(REPO.split_names(pooled), [pooled])
+        self.assertEqual(REPO.split_names(f"Germany,{pooled},Poland"), ["Germany", pooled, "Poland"])
+        self.assertEqual(REPO.split_names("Turkey, Greece, Italy"), ["Turkey", "Greece", "Italy"])
+        self.assertEqual(REPO.split_names("Army, Navy", "role"), ["Army", "Navy"])
+        self.assertEqual(REPO.split_names(" , "), [])
+        self.assertEqual({x["country"] for x in REPO.compare("stature", countries=REPO.split_names(f"Germany, {pooled}"))["results"]}, {"Germany", pooled})
+
+    def test_compare_hints_use_the_same_rules_as_the_results(self):
+        # Austria women: the only other sex (men) has a stature that is mean-only, i.e. unusable: the hint must not send the user there
+        n = " ".join(REPO.compare("stature", "F", 50, countries=["Austria"], min_reliability="low")["notes"])
+        self.assertNotIn("usable data for: Austria", n)
+        self.assertIn("too unreliable, too small or without percentiles", n)
+        n2 = " ".join(REPO.compare("stature", "M", 95, countries=["United Kingdom"])["notes"])
+        self.assertIn("usable data for: United Kingdom (only mixed / not stated)", n2)
+
+    def test_implausible_sds_are_caught_at_the_source(self):
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import validate_aggregates as va
+        known, ranges = va.keys_and_ranges()
+        with tempfile.TemporaryDirectory() as t:
+            f = Path(t) / "x.csv"
+            row = dict.fromkeys(va.COLUMNS, "")
+            row.update(source_id="s", source_file="f", population="p", country="Colombia", population_type="military", service_role="Officers", sex="both", measure_key="mass",
+                       measure_label="Peso", unit_original="kg", mean="78.7", sd="0.14", n="55", quality="A")
+            for sd, ok_ in (("0.14", False), ("12", True), ("", True)):
+                row["sd"] = sd
+                with open(f, "w", newline="", encoding="utf-8") as fh:
+                    w = csv.DictWriter(fh, fieldnames=va.COLUMNS)
+                    w.writeheader()
+                    w.writerow(row)
+                problems, _ = va.validate(f, known, ranges)
+                self.assertEqual(not problems, ok_, (sd, problems))
+        bad = [r for r in read("aggregates/aggregates.csv") if r["measure_key"] in va.CV_BOUNDS and r["sd"] and r["mean"] and
+               not va.CV_BOUNDS[r["measure_key"]][0] <= float(r["sd"]) / abs(float(r["mean"])) <= va.CV_BOUNDS[r["measure_key"]][1]]
+        self.assertEqual(bad, [])
+
+    def test_a_snapshot_rebuild_leaves_no_stale_files(self):
+        with tempfile.TemporaryDirectory() as t:
+            first = snapshot.build(t)
+            stray = Path(t) / "api" / "v1" / "mannequin" / "stale" / "x" / "M.json"
+            stray.parent.mkdir(parents=True)
+            stray.write_text("{}")
+            other = Path(t) / "keep.txt"
+            other.write_text("not ours")
+            second = snapshot.build(t)
+            self.assertFalse(stray.exists())
+            self.assertTrue(other.exists())  # only <out>/api/v1 is touched
+            self.assertEqual(first["files"], second["files"])
+            self.assertEqual(second["files"], sum(1 for f in (Path(t) / "api" / "v1").rglob("*") if f.is_file()))
 
 
 class DataVersion(unittest.TestCase):
@@ -598,6 +743,28 @@ class Formats(unittest.TestCase):
 
 
 class Snapshot(unittest.TestCase):
+    def check_values_file(self, got: dict, live: dict, in_latest_file: bool):
+        self.assertEqual({k: v for k, v in got.items() if k != "notes"}, json.loads(json.dumps({k: v for k, v in live.items() if k != "notes"})))
+        self.assert_static_notes(got["notes"])
+        self.assertEqual(got["notes"][0], live["notes"][0])  # the disclaimer is untouched
+        self.assertEqual(len(got["notes"]), len(live["notes"]) + 1)  # one note per live note, plus what the static files hold
+        span = live["population"]["years"] or [0, 0]
+        for g, l in zip(got["notes"], live["notes"]):
+            self.assertEqual(g, snapshot.static_note(l, in_latest_file, span[1] - span[0] > VINTAGE_YEARS))
+
+    def check_mannequin_notes(self, got: list, live: list, in_latest_file: bool):
+        self.assert_static_notes(got)
+        self.assertFalse(any(n.startswith(("Percentile 50 of each", "Every dimension is percentile")) for n in got))  # those belong to one percentile
+        self.assertEqual(sum(1 for n in got if n.startswith("Each dimension is the stated percentile")), 1)
+        kept = [n for n in live if not n.startswith(("Percentile 50 of each", "Every dimension is percentile"))]
+        self.assertEqual(len(got), len(kept) + 2)  # the boundary line and the static sentence
+
+    def assert_static_notes(self, notes: list):
+        text = " ".join(notes)
+        for live_only in ("by id", "survey list", "survey=latest", "set min_reliability"):
+            self.assertNotIn(live_only, text)  # advice a static reader cannot follow
+        self.assertEqual(notes[-1], snapshot.STATIC_SENTENCE)
+
     def test_snapshot_matches_the_live_values(self):
         """Every population, every file: the static files say what the live service says (values, mannequin, latest variants, links)."""
         with tempfile.TemporaryDirectory() as t:
@@ -613,12 +780,14 @@ class Snapshot(unittest.TestCase):
             for e in index["populations"]:
                 args = (e["country_id"], e["role_id"], e["sex"])
                 want = REPO.design_values(*args, percentiles=[5, 50, 95], min_reliability="low")
-                self.assertEqual(load(e["values_json"]), json.loads(json.dumps(want)))
+                self.check_values_file(load(e["values_json"]), want, False)
                 self.assertTrue((base / e["values_csv"].split("/api/v1/")[1]).read_text(encoding="utf-8").startswith("country,role,sex"))
                 variants = [(e["mannequin_json"], None)]
+                span = want["population"]["years"] or [0, 0]
+                self.assertEqual(bool(e["latest_survey"]), span[1] - span[0] > VINTAGE_YEARS, args)  # the one constant shared with the vintage note
                 if e["latest_survey"]:
                     latest_files += 1
-                    self.assertEqual(load(e["latest_values_json"]), json.loads(json.dumps(REPO.design_values(*args, percentiles=[5, 50, 95], min_reliability="low", survey="latest"))))
+                    self.check_values_file(load(e["latest_values_json"]), REPO.design_values(*args, percentiles=[5, 50, 95], min_reliability="low", survey="latest"), True)
                     variants.append((e["latest_mannequin_json"], "latest"))
                 for url, survey in variants:
                     answers = {p: REPO.mannequin(*args, p, survey=survey) for p in (5, 50, 95)}
@@ -628,6 +797,7 @@ class Snapshot(unittest.TestCase):
                         continue
                     f = load(url)
                     m50 = answers[50]
+                    self.check_mannequin_notes(f["notes"], m50["notes"], survey == "latest")
                     self.assertEqual(f["population"], m50["population"], args)  # the surveys and years behind THESE dimensions
                     self.assertEqual(f["hidden_by_reliability"], m50["hidden_by_reliability"], args)
                     for p, a in answers.items():

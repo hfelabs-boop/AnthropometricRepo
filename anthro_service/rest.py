@@ -11,6 +11,7 @@ import difflib
 import hmac
 import logging
 import os
+import re
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, FastAPI, Path, Query, Request
@@ -97,23 +98,58 @@ class UTF8JSON(JSONResponse):
         self.raw_headers = [(k, b"application/json; charset=utf-8" if k == b"content-type" else v) for k, v in self.raw_headers]
 
 
-class HeadAsGet:
-    """Pure ASGI wrapper: answer HEAD like GET without the body. It hands the app a copy of the scope, so the server still sees a HEAD request
-    (uvicorn's httptools backend only tolerates a body-less response with a Content-Length for HEAD)."""
+class Edge:
+    """Outermost pure-ASGI layer. (1) HEAD is answered like GET without the body; the app gets a copy of the scope, so the server still sees a HEAD request
+    (uvicorn's httptools backend only tolerates a body-less answer with a Content-Length for HEAD). (2) Headers every answer must have, whatever produced it:
+    CORS preflights, /openapi.json and refusals included: X-Data-Version, charset=utf-8 on JSON, and Vary: Origin when only some origins are allowed."""
 
-    def __init__(self, app):
-        self.app = app
+    def __init__(self, app, data_version: str, vary_origin: bool = False):
+        self.app, self.version, self.vary_origin = app, data_version.encode("ascii"), vary_origin
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope["method"] != "HEAD":
+        if scope["type"] != "http":
             return await self.app(scope, receive, send)
+        head = scope["method"] == "HEAD"
 
-        async def no_body(message):
-            if message["type"] == "http.response.body":
+        async def finish(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                index = {k.lower(): i for i, (k, _) in enumerate(headers)}
+                if b"x-data-version" not in index:
+                    headers.append((b"x-data-version", self.version))
+                i = index.get(b"content-type")
+                if i is not None and headers[i][1].lower() == b"application/json":
+                    headers[i] = (headers[i][0], b"application/json; charset=utf-8")
+                if self.vary_origin:
+                    j = index.get(b"vary")
+                    tokens = [t.strip() for t in headers[j][1].split(b",")] if j is not None else []
+                    if b"origin" not in [t.lower() for t in tokens]:
+                        value = b", ".join(tokens + [b"Origin"])
+                        if j is None:
+                            headers.append((b"vary", value))
+                        else:
+                            headers[j] = (headers[j][0], value)
+                message = {**message, "headers": headers}
+            elif head and message["type"] == "http.response.body":
                 message = {**message, "body": b""}
             await send(message)
 
-        await self.app({**scope, "method": "GET"}, receive, no_body)
+        await self.app({**scope, "method": "GET"} if head else scope, receive, finish)
+
+
+def cors_origins() -> list:
+    """ANTHRO_CORS_ORIGINS: comma separated origins such as https://app.example.org; unset or empty means any origin (*). Mistakes stop the start-up
+    with a message rather than silently locking every browser out."""
+    raw = [x.strip() for x in os.environ.get("ANTHRO_CORS_ORIGINS", "").split(",") if x.strip()]
+    if not raw or "*" in raw:
+        return ["*"]
+    out = []
+    for o in raw:
+        norm = o.rstrip("/").lower()
+        if not re.fullmatch(r"https?://[a-z0-9.\-]+(:\d{1,5})?|https?://\[[0-9a-f:.]+\](:\d{1,5})?", norm):
+            raise ValueError(f"ANTHRO_CORS_ORIGINS: '{o}' is not an origin such as https://app.example.org (scheme, host and optional port, no path); use * for any origin.")
+        out.append(norm)
+    return out
 
 
 ALIASES = {"query": "q", "search": "q", "text": "q", "keyword": "q", "word": "q", "percentile": "percentiles", "pct": "percentile", "p": "percentile"}
@@ -132,6 +168,10 @@ def strict_params(request: Request):
     if dependant is None:
         return
     known = _declared(dependant)
+    for name in set(request.query_params.keys()):
+        times = len(request.query_params.getlist(name))
+        if name in known and times > 1:  # FastAPI would silently keep the last one
+            raise BadRequest(f"Parameter '{name}' was given {times} times.", "Give each parameter once; lists are comma separated, for example measures=stature,mass.", sorted(known))
     for name in request.query_params.keys():
         if name not in known:
             close = difflib.get_close_matches(name, sorted(known), n=2, cutoff=0.6)
@@ -176,7 +216,6 @@ def create_app(data_dir: str | None = None) -> FastAPI:
         except Exception:  # answered here, inside CORS and this middleware, so the error carries the same headers as every other answer
             log.exception("unhandled error for %s", request.url.path)
             resp = UTF8JSON({"error": {"code": "internal_error", "message": "Internal error.", "hint": "This is a bug in the service; please report the request."}}, status_code=500)
-        resp.headers["X-Data-Version"] = repo.data_version
         if request.method == "GET" and resp.status_code == 200 and request.url.path.startswith("/v1/") and "Cache-Control" not in resp.headers:
             if request.url.path == "/v1/health":
                 resp.headers["Cache-Control"] = "no-store"
@@ -184,11 +223,11 @@ def create_app(data_dir: str | None = None) -> FastAPI:
                 resp.headers["Cache-Control"] = ("private" if os.environ.get("ANTHRO_API_KEYS", "").strip() else "public") + ", max-age=3600"
         return resp
 
-    # added after `headers`, so they wrap it: CORS around the middleware above, HEAD handling around everything
-    app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in os.environ.get("ANTHRO_CORS_ORIGINS", "*").split(",") if o.strip()],
-                       allow_methods=["GET", "HEAD", "OPTIONS"], allow_headers=["X-API-Key", "Authorization", "Content-Type"],
+    # added after `headers`, so they wrap it: CORS around the middleware above, the edge layer around everything
+    origins = cors_origins()
+    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "HEAD", "OPTIONS"], allow_headers=["X-API-Key", "Authorization", "Content-Type"],
                        expose_headers=["X-Data-Version", "X-Total-Count", "X-Disclaimer", "X-Notes", "X-Hidden-By-Reliability"])
-    app.add_middleware(HeadAsGet)
+    app.add_middleware(Edge, data_version=repo.data_version, vary_origin=origins != ["*"])
 
     @app.exception_handler(ApiError)
     async def api_error(_: Request, e: ApiError):
@@ -259,6 +298,9 @@ def create_app(data_dir: str | None = None) -> FastAPI:
     def surveys(country: str, role: str):
         return repo.surveys(country, role)
 
+    def _names(text, kind):
+        return repo.split_names(text, kind) or None if text and text.strip() else None
+
     def design(country, role, sex, measures, categories, percentiles, min_reliability, survey, stats, fmt):
         d = repo.design_values(country, role, sex, _list(measures), _list(categories), _list(percentiles), min_reliability, survey, stats)
         return _send("design", d, fmt)
@@ -298,7 +340,7 @@ def create_app(data_dir: str | None = None) -> FastAPI:
                 min_reliability: RelQ = "medium", min_n: Annotated[int, Query(ge=0)] = 0, limit: Annotated[int | None, Query(ge=1, le=1000)] = None,
                 survey: Annotated[Literal["latest"] | None, Query(description="`latest`: compare each population's most recent survey instead of all its surveys combined.")] = None,
                 format: Fmt = "json"):
-        return _send("compare", repo.compare(measure, sex, percentile, _list(countries), _list(roles), min_reliability, min_n, limit, survey), format)
+        return _send("compare", repo.compare(measure, sex, percentile, _names(countries, "country"), _names(roles, "role"), min_reliability, min_n, limit, survey), format)
 
     @v1.get("/sources/{source_id}", tags=["catalog"], summary="Titles, links and official documents of a source id")
     def source(source_id: str):
