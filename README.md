@@ -105,6 +105,16 @@ python -m http.server -d public 8000    # preview at http://localhost:8000
 
 **To deploy on Vercel:** choose **Add New → Project**, import this repository, and keep the settings from `vercel.json` (no framework, build command `python3 scripts/build_site.py`, output directory `public`). Every push to `main` redeploys the site.
 
+## API and MCP server for CAD and digital-human tools
+
+[`anthro_service/`](anthro_service) serves the country × role × sex percentiles (P5/P50/P95 or any percentile of up to 571 measures, with reliability and sources) to tools that build mannequins and digital humans (CATIA Human Builder, Jack, RAMSIS, AutoCAD scripts, Blender) and to AI assistants:
+
+- **Static files** at `/api/v1/…` on the deployed site (`python scripts/build_site.py` writes them): JSON and CSV per population, no server.
+- **REST API** with an OpenAPI description, CSV and XML output: `pip install -r anthro_service/requirements.txt && python -m anthro_service serve`.
+- **MCP server** for Claude Desktop, Claude Code, Cursor and other MCP clients: `python -m anthro_service mcp`.
+
+See [`anthro_service/README.md`](anthro_service/README.md) for the endpoints, the percentile and reliability definitions, examples (Python, VBA, PowerShell, curl) and the licence caveat for commercial use.
+
 ## Contributing
 
 To add a source or fix an entry:

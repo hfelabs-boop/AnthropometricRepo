@@ -57,6 +57,7 @@ export function renderAbout(root) {
     h("ul", {},
       h("li", {}, a("db/anthro.sqlite.gz", "Full SQLite database (gzip)"), " — open it with any SQLite tool, Python ", code("sqlite3"), ", R ", code("RSQLite"), " or DB Browser for SQLite."),
       h("li", {}, a("catalog/surveys.csv", "Survey catalog (CSV)"), " · ", a("catalog/surveys.json", "JSON"), " · ", a("catalog/papers.csv", "Paper index (CSV)")),
+      h("li", {}, a("api/v1/index.json", "Percentile data as an API"), " — read-only JSON and CSV per country, role and sex (P5, P50, P95 of every measure, with reliability and sources) for CAD and digital-human tools. A live REST API and an MCP server for AI assistants are in ", a(REPO + "/tree/main/anthro_service", "anthro_service/"), "."),
       h("li", {}, a("aggregates/aggregates.csv", "All extracted statistics (CSV)"), " · ", a("aggregates/rollup.csv", "Country × role roll-up (CSV)"), " · ", a("aggregates/SPEC.md", "column definitions")),
       h("li", {}, "Original data files: ", a("data/ansur-1988/ansurMen.csv", "ANSUR 88 men"), ", ", a("data/ansur-1988/ansurWomen.csv", "women"), " · ",
         a("data/ansur-ii-2012/ANSUR_II_MALE_Public.csv", "ANSUR II men"), ", ", a("data/ansur-ii-2012/ANSUR_II_FEMALE_Public.csv", "women"), " · ",

@@ -7,6 +7,8 @@ public/ contains:
                                 decompresses it and queries it with sql.js
   catalog/                      surveys.json (read by the app) and CSV/JSON downloads
   data/                         the original open datasets, for direct download
+  api/v1/                       read-only JSON/CSV copy of the API (anthro_service/snapshot.py): percentiles
+                                per country, role and sex, for CAD / digital-human tools and scripts
 
 Uses only the standard library, so the Vercel build needs no pip install.
 Usage: python scripts/build_site.py
@@ -40,6 +42,11 @@ def main():
     for name in ("aggregates.csv", "rollup.csv", "SPEC.md"):
         shutil.copy(ROOT / "aggregates" / name, OUT / "aggregates" / name)
     shutil.copytree(ROOT / "data", OUT / "data")
+
+    sys.path.insert(0, str(ROOT))
+    from anthro_service import snapshot
+    api = snapshot.build(OUT)
+    print(f"api/v1: {api['files']} files for {api['populations']} populations")
     size = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file()) / 1e6
     print(f"built public/ ({size:.1f} MB)")
 

@@ -24,3 +24,22 @@ jobs:
           python scripts/validate_aggregates.py
           python scripts/build_aggregates.py
           git diff --exit-code aggregates/
+
+  service:
+    # REST API and MCP server (anthro_service/); also checks them against both major versions of the mcp package
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mcp: ["mcp>=1.9,<2", "mcp>=2,<3"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: pip install fastapi uvicorn httpx pytest "${{ matrix.mcp }}"
+      - name: API, MCP and static snapshot tests
+        run: python -m pytest anthro_service/tests -q

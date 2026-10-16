@@ -1,0 +1,2513 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Military Anthropometry API",
+    "description": "\nBody-measurement statistics of **military populations** for digital-human and mannequin tools (CATIA Human Builder, Siemens Jack,\nRAMSIS, AutoCAD scripts, Unreal/Blender add-ons, spreadsheets) and for AI agents.\n\n* **Populations** are *country × role* (Army, Air Force, Navy, Aircrew, Pilots, Recruits/trainees ...) and *sex* (`M`, `F`, `both`).\n* **Design values** give P5, P50 and P95 (or any percentile from 0.1 to 99.9) of every measure, with sample size, reliability and sources.\n* **Mannequin** gives one value per dimension at a single percentile: the dimension set for a boundary or reference manikin.\n* Lengths are **millimetres**, body mass **kg**; every value carries its unit.\n* Every endpoint that returns a table can also return **CSV** or **XML**: add `?format=csv`, or end the last path segment with `.csv` / `.xml` / `.json`.\n* List parameters are comma separated: `measures=stature,mass,sitting_height`.\n\n**Reliability.** `min_reliability` defaults to `medium` (high and medium). `high` keeps only values whose sources are raw data, validated\ntables or official defence documents, with printed percentiles and at least 100 people. `low` (or `all`) includes everything.\n\n**Percentiles.** P5, P50 and P95 are the roll-up values (printed by the sources, or estimated from mean and SD: see `percentile_basis`).\nOther percentiles are interpolated or extrapolated from them. Each dimension is the requested percentile *of that dimension alone*: a set\nof same-percentile dimensions is a boundary case, not a typical body.\n",
+    "contact": {
+      "name": "Repository",
+      "url": "https://github.com/hfelabs-boop/AnthropometricRepo"
+    },
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "tags": [
+          "service"
+        ],
+        "summary": "Liveness check",
+        "operationId": "health_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/meta": {
+      "get": {
+        "tags": [
+          "service"
+        ],
+        "summary": "Version, counts, units, reliability and percentile definitions, attribution",
+        "operationId": "meta_v1_meta_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/countries": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Countries with their roles",
+        "operationId": "countries_v1_countries_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CountryItem"
+                  },
+                  "type": "array",
+                  "title": "Response Countries V1 Countries Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/countries/{country}": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Roles of one country",
+        "operationId": "country_roles_v1_countries__country__get",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Country"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CountryItem"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/categories": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Measure categories",
+        "operationId": "categories_v1_categories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryItem"
+                  },
+                  "type": "array",
+                  "title": "Response Categories V1 Categories Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/measures": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Search measures",
+        "description": "Measures with data, filtered by words in the name (`q`), category, and optionally by population.",
+        "operationId": "measures_v1_measures_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words in the name, e.g. `waist hip` or `sitting height`.",
+              "title": "Q"
+            },
+            "description": "Words in the name, e.g. `waist hip` or `sitting height`."
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Category name or id, e.g. `seated`.",
+              "title": "Category"
+            },
+            "description": "Category name or id, e.g. `seated`."
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "sex",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sex"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 1000,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MeasureItem"
+                  },
+                  "title": "Response Measures V1 Measures Get"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/measures/{key}": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "One measure and the populations that have it",
+        "operationId": "measure_v1_measures__key__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasureDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/populations/{country}/{role}/surveys": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Surveys of a population",
+        "operationId": "surveys_v1_populations__country___role__surveys_get",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Country"
+            }
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SurveyList"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/populations/{country}/{role}/{sex}": {
+      "get": {
+        "tags": [
+          "values"
+        ],
+        "summary": "Design values of one population (P5, P50, P95 or any percentiles)",
+        "description": "The same path works on the static copy of the data: `/api/v1/populations/{country}/{role}/{sex}.json` (or `.csv`), with all reliability levels and the default percentiles 5, 50, 95. `sex` may end in `.json`, `.csv` or `.xml`.",
+        "operationId": "population_v1_populations__country___role___sex__get",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "united-states"
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "name": "role",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "army"
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "sex",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "examples": [
+                "M"
+              ],
+              "title": "Sex"
+            }
+          },
+          {
+            "name": "measures",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated measure keys (see /v1/measures), e.g. `stature,mass,sitting_height`. Default: all measures with data.",
+              "title": "Measures"
+            },
+            "description": "Comma-separated measure keys (see /v1/measures), e.g. `stature,mass,sitting_height`. Default: all measures with data."
+          },
+          {
+            "name": "categories",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated category names or ids (see /v1/categories), e.g. `heights-standing,seated`.",
+              "title": "Categories"
+            },
+            "description": "Comma-separated category names or ids (see /v1/categories), e.g. `heights-standing,seated`."
+          },
+          {
+            "name": "percentiles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated percentiles, 0.1 to 99.9. Default `5,50,95`.",
+              "examples": [
+                "5,50,95"
+              ],
+              "title": "Percentiles"
+            },
+            "description": "Comma-separated percentiles, 0.1 to 99.9. Default `5,50,95`."
+          },
+          {
+            "name": "min_reliability",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Lowest reliability to include: `high`, `medium` (default) or `low`/`all`.",
+              "default": "medium",
+              "title": "Min Reliability"
+            },
+            "description": "Lowest reliability to include: `high`, `medium` (default) or `low`/`all`."
+          },
+          {
+            "name": "survey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys).",
+              "title": "Survey"
+            },
+            "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys)."
+          },
+          {
+            "name": "stats",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include mean and SD.",
+              "default": true,
+              "title": "Stats"
+            },
+            "description": "Include mean and SD."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv",
+                "xml"
+              ],
+              "type": "string",
+              "description": "Output format. CSV and XML are flat tables.",
+              "default": "json",
+              "title": "Format"
+            },
+            "description": "Output format. CSV and XML are flat tables."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignValues"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/design-values": {
+      "get": {
+        "tags": [
+          "values"
+        ],
+        "summary": "Design values (query-string form)",
+        "operationId": "design_values_v1_design_values_get",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Country name or id, e.g. `United States` or `united-states`.",
+              "examples": [
+                "United States"
+              ],
+              "title": "Country"
+            },
+            "description": "Country name or id, e.g. `United States` or `united-states`."
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Role (survey population) name or id, e.g. `Army`, `Air Force`, `Aircrew`, `Recruits/trainees`.",
+              "examples": [
+                "Army"
+              ],
+              "title": "Role"
+            },
+            "description": "Role (survey population) name or id, e.g. `Army`, `Air Force`, `Aircrew`, `Recruits/trainees`."
+          },
+          {
+            "name": "sex",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "`M`, `F` or `both` (mixed / not stated).",
+              "examples": [
+                "M"
+              ],
+              "default": "M",
+              "title": "Sex"
+            },
+            "description": "`M`, `F` or `both` (mixed / not stated)."
+          },
+          {
+            "name": "measures",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated measure keys (see /v1/measures), e.g. `stature,mass,sitting_height`. Default: all measures with data.",
+              "title": "Measures"
+            },
+            "description": "Comma-separated measure keys (see /v1/measures), e.g. `stature,mass,sitting_height`. Default: all measures with data."
+          },
+          {
+            "name": "categories",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated category names or ids (see /v1/categories), e.g. `heights-standing,seated`.",
+              "title": "Categories"
+            },
+            "description": "Comma-separated category names or ids (see /v1/categories), e.g. `heights-standing,seated`."
+          },
+          {
+            "name": "percentiles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated percentiles, 0.1 to 99.9. Default `5,50,95`.",
+              "title": "Percentiles"
+            },
+            "description": "Comma-separated percentiles, 0.1 to 99.9. Default `5,50,95`."
+          },
+          {
+            "name": "min_reliability",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Lowest reliability to include: `high`, `medium` (default) or `low`/`all`.",
+              "default": "medium",
+              "title": "Min Reliability"
+            },
+            "description": "Lowest reliability to include: `high`, `medium` (default) or `low`/`all`."
+          },
+          {
+            "name": "survey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys).",
+              "title": "Survey"
+            },
+            "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys)."
+          },
+          {
+            "name": "stats",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Stats"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv",
+                "xml"
+              ],
+              "type": "string",
+              "description": "Output format. CSV and XML are flat tables.",
+              "default": "json",
+              "title": "Format"
+            },
+            "description": "Output format. CSV and XML are flat tables."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesignValues"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/mannequin": {
+      "get": {
+        "tags": [
+          "values"
+        ],
+        "summary": "Dimension set for one percentile (boundary or reference manikin)",
+        "description": "One value per dimension at a single percentile, plus `core` (stature, body mass, sitting height, BMI) and a flat `values` map of key to number. Use it to size a manikin; call it three times (5, 50, 95) for a small, medium and large manikin.",
+        "operationId": "mannequin_v1_mannequin_get",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Country name or id, e.g. `United States` or `united-states`.",
+              "examples": [
+                "United States"
+              ],
+              "title": "Country"
+            },
+            "description": "Country name or id, e.g. `United States` or `united-states`."
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Role (survey population) name or id, e.g. `Army`, `Air Force`, `Aircrew`, `Recruits/trainees`.",
+              "examples": [
+                "Army"
+              ],
+              "title": "Role"
+            },
+            "description": "Role (survey population) name or id, e.g. `Army`, `Air Force`, `Aircrew`, `Recruits/trainees`."
+          },
+          {
+            "name": "sex",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "`M`, `F` or `both` (mixed / not stated).",
+              "examples": [
+                "M"
+              ],
+              "default": "M",
+              "title": "Sex"
+            },
+            "description": "`M`, `F` or `both` (mixed / not stated)."
+          },
+          {
+            "name": "percentile",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 99.9,
+              "minimum": 0.1,
+              "description": "Percentile, 0.1 to 99.9.",
+              "examples": [
+                95
+              ],
+              "default": 50,
+              "title": "Percentile"
+            },
+            "description": "Percentile, 0.1 to 99.9."
+          },
+          {
+            "name": "measures",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated measure keys (see /v1/measures), e.g. `stature,mass,sitting_height`. Default: all measures with data.",
+              "title": "Measures"
+            },
+            "description": "Comma-separated measure keys (see /v1/measures), e.g. `stature,mass,sitting_height`. Default: all measures with data."
+          },
+          {
+            "name": "categories",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated category names or ids (see /v1/categories), e.g. `heights-standing,seated`.",
+              "title": "Categories"
+            },
+            "description": "Comma-separated category names or ids (see /v1/categories), e.g. `heights-standing,seated`."
+          },
+          {
+            "name": "min_reliability",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Lowest reliability to include: `high`, `medium` (default) or `low`/`all`.",
+              "default": "medium",
+              "title": "Min Reliability"
+            },
+            "description": "Lowest reliability to include: `high`, `medium` (default) or `low`/`all`."
+          },
+          {
+            "name": "survey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys).",
+              "title": "Survey"
+            },
+            "description": "Use one survey instead of the combined values (ids from /v1/populations/{country}/{role}/surveys)."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv",
+                "xml"
+              ],
+              "type": "string",
+              "description": "Output format. CSV and XML are flat tables.",
+              "default": "json",
+              "title": "Format"
+            },
+            "description": "Output format. CSV and XML are flat tables."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Mannequin"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/compare": {
+      "get": {
+        "tags": [
+          "values"
+        ],
+        "summary": "One measure and percentile across populations",
+        "operationId": "compare_v1_compare_get",
+        "parameters": [
+          {
+            "name": "measure",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Measure key, e.g. `stature`.",
+              "examples": [
+                "stature"
+              ],
+              "title": "Measure"
+            },
+            "description": "Measure key, e.g. `stature`."
+          },
+          {
+            "name": "sex",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "`M`, `F` or `both` (mixed / not stated).",
+              "examples": [
+                "M"
+              ],
+              "default": "M",
+              "title": "Sex"
+            },
+            "description": "`M`, `F` or `both` (mixed / not stated)."
+          },
+          {
+            "name": "percentile",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "maximum": 99.9,
+              "minimum": 0.1,
+              "default": 50,
+              "title": "Percentile"
+            }
+          },
+          {
+            "name": "countries",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated countries to include.",
+              "title": "Countries"
+            },
+            "description": "Comma-separated countries to include."
+          },
+          {
+            "name": "roles",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated roles to include.",
+              "title": "Roles"
+            },
+            "description": "Comma-separated roles to include."
+          },
+          {
+            "name": "min_reliability",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Lowest reliability to include: `high`, `medium` (default) or `low`/`all`.",
+              "default": "medium",
+              "title": "Min Reliability"
+            },
+            "description": "Lowest reliability to include: `high`, `medium` (default) or `low`/`all`."
+          },
+          {
+            "name": "min_n",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Min N"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 1000,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv",
+                "xml"
+              ],
+              "type": "string",
+              "description": "Output format. CSV and XML are flat tables.",
+              "default": "json",
+              "title": "Format"
+            },
+            "description": "Output format. CSV and XML are flat tables."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comparison"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/sources/{source_id}": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "Titles, links and official documents of a source id",
+        "operationId": "source_v1_sources__source_id__get",
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Source Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CategoryItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "measures": {
+            "type": "integer",
+            "title": "Measures"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "measures"
+        ],
+        "title": "CategoryItem"
+      },
+      "CompareRow": {
+        "properties": {
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "country_id": {
+            "type": "string",
+            "title": "Country Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "role_id": {
+            "type": "string",
+            "title": "Role Id"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "reported",
+              "estimated",
+              "interpolated",
+              "extrapolated",
+              "unavailable"
+            ],
+            "title": "Basis"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "reliability": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Reliability"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "years": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "country_id",
+          "role",
+          "role_id",
+          "value",
+          "basis",
+          "reliability",
+          "sources"
+        ],
+        "title": "CompareRow"
+      },
+      "Comparison": {
+        "properties": {
+          "measure": {
+            "$ref": "#/components/schemas/MeasureRef"
+          },
+          "sex": {
+            "type": "string",
+            "enum": [
+              "M",
+              "F",
+              "both"
+            ],
+            "title": "Sex"
+          },
+          "percentile": {
+            "type": "number",
+            "title": "Percentile"
+          },
+          "min_reliability": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Min Reliability"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/CompareRow"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "measure",
+          "sex",
+          "percentile",
+          "min_reliability",
+          "count",
+          "results",
+          "notes"
+        ],
+        "title": "Comparison"
+      },
+      "CountryItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleSummary"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "roles"
+        ],
+        "title": "CountryItem"
+      },
+      "DesignValues": {
+        "properties": {
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "percentiles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Percentiles"
+          },
+          "min_reliability": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Min Reliability"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "hidden_by_reliability": {
+            "type": "integer",
+            "title": "Hidden By Reliability"
+          },
+          "measures": {
+            "items": {
+              "$ref": "#/components/schemas/MeasureValues"
+            },
+            "type": "array",
+            "title": "Measures"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "population",
+          "percentiles",
+          "min_reliability",
+          "count",
+          "hidden_by_reliability",
+          "measures",
+          "notes"
+        ],
+        "title": "DesignValues"
+      },
+      "Dimension": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "reported",
+              "estimated",
+              "interpolated",
+              "extrapolated",
+              "unavailable"
+            ],
+            "title": "Basis"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "reliability": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Reliability"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "category",
+          "unit",
+          "value",
+          "basis",
+          "reliability"
+        ],
+        "title": "Dimension"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "not_found"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "available": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available",
+            "description": "Valid values to choose from, or the closest matches."
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorBody"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse"
+      },
+      "Mannequin": {
+        "properties": {
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "percentile": {
+            "type": "number",
+            "title": "Percentile"
+          },
+          "min_reliability": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Min Reliability"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "hidden_by_reliability": {
+            "type": "integer",
+            "title": "Hidden By Reliability"
+          },
+          "core": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Core",
+            "description": "Stature, body mass, sitting height and BMI at this percentile, when available."
+          },
+          "values": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Values",
+            "description": "Measure key to value in the measure's unit: the flat dimension set."
+          },
+          "dimensions": {
+            "items": {
+              "$ref": "#/components/schemas/Dimension"
+            },
+            "type": "array",
+            "title": "Dimensions"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "population",
+          "percentile",
+          "min_reliability",
+          "count",
+          "hidden_by_reliability",
+          "core",
+          "values",
+          "dimensions",
+          "notes"
+        ],
+        "title": "Mannequin"
+      },
+      "MeasureDetail": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "populations": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurePopulation"
+            },
+            "type": "array",
+            "title": "Populations"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "category",
+          "unit",
+          "populations"
+        ],
+        "title": "MeasureDetail"
+      },
+      "MeasureItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "populations": {
+            "type": "integer",
+            "title": "Populations",
+            "description": "Number of country/role populations with data."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "category",
+          "unit",
+          "populations"
+        ],
+        "title": "MeasureItem"
+      },
+      "MeasurePopulation": {
+        "properties": {
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "country_id": {
+            "type": "string",
+            "title": "Country Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "role_id": {
+            "type": "string",
+            "title": "Role Id"
+          },
+          "sexes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "M",
+                "F",
+                "both"
+              ]
+            },
+            "type": "array",
+            "title": "Sexes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "country_id",
+          "role",
+          "role_id",
+          "sexes"
+        ],
+        "title": "MeasurePopulation"
+      },
+      "MeasureRef": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "unit",
+          "category"
+        ],
+        "title": "MeasureRef"
+      },
+      "MeasureValues": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key",
+            "examples": [
+              "stature"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "examples": [
+              "Stature"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "examples": [
+              "Heights (standing)"
+            ]
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "description": "mm, kg, kg/m2, years, or the printed unit of an as-published measure (%, ratio, degrees ...).",
+            "examples": [
+              "mm"
+            ]
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N",
+            "description": "Number of people."
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "sd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sd"
+          },
+          "percentiles": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Percentiles",
+            "description": "Value at each requested percentile, keyed \"p5\", \"p50\", \"p95\", \"p97.5\" ...",
+            "examples": [
+              {
+                "p5": 1642.5,
+                "p50": 1749.3,
+                "p95": 1862.7
+              }
+            ]
+          },
+          "percentile_basis": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "reported",
+                "estimated",
+                "interpolated",
+                "extrapolated",
+                "unavailable"
+              ]
+            },
+            "type": "object",
+            "title": "Percentile Basis",
+            "description": "How each percentile was obtained: reported by the source, estimated from mean and SD, interpolated or extrapolated from P5/P50/P95."
+          },
+          "reliability": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Reliability"
+          },
+          "reliability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reliability Note",
+            "description": "Why the value is not high reliability."
+          },
+          "official_documents": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Official Documents",
+            "description": "Official defence or standards documents the data come from, if any."
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sources",
+            "description": "Source ids; GET /v1/sources/{id} gives titles and links."
+          },
+          "years": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years"
+          },
+          "printed_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Printed Name",
+            "description": "The name the source printed, when it differs from the common name."
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "name",
+          "category",
+          "unit",
+          "percentiles",
+          "percentile_basis",
+          "reliability",
+          "official_documents",
+          "sources"
+        ],
+        "title": "MeasureValues"
+      },
+      "Population": {
+        "properties": {
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "country_id": {
+            "type": "string",
+            "title": "Country Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "Survey population: Army, Air Force, Navy, Aircrew, Pilots, Recruits/trainees ..."
+          },
+          "role_id": {
+            "type": "string",
+            "title": "Role Id"
+          },
+          "sex": {
+            "type": "string",
+            "enum": [
+              "M",
+              "F",
+              "both"
+            ],
+            "title": "Sex",
+            "description": "M, F, or both (mixed or not stated)."
+          },
+          "sex_name": {
+            "type": "string",
+            "title": "Sex Name"
+          },
+          "survey": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SurveyRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when one survey was requested; null for the combined values of the population."
+          },
+          "surveys_combined": {
+            "items": {
+              "$ref": "#/components/schemas/SurveyRef"
+            },
+            "type": "array",
+            "title": "Surveys Combined",
+            "description": "Surveys that make up the combined values (empty when a single survey was requested)."
+          },
+          "years": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years",
+            "description": "First and last year of measurement."
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "country_id",
+          "role",
+          "role_id",
+          "sex",
+          "sex_name",
+          "surveys_combined"
+        ],
+        "title": "Population"
+      },
+      "RoleSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sexes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "M",
+                "F",
+                "both"
+              ]
+            },
+            "type": "array",
+            "title": "Sexes"
+          },
+          "measures": {
+            "type": "integer",
+            "title": "Measures"
+          },
+          "surveys": {
+            "type": "integer",
+            "title": "Surveys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "sexes",
+          "measures",
+          "surveys"
+        ],
+        "title": "RoleSummary"
+      },
+      "SurveyItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          },
+          "n": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "N"
+          },
+          "sexes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "M",
+                "F",
+                "both"
+              ]
+            },
+            "type": "array",
+            "title": "Sexes"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "official_document": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official Document"
+          },
+          "in_combined_values": {
+            "type": "boolean",
+            "title": "In Combined Values"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "n",
+          "sexes",
+          "source_id",
+          "in_combined_values"
+        ],
+        "title": "SurveyItem"
+      },
+      "SurveyList": {
+        "properties": {
+          "country": {
+            "type": "string",
+            "title": "Country"
+          },
+          "country_id": {
+            "type": "string",
+            "title": "Country Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "role_id": {
+            "type": "string",
+            "title": "Role Id"
+          },
+          "surveys": {
+            "items": {
+              "$ref": "#/components/schemas/SurveyItem"
+            },
+            "type": "array",
+            "title": "Surveys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "country",
+          "country_id",
+          "role",
+          "role_id",
+          "surveys"
+        ],
+        "title": "SurveyList"
+      },
+      "SurveyRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "ansur-ii-2012"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "examples": [
+              "ANSUR II 2012"
+            ]
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "SurveyRef"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "values",
+      "description": "Percentiles for design: the endpoints a CAD or DHM integration needs."
+    },
+    {
+      "name": "catalog",
+      "description": "Countries, roles, measures, surveys and sources."
+    },
+    {
+      "name": "service",
+      "description": "Health and metadata."
+    }
+  ]
+}
