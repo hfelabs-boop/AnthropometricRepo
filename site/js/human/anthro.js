@@ -121,8 +121,8 @@ const indexCache = new WeakMap();
 function indexOf(catalog) {
   if (!catalog) return catalogIndex;
   if (catalog instanceof Map) return catalog;
-  if (!Array.isArray(catalog)) return new Map(Object.entries(catalog));
-  if (!indexCache.has(catalog)) indexCache.set(catalog, new Map(catalog.filter(m => m && typeof m.key === "string").map(m => [m.key, m])));
+  // by reference, for arrays and plain objects alike (labelOf calls this once per measure; a catalog is replaced, not edited, when it changes)
+  if (!indexCache.has(catalog)) indexCache.set(catalog, Array.isArray(catalog) ? new Map(catalog.filter(m => m && typeof m.key === "string").map(m => [m.key, m])) : new Map(Object.entries(catalog)));
   return indexCache.get(catalog);
 }
 /** Remember the measure catalog (api/v1/measures.json) so labelOf / unitOf and the importers use the data's names and units. */
@@ -303,7 +303,7 @@ export function percentileProfile(pop, opts) {
   const info = pop.population;
   const sex = info.sex === "M" || info.sex === "F" ? info.sex : "both";
   const usable = [];
-  let hidden = 0, unavailable = 0, statureFromMean = false, statureSd = 0;
+  let hidden = 0, unavailable = 0, nonFinite = 0, statureFromMean = false, statureSd = 0;
   for (const m of pop.measures) {
     const key = sanitiseKey(m?.key);
     if (!key) continue;
@@ -326,6 +326,8 @@ export function percentileProfile(pop, opts) {
     const st = usable.find(x => x.key === "stature");
     if (!st) throw new Error("Proportional scaling needs a stature in this population at this reliability level; use per-measure percentiles instead.");
     statureP = valueAtPercentile(st.m, percentile).value;
+    // a median of zero (or less) has no ratio, and an overflowing line has no percentile: a corrupt file must fail here, not leak NaN into every value and note
+    if (!(st.m.percentiles.p50 > 0 && Number.isFinite(statureP) && statureP > 0)) throw new RangeError("Proportional scaling needs a positive stature median and a finite stature at the chosen percentile; this file has neither.");
     s = statureP / st.m.percentiles.p50;
   }
 
@@ -346,6 +348,7 @@ export function percentileProfile(pop, opts) {
       else if (e && s !== 1) { entry.value = roundValue(p50 * s ** e, unit); entry.status = "estimated"; entry.basis = "scaled"; entry.note = `median x ${fmt1(s)}${e > 1 ? "^" + e : ""}`; }
       else { entry.value = roundValue(p50, unit); entry.status = statusFor(m, 50); entry.basis = "reported"; if (entry.status === "estimated") entry.note = EST_NOTE; }
     }
+    if (entry.value === null) { nonFinite++; continue; } // an interpolation or scaling that overflowed: no value is better than a null
     const n = cleanN(m.n);
     if (n !== undefined) entry.n = n;
     measures[key] = entry;
@@ -367,6 +370,7 @@ export function percentileProfile(pop, opts) {
   if (sex === "both") notes.push("Mixed or sex-not-stated population: the body form will be neutral.");
   if (hidden) notes.push(hiddenNote(hidden, level));
   if (unavailable) notes.push(`${unavailable} measure(s) have a mean but no percentiles and are left out.`);
+  if (nonFinite) notes.push(`${nonFinite} measure(s) left out because their value at this percentile is not a finite number.`);
   if (statureFromMean) notes.push(meanStatureNote(percentile, statureSd));
   if (Array.isArray(pop.notes)) for (const n of pop.notes) if (typeof n === "string" && !SURVEY_NOTES_DROP.some(r => r.test(n))) notes.push(n);
   if (!measures.stature) notes.push("This population has no stature at this reliability level: enter one by hand, the model needs it.");
@@ -414,8 +418,8 @@ function cached(fetchJSON, url) {
   }
   return m.get(url);
 }
-/** Forget every cached file (for tests, or after the site was redeployed). */
-export function clearCache() { caches.delete(defaultFetch); }
+/** Forget every cached file (for tests, or after the site was redeployed) of the default fetcher, or of the custom `fetchJSON` passed to loadIndex / loadPopulation / loadMeasures. */
+export function clearCache(fetchJSON = defaultFetch) { caches.delete(fetchJSON); }
 
 const trimBase = b => String(b).replace(/\/+$/, "");
 
@@ -586,6 +590,23 @@ export function subjectProfile(row, meta = {}) {
   };
 }
 
+// A profile id says what the body is made of (a cache keyed on it must not return the body of another profile): population ids spell out their settings,
+// the ids of profiles built from free values carry a hash of those values. cyrb53, a 53-bit non-cryptographic hash (Bryc, 2007, public domain):
+// two different value sets collide with probability about 1e-16, which is enough for a cache key.
+function hash53(str) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
+}
+/** Short fingerprint of what the fitter reads: sex and every measure's key, value and unit (not notes or statuses, which do not change the body). */
+const contentHash = (sex, measures) => hash53(JSON.stringify([sex, Object.keys(measures).sort().map(k => [k, measures[k].value, measures[k].unit])]));
+const EDITED_SUFFIX = /~edited(?::[0-9a-f]+)?$/;
+
 // ---------------------------------------------------------------------------------------------------------------- import / export
 export const MAX_IMPORT_CHARS = 3_000_000; // the biggest populations file is 0.13 MB
 const MAX_ENTRIES = 3000;
@@ -642,8 +663,11 @@ class Collector {
     const r = typeof rawKey === "string" && rawKey.length <= MAX_RAW_KEY ? resolveKey(rawKey.replace(/\s*[([]\s*([^)\]]{1,12}?)\s*[)\]]\s*$/, (_, u) => { hint = canonicalUnit(u) ?? hint; return ""; })) : null;
     if (r) { key = r.key; hint = hint ?? r.hint; }
     if (!key) { this.ignored.push(cleanText(rawKey, 24) || "(blank)"); return; }
+    // the column's unit is a default for the rows it fits: a "Value (cm)" column does not make the mass row a length
+    const cu = canonicalUnit(extra.colUnit), want = unitOf(key);
+    const colUnit = cu && ((LENGTH_TO_MM[cu] && want === "mm") || (MASS_TO_KG[cu] && want === "kg")) ? cu : undefined;
     let d;
-    try { d = toDataUnit(key, q.value, q.unit ?? hint ?? undefined); } catch (e) {
+    try { d = toDataUnit(key, q.value, q.unit ?? hint ?? colUnit ?? undefined); } catch (e) {
       // a secondary length that is too small to be mm (19.2 for a hand: cm, no unit) is left out and reported, the fitter estimates it; the rest of the file is still good
       if (e.tooSmall) { this.tooSmall.push(`${key} ${Math.round(q.value * 100) / 100}`); return; }
       throw e;
@@ -707,7 +731,12 @@ function parseCSV(text, col, minReliability) {
   const delim = [",", ";", "\t"].map(d => [d, count(d)]).sort((a, b) => b[1] - a[1])[0][0];
   const rows = csvRows(body, delim);
   if (rows.length < 1) throw new Error("The CSV has no rows.");
-  const names = rows[0].map(x => x.trim().toLowerCase().replace(/[\s-]+/g, "_"));
+  // "Value (mm)" / "Value [cm]": the bracket is the unit of the column, not part of its name (it is the default unit of values that carry none)
+  const headUnit = [];
+  const names = rows[0].map((x, i) => {
+    const t = x.trim().toLowerCase().replace(/\s*[([]\s*([^)\]]{1,12}?)\s*[)\]]$/, (_, u) => { headUnit[i] = canonicalUnit(u) ?? undefined; return ""; });
+    return t.replace(/[\s-]+/g, "_");
+  });
   // the first candidate that is a column wins, not the leftmost column of any candidate: in `name,key,value` the key is `key`
   const find = (...c) => { for (const n of c) { const i = names.indexOf(n); if (i >= 0) return i; } return -1; };
   const kcol = find("key", "measure_key", "measure", "dimension", "name", "measure_name");
@@ -737,7 +766,8 @@ function parseCSV(text, col, minReliability) {
         if (cellv === "" && resolveKey(k)?.key === "stature" && mcol >= 0 && (r[mcol] ?? "").trim() !== "") { cellv = (r[mcol] ?? "").trim(); fromMean = true; }
         const rel = rcol >= 0 ? (r[rcol] ?? "").trim().toLowerCase() : "";
         if (rel && !filter.allowed.includes(rel)) { // blank means the file does not say
-          if (cellv !== "") { hiddenRows++; hidden.push(resolveKey(k)?.key ?? k); }
+          hiddenRows++; // counted like percentileProfile does: every row below the level, whether or not it has a value
+          if (cellv !== "") hidden.push(resolveKey(k)?.key ?? k);
           continue;
         }
         const basis = /(?:^|\s)p50:(\w+)/.exec(bcol >= 0 ? r[bcol] ?? "" : "")?.[1];
@@ -747,8 +777,9 @@ function parseCSV(text, col, minReliability) {
       let q;
       try { q = quantityFrom(cellv, dc); } catch (e) { throw new Error(`${cleanText(k, 40)}: ${e.message}`); }
       if (q && ucol >= 0 && (r[ucol] ?? "").trim()) q.unit = r[ucol].trim();
+      const colUnit = headUnit[useP50 ? pcol : vcol];
       const extra = { status: est ? "estimated" : scol >= 0 ? (r[scol] ?? "").trim() : undefined, reliability: rcol >= 0 ? (r[rcol] ?? "").trim() : undefined, n: ncol >= 0 ? (r[ncol] ?? "").trim() : undefined,
-        note: ocol >= 0 ? unguard(r[ocol]) : est ? EST_NOTE : undefined };
+        note: ocol >= 0 ? unguard(r[ocol]) : est ? EST_NOTE : undefined, colUnit };
       col.add(k, q, extra);
     }
     if (meanStature) col.notes.push(meanStatureNote(50, 0));
@@ -772,7 +803,8 @@ function parseCSV(text, col, minReliability) {
   throw new Error("CSV not recognised: the header needs a key column (key or measure_key) and a value column (value), for example `key,value,unit`.");
 }
 
-function fromPopulation(obj, col, minReliability) {
+function fromPopulation(obj, col, minReliability, opts) {
+  if (isPartialSet(obj)) return fromDesignValues(obj, col, opts);
   // median, medium reliability and above by default, as the website does; a stature given only as a mean is used (the model needs one)
   const p = percentileProfile(obj, { minReliability, meanStature: true });
   for (const [k, m] of Object.entries(p.measures)) col.add(k, { value: m.value, unit: m.unit, status: m.status, reliability: m.reliability, n: m.n, note: m.note });
@@ -780,6 +812,57 @@ function fromPopulation(obj, col, minReliability) {
   // what the filter hid, so that an empty result can say why instead of "no measures"
   const hidden = Object.keys(percentileProfile(obj, { minReliability: "low", meanStature: true }).measures).filter(k => !p.measures[k]);
   return { meta: { sex: p.sex, label: p.label }, format: "populations-json", level: p.source.minReliability, hidden };
+}
+
+// The service's /v1/design-values answers with the percentiles that were asked for, e.g. {"p50": 1749.3} for percentiles=50, not the P5/P50/P95 of a
+// populations file. percentileProfile needs all three, so such a file is read here: one percentile of the set for every measure.
+const PKEY = /^p(\d+(?:\.\d+)?)$/;
+const finiteKeys = p => (p && typeof p === "object" ? Object.keys(p).filter(k => PKEY.test(k) && typeof p[k] === "number" && Number.isFinite(p[k])) : []);
+/** true for a populations-shaped file whose percentile sets are not the full P5/P50/P95 (some set has numbers, but not all three). */
+const isPartialSet = obj => obj.measures.some(m => { const k = finiteKeys(m?.percentiles); return k.length > 0 && !finite3(m.percentiles); });
+
+function fromDesignValues(obj, col, opts) {
+  const keys = [...new Set(obj.measures.flatMap(m => finiteKeys(m?.percentiles)))].sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+  let pk;
+  if (opts?.percentile != null) {
+    pk = "p" + opts.percentile;
+    if (!keys.includes(pk)) throw new Error(`The file has no percentile ${cleanText(opts.percentile, 10)} (it has ${keys.map(k => k.slice(1)).join(", ")}).`);
+  } else pk = keys.includes("p50") ? "p50" : keys[0];
+  const pct = Number(pk.slice(1));
+  if (!(pct >= MIN_PERCENTILE && pct <= MAX_PERCENTILE)) throw new RangeError(`Percentile ${pct} is outside ${MIN_PERCENTILE} to ${MAX_PERCENTILE}.`);
+  // the service has applied its own reliability filter (min_reliability in the answer): honour it, unless the caller asks for another one
+  let rf;
+  try { rf = reliabilityFilter(opts?.minReliability ?? obj.min_reliability ?? "medium"); } catch (e) { if (opts?.minReliability != null) throw e; rf = reliabilityFilter("medium"); }
+  const info = obj.population, sex = info.sex === "M" || info.sex === "F" ? info.sex : "both";
+  const hidden = [];
+  let hiddenRows = 0, noValue = 0, statureFromMean = false, extrapolated = false, estimated = false;
+  for (const m of obj.measures) {
+    const key = sanitiseKey(m?.key);
+    if (!key) continue;
+    if (!rf.allowed.includes(m.reliability)) { hiddenRows++; hidden.push(key); continue; }
+    let v = m.percentiles?.[pk], basis = ownIn(m.percentile_basis, pk);
+    if (!(typeof v === "number" && Number.isFinite(v))) {
+      // as percentileProfile({meanStature: true}): the model needs a stature, a file with only its mean is better than none
+      if (key === "stature" && typeof m.mean === "number" && Number.isFinite(m.mean) && m.mean > 0) { v = m.mean; basis = "estimated"; statureFromMean = true; } else { noValue++; continue; }
+    }
+    const est = basis === "estimated" || basis === "extrapolated";
+    extrapolated ||= basis === "extrapolated"; estimated ||= basis === "estimated";
+    col.add(key, { value: v, unit: m.unit ?? unitOf(key) }, { status: est ? "estimated" : "reported", reliability: m.reliability, n: m.n,
+      note: basis === "extrapolated" ? "extrapolated beyond P5/P95" : est ? EST_NOTE : undefined });
+  }
+  col.notes.push(pct === 50
+    ? "Percentile 50 of each dimension: a reference body. Real people vary in proportions, so nobody has every dimension at the median."
+    : `Every dimension is percentile ${pct} of that dimension alone: a boundary case, not a typical body.`);
+  if (keys.length > 1) col.notes.push(`The file has percentiles ${keys.map(k => k.slice(1)).join(", ")}: P${pct} was used (the others are ignored).`);
+  if (extrapolated) col.notes.push("Some values are extrapolated beyond the P5 to P95 the surveys report and are less certain.");
+  if (hiddenRows) col.notes.push(hiddenNote(hiddenRows, rf.level));
+  if (noValue) col.notes.push(`${noValue} measure(s) have no value at P${pct} and are left out.`);
+  if (statureFromMean) col.notes.push(meanStatureNote(pct, 0));
+  // the service's own notes (reliability, vintage, interpolation), without its fixed disclaimers
+  if (Array.isArray(obj.notes)) for (const n of obj.notes) if (typeof n === "string" && !SURVEY_NOTES_DROP.some(r => r.test(n))) col.notes.push(cleanText(n, 400));
+  const latest = info.survey && typeof info.survey === "object" ? cleanText(info.survey.name) : "";
+  const where = [cleanText(info.country), cleanText(info.role), SEX_NAMES[sex]].filter(Boolean).join(" · ") + (latest ? ` · ${latest}` : "");
+  return { meta: { sex, label: `${where} · P${pct}` }, format: "design-values-json", percentile: pct, level: rf.level, hidden };
 }
 
 function fromMannequin(obj, col) {
@@ -801,7 +884,9 @@ function fromMannequin(obj, col) {
   } else if (core && typeof core === "object") {
     for (const [k, v] of Object.entries(core)) if (typeof v === "number") col.add(k, { value: v });
   } else throw new Error("The mannequin file has no values.");
-  const pn = obj.percentile ?? (pk ? Number(pk.slice(1)) : null);
+  // text from a file: only a number in the service's range is printed
+  const given = typeof obj.percentile === "number" ? obj.percentile : typeof obj.percentile === "string" ? numberFrom(obj.percentile) : NaN;
+  const pn = given >= MIN_PERCENTILE && given <= MAX_PERCENTILE ? given : pk ? Number(pk.slice(1)) : null;
   return { meta: { sex: obj.population?.sex }, format: "mannequin-json", percentile: pn };
 }
 
@@ -815,7 +900,7 @@ function fromProfileJSON(obj, col) {
 }
 
 function fromFlat(obj, col) {
-  const src = obj.measures && typeof obj.measures === "object" && !Array.isArray(obj.measures) ? obj.measures : obj;
+  const src = obj.measures && typeof obj.measures === "object" ? obj.measures : obj; // {key: ...} or [{key, value, unit}, ...] inside the object; sex and label stay beside it
   const list = Array.isArray(src) ? src.map(e => [e?.key ?? e?.measure_key, e]) : Object.entries(src);
   for (const [k, v] of list) {
     if (typeof k !== "string") continue;
@@ -836,7 +921,8 @@ function fromFlat(obj, col) {
  * a key suffix (stature_cm) or a "(cm)" in the key; lengths default to mm and mass to kg. Throws Error with a plain message for anything it will not
  * accept: nothing is evaluated, keys are sanitised, and values outside plausible ranges (stature 0.8 to 2.5 m, mass 10 to 400 kg) are rejected.
  * A populations file is read at `minReliability` (default "medium", like the percentile picker); a file whose values are all below it is refused with
- * an error that says so.
+ * an error that says so. The service's /v1/design-values answer for other percentiles than 5, 50, 95 (it holds only the asked ones) is read at one of them:
+ * `opts.percentile` (a number, default 50 or else the lowest in the file), and at the answer's own min_reliability unless `minReliability` is given.
  */
 export function parseImport(text, filename = "", opts) {
   const minReliability = opts?.minReliability ?? "medium";
@@ -854,7 +940,7 @@ export function parseImport(text, filename = "", opts) {
     try { obj = JSON.parse(t); } catch (e) { throw new Error(`The file is not valid JSON (${cleanText(e.message, 80)}).`); }
     if (!obj || typeof obj !== "object") throw new Error("The JSON must be an object or a list of measures.");
     if (!Array.isArray(obj) && obj.format === "digital-human-profile") info = fromProfileJSON(obj, col);
-    else if (!Array.isArray(obj) && Array.isArray(obj.measures) && obj.population && typeof obj.population === "object" && obj.measures.some(m => m && m.percentiles)) info = fromPopulation(obj, col, minReliability);
+    else if (!Array.isArray(obj) && Array.isArray(obj.measures) && obj.population && typeof obj.population === "object" && obj.measures.some(m => m && m.percentiles)) info = fromPopulation(obj, col, minReliability, opts);
     else if (!Array.isArray(obj) && ((obj.percentiles && typeof obj.percentiles === "object" && !Array.isArray(obj.percentiles)) || (obj.values && typeof obj.values === "object" && !Array.isArray(obj.values) && obj.units) || (obj.core && !obj.measures))) info = fromMannequin(obj, col);
     else info = fromFlat(obj, col);
   } else {
@@ -881,7 +967,7 @@ export function parseImport(text, filename = "", opts) {
   }
   notes.push(...col.notes.filter(n => !n.startsWith("Imported from")));
   return {
-    id: `import:${fname || "text"}`,
+    id: `import:${fname || "text"}:${contentHash(sex, measures)}`,
     label: cleanText(info.meta.label) || (fname ? `Imported · ${fname}` : "Imported profile"),
     sex,
     source: { kind: "import", format: info.format, filename: fname || null, ...(info.original ? { original: info.original } : {}) },
@@ -922,12 +1008,13 @@ export function editMeasure(profile, key, value, unit) {
     entry.orig = cur.orig ?? whole; // the whole entry (n, basis, note, ...) so that revertMeasure is an exact undo
   }
   const notes = profile.notes.includes(EDIT_NOTE) ? [...profile.notes] : [...profile.notes, EDIT_NOTE];
+  const measures = { ...profile.measures, [r.key]: entry };
   return {
     ...profile,
-    id: profile.id.endsWith("~edited") ? profile.id : profile.id + "~edited",
+    id: `${profile.id.replace(EDITED_SUFFIX, "")}~edited:${contentHash(profile.sex, measures)}`,
     label: profile.label.endsWith(" (edited)") ? profile.label : profile.label + " (edited)",
     source: { ...profile.source },
-    measures: { ...profile.measures, [r.key]: entry },
+    measures,
     notes,
   };
 }
@@ -943,8 +1030,10 @@ export function revertMeasure(profile, key) {
   else if (cur.was) measures[r.key] = { value: cur.was.value, unit: cur.unit, status: cur.was.status, ...(cur.reliability ? { reliability: cur.reliability } : {}) }; // an older file without `orig`
   else delete measures[r.key];
   const out = { ...profile, source: { ...profile.source }, measures, notes: [...profile.notes] };
-  if (!Object.values(measures).some(m => m.status === "edited")) { // nothing edited any more: drop the markers editMeasure added
-    out.id = out.id.replace(/~edited$/, ""); out.label = out.label.replace(/ \(edited\)$/, ""); out.notes = out.notes.filter(n => n !== EDIT_NOTE);
+  // the values changed, so the id does: still edited -> the hash of the new values, nothing edited any more -> drop the markers editMeasure added
+  out.id = `${profile.id.replace(EDITED_SUFFIX, "")}~edited:${contentHash(out.sex, measures)}`;
+  if (!Object.values(measures).some(m => m.status === "edited")) {
+    out.id = profile.id.replace(EDITED_SUFFIX, ""); out.label = out.label.replace(/ \(edited\)$/, ""); out.notes = out.notes.filter(n => n !== EDIT_NOTE);
   }
   return out;
 }
@@ -957,7 +1046,7 @@ export function manualProfile({ sex, stature, mass, statureUnit, massUnit } = {}
   const measures = { stature: { value: st.value, unit: "mm", status: "reported", note: "entered by hand" } };
   if (mass != null) { const m = toDataUnit("mass", mass, massUnit); measures.mass = { value: m.value, unit: "kg", status: "reported", note: "entered by hand" }; }
   return {
-    id: "manual", label: `Manual · ${SEX_NAMES[sx]} · ${Math.round(st.value)} mm`, sex: sx, source: { kind: "manual" }, measures,
+    id: `manual:${sx}:${st.value}${mass != null ? ":" + measures.mass.value : ""}`, label: `Manual · ${SEX_NAMES[sx]} · ${Math.round(st.value)} mm`, sex: sx, source: { kind: "manual" }, measures,
     notes: ["Only the values you entered are measured; every other dimension is estimated from stature" + (mass != null ? " and mass" : "") + " by the model."],
   };
 }

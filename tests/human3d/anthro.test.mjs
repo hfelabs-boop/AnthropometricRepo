@@ -616,10 +616,12 @@ test("editMeasure returns a new profile and never touches the old one", () => {
   assert.deepEqual(e1.measures.stature.was, { value: base.measures.stature.value, status: base.measures.stature.status });
   assert.equal(e1.measures.stature.reliability, base.measures.stature.reliability);
   assert.equal(e1.measures.mass, base.measures.mass, "untouched entries are shared, they are never mutated");
-  assert.ok(e1.id.endsWith("~edited") && e1.label.endsWith(" (edited)") && e1.notes.length === base.notes.length + 1);
+  assert.match(e1.id, /~edited:[0-9a-f]+$/); assert.ok(e1.label.endsWith(" (edited)") && e1.notes.length === base.notes.length + 1);
   const e2 = A.editMeasure(e1, "stature", 1850);
   assert.deepEqual(e2.measures.stature.was, e1.measures.stature.was, "the value before the first edit is kept");
-  assert.deepEqual([e2.id, e2.label, e2.notes.length], [e1.id, e1.label, e1.notes.length], "the markers are added once");
+  assert.deepEqual([e2.label, e2.notes.length], [e1.label, e1.notes.length], "the markers are added once");
+  assert.equal(e2.id.replace(/~edited:[0-9a-f]+$/, ""), base.id, "one ~edited suffix on the original id"); assert.notEqual(e2.id, e1.id, "another value, another id");
+  assert.equal(A.editMeasure(base, "stature", 1850).id, e2.id, "the same values give the same id");
   assert.equal(e1.measures.stature.value, 1800);
   // units: cm, m, in, lb convert; a mass edited without a unit stays in kg; wrong class and nonsense throw
   assert.equal(A.editMeasure(base, "stature", 182, "cm").measures.stature.value, 1820);
@@ -768,7 +770,7 @@ test("revertMeasure is an exact undo: n, basis and note come back, and with no e
     const e = A.editMeasure(A.editMeasure(prof, "stature", 1800), "mass", 90);
     const one = A.revertMeasure(e, "stature");
     assert.deepEqual(one.measures.stature, prof.measures.stature, `P${percentile}`);
-    assert.ok(one.id.endsWith("~edited") && one.label.endsWith("(edited)") && one.notes.length === prof.notes.length + 1, "one edit is left");
+    assert.ok(/~edited:[0-9a-f]+$/.test(one.id) && one.id !== e.id && one.label.endsWith("(edited)") && one.notes.length === prof.notes.length + 1, "one edit is left");
     const all = A.revertMeasure(one, "mass");
     assert.deepEqual(all, prof, "everything is as before the first edit");
   }
@@ -1031,4 +1033,111 @@ test("proportional scaling: a documented rule for every mm measure (skinfolds in
   assert.equal(p.measures["other:triceps_skinfold"].basis, "scaled");
   assert.ok(!A.SKELETON_MEASURES.some(k => /skinfold/.test(k)));
   assert.equal(A.percentileProfile(file, null).measures.stature.value, 1750);
+});
+
+// ---------------------------------------------------------------------------------------------------------------- review round 4 regressions
+const dvEntry = (key, unit, pcts, mean, extra = {}) => ({ key, name: key, category: "x", harmonized: true, unit, n: 100, mean, sd: mean / 20, percentiles: pcts,
+  percentile_basis: Object.fromEntries(Object.keys(pcts).map(k => [k, "pooled"])), reliability: "high", ...extra });
+const dvPop = { country: "X", country_id: "x", role: "R", role_id: "r", sex: "M", sex_name: "men", survey: null, surveys_combined: [], years: null };
+
+test("a /v1/design-values answer for one percentile is read at that percentile (stature is not the mean, no measure is dropped)", () => {
+  const resp = { population: dvPop, percentiles: ["p50"], min_reliability: "medium", notes: ["Population statistics for design studies are boundary cases.", "service note"],
+    measures: [dvEntry("stature", "mm", { p50: 1749.3 }, 1750.3), dvEntry("mass", "kg", { p50: 76.34 }, 77.41), dvEntry("sitting_height", "mm", { p50: 910 }, 912)] };
+  const p = A.parseImport(JSON.stringify(resp));
+  assert.deepEqual([p.measures.stature.value, p.measures.mass.value, p.measures.sitting_height.value], [1749.3, 76.34, 910]);
+  assert.equal(p.measures.stature.status, "reported"); assert.equal(p.source.format, "design-values-json"); assert.match(p.label, /P50$/);
+  assert.ok(!p.notes.some(n => /no percentiles|mean/.test(n)), p.notes.join("|"));
+  assert.ok(p.notes.includes("service note") && !p.notes.some(n => /^Population statistics for design studies/.test(n)));
+  // percentiles=10,90: the first is used, the label and the note say which, opts.percentile picks the other
+  const two = { ...resp, percentiles: ["p10", "p90"], measures: [dvEntry("stature", "mm", { p10: 1680, p90: 1820 }, 1750), dvEntry("mass", "kg", { p10: 66, p90: 90 }, 77)] };
+  const a = A.parseImport(JSON.stringify(two)), b = A.parseImport(JSON.stringify(two), "", { percentile: 90 });
+  assert.equal(a.measures.stature.value, 1680); assert.match(a.label, /P10$/); assert.ok(a.notes.some(n => /percentile 10 of that dimension/.test(n)) && a.notes.some(n => /P10 was used/.test(n)));
+  assert.equal(b.measures.stature.value, 1820); assert.match(b.label, /P90$/);
+  assert.throws(() => A.parseImport(JSON.stringify(two), "", { percentile: 75 }), /no percentile 75/);
+  // the answer's own reliability level is kept (a low-reliability measure the user asked the service for is not dropped); an explicit level wins
+  const lo = { ...resp, min_reliability: "low", measures: [...resp.measures, dvEntry("hand_length", "mm", { p50: 190 }, 190, { reliability: "low" })] };
+  assert.equal(A.parseImport(JSON.stringify(lo)).measures.hand_length.value, 190);
+  assert.ok(!A.parseImport(JSON.stringify(lo), "", { minReliability: "medium" }).measures.hand_length);
+  // a stature with a mean only still gets a height; a measure without the percentile is left out and counted
+  const mean = { ...resp, measures: [dvEntry("stature", "mm", { p50: null }, 1750), dvEntry("mass", "kg", { p50: null }, 77), dvEntry("hand_length", "mm", { p50: 190 }, 190)] };
+  const m = A.parseImport(JSON.stringify(mean));
+  assert.equal(m.measures.stature.value, 1750); assert.equal(m.measures.stature.status, "estimated"); assert.ok(!m.measures.mass);
+  assert.ok(m.notes.some(n => /1 measure\(s\) have no value at P50/.test(n)));
+});
+
+test("a real design_values() answer for percentiles=50 (and 10,90) imports like percentileProfile at that percentile", { skip: PY_SKIP }, () => {
+  const run = pcts => {
+    const r = spawnSync("python3", ["-c", `import json,sys,os
+sys.path.insert(0, os.getcwd())
+from anthro_service import core
+print(json.dumps(core.Repo().design_values('United States','Army','M',percentiles=${JSON.stringify(pcts)},measures=['stature','mass','sitting_height','hand_length'])))`], { cwd: ROOT, encoding: "utf8", maxBuffer: 1 << 26 });
+    assert.equal(r.status, 0, r.stderr); return r.stdout;
+  };
+  const ref = A.percentileProfile(readJSON("api/v1/populations/united-states/army/M.json"), { percentile: 50 });
+  const p = A.parseImport(run([50]));
+  for (const k of ["stature", "mass", "sitting_height", "hand_length"]) assert.equal(p.measures[k]?.value, ref.measures[k].value, k);
+  const q = A.parseImport(run([10, 90]));
+  assert.match(q.label, /P10$/); assert.ok(q.measures.stature.value < ref.measures.stature.value);
+});
+
+test("{\"measures\": [{key, value, unit}, ...]} is read like the bare list, with sex and label beside it", () => {
+  const p = A.parseImport('{"sex":"F","label":"Anna","measures":[{"key":"stature","value":165,"unit":"cm"},{"key":"mass","value":60}]}');
+  assert.deepEqual([p.measures.stature.value, p.measures.mass.value, p.sex, p.label], [1650, 60, "F", "Anna"]);
+  assert.equal(A.parseImport('[{"key":"stature","value":1650}]').measures.stature.value, 1650);
+  assert.throws(() => A.parseImport('{"measures":[]}'), /No measures/);
+});
+
+test("CSV: a value header with its unit ('Value (mm)', 'Value [cm]') is recognised and its unit is the default of the rows it fits", () => {
+  const mm = A.parseImport("Measure,Value (mm)\nstature,1750\nmass,75\nhand_length,190");
+  assert.deepEqual([mm.measures.stature.value, mm.measures.mass.value, mm.measures.mass.unit, mm.measures.hand_length.value], [1750, 75, "kg", 190]);
+  const cm = A.parseImport("key;Value [cm]\nstature;175,5\nmass;75");
+  assert.equal(cm.measures.stature.value, 1755); assert.equal(cm.measures.mass.value, 75);
+  const both = A.parseImport("key,Value (cm),unit\nstature,1750,mm\nhand_length,19.5,\n");
+  assert.deepEqual([both.measures.stature.value, both.measures.hand_length.value], [1750, 195], "the unit column wins over the header, an empty one falls back to it");
+  assert.equal(A.parseImport("key,value (kg)\nstature,1750 mm\nmass,75 lb").measures.mass.value, 34.019, "a unit in the cell wins");
+  assert.equal(A.parseImport("key,Value (furlong)\nstature,1750").measures.stature.value, 1750, "an unknown bracket is only dropped from the name");
+});
+
+test("proportional scaling of a population whose stature median is not positive (or whose line overflows) fails cleanly, no NaN or null", () => {
+  const pop = (st, extra = []) => ({ population: { country: "X", country_id: "x", role: "r", role_id: "r", sex: "M" }, measures: [
+    { key: "stature", unit: "mm", reliability: "high", percentiles: st }, { key: "hand_length", unit: "mm", reliability: "high", percentiles: { p5: 170, p50: 190, p95: 210 } }, ...extra] });
+  for (const st of [{ p5: 0, p50: 0, p95: 0 }, { p5: -5, p50: -1, p95: 3 }]) assert.throws(() => A.percentileProfile(pop(st), { scaling: "proportional", percentile: 90 }), RangeError);
+  assert.throws(() => A.percentileProfile(pop({ p5: -1.7e308, p50: 1, p95: 1.7e308 }), { scaling: "proportional", percentile: 99 }), RangeError);
+  // percentile scaling: a measure whose interpolation overflows is left out and counted, the others stay finite
+  const big = A.percentileProfile(pop({ p5: 1600, p50: 1750, p95: 1900 }, [{ key: "span", unit: "mm", reliability: "high", percentiles: { p5: -1.7e308, p50: 1, p95: 1.7e308 } }]), { percentile: 99 });
+  assert.ok(!big.measures.span && Object.values(big.measures).every(m => Number.isFinite(m.value)));
+  assert.ok(big.notes.some(n => /1 measure\(s\) left out because .* not a finite number/.test(n)) && !big.notes.some(n => /NaN|null/.test(n)));
+});
+
+test("profile ids say what the body is made of: manual, imported and edited profiles with other values get other ids", () => {
+  const ids = [A.manualProfile({ stature: 1600 }), A.manualProfile({ stature: 1900 }), A.manualProfile({ stature: 1900, mass: 80 }), A.manualProfile({ sex: "F", stature: 1900 })].map(p => p.id);
+  assert.equal(new Set(ids).size, 4, ids.join(" "));
+  assert.equal(A.manualProfile({ stature: 1.9, statureUnit: "m" }).id, A.manualProfile({ stature: 1900 }).id, "same values, same id");
+  const i1 = A.parseImport('{"stature":1600}', "a.json"), i2 = A.parseImport('{"stature":1900}', "a.json");
+  assert.notEqual(i1.id, i2.id); assert.match(i1.id, /^import:a\.json:[0-9a-f]+$/);
+  assert.equal(A.parseImport('{"stature":1600}', "a.json").id, i1.id); assert.notEqual(A.parseImport('{"stature":1600, "sex":"F"}', "a.json").id, i1.id);
+  const base = A.manualProfile({ stature: 1750 });
+  const e18 = A.editMeasure(base, "stature", 1800), e19 = A.editMeasure(base, "stature", 1900), e19b = A.editMeasure(e18, "stature", 1900);
+  assert.notEqual(e18.id, e19.id); assert.equal(e19.id, e19b.id, "the id follows the values, not the history");
+  assert.notEqual(A.editMeasure(e18, "mass", 80).id, e18.id);
+  // revert: the remaining edits' id, then the original id
+  const two = A.editMeasure(e18, "mass", 80), one = A.revertMeasure(two, "mass");
+  assert.equal(one.id, e18.id); assert.equal(A.revertMeasure(one, "stature").id, base.id);
+  // an edited id written by an older version ("<id>~edited") is not doubled
+  assert.match(A.editMeasure({ ...base, id: "manual~edited" }, "stature", 1800).id, /^manual~edited:[0-9a-f]+$/);
+});
+
+test("a mannequin file's percentile is printed only when it is a number in the service's range", () => {
+  const note = pct => A.parseImport(JSON.stringify({ percentile: pct, values: { stature: 1750 }, units: { stature: "mm" } })).notes.find(n => /^Taken from/.test(n));
+  assert.match(note(95), /percentile 95 set/); assert.match(note("90"), /percentile 90 set/);
+  for (const bad of [{ a: 1 }, "abc", [5], 0, 150, null, true]) assert.match(note(bad), /percentile 50 set/, JSON.stringify(bad));
+});
+
+test("clearCache(fetchJSON) forgets a custom fetcher's files; labelOf with a plain-object catalog indexes it once", async () => {
+  let calls = 0;
+  const f = async () => { calls++; return { populations: [] }; };
+  await A.loadIndex("x/v1", f); await A.loadIndex("x/v1", f); assert.equal(calls, 1);
+  A.clearCache(f); await A.loadIndex("x/v1", f); assert.equal(calls, 2);
+  const cat = { stature: { name: "Stature (standing)" } };
+  assert.equal(A.labelOf("stature", cat), "Stature (standing)"); assert.equal(A.labelOf("stature", cat), "Stature (standing)");
 });

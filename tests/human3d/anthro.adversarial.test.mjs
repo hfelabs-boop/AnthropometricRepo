@@ -1,6 +1,6 @@
 // Adversarial tests of site/js/human/anthro.js, written by a reviewer who did not write the module.
 //   node --import ./tests/human3d/register.mjs --test tests/human3d/anthro.adversarial.test.mjs
-// Tests marked `todo` (OPEN) document defects found in review: they assert the CORRECT behaviour, are reported but do not fail the run, and
+// Tests marked `todo` (OPEN, round 3) document defects found in review: they assert the CORRECT behaviour, are reported but do not fail the run, and
 // should be switched to plain tests when the defect is fixed.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -13,7 +13,7 @@ import * as A from "../../site/js/human/anthro.js";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const PUBLIC = path.join(ROOT, "public");
 const API = "api/v1";
-// round 1 defects were fixed by the author; their tests are plain regression tests now. OPEN() marks defects still open in round 2.
+// round 1 defects were fixed by the author; their tests are plain regression tests now. OPEN() marks defects still open in round 3.
 const OPEN = reason => ({ todo: reason });
 const fsFetch = async url => {
   const f = path.join(PUBLIC, url);
@@ -461,7 +461,7 @@ test("editMeasure / revertMeasure: immutability (deep), aliasing of shared sub-o
   assert.deepEqual(base, frozen);
   assert.equal(e1.measures.stature.value, 1700); assert.deepEqual(e1.measures.stature.was, { value: 1650, status: "reported" });
   assert.equal(e3.measures.stature.value, 1800); assert.deepEqual(e3.measures.stature.was, { value: 1650, status: "reported" }, "was keeps the FIRST value");
-  assert.equal(e3.id, "manual~edited"); assert.equal(e3.label.match(/\(edited\)/g).length, 1);
+  assert.match(e3.id, /^manual:F:1650:60~edited:[0-9a-f]+$/, "the id carries a content hash so caches keyed by id never mix two different edits"); assert.ok(!/~edited.*~edited/.test(e3.id)); assert.equal(e3.label.match(/\(edited\)/g).length, 1);
   assert.equal(e3.notes.filter(n => /edited by hand/.test(n)).length, 1);
   assert.notEqual(e1.notes, base.notes); assert.notEqual(e1.measures, base.measures);
   const r = A.revertMeasure(e3, "stature");
@@ -791,8 +791,8 @@ test("round 2: AS241 constants, roundValue against Python on 100k random values,
   vals.forEach((v, i) => [["mm", 0], ["kg", 1], ["ratio", 2]].forEach(([u, j]) => assert.equal(A.roundValue(v, u), want[i][j], `${u} ${v}`)));
 });
 
-// Open defects (round 2): assert the CORRECT behaviour, reported as todo until fixed
-test("OPEN: populations CSV import keeps the 'estimated' status (the CSV has estimated_percentiles / percentile_basis columns, the JSON import uses them)", { todo: "CSV rows get status 'reported' although p50 is estimated: 1041 measures in 120 files" }, () => {
+// Round-2 defects, fixed by the author: kept as regression tests
+test("round 2 (fixed): populations CSV import keeps the 'estimated' status (the CSV has estimated_percentiles / percentile_basis columns, the JSON import uses them)", {}, () => {
   const f = path.join(PUBLIC, API, "populations", "united-states", "army", "M");
   const c = A.parseImport(fs.readFileSync(f + ".csv", "utf8")), j = A.parseImport(fs.readFileSync(f + ".json", "utf8"));
   const est = Object.keys(j.measures).filter(k => j.measures[k].status === "estimated");
@@ -800,7 +800,7 @@ test("OPEN: populations CSV import keeps the 'estimated' status (the CSV has est
   for (const k of est) assert.equal(c.measures[k].status, "estimated", k);
 });
 
-test("OPEN: populations CSV import applies minReliability like the JSON import (default medium) and says what it hid", { todo: "CSV import returns low-reliability rows with no filter and no note" }, () => {
+test("round 2 (fixed): populations CSV import applies minReliability like the JSON import (default medium) and says what it hid", {}, () => {
   const rel = specs.filter(s => !s.latest && fs.existsSync(path.join(PUBLIC, API, "populations", s.country_id, s.role_id, s.sex + ".csv"))).find(s => s.raw.measures.some(m => m.reliability === "low" && finite3(m)) && s.raw.measures.some(m => m.key === "stature" && m.reliability !== "low" && finite3(m)));
   assert.ok(rel);
   const base = path.join(PUBLIC, API, "populations", rel.country_id, rel.role_id, rel.sex);
@@ -808,13 +808,13 @@ test("OPEN: populations CSV import applies minReliability like the JSON import (
   assert.deepEqual(Object.keys(c.measures).sort(), Object.keys(j.measures).sort());
 });
 
-test("OPEN: parseImport of a populations JSON with a non-array `notes` throws a plain Error (or ignores it), never a TypeError, and does not split a string into characters", { todo: "notes: {} -> TypeError 'object is not iterable'; notes: 'hello' -> five one-letter notes (percentileProfile, `for (const n of pop.notes ?? [])`)" }, () => {
+test("round 2 (fixed): parseImport of a populations JSON with a non-array `notes` throws a plain Error (or ignores it), never a TypeError, and does not split a string into characters", {}, () => {
   const mk = notes => JSON.stringify({ population: { country: "X", country_id: "x", role: "R", role_id: "r", sex: "M" }, measures: [{ key: "stature", unit: "mm", reliability: "high", percentiles: { p5: 1600, p50: 1750, p95: 1900 } }], notes });
   let p; try { p = A.parseImport(mk({ a: 1 })); } catch (e) { assert.equal(e.constructor, Error, e.message); }
   p = A.parseImport(mk("hello")); assert.ok(!p.notes.includes("h"), "string notes were iterated per character");
 });
 
-test("OPEN: a key with a unit suffix is resolved the same way whether or not measures.json was loaded earlier (parseImport has hidden global state)", { todo: "ear_length_cm is kept as a junk key in mm without the catalog; visceral_fat_level / body_fat_percent / handgrip_strength / seat_angle get unit mm" }, () => {
+test("round 2 (fixed): a key with a unit suffix is resolved the same way whether or not measures.json was loaded earlier (parseImport has hidden global state)", {}, () => {
   const txt = JSON.stringify({ stature_cm: 175, ear_length_cm: 6.2, "other:visceral_fat_level": 12 });
   A.setMeasureCatalog([]);
   const before = A.parseImport(txt);
@@ -826,19 +826,144 @@ test("OPEN: a key with a unit suffix is resolved the same way whether or not mea
   } finally { A.setMeasureCatalog([]); }
 });
 
-test("OPEN: parseImport tolerates `null` options and non-string label / sex values", { todo: "parseImport(t, '', null) -> TypeError; label {} -> '[object Object]'" }, () => {
+test("round 2 (fixed): parseImport tolerates `null` options and non-string label / sex values", {}, () => {
   assert.doesNotThrow(() => A.parseImport('{"stature":1750}', "", null));
   assert.notEqual(A.parseImport('{"stature":1750,"label":{"a":1}}').label, "[object Object]");
 });
 
-test("OPEN: listSubjects can reach every person (offset / paging, or an ordering that is not 'shortest first' with a hard cap of 5000)", { skip: DB_SKIP, todo: "ANSUR II men: 4082 people, default 500 -> the tallest returned is 1676 mm of 1993 mm; there is no offset" }, async () => {
+test("round 2 (fixed): listSubjects can reach every person (offset / paging, or an ordering that is not 'shortest first' with a hard cap of 5000)", { skip: DB_SKIP }, async () => {
   const q = await openDb();
   const rows = await A.listSubjects(q, { dataset: "ansur_ii_2012", sex: "M" });
   const tallest = (await q("SELECT MAX(stature) FROM subjects WHERE dataset = 'ansur_ii_2012' AND sex = 'M'")).rows[0][0];
   assert.ok(rows.some(r => r.stature === tallest) || rows.length >= 4082);
 });
 
-test("OPEN: a lengths-in-metres/centimetres file is not accepted as millimetres for secondary measures (stature is range-checked, nothing else is)", { todo: "hand_length 19.2 (cm, no unit) is stored as 19.2 mm; 'hand length (ft)' 0.6 -> 0.6 mm" }, () => {
+test("round 2 (fixed): a lengths-in-metres/centimetres file is not accepted as millimetres for secondary measures (stature is range-checked, nothing else is)", {}, () => {
   const p = A.parseImport(JSON.stringify({ stature: "175 cm", hand_length: 19.2, waist_circumference: 0.85 }));
   assert.ok(!p.measures.hand_length || p.measures.hand_length.value >= 20, "19.2 mm hand length accepted");
+});
+
+
+// ---------------------------------------------------------------------------------------------------------------- round 3
+test("round 3: quantile == core.quantile on 3000 synthetic P5/P50/P95 triples (skew boundary +-1e-12, negative P5, flat, p5 = p50) x 22 percentiles", { skip: PY_SKIP }, () => {
+  let s = 12345; const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+  const ratio = Math.abs(A.normalQuantile(0.001)) / A.normalQuantile(0.95), trip = [];
+  for (let i = 0; i < 3000; i++) {
+    const p50 = 10 ** (rnd() * 6 - 3), kind = i % 5;
+    let p5, p95;
+    if (kind === 0) { p5 = p50 * (1 - 1 / ratio) * (1 + (rnd() - .5) * 1e-12); p95 = p50 * (1 + rnd()); }
+    else if (kind === 1) { p5 = p50 * rnd(); p95 = p50 * (1 + rnd() * 3); }
+    else if (kind === 2) { p5 = p50 * (1 - rnd() * 0.3); p95 = p50 * (1 + rnd() * 0.3); }
+    else if (kind === 3) { p5 = -p50 * rnd(); p95 = p50 * (1 + rnd()); }
+    else { p5 = p50; p95 = p50; }
+    trip.push([p5, p50, p95]);
+  }
+  const ps = [0.1, 0.5, 1, 2.5, 4.999, 5, 5.001, 10, 25, 49.999, 50, 50.001, 75, 90, 95, 97.5, 99, 99.9, 0.1000001, 33.333333, 0.2, 0.15];
+  const r = spawnSync("python3", ["-c", "import json,sys,os; sys.path.insert(0, os.getcwd()); from anthro_service.core import quantile; d=json.load(sys.stdin); print(json.dumps([[quantile(*t,p) for p in d['ps']] for t in d['trip']]))"],
+    { cwd: ROOT, input: JSON.stringify({ trip, ps }), encoding: "utf8", maxBuffer: 1 << 28 });
+  const want = JSON.parse(r.stdout);
+  trip.forEach((t, i) => ps.forEach((p, j) => assert.ok(rel(A.quantile(...t, p), want[i][j]) < 1e-12, `${t} p${p}`)));
+});
+
+test("round 3: unit-suffix / alias / bare-name keys resolve identically with and without the measure catalog (all 571 keys x 9 spellings x 3 units); only unit strictness differs", async () => {
+  const A0 = await import("../../site/js/human/anthro.js?round3-nocat"), A1 = await import("../../site/js/human/anthro.js?round3-cat");
+  const cat = JSON.parse(fs.readFileSync(path.join(PUBLIC, API, "measures.json"), "utf8"));
+  A1.setMeasureCatalog(cat);
+  const run = (M, text) => { try { const p = M.parseImport(text); return JSON.stringify([p.measures, p.notes.slice(1)]); } catch (e) { return "ERR " + e.message; } };
+  for (const m of cat) {
+    const bare = m.key.replace(/^other:/, ""), val = (m.unit || "mm") === "mm" ? 123.4 : 12.3;
+    for (const key of [m.key, bare, bare + "_cm", m.key + "_cm", bare + "_in", bare + "_kg", bare.toUpperCase(), bare + " (cm)", "other:" + bare]) {
+      for (const unit of [undefined, "cm", "kg"]) {
+        const text = JSON.stringify({ stature: 1750, [key]: unit ? { value: val, unit } : val });
+        const a = run(A0, text), b = run(A1, text);
+        if (a !== b && !/^ERR .* is measured in/.test(b)) assert.fail(`${key} ${unit}\n${a}\n${b}`);
+      }
+    }
+  }
+});
+
+test("round 3: structure-aware mutation fuzz of every shipped JSON/CSV file: only plain Error, finite numeric values, valid statuses, safe prototypes, JSON/CSV round trips keep every value, no slow input", () => {
+  let s = 987654321; const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 2 ** 32;
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  const weird = () => pick([null, true, false, 0, -1, 1e308, -1e308, "", "x", "1e999", " ", [], {}, [1], { value: 1 }, { value: "1,5 m" }, { value: {} }, "__proto__", 2 ** 53, 1.5, "175 cm", [[]], { unit: 5 }, { key: "stature" }, "\u0000", "a".repeat(500)]);
+  const mutate = (o, depth = 0) => {
+    if (!o || typeof o !== "object") return o;
+    const ks = Object.keys(o);
+    if (!ks.length) return o;
+    for (let i = 0, n = 1 + Math.floor(rnd() * 3); i < n; i++) {
+      const k = pick(ks), r = rnd();
+      if (r < 0.35) o[k] = weird();
+      else if (r < 0.45) delete o[k];
+      else if (r < 0.55) Object.defineProperty(o, pick(["__proto__", "constructor", "prototype", "tostring", "x:y", "other:", "Stature", "STATURE_CM"]), { value: weird(), enumerable: true, configurable: true, writable: true });
+      else if (depth < 6) o[k] = mutate(o[k], depth + 1);
+    }
+    return o;
+  };
+  const files = [];
+  const walk = d => { for (const f of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, f.name); if (f.isDirectory()) walk(p); else files.push(p); } };
+  walk(path.join(PUBLIC, API));
+  const js = files.filter(f => f.endsWith(".json") && !/(^|\/)(measures|index)\.json$/.test(f) && fs.statSync(f).size < 200000), csv = files.filter(f => f.endsWith(".csv")).slice(0, 30);
+  let ok = 0, rej = 0;
+  for (let i = 0; i < 1500; i++) {
+    let text;
+    if (i % 6 === 5) {
+      let t = fs.readFileSync(pick(csv), "utf8");
+      for (let j = 0, n = 1 + Math.floor(rnd() * 4); j < n; j++) { const at = Math.floor(rnd() * t.length), op = rnd(); t = op < .3 ? t.slice(0, at) + t.slice(at + Math.floor(rnd() * 20)) : op < .6 ? t.slice(0, at) + pick(['"', ",", ";", "\t", "\n", "\r", "e", "-", ".", "NaN", "'", "=", " cm"]) + t.slice(at) : t.slice(0, at); }
+      text = t;
+    } else text = JSON.stringify(mutate(JSON.parse(fs.readFileSync(pick(js), "utf8"))));
+    const t0 = performance.now();
+    let p;
+    try { p = A.parseImport(text, pick(["", "a.json", "b.csv"]), { minReliability: pick(["high", "medium", "low", "all"]) }); } catch (e) { assert.equal(e.constructor, Error, `${e.constructor.name}: ${e.message}\n${text.slice(0, 200)}`); rej++; continue; }
+    ok++;
+    assert.equal(Object.getPrototypeOf(p.measures), Object.prototype);
+    for (const [k, m] of Object.entries(p.measures)) { assert.ok(Number.isFinite(m.value), k); assert.ok(A.STATUSES.includes(m.status), k); assert.equal(typeof m.unit, "string"); }
+    assert.ok(p.measures.stature && ["M", "F", "both"].includes(p.sex) && p.notes.every(n => typeof n === "string"));
+    const j = A.parseImport(A.profileToJSON(p)), c = A.parseImport(A.profileToCSV(p));
+    assert.deepEqual(Object.keys(j.measures), Object.keys(p.measures)); assert.deepEqual(Object.keys(c.measures), Object.keys(p.measures));
+    for (const k of Object.keys(p.measures)) { assert.equal(j.measures[k].value, p.measures[k].value, k); assert.equal(c.measures[k].value, p.measures[k].value, k); }
+    assert.ok(performance.now() - t0 < 1000, "slow input");
+  }
+  assert.ok(ok > 500 && rej > 500, `${ok} accepted, ${rej} rejected`);
+  assert.deepEqual(Object.keys(Object.prototype), []);
+});
+
+// ------------- open defects (round 3): assert the CORRECT behaviour, reported as todo until fixed
+const dvEntry = (key, unit, pcts, mean) => ({ key, name: key, category: "x", harmonized: true, unit, n: 100, mean, sd: mean / 20, percentiles: pcts, percentile_basis: Object.fromEntries(Object.keys(pcts).map(k => [k, "pooled"])), reliability: "high" });
+const dvPop = { country: "X", country_id: "x", role: "R", role_id: "r", sex: "M", sex_name: "men", survey: null, surveys_combined: [], years: null };
+
+test("OPEN: a live /v1/design-values response asked for one percentile (percentiles=50) imports that percentile for every measure instead of falling back to the mean and dropping the rest", OPEN("stature becomes the MEAN (1750.3 instead of p50 1749.3), mass and sitting_height are dropped with the note '2 measure(s) have a mean but no percentiles'; with percentiles=10,90 the label still says 'Percentile 50'"), () => {
+  const resp = { population: dvPop, percentiles: ["p50"], min_reliability: "medium", measures: [dvEntry("stature", "mm", { p50: 1749.3 }, 1750.3), dvEntry("mass", "kg", { p50: 76.34 }, 77.41), dvEntry("sitting_height", "mm", { p50: 910 }, 912)], notes: [] };
+  const p = A.parseImport(JSON.stringify(resp));
+  assert.equal(p.measures.stature.value, 1749.3);
+  assert.equal(p.measures.mass?.value, 76.34);
+  assert.equal(p.measures.sitting_height?.value, 910);
+});
+
+test("OPEN: {\"measures\": [ {key, value, unit}, ... ]} (the list form wrapped in an object) is read like the top-level list", OPEN("throws 'measures: not a number' because fromFlat iterates the wrapper object's own keys"), () => {
+  const p = A.parseImport('{"sex":"F","measures":[{"key":"stature","value":165,"unit":"cm"},{"key":"mass","value":60}]}');
+  assert.equal(p.measures.stature.value, 1650); assert.equal(p.sex, "F");
+});
+
+test("OPEN: a CSV whose value header carries the unit ('Value (mm)', 'Value [cm]') is recognised", OPEN("'CSV not recognised' because the header 'value_(mm)' is not 'value'"), () => {
+  assert.equal(A.parseImport("Measure,Value (mm)\nstature,1750\nmass,75").measures.stature.value, 1750);
+});
+
+test("OPEN: proportional scaling of a population whose stature median is not positive does not produce NaN notes or null values", OPEN("stature p50 = 0: factor NaN in the note, every scaled value is null ('median x NaN')"), () => {
+  const pop = { population: { country: "X", country_id: "x", role: "r", role_id: "r", sex: "M" }, measures: [
+    { key: "stature", unit: "mm", reliability: "high", percentiles: { p5: 0, p50: 0, p95: 0 } }, { key: "hand_length", unit: "mm", reliability: "high", percentiles: { p5: 170, p50: 190, p95: 210 } }] };
+  let p; try { p = A.percentileProfile(pop, { scaling: "proportional", percentile: 90 }); } catch (e) { assert.equal(e.constructor.name === "Error" || e instanceof RangeError, true); return; }
+  for (const m of Object.values(p.measures)) assert.ok(Number.isFinite(m.value));
+  assert.ok(!p.notes.some(n => /NaN/.test(n)));
+});
+
+test("OPEN: profile ids are unique per content for manual / imported / edited profiles (a cache keyed on the id, as percentileProfile's comment promises, cannot return another body)", OPEN("manualProfile -> 'manual' for any stature, parseImport -> 'import:text' for any pasted text, editMeasure -> '<id>~edited' for any value"), () => {
+  assert.notEqual(A.manualProfile({ stature: 1600 }).id, A.manualProfile({ stature: 1900 }).id);
+  assert.notEqual(A.parseImport('{"stature":1600}').id, A.parseImport('{"stature":1900}').id);
+  const base = A.manualProfile({ stature: 1750 });
+  assert.notEqual(A.editMeasure(base, "stature", 1800).id, A.editMeasure(base, "stature", 1900).id);
+});
+
+test("OPEN: a mannequin file with a non-numeric `percentile` does not print it into the note", OPEN("percentile {} -> 'percentile [object Object] set', 'abc' -> 'percentile abc set'"), () => {
+  const p = A.parseImport('{"percentile":{"a":1},"values":{"stature":1750},"units":{"stature":"mm"}}');
+  assert.ok(!p.notes.some(n => /\[object Object\]/.test(n)));
 });
