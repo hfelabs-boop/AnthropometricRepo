@@ -8,6 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231c5cab'/%3E%3Cpath d='M10 7v18M10 7h5M10 13h3M10 19h5M10 25h3M20 7v18' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="styles.css">
 <script>try{const t=localStorage.getItem('theme');if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+<script type="importmap">{"imports":{"three":"./vendor/three/three.module.min.js","three/addons/":"./vendor/three/addons/"}}</script>
 </head>
 <body>
 <header class="topbar">
@@ -17,6 +18,7 @@
       <a class="tab" href="#/catalog" data-view="catalog">Survey catalog</a>
       <a class="tab" href="#/explore" data-view="explore">Explore data</a>
       <a class="tab" href="#/compare" data-view="compare">By country &amp; role</a>
+      <a class="tab" href="#/human" data-view="human">Digital human</a>
       <a class="tab" href="#/sql" data-view="sql">SQL console</a>
       <a class="tab" href="#/measures" data-view="measures">Measures</a>
       <a class="tab" href="#/tables" data-view="tables">Tables</a>
@@ -154,6 +156,9 @@
 
   <!-- ================= COMPARE ================= -->
   <section class="view" id="view-compare" hidden><div class="loading"><div class="spinner"></div>Loading database…</div></section>
+
+  <!-- ================= DIGITAL HUMAN (3D) ================= -->
+  <section class="view" id="view-human" hidden><div class="loading"><div class="spinner"></div>Loading the 3D module…</div></section>
 
   <!-- ================= PAPERS ================= -->
   <section class="view" id="view-tables" hidden><div class="loading"><div class="spinner"></div>Loading database…</div></section>
