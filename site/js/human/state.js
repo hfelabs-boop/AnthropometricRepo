@@ -40,6 +40,17 @@ export function loadPrefs(storage) {
   } catch { /* no storage or corrupt JSON: defaults */ }
   return out;
 }
+/**
+ * The display flags worth remembering: what the user chose. `auto` maps a flag to the value it had before the shell switched it on by
+ * itself (bones and markers when no skin could be built) and that the user has not touched since; those flags are saved as they were,
+ * so a fallback of one session does not become the default of the next.
+ */
+export const prefsDisplay = (display, auto) => ({ ...display, ...(auto ?? {}) });
+/**
+ * Joint markers and bones are depth-tested, so an opaque skin hides them (and they cannot be hovered or clicked). While either is shown
+ * with the skin the shell therefore renders the skin see-through, as if X-ray were on. `d` = { skin, skeleton, joints } as drawn.
+ */
+export const impliedXray = (d) => !!d.skin && !!(d.skeleton || d.joints);
 export function savePrefs(state, storage) {
   try {
     storage ??= globalThis.localStorage;

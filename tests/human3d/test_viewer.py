@@ -711,7 +711,7 @@ def test_a_failed_start_cleans_up_and_can_be_retried(chromium, server):
         s.page.wait_for_selector("#view-about:not([hidden])")
         s.settle(500)
         base = s.js("({ l: window.__listeners(), c: document.querySelectorAll('canvas').length, g: window.__glContexts() })")
-        r = s.js("""async () => { const m = await import('/js/human/index.js'); const c = await m.initHuman(); const quick = typeof c.ready.then === 'function'; let msg = null;
+        r = s.js("""async () => { const m = await import('/js/human/index.js'); const c = window.__first = await m.initHuman(); const quick = typeof c.ready.then === 'function'; let msg = null;
           try { await c.ready; } catch (e) { msg = e.message; }
           return { quick, msg, roots: document.querySelectorAll('.hm-root').length, state: document.querySelector('.hm-root').dataset.hmState, canvases: document.querySelectorAll('canvas').length, hook: !!window.__human, l: window.__listeners(), g: window.__glContexts() }; }""")
         assert r["quick"] and r["msg"] == "observers are broken", r
@@ -722,6 +722,18 @@ def test_a_failed_start_cleans_up_and_can_be_retried(chromium, server):
         s.js("document.querySelector('#view-human button.btn').click()")  # the section is hidden here (the About tab is showing)
         s.page.wait_for_function("window.__human && window.__human.state.rig && document.querySelector('.hm-root').dataset.hmState === 'ready'", timeout=90000)
         assert s.js("document.querySelectorAll('.hm-root').length") == 1 and s.js("document.querySelectorAll('canvas').length") == base["c"] + 1
+        # regression: the retry started a NEW controller while the router kept the first one, so the live shell never got onHide / onShow
+        # (hidden tab: viewport still active, shortcut keys still acted on it)
+        r = s.js("""async () => { const m = await import('/js/human/index.js'); const c = await m.initHuman(); const v = window.__human.viewport;
+          const res = { same: c === window.__first, active0: v.active };
+          window.__first.onShow(); res.activeShown = v.active; window.__first.onHide(); res.activeHidden = v.active;
+          return res; }""")
+        assert r["same"] is True, "initHuman() always hands out the same controller"
+        assert r["active0"] is False and r["activeShown"] is True and r["activeHidden"] is False, r  # the router's controller drives the live shell
+        az = s.js("window.__human.viewport.getView().azimuth")
+        s.page.keyboard.press("2")  # the About tab is showing: the hidden view must ignore shortcuts
+        s.settle(600)
+        assert abs(s.js("window.__human.viewport.getView().azimuth") - az) < 1e-6
         assert [e for e in s.errors() if "observers are broken" not in e] == [], s.errors()
 
 
@@ -1800,6 +1812,109 @@ def test_a_swap_that_fails_leaves_the_previous_figure_on_the_stage(s):
     assert any(n.startswith("build:error:retry") for n in r["notice"]), r
     s.js("window.__human.ctx.setDisplay({ joints: true })")  # still alive: the old rig keeps following the shell
     assert s.js(PIXELS)["std"] > 4
+
+
+def _knee_xy(s):
+    return s.js("""(() => { const V = window.__human.viewport, R = window.__human.ctx.getRig(); const b = V.canvas.getBoundingClientRect(); const p = V.project(R.jointWorld('knee_L'));
+      return [b.left + p.x, b.top + p.y]; })()""")
+
+
+def test_joints_and_bones_are_visible_and_pickable_with_the_skin_on(s):
+    # regression: with the (opaque) skin shown, Joints / Skeleton drew nothing and a click on a joint selected nothing until X-ray was also switched on
+    s.open()
+    if not s.js("!!window.__human.ctx.getRig().skin"):
+        pytest.skip("no skin generator: the markers are drawn over the bones anyway")
+    set_display(s, skin=True, skeleton=False, joints=False, xray=False)
+    xray = s.page.get_by_role("button", name="X-ray", exact=True)
+    assert xray.get_attribute("aria-pressed") == "false" and xray.is_enabled()
+    s.page.get_by_role("button", name="Joints", exact=True).click()
+    s.settle(400)
+    assert xray.get_attribute("aria-pressed") == "true" and xray.is_disabled(), "the skin is see-through while the markers are shown, and the chip says why"
+    assert "markers" in (xray.get_attribute("title") or "")
+    assert s.js("window.__human.state.display.xray") is False, "the user's own X-ray choice is untouched"
+    assert s.js("window.__human.ctx.getRig().display.xray") is True
+    x, y = _knee_xy(s)
+    s.page.mouse.move(x, y)
+    s.settle(300)
+    assert s.js("!document.querySelector('.hm-tip').hidden") is True, "hovering a marker names it"
+    s.page.mouse.click(x, y)
+    s.settle(300)
+    assert s.js("window.__human.state.selection") == {"kind": "joint", "id": "knee_L"}
+    s.page.get_by_role("button", name="Joints", exact=True).click()  # off again: the skin is opaque again and the chip is free
+    s.settle(300)
+    assert xray.get_attribute("aria-pressed") == "false" and xray.is_enabled()
+    assert s.js("window.__human.ctx.getRig().display.xray") is False
+    s.js("window.__human.ctx.select(null)")
+    s.page.locator(".hm-bar-bottom").get_by_role("button", name="Skeleton", exact=True).click()  # the bones alone have the same effect
+    s.settle(300)
+    assert xray.get_attribute("aria-pressed") == "true" and xray.is_disabled()
+    assert json.loads(s.js("localStorage.getItem('hm-prefs')"))["display"]["xray"] is False, "the implied X-ray is not saved as a preference"
+    assert s.errors() == [], s.errors()
+
+
+def test_the_display_flags_switched_on_by_the_shell_are_not_saved(chromium, server):
+    # regression: without a skin the shell shows bones and markers by itself; the first later toggle of any other option saved them as preferences
+    gone = lambda route, request: route.fulfill(status=404, body="not found")  # noqa: E731
+    with make_session(chromium, server, extra_routes={"**/js/human/body.js*": gone}) as s:
+        s.open()
+        assert s.js("window.__human.state.display.skeleton && window.__human.state.display.joints"), "no skin: bones and markers are on"
+        s.page.get_by_role("button", name="Landmarks", exact=True).click()
+        saved = json.loads(s.js("localStorage.getItem('hm-prefs')"))["display"]
+        assert saved["landmarks"] is True and saved["skeleton"] is False and saved["joints"] is False, saved
+        s.page.locator(".hm-bar-bottom").get_by_role("button", name="Skeleton", exact=True).click()  # the user switches the bones off, then on: theirs now
+        s.page.locator(".hm-bar-bottom").get_by_role("button", name="Skeleton", exact=True).click()
+        saved = json.loads(s.js("localStorage.getItem('hm-prefs')"))["display"]
+        assert saved["skeleton"] is True and saved["joints"] is False, saved
+
+
+def test_a_stylesheet_that_failed_to_load_is_asked_for_again(chromium, server):
+    # regression: the failed request was remembered for the whole session, the tab stayed unstyled even after the network was back and said nothing
+    gate = {"block": True}
+    def handler(route, request):
+        route.abort() if gate["block"] else route.continue_()
+    with make_session(chromium, server, extra_routes={"**/human.css": handler}) as s:
+        s.open()
+        n = s.page.locator(".hm-notice", has_text="styles")
+        assert n.count() == 1, s.js("document.querySelector('.hm-notices').innerText")
+        assert s.js("getComputedStyle(document.querySelector('.hm-app')).display") == "block", "unstyled while the file is missing"
+        s.page.get_by_role("button", name="Retry").click()  # still down: the message stays
+        s.settle(600)
+        assert s.page.locator(".hm-notice", has_text="styles").count() == 1
+        gate["block"] = False
+        s.page.get_by_role("button", name="Retry").click()
+        s.page.wait_for_function("getComputedStyle(document.querySelector('.hm-app')).display === 'grid'", timeout=10000)
+        assert s.page.locator(".hm-notice", has_text="styles").count() == 0
+        assert s.js("document.querySelectorAll('link[data-hm-css]').length") == 1, "the dead link was replaced, not piled up"
+        gate["block"] = True  # and the other way: it comes back by itself when the tab is shown again
+    with make_session(chromium, server, extra_routes={"**/human.css": handler}) as s:
+        gate["block"] = True
+        s.open()
+        assert s.page.locator(".hm-notice", has_text="styles").count() == 1
+        gate["block"] = False
+        s.js("location.hash = '#/about'")
+        s.settle(300)
+        s.js("location.hash = '#/human?debug'")
+        s.page.wait_for_function("getComputedStyle(document.querySelector('.hm-app')).display === 'grid'", timeout=10000)
+        assert s.page.locator(".hm-notice", has_text="styles").count() == 0
+
+
+@pytest.mark.parametrize("width", [900, 390])
+def test_the_toolbar_fade_only_appears_where_a_button_is_cut_off(chromium, server, width):
+    # regression: the stacked toolbars were always faded at their right end, so the last button (Help) looked disabled even when everything fit
+    with make_session(chromium, server, width=width, height=800, mobile=width < 500) as s:
+        s.open()
+        s.settle(500)
+        r = s.js("""[...document.querySelectorAll('.hm-bar')].map((b) => { const m = getComputedStyle(b).maskImage; return { cut: b.scrollWidth - b.clientWidth > 1, more: b.dataset.more || null, masked: !!m && m !== 'none' }; })""")
+        for bar in r:
+            assert bar["masked"] == bar["cut"] and (bar["more"] == "end") == bar["cut"], (width, r)
+        if width == 390:
+            assert all(bar["cut"] for bar in r), "a phone cannot show all buttons at once"
+            s.js("(() => { const b = document.querySelector('.hm-bar-top'); b.scrollLeft = b.scrollWidth; })()")
+            s.settle(200)
+            assert s.js("document.querySelector('.hm-bar-top').dataset.more || null") is None, "scrolled to the end: nothing is hidden any more"
+        else:
+            top = s.js("document.querySelector('.hm-bar-top').dataset.more || null")
+            assert top is None, "the top toolbar fits at 900 px: no fade on the Help button"
 
 
 if __name__ == "__main__":  # run without pytest being on the path of the caller

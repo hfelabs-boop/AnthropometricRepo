@@ -1,0 +1,138 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>body demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<!-- Visual harness for body.js (the skin generator), driven from Python (tests/human3d/body.shots.py) or by hand:
+     python3 tests/human3d/shot.py /__pages/body-demo.html out.png --wait-fn 'window.__ready' --eval 'window.__demo.quick("us-army-m", 50)'
+     window.__demo: { ready, body, rig, setBody(spec), pose(name|{root, angles}), view({ rect: [x, y, w, h] (top-left px), az, el, dist, target, fov, label }), clear(), poses }
+     spec: { pop: "united-states/army/M", pct: 50 } | { sex: "M", stature: 1750, mass: 80 } plus { quality, wire, flat }. Poses are named in `poses` (angles in degrees, DOF order of skeleton.js).
+     Several views can be drawn into one canvas with their `rect` (scissor), so a figure sheet is one screenshot. -->
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<style>
+  html, body { margin: 0; background: #ecebe6; }
+  @media (prefers-color-scheme: dark) { html, body { background: #161615; } }
+  canvas { display: block; }
+</style>
+<canvas id="c" width="1000" height="700"></canvas>
+<script type="module">
+import * as THREE from "three";
+import { fitBody } from "/js/human/fit.js";
+import { percentileProfile } from "/js/human/anthro.js";
+import { buildRig } from "/js/human/rig.js";
+import { buildSkin } from "/js/human/body.js";
+
+const params = new URLSearchParams(location.search);
+const canvas = document.getElementById("c");
+canvas.width = +params.get("w") || 1000; canvas.height = +params.get("h") || 700;
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(canvas.width, canvas.height, false);
+renderer.autoClear = false;
+const BG = new THREE.Color(dark ? 0x161615 : 0xecebe6);
+renderer.setClearColor(BG, 1);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, dark ? 0x30302c : 0xb9b6ac, dark ? 1.1 : 1.35));
+const key = new THREE.DirectionalLight(0xffffff, dark ? 1.7 : 2.0); key.position.set(1.5, 3, 3); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, dark ? 0.7 : 0.8); fill.position.set(-3, 1, -2); scene.add(fill);
+const grid = new THREE.GridHelper(4, 40, dark ? 0x55554f : 0xb0aea5, dark ? 0x2a2a27 : 0xd0cec5);
+scene.add(grid);
+const camera = new THREE.PerspectiveCamera(30, 1, 0.02, 50);
+
+const popCache = new Map();
+async function pop(path) {
+  if (!popCache.has(path)) popCache.set(path, await (await fetch(`/api/v1/populations/${path}.json`)).json());
+  return popCache.get(path);
+}
+
+const D = (o) => o; // readability
+// Named poses: { root: { flex, lat, rot, heading }, angles: { jointId: [degrees in DOF order] } }; `_LR` is expanded to both sides here.
+const both = (id, a) => ({ [`${id}_L`]: a, [`${id}_R`]: a });
+const poses = {
+  neutral: {},
+  squat: { angles: { ...both("hip", [130, 0, 0]), ...both("knee", [150, 0]), ...both("ankle", [30, 0, 0]), lumbar: undefined } },
+  armUp: { angles: both("shoulder", [170, 0, 0]) },
+  armOut: { angles: both("shoulder", [0, 90, 0]) },
+  handFwd: { angles: { ...both("shoulder", [90, 0, 0]) } },
+  handFwdFist: { angles: (() => { const a = {}; for (const s of ["L", "R"]) { a[`shoulder_${s}`] = [90, 0, 0]; for (const f of ["index", "middle", "ring", "little"]) { a[`${f}_mcp_${s}`] = [85, 0]; a[`${f}_pip_${s}`] = [100]; a[`${f}_dip_${s}`] = [70]; } a[`thumb_cmc_${s}`] = [30, 20]; a[`thumb_mcp_${s}`] = [40]; a[`thumb_ip_${s}`] = [50]; } return a; })() },
+  armUp1: { angles: { shoulder_L: [170, 0, 0] } },
+  elbow140: { angles: { ...both("shoulder", [60, 0, 0]), ...both("elbow", [140]) } },
+  bend: { spine: { lumbar: [60, 0, 0], thoracic: [40, 0, 0] }, angles: { ...both("hip", [60, 0, 0]) } },
+  bendLegsDown: { root: { flex: 60 }, spine: { lumbar: [30, 0, 0], thoracic: [10, 0, 0] }, angles: { ...both("hip", [-20, 0, 0]) } },
+  seated: { angles: { ...both("hip", [90, 0, 0]), ...both("knee", [90, 0]), ...both("ankle", [0, 0, 0]) } },
+  kneel: { angles: { ...both("hip", [95, 0, 0]), ...both("knee", [155, 0]), ...both("ankle", [-50, 0, 0]) } },
+  lying: { root: { flex: -90 } },
+  neck: { angles: { C7: [5, 0, 10], C6: [6, 0, 5], C5: [7, 0, 6], C4: [7, 0, 6], C3: [6, 0, 6], C2: [4, 0, 6], C1: [3, 0, 25], head: [18, 0, 8] } },
+  hipAbd: { angles: both("hip", [0, 45, 0]) },
+  plantar: { angles: both("ankle", [-50, 0, 0]) },
+  wrist: { angles: { ...both("wrist", [60, 15]) } },
+  fist: { angles: (() => {
+    const a = {};
+    for (const s of ["L", "R"]) {
+      for (const f of ["index", "middle", "ring", "little"]) { a[`${f}_mcp_${s}`] = [85, 0]; a[`${f}_pip_${s}`] = [100]; a[`${f}_dip_${s}`] = [70]; }
+      a[`thumb_cmc_${s}`] = [30, 20]; a[`thumb_mcp_${s}`] = [40]; a[`thumb_ip_${s}`] = [50];
+    }
+    return a;
+  })() },
+  pronation: { angles: { ...both("forearm", [90]), ...both("elbow", [90]) } },
+  tpose: { angles: both("shoulder", [0, 80, 0]) },
+};
+
+let rig = null, body = null, curSpec = null;
+async function setBody(spec) {
+  if (rig) { scene.remove(rig.group); rig.dispose(); }
+  let profile;
+  if (spec.profile) profile = spec.profile;
+  else if (spec.pop) profile = percentileProfile(await pop(spec.pop), { percentile: spec.pct ?? 50 });
+  else profile = { id: "t", label: "t", sex: spec.sex ?? "M", source: { kind: "manual" }, notes: [], measures: { stature: { value: spec.stature, unit: "mm" }, ...(spec.mass ? { mass: { value: spec.mass, unit: "kg" } } : {}), ...(spec.measures ?? {}) } };
+  body = fitBody(profile, spec.opts);
+  curSpec = spec;
+  const t = performance.now();
+  rig = buildRig(body, { skeleton: false, quality: spec.quality ?? "high", skinBuilder: (b, bones, o) => buildSkin(b, bones, { ...o, color: spec.color, detail: spec.detail }) });
+  const ms = performance.now() - t;
+  scene.add(rig.group);
+  rig.setDisplay({ wireframe: !!spec.wire });
+  if (spec.normals) rig.skin.material = new THREE.MeshNormalMaterial();
+  if (rig.skinError) throw rig.skinError;
+  window.__demo.buildMs = ms;
+  return { stature: body.stature, mass: body.mass, buildMs: ms, vertices: rig.skin.geometry.attributes.position.count };
+}
+function pose(p) {
+  const def = typeof p === "string" ? poses[p] : p;
+  if (!def) throw new Error(`unknown pose ${p}`);
+  const clean = {};
+  for (const [k, v] of Object.entries(def.angles ?? {})) if (v) clean[k] = v;
+  const root = { ...(def.root ?? {}), y: 0 };
+  const apply = (y) => {
+    const r = rig.setPose({ root: { ...root, y }, angles: clean }, { clamp: def.clamp !== false });
+    const sp = def.spine ? rig.setSpine(def.spine, null, { clamp: def.clamp !== false }) : { clamped: [] };
+    rig.group.updateMatrixWorld(true);
+    return [...r.clamped, ...sp.clamped];
+  };
+  const clamped = apply(body.joints.pelvis.offset[1]);
+  const low = rig.lowestY({ skin: true });
+  apply(body.joints.pelvis.offset[1] - low);
+  return clamped;
+}
+function view({ rect = [0, 0, canvas.width, canvas.height], az = 0, el = 5, dist = 5, target = [0, 0.9, 0], fov = 30, background = true } = {}) {
+  const [x, y, w, h] = rect;
+  const a = (az * Math.PI) / 180, e = (el * Math.PI) / 180;
+  camera.fov = fov; camera.aspect = w / h; camera.updateProjectionMatrix();
+  camera.position.set(target[0] + dist * Math.sin(a) * Math.cos(e), target[1] + dist * Math.sin(e), target[2] + dist * Math.cos(a) * Math.cos(e));
+  camera.lookAt(...target);
+  renderer.setViewport(x, canvas.height - y - h, w, h);
+  renderer.setScissor(x, canvas.height - y - h, w, h);
+  renderer.setScissorTest(true);
+  renderer.clear();
+  grid.visible = !!background;
+  renderer.render(scene, camera);
+}
+function clear() { renderer.setScissorTest(false); renderer.setViewport(0, 0, canvas.width, canvas.height); renderer.clear(); }
+
+window.__demo = {
+  get body() { return body; }, get rig() { return rig; }, setBody, pose, view, clear, poses, THREE, renderer, scene, camera,
+  async quick(path, pct = 50) { await setBody({ pop: path, pct }); pose("neutral"); clear(); view({ az: 0 }); return true; },
+};
+window.__ready = true;
+</script>

@@ -22,6 +22,8 @@
 //   select({ kind: "joint" | "object" | "landmark" | "handle", id } | null)    the one selection of the tab (joint -> rig.select)
 //   inspector(node | string | null, { title })   content for the right-hand inspector while THIS panel's tab is active
 //   setDisplay({ skin, skeleton, joints, labels, landmarks, com, xray, grid }), setView(name), frame(), setQuality(q), setPosture({ id, name })
+//                      state.display.xray is the user's own choice; while the skin is on and skeleton or joints is on, the rig is told xray = true as well
+//                      (markers and bones are depth-tested, an opaque skin would hide them and make them unpickable), see impliedXray in state.js
 //   toast(text), notify(text, { level: "info" | "warn" | "error", id }), dismiss(id), requestRender()
 // Viewport clicks: a panel that wants a click calls viewport.on("click", ev) and sets ev.handled = true; unhandled clicks clear the selection.
 // When a new rig replaces the old one (profile change) the shell carries the angles and root over and keeps a grounded figure on the floor;
@@ -29,7 +31,7 @@
 import * as THREE from "three";
 import { h, toast, download } from "../util.js";
 import { createViewport, VIEW_ORDER, VIEW_PRESETS } from "./viewport.js";
-import { createStore, createPipeline, loadDefaultProfile, withTimeout, loadPrefs, savePrefs, LENGTH_UNITS } from "./state.js";
+import { createStore, createPipeline, loadDefaultProfile, withTimeout, loadPrefs, savePrefs, prefsDisplay, impliedXray, LENGTH_UNITS } from "./state.js";
 import { chipButton, segmented, roving, tablist, notice, emptyState, icon, fmtLength, UNIT_LABEL } from "./ui.js";
 import { JOINT_BY_ID, BONE_BY_ID, GROUPS } from "./skeleton.js";
 
@@ -42,8 +44,8 @@ const PANELS = [
 
 const DISPLAY_TOGGLES = [
   ["skin", "Skin", "Show the skin surface"],
-  ["skeleton", "Skeleton", "Show the bones"],
-  ["joints", "Joints", "Show joint markers (colour = degrees of freedom); click one to select it"],
+  ["skeleton", "Skeleton", "Show the bones (the skin turns see-through while they are shown)"],
+  ["joints", "Joints", "Show joint markers (colour = degrees of freedom); click one to select it. The skin turns see-through while they are shown"],
   ["labels", "Labels", "Name the joints and landmarks that are shown"],
   ["landmarks", "Landmarks", "Show anthropometric landmarks (acromion, olecranon, stylion, ...)"],
   ["com", "Centre of mass", "Show the whole-body centre of mass and its floor projection"],
@@ -75,22 +77,26 @@ const isTyping = (el) => !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELE
 const msg = (e) => String(e?.message ?? e ?? "unknown error").replace(/\s+/g, " ").replace(/[.\s]+$/, "").slice(0, 200); // no trailing full stop: it is quoted inside "(...)." sentences
 const formOf = (p) => (p?.sex === "F" ? "female" : p?.sex === "M" ? "male" : "neutral");
 
-let ensureStylesPromise = null;
-/** Inject human.css once and wait (briefly) for it, so the viewport is created with its final size and theme. */
+/**
+ * Inject human.css and wait (briefly) for it, so the viewport is created with its final size and theme. Resolves true when the sheet is
+ * there (or still on its way after 4 s) and false when the request failed. A failure is NOT remembered: the dead link is dropped and the
+ * next call asks again, so a transient network error cannot leave the tab unstyled for the whole session.
+ */
 function ensureStyles() {
-  if (ensureStylesPromise) return ensureStylesPromise;
   let link = document.querySelector("link[data-hm-css]");
+  if (link?.dataset.hmFailed) { link.remove(); link = null; }
   if (!link) {
     link = h("link", { rel: "stylesheet", href: CSS_URL, "data-hm-css": "" });
+    link.onerror = () => { link.dataset.hmFailed = "1"; }; // a property, not a listener: it lives as long as the page and must not count as a leak
     document.head.append(link);
   }
-  ensureStylesPromise = new Promise((resolve) => {
-    if (link.sheet) return resolve();
-    link.addEventListener("load", () => resolve(), { once: true });
-    link.addEventListener("error", () => resolve(), { once: true });
-    setTimeout(resolve, 4000);
+  return new Promise((resolve) => {
+    if (link.sheet) return resolve(true);
+    if (link.dataset.hmFailed) return resolve(false);
+    link.addEventListener("load", () => resolve(true), { once: true });
+    link.addEventListener("error", () => resolve(false), { once: true });
+    setTimeout(() => resolve(!link.dataset.hmFailed), 4000);
   });
-  return ensureStylesPromise;
 }
 
 /**
@@ -108,13 +114,13 @@ export async function createShell() {
 async function build(undo) {
   const host = document.getElementById("view-human");
   if (!host) throw new Error("The Digital human section (#view-human) is missing from the page.");
-  await ensureStyles();
+  const styled = await ensureStyles();
 
   const store = createStore({ prefs: loadPrefs() });
   const { state } = store;
   const disposers = [];
   undo.push(() => { for (const f of disposers) f(); });
-  let disposed = false, shown = !host.hidden, framedHeight = 0, unsubPose = null, helpOpen = false, activeTab = null, skeletonAuto = false, autoDisplay = false, needsFrame = false, busyTimer = 0;
+  let disposed = false, shown = !host.hidden, framedHeight = 0, unsubPose = null, helpOpen = false, activeTab = null, skeletonAuto = false, autoDisplay = false, autoShown = null, stylesOk = styled, needsFrame = false, busyTimer = 0;
   const mqDark = matchMedia("(prefers-color-scheme: dark)");
 
   // ---- DOM skeleton ---------------------------------------------------------------------------------------------------
@@ -296,6 +302,7 @@ async function build(undo) {
       try {
         if (!rig.skin && !skeletonAuto) { // no skin to look at: show the bones and joint markers (once, not remembered) so the tab is never empty
           skeletonAuto = autoDisplay = true;
+          autoShown = { skeleton: state.display.skeleton, joints: state.display.joints }; // what to remember if the user never touches them
           try { store.setDisplay({ skeleton: true, joints: true }); } finally { autoDisplay = false; }
         }
         applyDisplay(rig);
@@ -346,10 +353,14 @@ async function build(undo) {
   function applyDisplay(rig = state.rig) {
     const d = state.display;
     viewport.setGrid(d.grid);
-    try { rig?.setDisplay?.({ skin: d.skin, skeleton: d.skeleton, joints: d.joints, labels: d.labels, landmarks: d.landmarks, com: d.com, xray: d.xray }); } catch (e) { console.error("Digital human: setDisplay failed:", e); }
     const noSkin = !!rig && !rig.skin; // no skin generator in this build: the rig keeps `skin` false whatever is asked
-    for (const [k, b] of Object.entries(toggleBtns)) b.setPressed(k === "skin" && noSkin ? false : !!d[k]);
+    // bones and markers behind an opaque skin cannot be seen, hovered or clicked: showing them makes the skin see-through (X-ray, pressed and locked)
+    const implied = !d.xray && impliedXray({ skin: d.skin && !noSkin, skeleton: d.skeleton, joints: d.joints });
+    try { rig?.setDisplay?.({ skin: d.skin, skeleton: d.skeleton, joints: d.joints, labels: d.labels, landmarks: d.landmarks, com: d.com, xray: d.xray || implied }); } catch (e) { console.error("Digital human: setDisplay failed:", e); }
+    for (const [k, b] of Object.entries(toggleBtns)) b.setPressed(k === "skin" && noSkin ? false : k === "xray" ? d.xray || implied : !!d[k]);
     toggleBtns.skin.disabled = noSkin;
+    toggleBtns.xray.disabled = implied;
+    toggleBtns.xray.title = implied ? "On while the bones or joint markers are shown, which would be hidden behind the skin otherwise" : DISPLAY_TOGGLES.find((t) => t[0] === "xray")[2];
     dispRoving.refresh();
     toggleBtns.skin.title = noSkin ? "The skin surface is not available in this build, so only the skeleton is shown" : DISPLAY_TOGGLES[0][2];
     viewport.requestRender();
@@ -377,9 +388,15 @@ async function build(undo) {
     renderInspector();
     viewport.requestRender();
   });
-  store.on("display", () => { applyDisplay(); if (!autoDisplay) savePrefs(state); });
-  store.on("units", (u) => { unitsSeg.set(u); updateStatus(); renderInspector(); savePrefs(state); });
-  store.on("quality", () => { updateStatus(); savePrefs(state); });
+  // The flags the shell switched on by itself are not the user's choice: until the user touches one it is saved as it was (see prefsDisplay).
+  const persist = () => savePrefs({ ...state, display: prefsDisplay(state.display, autoShown) });
+  store.on("display", () => {
+    if (autoShown) for (const k of Object.keys(autoShown)) if (!state.display[k]) delete autoShown[k]; // switched off by the user: theirs from now on
+    applyDisplay();
+    if (!autoDisplay) persist();
+  });
+  store.on("units", (u) => { unitsSeg.set(u); updateStatus(); renderInspector(); persist(); });
+  store.on("quality", () => { updateStatus(); persist(); });
   store.on("profile", () => updateStatus());
   store.on("posture", () => updateStatus());
   store.on("rig", () => { rootEl.dataset.hmState = "ready"; updateStatus(); renderInspector(); });
@@ -574,6 +591,7 @@ async function build(undo) {
     const actions = {
       retry: { label: "Retry", onClick: () => { store.dismissNotice("build"); pipeline.rebuild(); } },
       start: { label: "Retry", onClick: () => { store.dismissNotice("default-profile"); startDefaultProfile(); } },
+      styles: { label: "Retry", onClick: () => retryStyles() },
     };
     noticesEl.replaceChildren(...state.notices.map((n) => notice(n.text, { level: n.level, id: n.id, onDismiss: () => store.dismissNotice(n.id), action: actions[n.action] })));
     if (state.notices.some((n) => n.level === "error") && !state.rig) rootEl.dataset.hmState = "error";
@@ -622,6 +640,29 @@ async function build(undo) {
   disposers.push(() => { mo.disconnect(); mqDark.removeEventListener?.("change", onTheme); });
   state.theme = { dark: !!viewport.theme?.dark };
 
+  // ---- styles that failed to load, and the toolbar fade ---------------------------------------------------------------------------------
+  // human.css is the only thing that lays the tab out. If its request failed the shell still works (plainly), says so, and asks again on Retry and
+  // whenever the tab is shown again, so that a transient network error does not last the whole session.
+  const stylesNotice = () => store.addNotice({ id: "styles", level: "warn", action: "styles", text: "The styles of this tab could not be loaded, so it looks plain. Check your connection and retry." });
+  let stylesBusy = false;
+  async function retryStyles() {
+    if (stylesBusy || disposed) return;
+    stylesBusy = true;
+    try { stylesOk = await ensureStyles(); } finally { stylesBusy = false; }
+    if (disposed) return;
+    if (stylesOk) { store.dismissNotice("styles"); viewport.setTheme(); viewport.resize(); updateFades(); } else stylesNotice();
+  }
+  // In the stacked toolbar layout (narrow stage) a bar scrolls sideways and fades out at its right edge, but only while something is hidden there:
+  // a bar that fits shows its last button at full strength, a faded button looks disabled.
+  const bars = [...stage.querySelectorAll(".hm-bar")];
+  function updateFades() { for (const b of bars) { const more = b.scrollWidth - b.clientWidth - b.scrollLeft > 1; if (more !== (b.dataset.more === "end")) { if (more) b.dataset.more = "end"; else delete b.dataset.more; } } }
+  for (const b of bars) { b.addEventListener("scroll", updateFades, { passive: true }); disposers.push(() => b.removeEventListener("scroll", updateFades)); }
+  if (typeof ResizeObserver !== "undefined") {
+    const fadeRO = new ResizeObserver(updateFades);
+    for (const b of bars) { fadeRO.observe(b); for (const g of b.children) fadeRO.observe(g); }
+    disposers.push(() => fadeRO.disconnect());
+  }
+
   // ---- go --------------------------------------------------------------------------------------------------------------------------------------
   setInspectorOpen(app.dataset.inspector !== "closed");
   applyDisplay(null);
@@ -629,6 +670,8 @@ async function build(undo) {
   renderNotices();
   renderInspector();
   tabs.select(PANELS[0].id);
+  if (!stylesOk) stylesNotice();
+  updateFades();
   if (!shown) viewport.setActive(false);
   if (viewport.failed) { rootEl.dataset.hmState = "error"; }
 
@@ -660,6 +703,8 @@ async function build(undo) {
       shown = true;
       viewport.setActive(true);
       viewport.resize();
+      updateFades();
+      if (!stylesOk) retryStyles();
       if (needsFrame && state.rig) { needsFrame = false; const b = figureBox(); framedHeight = b.max.y - b.min.y; viewport.frame(b, { animate: false, margin: 1.3 }); }
       viewport.requestRender();
       mounted.get(activeTab)?.api?.onShow?.();

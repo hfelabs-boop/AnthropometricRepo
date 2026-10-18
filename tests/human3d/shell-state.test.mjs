@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createStore, createPipeline, loadDefaultProfile, withTimeout, loadPrefs, savePrefs, normaliseSelection, sameSelection, DEFAULT_DISPLAY, DISPLAY_KEYS, LENGTH_UNITS,
+  createStore, createPipeline, loadDefaultProfile, withTimeout, loadPrefs, savePrefs, prefsDisplay, impliedXray, normaliseSelection, sameSelection, DEFAULT_DISPLAY, DISPLAY_KEYS, LENGTH_UNITS,
 } from "../../site/js/human/state.js";
 import { toUnit, fromUnit, fmtLength, unitDigits } from "../../site/js/human/ui.js";
 
@@ -434,4 +434,24 @@ test("units: conversion, formatting and rounding", () => {
   assert.equal(fmtLength(-12.5, "cm"), "-1.3 cm", "negative lengths keep their sign");
   for (const bad of [null, undefined, NaN, Infinity]) assert.equal(fmtLength(bad), "—");
   assert.deepEqual(LENGTH_UNITS.map(unitDigits), [0, 1, 2]);
+});
+
+test("prefsDisplay: flags the shell switched on by itself are saved as they were, the user's choices as they are", () => {
+  const display = { ...DEFAULT_DISPLAY, skeleton: true, joints: true, landmarks: true };
+  assert.deepEqual(prefsDisplay(display, { skeleton: false, joints: false }), { ...DEFAULT_DISPLAY, landmarks: true });
+  assert.deepEqual(prefsDisplay(display, { skeleton: false }), { ...DEFAULT_DISPLAY, joints: true, landmarks: true });
+  assert.deepEqual(prefsDisplay(display, null), display);
+  assert.deepEqual(prefsDisplay(display), display);
+  assert.equal(display.skeleton, true, "the live display object is not modified");
+  const mem = new Map(), storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  savePrefs({ units: "mm", qualityChoice: null, display: prefsDisplay(display, { skeleton: false, joints: false }) }, storage);
+  assert.equal(loadPrefs(storage).display.skeleton, false);
+});
+
+test("impliedXray: bones or markers with the skin on need a see-through skin", () => {
+  assert.equal(impliedXray({ skin: true, joints: true, skeleton: false }), true);
+  assert.equal(impliedXray({ skin: true, joints: false, skeleton: true }), true);
+  assert.equal(impliedXray({ skin: true, joints: false, skeleton: false }), false);
+  assert.equal(impliedXray({ skin: false, joints: true, skeleton: true }), false, "no skin to see through");
+  assert.equal(impliedXray({}), false);
 });
