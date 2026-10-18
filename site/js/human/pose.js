@@ -11,7 +11,7 @@
 // immutable: per-body tables (kinematics, landmark index, proxies) are cached on the object and rebuilt when its joints, landmarks,
 // contacts or masses object is replaced.
 import * as THREE from "three";
-import { JOINTS, JOINT_BY_ID, REGIONS, clampAngles, expandRegions, expandSides, mirrorId, sideOf } from "./skeleton.js";
+import { JOINTS, JOINT_BY_ID, BONES, REGIONS, clampAngles, expandSides, mirrorId, sideOf } from "./skeleton.js";
 import { Kinematics } from "./fk.js";
 import { GRIPS, GRIP_NAMES, HAND_JOINTS, gripAngles } from "./postures/grips.js";
 import { bodyProxies, proxyWorld, lowestPoint, selfPenetrations } from "./proxies.js";
@@ -113,10 +113,89 @@ const ROOT_FIELDS = ["heading", "flex", "lat", "rot"];
 const PAIRED = [...new Set(JOINTS.filter((j) => j.side === "L").map((j) => j.id.slice(0, -2)))]; // base names of the paired joints: hip, knee, eye, thumb_cmc, ...
 const VERTEBRAE = new Set(Object.values(REGIONS).flatMap((r) => r.joints));
 
+// ---- spine regions -------------------------------------------------------------------------------------------------------------
+// skeleton.js expandRegions pins a level at its limit and never frees it again, which drops part of a feasible total when per-vertebra
+// additions of both signs are present, and it moves the part of an explicit vertebra angle beyond that vertebra's own range onto its
+// neighbours without a word. The exact version below is used instead (skeleton.js is not ours to change; same result without additions).
+//
+// One channel (flexion, lateral bend or rotation) of one region: shares s_i = clamp(lambda * w_i, A_i, B_i) with the sum clip(total, sum A, sum B);
+// [A_i, B_i] is what level i can still take on top of its own addition (its range shifted by minus the addition). lambda is found exactly:
+// the sum is piecewise linear and non-decreasing in lambda. A level whose own addition is outside its range takes nothing (A = B = 0): the
+// addition stays as written, and the range-of-motion check of the validator reports it.
+function spread(total, w, A, B) {
+  const n = w.length, s = new Array(n).fill(0);
+  let sa = 0, sb = 0;
+  for (let i = 0; i < n; i++) { sa += A[i]; sb += B[i]; }
+  const T = Math.min(sb, Math.max(sa, total));
+  if (T === 0) return s;
+  const at = (lam, out) => { let sum = 0; for (let i = 0; i < n; i++) { const v = Math.min(B[i], Math.max(A[i], lam * w[i])); if (out) out[i] = v; sum += v; } return sum; };
+  const knots = [];
+  for (let i = 0; i < n; i++) if (w[i] > 0) knots.push(A[i] / w[i], B[i] / w[i]);
+  knots.sort((x, y) => x - y);
+  let lo = knots[0] - 1, hi = knots[knots.length - 1] + 1, glo = at(lo), ghi = at(hi);
+  for (const k of knots) { // the segment [lo, hi] between two knots that contains T
+    const g = at(k);
+    if (g <= T) { lo = k; glo = g; } else { hi = k; ghi = g; break; }
+  }
+  const lam = ghi > glo ? lo + ((T - glo) / (ghi - glo)) * (hi - lo) : lo;
+  at(lam, s);
+  return s;
+}
+const SPINE_WEIGHTS = ["weights", "weightsLat", "weightsRot"];
+
+/**
+ * Region totals { lumbar: [flex, lat, rot], thoracic, cervical } (degrees, relative to the natural curvature) plus optional per-vertebra additions
+ * { L3: [flex, lat, rot], ... } -> { angles: { [vertebraId]: [flex, lat, rot] } for all 24 vertebrae, shortfall: [{ region, dof, requested, applied }] }.
+ * Each channel is shared by the region weights (water-filling: a vertebra at its limit takes no more and the rest goes to the others, a vertebra
+ * pinned earlier is freed again when the others would take more); the additions go on top. `shortfall` lists the totals the vertebrae cannot take
+ * (left out for a channel in which an addition is out of range, see below: that is already an error of its own).
+ * An addition outside its vertebra's own range is NOT redistributed: the vertebra keeps the value as written (it is then a range-of-motion error
+ * for clampPose / validatePosture) and takes no share of the total. Throws for unknown regions, unknown vertebrae and non-finite numbers.
+ */
+export function expandSpine(spine, perVertebra) {
+  const sp = spine ?? {}, pv = perVertebra ?? {};
+  for (const r of Object.keys(sp)) if (!Object.hasOwn(REGIONS, r)) throw new Error(`unknown spine region "${r}"`);
+  for (const id of Object.keys(pv)) if (!VERTEBRAE.has(id)) throw new Error(`unknown vertebra id "${id}"`);
+  const num = (what, v) => {
+    if (v == null) return;
+    if (!Array.isArray(v) && !ArrayBuffer.isView(v)) throw new TypeError(`${what}: expected [flex, lat, rot]`);
+    for (let i = 0; i < v.length; i++) {
+      if (v[i] === undefined && i < 3) continue;
+      if (!isNum(v[i])) throw new RangeError(`${what}: value ${i} is not a finite number`);
+      if (i >= 3 && v[i] !== 0) throw new RangeError(`${what}: expected at most 3 values, got ${v.length}`);
+    }
+  };
+  for (const [r, v] of Object.entries(sp)) num(`spine region "${r}"`, v);
+  for (const [id, v] of Object.entries(pv)) num(`vertebra "${id}"`, v);
+  const angles = {}, shortfall = [];
+  for (const [name, rg] of Object.entries(REGIONS)) {
+    const js = rg.joints.map((id) => JOINT_BY_ID[id]), rows = rg.joints.map(() => [0, 0, 0]);
+    ["flex", "lat", "rot"].forEach((dof, c) => {
+      const lo = js.map((j) => j.dof[c].min), hi = js.map((j) => j.dof[c].max);
+      const add = rg.joints.map((id) => pv[id]?.[c] ?? 0);
+      const A = [], B = [];
+      let outside = false;
+      add.forEach((x, i) => {
+        const inside = x >= lo[i] - 1e-9 && x <= hi[i] + 1e-9;
+        if (!inside) outside = true;
+        A.push(inside ? Math.min(0, lo[i] - x) : 0); B.push(inside ? Math.max(0, hi[i] - x) : 0);
+      });
+      const requested = sp[name]?.[c] ?? 0;
+      const share = spread(requested, rg[SPINE_WEIGHTS[c]], A, B);
+      rows.forEach((row, i) => { row[c] = nz(share[i] + add[i]); });
+      const applied = share.reduce((t, x) => t + x, 0);
+      // not reported when an addition of this channel is already out of range: that is a range-of-motion error naming the vertebra, and the posture is rejected for it
+      if (!outside && Math.abs(applied - requested) > 1e-6) shortfall.push({ region: name, dof, requested, applied: nz(Math.round(applied * 1e9) / 1e9) });
+    });
+    rg.joints.forEach((id, i) => { angles[id] = rows[i]; });
+  }
+  return { angles, shortfall };
+}
+
 /**
  * Expand a Posture of the library into a pose: { root: { heading, flex, lat, rot }, angles: { [jointId]: number[] }, grips: { L, R } }.
  * - root fields default to 0; a posture has no position (x, y, z are an error);
- * - spine region totals are distributed over the vertebrae (skeleton.js expandRegions); vertebra ids in `joints` are added on top;
+ * - spine region totals are distributed over the vertebrae (expandSpine); vertebra ids in `joints` are added on top;
  * - `joints` keys with "_LR" / "_L" / "_R" are expanded (expandSides, which also handles the eye azimuth convention);
  * - `grips` presets become finger joint angles; explicit joints in `joints` override them;
  * - `pelvis` is not a valid joint key (the root drives it).
@@ -146,7 +225,7 @@ export function expandPosture(posture) {
     for (let i = 0; i < v.length; i++) if (!isNum(v[i])) bad(where, `value ${i} is not a finite number`);
   };
 
-  // joints: split the vertebra ids (they go through expandRegions) from the rest (expandSides)
+  // joints: split the vertebra ids (they go through expandSpine) from the rest (expandSides)
   const joints = posture.joints ?? {};
   if (!isObj(joints)) bad("joints", "must be an object { jointId: [angles] }");
   const perVertebra = {}, rest = {};
@@ -155,7 +234,7 @@ export function expandPosture(posture) {
     const ids = base !== null ? [`${base}_L`, `${base}_R`] : [key];
     for (const jid of ids) {
       if (JOINT_BY_ID[jid]) continue;
-      if (base !== null && JOINT_BY_ID[base]) bad(`joints.${key}`, `"${base}" is not a paired joint: write "${base}" without _LR`);
+      if (base !== null && JOINT_BY_ID[base]) bad(`joints.${key}`, sideOf(base) ? `"${base}" already names one side: write "${base}" for that side or "${base.slice(0, -2)}_LR" for both` : `"${base}" is not a paired joint: write "${base}" without _LR`);
       if (JOINT_BY_ID[`${key}_L`]) bad(`joints.${key}`, `unknown joint id: "${key}" needs a side, write ${key}_LR (both), ${key}_L or ${key}_R`);
       bad(`joints.${key}`, `unknown joint id (see skeleton.js JOINTS${base !== null ? "; _LR needs a paired joint" : ""})`);
     }
@@ -184,24 +263,16 @@ export function expandPosture(posture) {
 
   const angles = {};
   for (const side of ["L", "R"]) if (grips[side]) Object.assign(angles, gripAngles(grips[side], side));
-  let regions;
-  try { regions = expandRegions(spine, perVertebra); } catch (e) { bad("spine", e.message); }
-  for (const [vid, a] of Object.entries(regions)) {
+  let sp;
+  try { sp = expandSpine(spine, perVertebra); } catch (e) { bad("spine", e.message); }
+  for (const [vid, a] of Object.entries(sp.angles)) {
     if (a.some((x) => x !== 0) || vid in perVertebra) angles[vid] = a.map(nz);
   }
   let sides;
   try { sides = expandSides(rest); } catch (e) { bad("joints", e.message); }
   for (const [jid, a] of Object.entries(sides)) angles[jid] = a.map(nz);
 
-  // region totals the vertebrae could not take (the rig reports the same as a clamp)
-  const shortfall = [];
-  for (const [r, v] of Object.entries(spine)) {
-    ["flex", "lat", "rot"].forEach((dof, c) => {
-      const applied = REGIONS[r].joints.reduce((s, jid) => s + (regions[jid][c] - (perVertebra[jid]?.[c] ?? 0)), 0);
-      const requested = v[c] ?? 0;
-      if (Math.abs(applied - requested) > 1e-6) shortfall.push({ region: r, dof, requested, applied: nz(Math.round(applied * 1e9) / 1e9) });
-    });
-  }
+  const shortfall = sp.shortfall; // region totals the vertebrae could not take (the rig reports the same as a clamp)
   const out = { root, angles, grips };
   Object.defineProperty(out, "shortfall", { value: shortfall, enumerable: false });
   return out;
@@ -306,9 +377,16 @@ export function poseEquals(a, b, eps = 1e-9) {
 }
 
 // Joints with two swing DOF (shoulder, hip, ankle, vertebrae, head, pelvis, but also clavicle, wrist, fingers, eyes): the swing is a point on a
-// sphere (where the bone points), the twist an angle about the bone. The bone direction is interpolated on the great circle between the two
-// directions (spherical interpolation) and the twist linearly; a plain interpolation of the two swing angles would cut across the sphere.
+// sphere (where the bone points), the twist an angle about the bone. The range of motion is a BOX in the exponential-map coordinates (the two swing
+// angles), which is convex, and the exp-map ball (|swing| <= 180) is convex too: so the straight line between the two swing vectors never leaves the
+// ROM, but it cuts across the sphere (a raised arm sags). The great circle between the two bone directions is the natural path (constant angular
+// speed, no sag) but it is not ROM-aware (shoulder flexion 170 to extension 60 takes the short way over the head and passes flexion -157, far outside
+// the limit of -60) and, near the pole (swing close to 180), the exp-map azimuth flips within a tiny step of t, which spins the roll of the whole limb.
+// So, per joint, the great circle is used when it provably stays inside the box and keeps a safe distance from the pole, else the straight line.
 const BASES = new Map();
+const D2R = Math.PI / 180;
+const BLEND_POLE = 140 * D2R; // beyond this swing a great circle is not trusted (see above)
+const BLEND_SAMPLES = 24; // the great circle is checked against the box at this many points (the result is clamped to the box as a last guard)
 function swingBasis(j) {
   if (BASES.has(j.id)) return BASES.get(j.id);
   const sw = j.dof.map((d, i) => [d, i]).filter(([d]) => d.role !== "twist");
@@ -316,12 +394,16 @@ function swingBasis(j) {
   if (sw.length === 2) {
     const tw = j.dof.findIndex((d) => d.role === "twist");
     const a1 = new THREE.Vector3(...sw[0][0].axis), a2 = new THREE.Vector3(...sw[1][0].axis);
-    b = { a1, a2, i1: sw[0][1], i2: sw[1][1], tw, t: tw >= 0 ? new THREE.Vector3(...j.dof[tw].axis) : a1.clone().cross(a2).normalize() }; // t = the rest direction of the bone
+    const [d1, d2] = [sw[0][0], sw[1][0]];
+    // disc: the largest swing circle (radians, at most 90 degrees, where spherical caps are convex) that lies inside the box
+    const disc = Math.min(90, d1.min < 0 ? -d1.min : 0, d1.max, d2.min < 0 ? -d2.min : 0, d2.max) * D2R;
+    b = { a1, a2, i1: sw[0][1], i2: sw[1][1], tw, t: tw >= 0 ? new THREE.Vector3(...j.dof[tw].axis) : a1.clone().cross(a2).normalize(), // t = the rest direction of the bone
+      lo1: d1.min * D2R, hi1: d1.max * D2R, lo2: d2.min * D2R, hi2: d2.max * D2R, disc };
   }
   BASES.set(j.id, b);
   return b;
 }
-const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _d1 = new THREE.Vector3(), _d2 = new THREE.Vector3(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _d1 = new THREE.Vector3(), _d2 = new THREE.Vector3(), _d = new THREE.Vector3(), _w = new THREE.Vector3(), _va = new THREE.Vector3();
 // where the bone points after a swing vector v (radians, perpendicular to t): t turned by |v| about v
 function swingDirection(t, v, out) {
   const ang = v.length();
@@ -329,25 +411,42 @@ function swingDirection(t, v, out) {
   const n = _w.copy(v).multiplyScalar(1 / ang);
   return out.copy(t).multiplyScalar(Math.cos(ang)).addScaledVector(n.cross(t), Math.sin(ang)); // n . t = 0
 }
+// the swing vector (radians) that turns t onto the unit direction d by the shortest way; null for d = -t (every azimuth would do)
+function swingOf(t, d, out) {
+  const phi = Math.acos(Math.max(-1, Math.min(1, t.dot(d)))), axis = _w.copy(t).cross(d), len = axis.length();
+  if (len > 1e-12) return out.copy(axis).multiplyScalar(phi / len);
+  return phi < 1e-9 ? out.set(0, 0, 0) : null;
+}
+const slerpDir = (d1, d2, om, so, u, out) => (om < 1e-9 ? out.copy(d1) : out.copy(d1).multiplyScalar(Math.sin((1 - u) * om) / so).addScaledVector(d2, Math.sin(u * om) / so));
+const inBox = (B, v) => { const x = v.dot(B.a1), y = v.dot(B.a2), e = 1e-9 * D2R; return x >= B.lo1 - e && x <= B.hi1 + e && y >= B.lo2 - e && y <= B.hi2 + e; };
+
 function blendJoint(j, a, b, u) {
   if (u === 0) return a.slice();
   if (u === 1) return b.slice();
   const B = swingBasis(j);
   if (!B) return a.map((v, i) => v + (b[i] - v) * u); // a hinge or a twist: a circle, linear in the angle is exact
-  const sv = (arr, out) => out.set(0, 0, 0).addScaledVector(B.a1, arr[B.i1] * Math.PI / 180).addScaledVector(B.a2, arr[B.i2] * Math.PI / 180);
-  const v1 = sv(a, _v1), v2 = sv(b, _v2), d1 = swingDirection(B.t, v1, _d1), d2 = swingDirection(B.t, v2, _d2);
-  const om = Math.acos(Math.max(-1, Math.min(1, d1.dot(d2))));
-  let v = null;
-  if (Math.PI - om > 1e-4) { // otherwise the two directions are opposite: no unique great circle, move along the line in the swing vector (below)
-    const so = Math.sin(om), d = om < 1e-9 ? _d.copy(d1) : _d.copy(d1).multiplyScalar(Math.sin((1 - u) * om) / so).addScaledVector(d2, Math.sin(u * om) / so);
-    const phi = Math.acos(Math.max(-1, Math.min(1, B.t.dot(d)))), axis = _w.copy(B.t).cross(d), len = axis.length();
-    if (len > 1e-12) v = axis.multiplyScalar(phi / len);
-    else if (phi < 1e-9) v = axis.set(0, 0, 0);
+  const sv = (arr, out) => out.set(0, 0, 0).addScaledVector(B.a1, arr[B.i1] * D2R).addScaledVector(B.a2, arr[B.i2] * D2R);
+  const v1 = sv(a, _v1), v2 = sv(b, _v2), m1 = v1.length(), m2 = v2.length();
+  let arc = false, om = 0, so = 0;
+  const d1 = swingDirection(B.t, v1, _d1), d2 = swingDirection(B.t, v2, _d2);
+  om = Math.acos(Math.max(-1, Math.min(1, d1.dot(d2))));
+  so = Math.sin(om);
+  if (Math.PI - om > 1e-4) { // opposite directions have no unique great circle: straight line
+    if (Math.max(m1, m2) <= B.disc) arc = true; // a small cap is convex and inside the box: the arc cannot leave it
+    else if (Math.max(m1, m2) <= BLEND_POLE) { // otherwise look along the arc
+      arc = true;
+      for (let k = 1; k < BLEND_SAMPLES && arc; k++) {
+        const v = swingOf(B.t, slerpDir(d1, d2, om, so, k / BLEND_SAMPLES, _d), _va);
+        arc = v !== null && v.length() <= BLEND_POLE && inBox(B, v);
+      }
+    }
   }
-  if (v === null) v = _w.copy(v1).lerp(v2, u);
+  let v = null;
+  if (arc) v = swingOf(B.t, slerpDir(d1, d2, om, so, u, _d), _va);
+  if (v === null) v = _va.copy(v1).lerp(v2, u);
   const out = a.map((x, i) => x + (b[i] - x) * u); // the twist (and, for a joint without one, nothing else) is linear
-  out[B.i1] = v.dot(B.a1) * 180 / Math.PI;
-  out[B.i2] = v.dot(B.a2) * 180 / Math.PI;
+  out[B.i1] = Math.min(B.hi1, Math.max(B.lo1, v.dot(B.a1))) / D2R;
+  out[B.i2] = Math.min(B.hi2, Math.max(B.lo2, v.dot(B.a2))) / D2R;
   return out.map(nz);
 }
 
@@ -515,7 +614,7 @@ function resolveCarriers(options) {
     return options.carriers;
   }
   const support = options.support ?? options.posture?.support ?? "feet";
-  const c = SUPPORT_CARRIERS[support];
+  const c = Object.hasOwn(SUPPORT_CARRIERS, support) ? SUPPORT_CARRIERS[support] : null; // not Object.prototype's toString & co
   if (!c) throw new Error(`unknown support ${JSON.stringify(support)} (known: ${Object.keys(SUPPORT_CARRIERS).join(", ")})`);
   return c;
 }
@@ -523,10 +622,10 @@ function resolveCarriers(options) {
 function resolveSurfaces(body, options, carriers) {
   const surfaces = { floor: 0, ...(options.surfaces ?? {}) };
   for (const [k, v] of Object.entries(surfaces)) if (!isNum(v)) throw new RangeError(`surface "${k}" must be a height in metres, got ${v}`);
-  if (Object.values(carriers).includes("seat") && !("seat" in (options.surfaces ?? {}))) {
+  if (Object.values(carriers).includes("seat") && !Object.hasOwn(options.surfaces ?? {}, "seat")) {
     surfaces.seat = seatHeightFor(body, options.posture?.hints?.seat?.height ?? options.seatHeight ?? "popliteal");
   }
-  for (const [set, surf] of Object.entries(carriers)) if (!(surf in surfaces)) throw new Error(`carrier "${set}" rests on the surface "${surf}", which options.surfaces does not define (defined: ${Object.keys(surfaces).join(", ")})`);
+  for (const [set, surf] of Object.entries(carriers)) if (typeof surf !== "string" || !Object.hasOwn(surfaces, surf)) throw new Error(`carrier "${set}" rests on the surface ${JSON.stringify(surf)}, which options.surfaces does not define (defined: ${Object.keys(surfaces).join(", ")})`);
   return surfaces;
 }
 
@@ -588,7 +687,7 @@ export function contactClearances(body, pose, root, surfaces = { floor: 0 }, car
   solvePose(body, pose, root);
   const rows = [];
   for (const [set, surf] of Object.entries(carriers)) {
-    if (!(surf in surfaces)) throw new Error(`carrier "${set}" rests on the surface "${surf}", which is not in surfaces`);
+    if (typeof surf !== "string" || !Object.hasOwn(surfaces, surf)) throw new Error(`carrier "${set}" rests on the surface ${JSON.stringify(surf)}, which is not in surfaces`);
     const pts = carrierPoints(c, set);
     if (set === "body") { // the lowest landmark and the lowest proxy, not 120 rows
       const proxy = pts[pts.length - 1], lm = pts.slice(0, -1).reduce((a, b) => (b.y < a.y ? b : a));
@@ -816,15 +915,19 @@ function validate(body, posture, options) {
     below.sort((a, b) => b[1] - a[1]);
     if (below.length) err(`${below.length} landmark${below.length > 1 ? "s are" : " is"} below the floor: ${below.slice(0, 3).map(([l, d]) => `${l} by ${mm(d)}`).join(", ")}${below.length > 3 ? ", ..." : ""}`);
     if (hasSeat && seat > 0) {
+      // What sits on a seat: the pelvis, the lower trunk and the thighs (the hands hang beside it, the shanks and feet are below it), from the
+      // front of the contact points back to the buttocks: the seat pan is as deep as it needs to be, so there is no rear limit (with the pelvis
+      // tilted back the buttocks lie well behind the contact points). Sideways and at the front the footprint of the contact points plus 6 cm
+      // counts (the popliteal point behind the knee is deliberately lower than the thigh in some bodies, see seatHeightFor).
+      // A landmark of these joints more than 12 cm below the plane is a different matter (a thigh hanging over the front edge): not a seat sink.
       const sp = carrierPoints(c, "seat"), xs = sp.map((p) => p.x), zs = sp.map((p) => p.z), m = 0.06;
-      const bounds = [Math.min(...xs) - m, Math.max(...xs) + m, Math.min(...zs) - m, Math.max(...zs) + m];
+      const bounds = [Math.min(...xs) - m, Math.max(...xs) + m, Math.max(...zs) + m];
       const sunk = [];
       for (const e of c.lm.values()) {
-        // what sits on a seat: the pelvis, the lower trunk and the thighs (the hands hang beside it, the shanks and feet are below it)
         if (!SITS.has(c.body.landmarks[e.id].joint)) continue;
         if (e.id === "crotch") continue; // a soft-tissue point between the thighs, set by the standing crotch height: it can lie below the ischial plane in the model
         worldOf(c, e, w);
-        if (w.x >= bounds[0] && w.x <= bounds[1] && w.z >= bounds[2] && w.z <= bounds[3] && w.y < seat - SINK && w.y > seat - 0.12) sunk.push([e.id, seat - w.y]);
+        if (w.x >= bounds[0] && w.x <= bounds[1] && w.z <= bounds[2] && w.y < seat - SINK && w.y > seat - 0.12) sunk.push([e.id, seat - w.y]);
       }
       sunk.sort((a, b) => b[1] - a[1]);
       if (sunk.length) err(`${sunk.length} landmark${sunk.length > 1 ? "s sink" : " sinks"} into the seat: ${sunk.slice(0, 3).map(([l, d]) => `${l} by ${mm(d)}`).join(", ")}`);
@@ -863,8 +966,8 @@ function validate(body, posture, options) {
 function surfaceOfLandmark(c, id, carriers, surfaces) {
   let surf = null;
   for (const [set, sf] of Object.entries(carriers)) if (set !== "body" && c.sets.get(set)?.some((p) => p.id === id)) { surf = sf; break; }
-  if (surf === null) for (const [name, entries] of c.sets) if (SET_SURFACE[name] && entries.some((p) => p.id === id)) { surf = SET_SURFACE[name]; break; }
-  return surf !== null && surf in surfaces ? surf : "floor";
+  if (surf === null) for (const [name, entries] of c.sets) if (Object.hasOwn(SET_SURFACE, name) && entries.some((p) => p.id === id)) { surf = SET_SURFACE[name]; break; }
+  return surf !== null && Object.hasOwn(surfaces, surf) ? surf : "floor";
 }
 
 function selfHint(a, b) {
