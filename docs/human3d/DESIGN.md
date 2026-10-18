@@ -76,7 +76,7 @@ distal end of the bone by a small positive angle and testing the direction).
 | cervical | `C7` … `C1` | `T1`, `C7`, … | same |
 | head | `head` | `C1` | ball (occiput–C1): `flex` (+ nod forward) · `lat` · `rot` |
 | face | `jaw` | `head` | hinge `open` (+ opens) |
-| face | `eye_L` `eye_R` | `head` | gaze: `elev` (+ up) · `azim` (+ toward the figure's left); neutral gaze `+Z` |
+| face | `eye_L` `eye_R` | `head` | gaze: `elev` (+ up) · `azim`; neutral gaze `+Z`. In a **posture** (`eye_LR`, `eye_R`) `azim` + looks toward the figure's left for both eyes; as a raw joint DOF (`jointQuaternion`, `Kinematics`, `rig.setPose`) `azim` + is lateral (left for `eye_L`, right for `eye_R`) like every mirrored joint; `expandSides` negates `azim` of `eye_R`. "Mirror left to right" in the editor must use the posture convention |
 | shoulder girdle | `clavicle_L/R` | `T4` | sternoclavicular, 2 DOF: `elev` (+ lateral end up) · `prot` (+ lateral end forward) |
 | shoulder | `shoulder_L/R` | `clavicle` | glenohumeral ball: `flex` (+ arm forward) · `abd` (+ away from midline) · `rot` (+ internal rotation). Ranges are those of the whole shoulder complex (scapular motion is not modelled separately) |
 | elbow | `elbow_L/R` | `shoulder` | hinge `flex` (+ forearm forward/up) |
@@ -167,11 +167,62 @@ Keys are the harmonized keys and `other:` keys of `api/v1` (`stature`, `mass`, `
   seated posture, acromion height, shoulder breadth, arm and forearm lengths, hand and foot length, buttock–knee length, …)
   the input value, the value measured on the built model, the delta and a status. This is both a UI panel and the main test.
 
-### 2.3 Rig (`rig.js`)
+### 2.3 Rig (`rig.js`, `skeletonview.js`, `synthetic.js`)
 
-`buildRig(body, options) → Rig` with at least: `group` (add to the scene), `bones` (Map id → `THREE.Bone`), `setAngles(angles)`,
-`getAngles()`, `setRoot(root)`, `landmark(id, target)`, `jointWorld(id, target)`, `centerOfMass(target)`, `skin` (SkinnedMesh),
-`setDisplay({ skin, skeleton, joints, labels, axes, wireframe, xray })`, `pick(raycaster)`, `dispose()`.
+`buildRig(body, options) → Rig`. `body` is a BodyModel (2.2); only `joints`, `landmarks`, `contacts`, `masses` and (for the skin) `shape`
+are read. `options`: `{ skinBuilder?: (body, bones) => { mesh: THREE.SkinnedMesh, dispose() } | null, skeleton: true, quality: "high" | "low" }`.
+`synthetic.js` exports `syntheticBody(statureM = 1.75, form = "male")`, a BodyModel-shaped fallback with plausible proportions, for
+tests, development and as a last resort when fitting fails.
+
+```
+Rig {
+  body                                   // the BodyModel it was built from
+  group: THREE.Group                     // "rig": add to the scene; its origin is the world origin
+  bones: Map<jointId, THREE.Bone>        // bone origin = joint centre; local position = rest offset, local quaternion = jointQuaternion(angles);
+                                         // the "pelvis" bone holds the root position and orientation (world frame)
+  kin: Kinematics                        // same offsets, kept in sync; the numerical truth for IK and validation
+  angles: { [jointId]: number[] }        // current region-expanded, clamped angles (degrees)
+  root: { x, y, z, heading, flex, lat, rot }
+  setPose({ root?, angles? }, { clamp = true }) → { clamped: [{ joint, dof, requested, applied }] }   // atomic; updates bones, kin and visuals
+  setAngles(partial), setRoot(partial), resetPose()                // convenience; resetPose = neutral standing on the floor
+  getPose() → { root, angles }                                     // deep copy
+  jointWorld(id, out), jointQuaternion(id, out), landmarkWorld(id, out)
+  landmarkIds                                                      // all landmark ids
+  contactPoints(setName) → THREE.Vector3[]                         // world positions of body.contacts[setName]
+  lowestY()                                                        // lowest body point (landmarks, contacts, skin bounds) for grounding
+  boneSegment(boneId) → { a, b }                                   // world end points of a BONES entry
+  centerOfMass(out) → { point, mass }
+  skin: THREE.SkinnedMesh | null
+  display: { skin, skeleton, joints, labels, axes, landmarks, wireframe, xray, com }      // booleans (read-only; use setDisplay)
+  setDisplay(partial)
+  pickJoint(raycaster) → { id, point, distance } | null            // joint markers (when visible)
+  pickBone(raycaster)  → { id, point, distance } | null
+  select(jointId | null), highlight(jointId | null)                // selection ring + local-frame axes with the DOF arrows (from skeleton.js probe/moves)
+  labelAnchors() → [{ id, text, position: THREE.Vector3 }]         // for the viewport's HTML label overlay (joint names, optionally landmarks)
+  onChange(fn) → unsubscribe                                       // called after every setPose
+  dispose()                                                        // geometries, materials, textures
+}
+```
+
+Bones are the scene-graph truth for rendering; `kin` is the numerical truth; a test asserts that they agree to 1e-9 m for random poses.
+
+### 2.3b Viewport (`viewport.js`) and shell (`index.js`)
+
+`createViewport(container, options) → Viewport`: `scene`, `camera`, `renderer`, `controls`, `overlay` (HTML layer for labels),
+`add(obj)`, `remove(obj)`, `requestRender()` (render on demand: no continuous loop while nothing changes), `setActive(bool)`
+(false stops all work, true re-renders), `setView("front" | "back" | "left" | "right" | "top" | "iso")`, `frame(objectOrBox, { animate })`,
+`pick(clientX, clientY, targets, recursive) → intersections`, `project(vec3) → { x, y, visible }`, `on(event, fn)` for `click`,
+`pointerdown`, `pointermove`, `pointerup` (with `{ hit?, shift, alt, button }`; a drag longer than 4 px is not a click), TransformControls
+wrapper `attachGizmo(object, { mode, space, snap })` / `detachGizmo()` with events `gizmo-start`, `gizmo-change`, `gizmo-end`
+(orbit is suspended while dragging), `setTheme()` (re-reads the CSS variables; called on theme change), `screenshot() → dataURL`,
+`resize()`, `dispose()`. WebGL missing or context lost shows a plain-language message in the container instead of throwing.
+
+The shell (`index.js`) owns the layout (left panel with tabs, viewport with toolbar, right inspector, status bar), the state store and
+the build pipeline `profile → fitBody → buildRig → viewport`. Panels are modules `panels/<id>.js` exporting
+`export default { id, label, order, mount(container, ctx) → { onShow?, onHide?, dispose? } }`; missing panels show "Coming soon".
+`ctx`: `{ state, viewport, getRig(), getBody(), getProfile(), setProfile(profile), on(event, fn) → off, emit(event, data), units, toast(message), select(selection), requestRender() }`;
+events: `profile`, `body`, `rig` (rig replaced), `pose`, `selection`, `display`, `units`, `theme`. `state` is a plain object that panels
+may read; they change it only through `ctx` functions.
 
 ### 2.4 Posture (`pose.js`, `postures.js`)
 
