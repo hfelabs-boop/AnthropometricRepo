@@ -150,11 +150,17 @@ function dimensions(body, skin, tag) {
     const w = mm(axis === "z" ? s.z[1] - s.z[0] : s.x[1] - s.x[0]);
     assert.ok(Math.abs(w - row.model) < Math.max(3, 1.5 * row.tolerance), `${tag}: ${id} ${w.toFixed(1)} mm in the skin vs ${row.model} in the fit report (input ${row.input})`);
   }
-  // bideltoid: the outer edge of the deltoid ring of the arm
+  // bideltoid: the outer edge of the deltoid ring of the arm, or half the measured breadth where the fit's ring is wider (a narrow shoulder: the fit keeps
+  // the section 45 mm wide and 60 mm lateral to the axis); no skin of the upper arm within 40 mm of the deltoid or above it reaches further out
   const arm = parts.arm_L, dl = body.shape.tubes.upper_arm_L.rings.find((r) => r.id === "ua_deltoid");
-  let maxX = -Infinity;
-  for (let v = arm.vertexStart; v < arm.vertexEnd; v++) maxX = Math.max(maxX, pos[v * 3]);
-  assert.ok(maxX >= dl.c[0] + dl.rx - 0.002, `${tag}: the arm reaches the deltoid edge (${mm(maxX).toFixed(1)} vs ${mm(dl.c[0] + dl.rx).toFixed(1)})`);
+  const bid = body.report.find((r) => r.id === "bideltoid_breadth" && r.kind === "measure")?.input, edge = Math.min(dl.c[0] + dl.rx, bid > 0 ? bid / 2000 : Infinity);
+  let maxX = -Infinity, winX = -Infinity;
+  for (let v = arm.vertexStart; v < arm.vertexEnd; v++) {
+    maxX = Math.max(maxX, pos[v * 3]);
+    if (pos[v * 3 + 1] >= dl.c[1] - 0.04 && pos[v * 3 + 1] <= dl.c[1] + 0.06) winX = Math.max(winX, pos[v * 3]);
+  }
+  assert.ok(maxX >= edge - 0.002, `${tag}: the arm reaches the deltoid edge (${mm(maxX).toFixed(1)} vs ${mm(edge).toFixed(1)})`);
+  assert.ok(winX <= edge + 0.003, `${tag}: the skin within 40 mm of the deltoid is ${mm(winX - edge).toFixed(1)} mm wider than the deltoid edge / half the bideltoid breadth`);
   // foot length and hand length
   const foot = parts.foot_L;
   let zlo = Infinity, zhi = -Infinity;
@@ -632,4 +638,210 @@ test("knee flexion 150: how far the calf and the thigh interpenetrate at the bac
   assert.ok(worst.every(Number.isFinite));
   assert.ok(Math.max(...worst) < 0.075, `the thigh sinks ${mm(Math.max(...worst)).toFixed(1)} mm into the calf`);
   rig.dispose();
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Regressions of the defects an independent verifier found (hip, thigh, deltoid, shoulder limit, deep flexion, ankle, fingertips, low quality).
+/** Cross-section of the triangles [t0, t1) with the plane y = y0: { x: [lo, hi], z: [lo, hi], per (m), n (segments) }. Exact between the vertices. */
+function cut(pos, idx, part, y0) {
+  const r = { x: [Infinity, -Infinity], z: [Infinity, -Infinity], per: 0, n: 0 }, P = [0, 0, 0, 0];
+  for (let t = part.triStart; t < part.triEnd; t++) {
+    const v = [idx[t * 3] * 3, idx[t * 3 + 1] * 3, idx[t * 3 + 2] * 3];
+    let m = 0;
+    for (let k = 0; k < 3; k++) {
+      const a = v[k], b = v[(k + 1) % 3], ya = pos[a + 1] - y0, yb = pos[b + 1] - y0;
+      if ((ya < 0) !== (yb < 0)) { const f = ya / (ya - yb); if (m < 2) { P[m * 2] = pos[a] + f * (pos[b] - pos[a]); P[m * 2 + 1] = pos[a + 2] + f * (pos[b + 2] - pos[a + 2]); } m++; }
+    }
+    if (m !== 2) continue;
+    r.n++; r.per += Math.hypot(P[0] - P[2], P[1] - P[3]);
+    for (const o of [0, 2]) { r.x = [Math.min(r.x[0], P[o]), Math.max(r.x[1], P[o])]; r.z = [Math.min(r.z[0], P[o + 1]), Math.max(r.z[1], P[o + 1])]; }
+  }
+  return r;
+}
+/** Number of interior edges of the triangles [t0, t1) whose two faces make a dihedral angle of more than 90 degrees (a crease or a fold in the surface). */
+function creaseCount(pos, idx, part) {
+  const first = new Map(), n = [];
+  for (let t = part.triStart; t < part.triEnd; t++) {
+    const a = idx[t * 3] * 3, b = idx[t * 3 + 1] * 3, c = idx[t * 3 + 2] * 3;
+    const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2], vx = pos[c] - pos[a], vy = pos[c + 1] - pos[a + 1], vz = pos[c + 2] - pos[a + 2];
+    const x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx, l = Math.hypot(x, y, z) || 1;
+    n.push(x / l, y / l, z / l, l);
+  }
+  let count = 0;
+  for (let t = part.triStart; t < part.triEnd; t++) for (let k = 0; k < 3; k++) {
+    const a = idx[t * 3 + k], b = idx[t * 3 + (k + 1) % 3], key = Math.min(a, b) * 4194304 + Math.max(a, b), o = first.get(key);
+    if (o === undefined) { first.set(key, t); continue; }
+    const i = (t - part.triStart) * 4, j = (o - part.triStart) * 4;
+    if (n[i + 3] < 1e-12 || n[j + 3] < 1e-12) continue;
+    if (n[i] * n[j] + n[i + 1] * n[j + 1] + n[i + 2] * n[j + 2] < 0) count++;
+  }
+  return count;
+}
+/** Triangles of `part` whose posed face normal points against the blended, transformed rest normals of their vertices (a fold: the skin turned inside out there). */
+function foldedTriangles(mesh, M, posed, part) {
+  const geo = mesh.geometry, idx = geo.index.array, si = geo.attributes.skinIndex.array, sw = geo.attributes.skinWeight.array, nrm = geo.attributes.normal.array, sn = new Float64Array(posed.length);
+  for (let v = 0; v < posed.length / 3; v++) {
+    let x = 0, y = 0, z = 0;
+    for (let k = 0; k < 4; k++) {
+      const w = sw[v * 4 + k]; if (!w) continue;
+      const o = si[v * 4 + k] * 16, nx = nrm[v * 3], ny = nrm[v * 3 + 1], nz = nrm[v * 3 + 2];
+      x += w * (M[o] * nx + M[o + 4] * ny + M[o + 8] * nz); y += w * (M[o + 1] * nx + M[o + 5] * ny + M[o + 9] * nz); z += w * (M[o + 2] * nx + M[o + 6] * ny + M[o + 10] * nz);
+    }
+    sn[v * 3] = x; sn[v * 3 + 1] = y; sn[v * 3 + 2] = z;
+  }
+  let folded = 0;
+  for (let t = part.triStart; t < part.triEnd; t++) {
+    const a = idx[t * 3] * 3, b = idx[t * 3 + 1] * 3, c = idx[t * 3 + 2] * 3;
+    const ux = posed[b] - posed[a], uy = posed[b + 1] - posed[a + 1], uz = posed[b + 2] - posed[a + 2], vx = posed[c] - posed[a], vy = posed[c + 1] - posed[a + 1], vz = posed[c + 2] - posed[a + 2];
+    const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx, fl = Math.hypot(fx, fy, fz);
+    let x = 0, y = 0, z = 0;
+    for (const q of [a, b, c]) { x += sn[q]; y += sn[q + 1]; z += sn[q + 2]; }
+    const l = Math.hypot(x, y, z) || 1;
+    if (fl > 1e-12 && (fx * x + fy * y + fz * z) / (fl * l) < -0.3) folded++;
+  }
+  return folded;
+}
+function hipBodies() {
+  const out = [["1780 M 52 kg", P(1780, "M", 52)], ["1780 M 150 kg", P(1780, "M", 150)], ["1600 F 120 kg", P(1600, "F", 120)], ["1450 F", P(1450, "F")], ["2050 M", P(2050, "M")]];
+  if (HAVE_POPS) for (const [c, r, s, pct] of [["united-states", "army", "F", 50], ["united-states", "army", "F", 5], ["united-states", "army", "M", 50], ["united-states", "army", "M", 95], ["united-states", "officers", "M", 5], ["united-states", "air-force", "F", 50], ["united-states", "aircrew", "both", 50]]) if (fs.existsSync(popFile(c, r, s))) out.push([`${c}/${r}/${s} P${pct}`, popProfile(c, r, s, pct)]);
+  return out;
+}
+
+test("regression, the hip: no thigh in front of the pelvis, no shelf under it, no ledge on its side, no overlap of the thighs, no crease in the leg", () => {
+  const rows = [];
+  for (const [label, prof] of hipBodies()) {
+    const body = fitBody(prof), skin = buildSkin(body, makeBones(body)), geo = skin.mesh.geometry, pos = geo.attributes.position.array, idx = geo.index.array, parts = skin.mesh.userData.parts;
+    const yh = body.positions.hip_L[1], yb = body.shape.tubes.torso.rings.find((r) => r.id === "buttock").c[1];
+    // at the hip joint the trunk is the front, the back and the side of the body: the thigh is inside it (it used to stand up to 81 mm in front of the belly and 5 mm out of the hip)
+    const t = cut(pos, idx, parts.torso, yh), l = cut(pos, idx, parts.leg_L, yh);
+    assert.ok(l.z[1] - t.z[1] <= 0.005, `${label}: the thigh is ${mm(l.z[1] - t.z[1]).toFixed(0)} mm in front of the trunk at the hip joint`);
+    assert.ok(l.x[1] - t.x[1] <= 0.0005, `${label}: the thigh is ${mm(l.x[1] - t.x[1]).toFixed(0)} mm wider than the trunk at the hip joint`);
+    // 30 mm under the buttock ring the back of the thigh runs into the buttock (it used to be 89 mm in front of it: the underside of the pelvis was a shelf)
+    const tb = cut(pos, idx, parts.torso, yb - 0.03), lb = cut(pos, idx, parts.leg_L, yb - 0.03);
+    assert.ok(lb.z[0] - tb.z[0] <= 0.03, `${label}: the back of the thigh is ${mm(lb.z[0] - tb.z[0]).toFixed(0)} mm in front of the back of the buttock 30 mm under its ring`);
+    // the thighs touch at most (up to 60 mm overlap before)
+    for (const dy of [0.04, 0.12, 0.25]) {
+      const a = cut(pos, idx, parts.leg_L, yh - dy), b = cut(pos, idx, parts.leg_R, yh - dy);
+      if (a.n && b.n) assert.ok(a.x[0] - b.x[1] >= 0.003, `${label}: the thighs overlap by ${mm(b.x[1] - a.x[0]).toFixed(0)} mm ${mm(dy).toFixed(0)} mm under the hip`);
+    }
+    // no crease (a dihedral angle of more than 90 degrees) in the leg: the outer edge was narrowed in steps and the dome joined the ring at a kink (62 creases per leg)
+    for (const s of ["L", "R"]) assert.ok(creaseCount(pos, idx, parts[`leg_${s}`]) <= 2, `${label}: leg_${s} has ${creaseCount(pos, idx, parts[`leg_${s}`])} creased edges`);
+    // the measured thigh ring (the furrow) is kept to 2 % of its girth
+    const ring = body.shape.tubes.thigh_L.rings.find((r) => r.id === "th_prox"), c = cut(pos, idx, parts.leg_L, ring.c[1]);
+    assert.ok(Math.abs(c.per / ringPerimeterOf(ring) - 1) < 0.02, `${label}: the thigh girth at the furrow is ${((c.per / ringPerimeterOf(ring) - 1) * 100).toFixed(1)} % off the ring`);
+    rows.push([l.z[1] - t.z[1], lb.z[0] - tb.z[0]]);
+    skin.dispose();
+  }
+  console.log(`  hip, ${rows.length} bodies: the thigh front is ${mm(Math.max(...rows.map((r) => r[0]))).toFixed(0)} mm in front of the trunk at worst (was +81), the back of the thigh ${mm(Math.max(...rows.map((r) => r[1]))).toFixed(0)} mm in front of the buttock (was 89)`);
+});
+const ringPerimeterOf = (r) => { const a = r.rx, b = r.rz, h = ((a - b) / (a + b)) ** 2; return Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h))); }; // n = 2 (the thigh rings are ellipses)
+
+test("regression, the thigh of a very large thigh does not fold on itself (ANSUR II #6275: a ring of 814 mm was lofted to 1252 mm)", { skip: !HAVE_DB }, () => {
+  const row = db().prepare("select * from subjects where dataset = ? and subject_key = ?").get("ansur_ii_2012", 6275);
+  if (!row) return;
+  const body = fitBody(subjectProfile(row)), skin = buildSkin(body, makeBones(body)), geo = skin.mesh.geometry, pos = geo.attributes.position.array, idx = geo.index.array, leg = skin.mesh.userData.parts.leg_L;
+  const ring = body.shape.tubes.thigh_L.rings.find((r) => r.id === "th_prox"), c = cut(pos, idx, leg, ring.c[1]);
+  assert.ok(c.per / ringPerimeterOf(ring) < 1.03 && c.per / ringPerimeterOf(ring) > 0.97, `thigh section ${mm(c.per).toFixed(0)} mm for a ring of ${mm(ringPerimeterOf(ring)).toFixed(0)}`);
+  // the section never exceeds 1.2 times the ring anywhere between the hip and the knee
+  const yk = body.positions.knee_L[1];
+  for (let y = body.positions.hip_L[1]; y > yk; y -= 0.02) { const s = cut(pos, idx, leg, y); assert.ok(s.per < 1.2 * ringPerimeterOf(ring) * 1.1, `thigh section ${mm(s.per).toFixed(0)} mm at ${mm(y).toFixed(0)} mm`); }
+  assert.ok(creaseCount(pos, idx, leg) <= 2);
+  skin.dispose();
+});
+
+test("regression, the shoulder: no arm skin within 40 mm of the deltoid, nor above it, is wider than the measured bideltoid breadth (+16 mm median before, 68 mm at worst)", { skip: !HAVE_POPS }, () => {
+  const worst = [];
+  for (const [c, r, s, pct] of [["united-states", "officers", "M", 5], ["united-states", "army", "F", 5], ["united-states", "army", "M", 50], ["united-states", "army", "F", 95], ["united-states", "air-force", "F", 5]]) {
+    if (!fs.existsSync(popFile(c, r, s))) continue;
+    const body = fitBody(popProfile(c, r, s, pct)), skin = buildSkin(body, makeBones(body)), pos = skin.mesh.geometry.attributes.position.array, arm = skin.mesh.userData.parts.arm_L;
+    const bid = body.report.find((q) => q.id === "bideltoid_breadth" && q.kind === "measure"), dl = body.shape.tubes.upper_arm_L.rings.find((q) => q.id === "ua_deltoid");
+    if (!bid || bid.input === null) continue;
+    let w = 0;
+    for (let v = arm.vertexStart; v < arm.vertexEnd; v++) if (pos[v * 3 + 1] >= dl.c[1] - 0.04 && pos[v * 3 + 1] <= dl.c[1] + 0.06) w = Math.max(w, pos[v * 3]);
+    worst.push(mm(2 * w) - bid.input);
+    assert.ok(Math.abs(mm(2 * w) - bid.input) < 8, `${c}/${r}/${s} P${pct}: the mesh is ${(mm(2 * w) - bid.input).toFixed(1)} mm wider across the deltoids than the measured ${bid.input} mm`);
+    skin.dispose();
+  }
+  assert.ok(worst.length >= 3);
+});
+
+test("regression, shoulder abduction 180: the root of the arm does not collapse or stretch (an edge shrank to 0.000 of its length, others stretched 3.1 times)", () => {
+  for (const [who, prof] of [["man", P(1750, "M", 80)], ["heavy man", P(1780, "M", 150)]]) {
+    const body = fitBody(prof), rig = rigOf(body), mesh = rig.skin, geo = mesh.geometry, pos = geo.attributes.position.array, idx = geo.index.array, arm = mesh.userData.parts.arm_L;
+    applyPose(rig, { angles: { shoulder_L: [0, 180, 0] } });
+    const out = skinAll(mesh, boneMatrices(mesh));
+    let lo = Infinity, hi = 0;
+    for (let t = arm.triStart; t < arm.triEnd; t++) for (let k = 0; k < 3; k++) {
+      const a = idx[t * 3 + k] * 3, b = idx[t * 3 + (k + 1) % 3] * 3, r0 = Math.hypot(pos[a] - pos[b], pos[a + 1] - pos[b + 1], pos[a + 2] - pos[b + 2]);
+      if (r0 < 0.0015) continue;
+      const r = Math.hypot(out[a] - out[b], out[a + 1] - out[b + 1], out[a + 2] - out[b + 2]) / r0;
+      lo = Math.min(lo, r); hi = Math.max(hi, r);
+    }
+    assert.ok(lo > 0.05 && hi < 2.4, `${who}: edges of the arm go from ${lo.toFixed(3)} to ${hi.toFixed(2)} times their length at abduction 180`);
+    rig.dispose();
+  }
+});
+
+test("regression, deep flexion: a bent knee keeps its volume (88 % of the leg, 84.5 before) and folds fewer triangles; a trunk bent forward folds less", () => {
+  const POSES = {
+    "kneeling on the heels": { angles: { ...both("hip", [125, 0, 0]), ...both("knee", [155, 0]), ...both("ankle", [-50, 0, 0]) } },
+    "deep squat": { angles: { ...both("hip", [125, 15, 0]), ...both("knee", [150, 0]), ...both("ankle", [30, 0, 0]) } },
+  };
+  for (const [who, prof] of [["man", P(1750, "M", 80)], ["heavy man", P(1780, "M", 150)]]) {
+    const body = fitBody(prof), rig = rigOf(body), mesh = rig.skin, geo = mesh.geometry, pos = geo.attributes.position.array, parts = mesh.userData.parts;
+    for (const [name, def] of Object.entries(POSES)) {
+      applyPose(rig, def);
+      const M = boneMatrices(mesh), out = skinAll(mesh, M);
+      for (const s of ["L", "R"]) {
+        const p = parts[`leg_${s}`], ratio = partVolume(mesh, out, p) / partVolume(mesh, pos, p), folded = foldedTriangles(mesh, M, out, p);
+        assert.ok(ratio > 0.86, `${who} / ${name}: leg_${s} keeps ${(ratio * 100).toFixed(1)} % of its volume`);
+        assert.ok(folded <= 95, `${who} / ${name}: ${folded} triangles of leg_${s} are folded`);
+      }
+    }
+    if (who === "heavy man") {
+      applyPose(rig, { angles: both("hip", [80, 0, 0]), spine: { lumbar: [50, 0, 0], thoracic: [30, 0, 0] } });
+      const M = boneMatrices(mesh), out = skinAll(mesh, M), p = parts.torso, ratio = partVolume(mesh, out, p) / partVolume(mesh, pos, p), folded = foldedTriangles(mesh, M, out, p);
+      assert.ok(ratio > 0.8 && folded <= 250, `heavy man bent over: the trunk keeps ${(ratio * 100).toFixed(1)} % of its volume, ${folded} triangles are folded`);
+    }
+    rig.dispose();
+  }
+});
+
+test("regression, polish: the foot is wider than the shank at the ankle (no zigzag line), the fingertips are round, the low-quality head is smooth and keeps its face rows", () => {
+  const body = fitBody(HAVE_POPS ? popProfile("united-states", "army", "M", 50) : P(1750, "M", 80)), bones = makeBones(body), skin = buildSkin(body, bones), geo = skin.mesh.geometry, pos = geo.attributes.position.array, idx = geo.index.array, parts = skin.mesh.userData.parts;
+  // ankle: the foot's half width at the ankle is at least the shank's + 4.5 mm (it was equal: two walls meeting at a tangent)
+  const foot = parts.foot_L, last = body.shape.tubes.shank_L.rings.at(-1), zA = body.positions.ankle_L[2];
+  let wide = 0;
+  for (let v = foot.vertexStart; v < foot.vertexEnd; v++) if (Math.abs(pos[v * 3 + 2] - zA) < 0.004) wide = Math.max(wide, Math.abs(pos[v * 3] - last.c[0]));
+  assert.ok(wide >= last.rx + 0.0045, `the foot is ${mm(wide).toFixed(1)} mm wide (half) at the ankle for a shank of ${mm(last.rx).toFixed(1)}`);
+  // fingertips: 0.15 r above the tip the section is already narrower than 0.62 r (a hemisphere: 0.53 r; the 0.55 r dome of before: 0.68 r)
+  for (const f of ["index", "middle", "ring", "little", "thumb"]) {
+    const p = parts[`${f}_L`], r3 = body.shape.hands.L.fingers[f].radiusZ[3];
+    let ymin = Infinity;
+    for (let v = p.vertexStart; v < p.vertexEnd; v++) ymin = Math.min(ymin, pos[v * 3 + 1]);
+    const s = cut(pos, idx, p, ymin + 0.15 * r3);
+    assert.ok(s.n > 0 && Math.max(s.x[1] - s.x[0], s.z[1] - s.z[0]) / 2 <= 0.62 * r3, `${f}: the tip is ${(Math.max(s.x[1] - s.x[0], s.z[1] - s.z[0]) / 2 / r3).toFixed(2)} r wide 0.15 r above its end`);
+  }
+  skin.dispose();
+  // low quality: the top of the skull has no facets of more than 19 degrees, and the face has 12 rows from the glabella to the subnasale (10 before)
+  const lo = buildSkin(body, bones, { quality: "low" }), lg = lo.mesh.geometry, lp = lg.attributes.position.array, li = lg.index.array, hd = lo.mesh.userData.parts.head;
+  const yTop = body.shape.head.cranium.c[1] + 0.6 * body.shape.head.cranium.r[1], nrm = new Map(), tri = [];
+  for (let t = hd.triStart; t < hd.triEnd; t++) {
+    const a = li[t * 3] * 3, b = li[t * 3 + 1] * 3, c = li[t * 3 + 2] * 3;
+    const ux = lp[b] - lp[a], uy = lp[b + 1] - lp[a + 1], uz = lp[b + 2] - lp[a + 2], vx = lp[c] - lp[a], vy = lp[c + 1] - lp[a + 1], vz = lp[c + 2] - lp[a + 2];
+    const x = uy * vz - uz * vy, y = uz * vx - ux * vz, z = ux * vy - uy * vx, l = Math.hypot(x, y, z) || 1;
+    tri.push([x / l, y / l, z / l]);
+    for (let k = 0; k < 3; k++) {
+      const p = li[t * 3 + k], q = li[t * 3 + (k + 1) % 3], key = Math.min(p, q) * 4194304 + Math.max(p, q);
+      if (lp[p * 3 + 1] > yTop && lp[q * 3 + 1] > yTop) { const o = nrm.get(key); if (o === undefined) nrm.set(key, t - hd.triStart); else nrm.set(key, [o, t - hd.triStart]); }
+    }
+  }
+  let worstAngle = 0;
+  for (const v of nrm.values()) if (Array.isArray(v)) { const d = tri[v[0]][0] * tri[v[1]][0] + tri[v[0]][1] * tri[v[1]][1] + tri[v[0]][2] * tri[v[1]][2]; worstAngle = Math.max(worstAngle, (Math.acos(Math.min(1, d)) * 180) / Math.PI); }
+  assert.ok(worstAngle < 19, `the top of the low-quality skull has a facet angle of ${worstAngle.toFixed(1)} degrees`);
+  const gl = body.landmarks.glabella, sn = body.landmarks.subnasale, yg = body.positions[gl.joint][1] + gl.offset[1], ys = body.positions[sn.joint][1] + sn.offset[1], rows = new Set();
+  for (let v = hd.vertexStart; v < hd.vertexEnd; v++) if (Math.abs(lp[v * 3]) < 0.0025 && lp[v * 3 + 1] <= yg && lp[v * 3 + 1] >= ys && lp[v * 3 + 2] > 0.05) rows.add(lp[v * 3 + 1].toFixed(5));
+  assert.ok(rows.size >= 12, `${rows.size} face rows between the glabella and the subnasale`);
+  assert.ok(lo.stats.triangles < 20000, `${lo.stats.triangles} triangles in low quality`);
+  lo.dispose();
 });

@@ -7,20 +7,27 @@
 // what rig.setPose consumes, minus the root position. Joints that are not listed are 0. A POSTURE (the library entry, see the typedef)
 // is the author's shorthand for a pose (regions, "_LR" keys, grip presets) plus what carries the weight.
 //
-// Placement needs a body (fit.js BodyModel, or rig.restBody, which agrees with rig.kin when forearms are pronated). A body is treated as
-// immutable: per-body tables (kinematics, landmark index, proxies) are cached on the object and rebuilt when its joints, landmarks,
-// contacts or masses object is replaced.
+// Placement needs a body (fit.js BodyModel, or rig.restBody: both give the same figure). Everything here poses the figure the RIG draws:
+// the forearm twist axis is moved from the elbow to the wrist and the sternum landmarks ride on T4, exactly as rig.js does (restModelOf);
+// a rig.restBody is already in that form and passes through unchanged. A body is treated as immutable: per-body tables (kinematics,
+// landmark index, proxies) are cached on the object and rebuilt when its joints, landmarks, contacts or masses object is replaced.
 import * as THREE from "three";
 import { JOINTS, JOINT_BY_ID, BONES, REGIONS, clampAngles, expandSides, mirrorId, sideOf } from "./skeleton.js";
 import { Kinematics } from "./fk.js";
 import { GRIPS, GRIP_NAMES, HAND_JOINTS, gripAngles } from "./postures/grips.js";
-import { bodyProxies, proxyWorld, lowestPoint, selfPenetrations } from "./proxies.js";
+import { bodyProxies, proxyWorld, lowestSkinPoint, selfPenetrations } from "./proxies.js";
 
 const nz = (x) => (x === 0 ? 0 : x); // -0 -> 0
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const wrap180 = (d) => { const w = ((((d + 180) % 360) + 360) % 360) - 180; return w === -180 ? 180 : w; }; // (-180, 180]
 const mm = (m) => `${(m * 1000).toFixed(m !== 0 && Math.abs(m * 1000) < 10 ? 1 : 0)} mm`;
+// mm(v) with enough decimals to tell it from the limit it is compared with: "15.1 mm (limit 15 mm)", not "15 mm (limit 15 mm)"
+const mmVs = (v, limit) => {
+  for (let d = v !== 0 && Math.abs(v * 1000) < 10 ? 1 : 0; d < 3; d++) if ((v * 1000).toFixed(d) !== (limit * 1000).toFixed(d)) return `${(v * 1000).toFixed(d)} mm`;
+  return `${(v * 1000).toFixed(3)} mm`;
+};
+const rom = (x) => +x.toFixed(1); // a range limit for a message: the per-vertebra ranges are fractions of the region range
 
 /**
  * @typedef {object} Posture
@@ -67,7 +74,7 @@ export const CATEGORIES = Object.freeze([
  * Which contact sets carry the weight and on which surface, by `Posture.support`. The FIRST entry is the primary carrier: placement puts
  * its lowest point exactly on its surface. The other entries are checked by the validator (the lowest point of the set within 15 mm above its surface)
  * unless hints.externalSupport. A set is a key of body.contacts (feet, seat, knees, hands, elbows, back, front, side_L, side_R, head) or one of
- * the derived sets toes, heels, palms, shins, kneecaps, or "body" (the lowest points of the body proxies and the landmarks). A surface is a key of the
+ * the derived sets toes, heels, palms, shins, kneecaps, or "body" (the lowest point of the skin sections, see proxies.js lowestSkinPoint, and the landmarks). A surface is a key of the
  * `surfaces` heights ("floor" = 0, "seat" = the seat plane).
  */
 export const SUPPORT_CARRIERS = Object.freeze({
@@ -221,7 +228,7 @@ export function expandPosture(posture) {
 
   const checkArray = (where, v, ndof, names) => {
     if (!Array.isArray(v)) bad(where, `angles must be an array in DOF order (${names})`);
-    if (v.length === 0 || v.length > ndof) bad(where, `expected 1 to ${ndof} values (${names}), got ${v.length}`);
+    if (v.length === 0 || v.length > ndof) bad(where, `expected ${ndof === 1 ? "1 value" : `1 to ${ndof} values`} (${names}), got ${v.length}`);
     for (let i = 0; i < v.length; i++) if (!isNum(v[i])) bad(where, `value ${i} is not a finite number`);
   };
 
@@ -485,27 +492,91 @@ export function blendPoses(a, b, t) {
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Per-body context: kinematics, landmark and contact tables
+//
+// The figure the rig draws differs from the BodyModel of fit.js in two rigid attachments (rig.js "rest model" explains why; the neutral world
+// position of every joint, landmark, contact and mass is the same in both):
+//  1. skeleton.js twists the forearm about the vertical through the forearm joint, which fit.js puts on the elbow; the hand hangs to the side of that,
+//     so pronation would swing wrist and hand on an arc. The rig moves the forearm joint above the wrist (a quarter of the forearm length), so
+//     that pronation spins the hand about the wrist. A pronated forearm put every forearm, wrist, hand and fingertip landmark 20 to 50 mm off the drawn
+//     figure, more than the tolerances of the contact and hand-overlap rules.
+//  2. the sternum is one rigid piece on T4: the landmarks that BONES ends it at (xiphoid, substernale) ride on T4, not on T11.
+// restModelOf repeats rig.js rebase() so that a decision of this module (hand on a desk, hand inside the chest) is about the figure the user sees; a
+// test compares both with rig.kin. It is idempotent, so a rig.restBody passes through. Duplicated rather than imported because rig.js is a heavy
+// three.js module and this one is pure.
+const SAME_PLACE = { substernale: "xiphoid" }; // a landmark that sits on another one follows it
+const add3 = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+function restModelOf(body) {
+  const off = {};
+  for (const j of JOINTS) {
+    const o = body.joints[j.id]?.offset;
+    if (!o || o.length < 3) throw new TypeError(`expected a BodyModel (fit.js): joints.${j.id}.offset is missing`);
+    off[j.id] = Array.from(o).slice(0, 3);
+  }
+  const world = () => { const W = {}; for (const j of JOINTS) W[j.id] = j.parent ? add3(W[j.parent], off[j.id]) : [0, off[j.id][1], 0]; return W; };
+  const W0 = world();
+  for (const s of ["L", "R"]) {
+    const f = off[`forearm_${s}`], w = off[`wrist_${s}`];
+    if (Math.abs(w[0]) < 1e-12 && Math.abs(w[2]) < 1e-12) continue; // already below the forearm joint
+    f[0] += w[0]; f[1] += 0.75 * w[1]; f[2] += w[2];
+    w[0] = 0; w[1] *= 0.25; w[2] = 0;
+  }
+  const W1 = world(), moved = (id) => sub3(W0[id], W1[id]); // what an attachment to this joint must add to keep its neutral position
+  const lm = new Map();
+  for (const [id, l] of Object.entries(body.landmarks)) lm.set(id, { id, joint: l.joint, off: add3(Array.from(l.offset).slice(0, 3), moved(l.joint)) });
+  const home = new Set();
+  const rehome = (id, joint) => {
+    const l = lm.get(id);
+    if (!l || l.joint === joint || home.has(id)) return;
+    lm.set(id, { id, joint, off: sub3(add3(W1[l.joint], l.off), W1[joint]) });
+    home.add(id);
+  };
+  for (const d of BONES) for (const e of [d.from, d.to]) if (e && e.startsWith("lm:")) rehome(e.slice(3), d.joint);
+  for (const [id, of] of Object.entries(SAME_PLACE)) if (lm.has(of)) rehome(id, lm.get(of).joint);
+  // the body as the rig poses it: the same object when nothing had to change (what bodyProxies and the other readers of a body see)
+  let changed = JOINTS.some((j) => moved(j.id).some((c) => Math.abs(c) > 1e-12));
+  for (const [id, l] of lm) if (l.joint !== body.landmarks[id].joint) changed = true;
+  let view = body;
+  if (changed) {
+    const joints = {}, landmarks = {};
+    for (const j of JOINTS) joints[j.id] = { ...body.joints[j.id], offset: off[j.id] };
+    for (const [id, l] of lm) landmarks[id] = { ...body.landmarks[id], joint: l.joint, offset: l.off };
+    view = { ...body, joints: { ...body.joints, ...joints }, landmarks };
+  }
+  return { off, lm, moved, view };
+}
+
 const CTX = new WeakMap();
 function ctxOf(body) {
   if (!isObj(body) || !isObj(body.joints) || !isObj(body.landmarks)) throw new TypeError("expected a BodyModel (fit.js) with joints and landmarks");
   let c = CTX.get(body);
   if (c && c.joints === body.joints && c.landmarks === body.landmarks && c.contacts === body.contacts && c.masses === body.masses) return c;
+  const rm = restModelOf(body);
   const offsets = {};
-  for (const j of JOINTS) if (j.parent) offsets[j.id] = body.joints[j.id].offset;
+  for (const j of JOINTS) if (j.parent) offsets[j.id] = rm.off[j.id];
   const kin = new Kinematics(offsets);
   const lm = new Map();
-  for (const [id, l] of Object.entries(body.landmarks)) lm.set(id, { id, ji: kin.index(l.joint), off: Array.from(l.offset) });
+  for (const [id, l] of rm.lm) lm.set(id, { id, joint: l.joint, ji: kin.index(l.joint), off: l.off });
   const point = (e, label) => {
     if (typeof e === "string") return lm.get(e) ?? null;
-    return { id: label, ji: kin.index(e.joint), off: Array.from(e.offset) };
+    return { id: label, joint: e.joint, ji: kin.index(e.joint), off: add3(Array.from(e.offset).slice(0, 3), rm.moved(e.joint)) };
   };
   const sets = new Map();
   for (const [name, set] of Object.entries(body.contacts ?? {})) sets.set(name, set.map((e, i) => point(e, `${name}[${i}]`)).filter(Boolean));
   for (const [name, ids] of Object.entries(EXTRA_SETS)) if (!sets.has(name) && ids.every((id) => lm.has(id))) sets.set(name, ids.map((id) => lm.get(id)));
-  const masses = Object.values(body.masses ?? {}).map((m) => ({ mass: m.mass, ji: kin.index(m.com.joint), off: Array.from(m.com.offset) }));
-  c = { joints: body.joints, landmarks: body.landmarks, contacts: body.contacts, masses: body.masses, body, kin, lm, sets, massSegs: masses, seatRef: null, tmp: new THREE.Vector3(), W: null };
+  const masses = Object.values(body.masses ?? {}).map((m) => ({ mass: m.mass, ji: kin.index(m.com.joint), off: add3(Array.from(m.com.offset).slice(0, 3), rm.moved(m.com.joint)) }));
+  c = { joints: body.joints, landmarks: body.landmarks, contacts: body.contacts, masses: body.masses, body, view: rm.view, kin, lm, sets, massSegs: masses, seatRef: null, tmp: new THREE.Vector3(), W: null };
   CTX.set(body, c);
   return c;
+}
+
+/**
+ * The body as the rig poses it (rig.restBody): `body` with the forearm twist axis above the wrist and the sternum landmarks on T4 (see restModelOf). pose.js
+ * already poses this figure whatever it is given; use it when you need the matching joint offsets and landmark homes elsewhere (building a Kinematics, the
+ * proxies, a second implementation). The same object for a body that already has the form (a rig.restBody), and for one body always the same result.
+ */
+export function figureOf(body) {
+  return ctxOf(body).view;
 }
 
 function fullRoot(r) {
@@ -551,9 +622,9 @@ function carrierPoints(c, name) {
   const v = c.tmp, pts = [];
   if (name === "body") {
     for (const e of c.lm.values()) { worldOf(c, e, v); pts.push({ id: e.id, x: v.x, y: v.y, z: v.z }); }
-    const prox = bodyProxies(c.body);
+    const prox = bodyProxies(c.view);
     c.W = proxyWorld(prox, c.kin, c.W);
-    const lp = lowestPoint(c.W);
+    const lp = lowestSkinPoint(prox, c.kin, c.W);
     pts.push({ id: `proxy:${lp.proxy}`, x: lp.point.x, y: lp.y, z: lp.point.z });
     return pts;
   }
@@ -678,7 +749,7 @@ export function placePoseDetailed(body, pose, options) {
 }
 
 /**
- * Height of every contact point above its surface in a placed pose: [{ set, point (landmark id; "proxy:<id>" for the lowest body proxy), clearance }],
+ * Height of every contact point above its surface in a placed pose: [{ set, point (landmark id; "proxy:ring:<joint>" or "proxy:<capsule id>" for the lowest point of the skin), clearance }],
  * clearance in metres, positive = above the surface. `root` is the full root (x, y, z and orientation, e.g. from placePose); `carriers` as in placePose
  * (default the "feet" support); `surfaces` default { floor: 0 }.
  */
@@ -734,6 +805,7 @@ function distSeg(px, pz, a, b) {
  */
 export function balance(body, pose, root, supportPoints, options = {}) {
   const c = ctxOf(body);
+  if (!c.massSegs.length) throw new Error("this body has no segment masses (body.masses)");
   solvePose(body, pose, root);
   const com = new THREE.Vector3();
   comInto(c, com, options.load);
@@ -767,6 +839,11 @@ const ID_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const TAG_RE = /^[a-z0-9][a-z0-9+._-]*$/;
 const KNOWN_FIELDS = new Set(["id", "name", "category", "tags", "description", "source", "root", "spine", "joints", "grips", "support", "contacts", "hints"]);
 const SITS = new Set(["pelvis", "hip_L", "hip_R", "L5", "L4", "L3", "L2", "L1"]); // joints whose landmarks can sink into a seat
+// The shin landmark is a skin point on the tibial crest, the front of the shank: with the knee front on the floor and the shank lying on it, it is 25 mm above the floor
+// (the shank is round and its lowest point is the calf side). Counted as touching at 30 mm in the balance polygon, else the polygon of a kneeling body is the segment
+// between the two knee fronts and the shank that carries the weight is left out.
+const byDepth = (a, b) => Math.round(b[1] * 1e6) - Math.round(a[1] * 1e6) || (a[0] < b[0] ? -1 : 1); // deepest first; equal depths (left and right) in id order, so that the message does not depend on rounding noise
+const SHIN_ID = /^shin_[LR]$/, SHIN_TOUCH = 0.03;
 const TOUCH = 0.015; // a contact counts as touching up to this far above its surface (rule 3)
 const SINK = 0.005; // and a landmark may be this far below it (rule 3)
 
@@ -778,10 +855,10 @@ const SINK = 0.005; // and a landmark may be this far below it (rule 3)
  *  2. every joint angle inside its range of motion (a clamped value is an error naming the joint and the DOF), spine region totals that the vertebrae can take;
  *  3. support: the posture is placed on the floor (and on a seat of hints.seat.height for supports with a seat): the primary carrier touches by construction,
  *     every other carrier of the support and every landmark in `contacts` is at most 15 mm (hints.contactTolerance) above its surface, no landmark is more
- *     than 5 mm below the floor (or below the seat plane under the buttocks and thighs), the lowest body proxy is not more than 20 mm below the floor;
+ *     than 5 mm below the floor (or below the seat plane under the buttocks, pelvis and thighs, as far back as they reach), and without a seat the skin is not more than 20 mm below the floor;
  *  4. gross self-intersection: proxies.js capsules, with the tolerances of pairTolerance (hands may rest on the body, not be inside it);
- *  5. balance: for supports on the feet, knees or hands the centre of mass is within 40 mm of the support polygon (the hull of the carrier points that touch)
- *     unless hints.dynamic or hints.externalSupport;
+ *  5. balance: for supports on the feet, knees or hands the centre of mass is within 40 mm of the support polygon (the hull of the carrier points that touch; for
+ *     support "knees" the shin landmarks touch up to 30 mm) unless hints.dynamic or hints.externalSupport; a body without masses is an error;
  *  6. warnings: a hand without a grip preset; "symmetric" postures with unequal sides, explicit _L and _R entries that are equal (write _LR), sides that differ by less than 2 degrees.
  */
 export function validatePosture(body, posture, options) {
@@ -848,8 +925,10 @@ function validate(body, posture, options) {
   for (const k of clamped) {
     const d = JOINT_BY_ID[k.joint].dof.find((x) => x.key === k.dof);
     const outside = k.requested < d.min || k.requested > d.max;
-    err(outside ? `${k.joint} ${k.dof} = ${k.requested}° is outside the range of motion [${d.min}, ${d.max}] (clamps to ${+k.applied.toFixed(2)}°)`
-      : `${k.joint} ${k.dof}: the swing of the joint is limited to 180° in total (${k.requested}° would become ${+k.applied.toFixed(2)}°)`);
+    // the right eye's azimuth is stored in the joint convention (lateral +); the author wrote the posture convention (+ = toward the figure's left) in eye_LR / eye_R
+    const flip = k.joint === "eye_R" && k.dof === "azim", sg = (v) => nz(flip ? -v : v), lo = flip ? -d.max : d.min, hi = flip ? -d.min : d.max;
+    err(outside ? `${k.joint} ${k.dof} = ${rom(sg(k.requested))}° is outside the range of motion [${rom(lo)}, ${rom(hi)}] (clamps to ${rom(sg(k.applied))}°)`
+      : `${k.joint} ${k.dof}: the swing of the joint is limited to 180° in total (${rom(sg(k.requested))}° would become ${rom(sg(k.applied))}°)`);
   }
   metrics.romViolations = clamped.length;
   for (const s of ex.shortfall) err(`spine ${s.region} ${s.dof}: requested ${s.requested}°, the vertebrae of the region can take ${s.applied}°`);
@@ -892,7 +971,7 @@ function validate(body, posture, options) {
         const gap = placed.gaps[name];
         const surf = carriers[name] === "floor" ? "the floor" : `the ${carriers[name]}`;
         const how = `the posture is placed by its ${primary}${primary === "seat" ? ` on a seat plane of ${mm(seat)}` : ""}; support "${posture.support}" needs the ${name} to touch within ${mm(tol)}`;
-        if (gap > tol) err(`contact set "${name}": its lowest point is ${mm(gap)} above ${surf} (${how})`);
+        if (gap > tol) err(`contact set "${name}": its lowest point is ${mmVs(gap, tol)} above ${surf} (${how})`);
         else if (gap < -SINK) err(`contact set "${name}": its lowest point is ${mm(-gap)} below ${surf}`);
       }
     }
@@ -905,14 +984,14 @@ function validate(body, posture, options) {
       const surfName = surfaceOfLandmark(c, lmid, carriers, surfaces);
       const cl = w.y - surfaces[surfName];
       clearances[lmid] = cl;
-      if (cl > tol) err(`contact ${lmid} is ${mm(cl)} above the ${surfName === "floor" ? "floor" : "seat"} (it must be within ${mm(tol)})`);
+      if (cl > tol) err(`contact ${lmid} is ${mmVs(cl, tol)} above the ${surfName === "floor" ? "floor" : "seat"} (it must be within ${mm(tol)})`);
       else if (cl < -SINK) err(`contact ${lmid} is ${mm(-cl)} below the ${surfName === "floor" ? "floor" : "seat"}`);
     }
     metrics.clearances = clearances;
     // landmarks below the floor, or below the seat plane under the buttocks and thighs
     const below = [];
     for (const e of c.lm.values()) { worldOf(c, e, w); if (w.y < -SINK) below.push([e.id, -w.y]); }
-    below.sort((a, b) => b[1] - a[1]);
+    below.sort(byDepth);
     if (below.length) err(`${below.length} landmark${below.length > 1 ? "s are" : " is"} below the floor: ${below.slice(0, 3).map(([l, d]) => `${l} by ${mm(d)}`).join(", ")}${below.length > 3 ? ", ..." : ""}`);
     if (hasSeat && seat > 0) {
       // What sits on a seat: the pelvis, the lower trunk and the thighs (the hands hang beside it, the shanks and feet are below it), from the
@@ -920,46 +999,69 @@ function validate(body, posture, options) {
       // tilted back the buttocks lie well behind the contact points). Sideways and at the front the footprint of the contact points plus 6 cm
       // counts (the popliteal point behind the knee is deliberately lower than the thigh in some bodies, see seatHeightFor).
       // A landmark of these joints more than 12 cm below the plane is a different matter (a thigh hanging over the front edge): not a seat sink.
-      const sp = carrierPoints(c, "seat"), xs = sp.map((p) => p.x), zs = sp.map((p) => p.z), m = 0.06;
-      const bounds = [Math.min(...xs) - m, Math.max(...xs) + m, Math.max(...zs) + m];
+      // The footprint is a box in the body's own horizontal frame (a = lateral, b = forward), not in world x and z: a turn about the vertical (root.heading,
+      // or root.rot with the pelvis upright) must not change the verdict. The frame is the pelvis's lateral axis seen from above; it does not depend on how far the
+      // pelvis is tilted forward or back (flexion turns about that axis), and for a pelvis rolled on its side (lateral axis vertical) the forward axis is used.
+      const fr = horizontalFrame(c.kin);
+      const sp = carrierPoints(c, "seat"), as = sp.map((p) => p.x * fr.ux + p.z * fr.uz), bs = sp.map((p) => p.x * fr.fx + p.z * fr.fz), m = 0.06;
+      const bounds = [Math.min(...as) - m, Math.max(...as) + m, Math.max(...bs) + m];
       const sunk = [];
       for (const e of c.lm.values()) {
-        if (!SITS.has(c.body.landmarks[e.id].joint)) continue;
+        if (!SITS.has(e.joint)) continue;
         if (e.id === "crotch") continue; // a soft-tissue point between the thighs, set by the standing crotch height: it can lie below the ischial plane in the model
         worldOf(c, e, w);
-        if (w.x >= bounds[0] && w.x <= bounds[1] && w.z <= bounds[2] && w.y < seat - SINK && w.y > seat - 0.12) sunk.push([e.id, seat - w.y]);
+        const a = w.x * fr.ux + w.z * fr.uz, b = w.x * fr.fx + w.z * fr.fz;
+        if (a >= bounds[0] && a <= bounds[1] && b <= bounds[2] && w.y < seat - SINK && w.y > seat - 0.12) sunk.push([e.id, seat - w.y]);
       }
-      sunk.sort((a, b) => b[1] - a[1]);
-      if (sunk.length) err(`${sunk.length} landmark${sunk.length > 1 ? "s sink" : " sinks"} into the seat: ${sunk.slice(0, 3).map(([l, d]) => `${l} by ${mm(d)}`).join(", ")}`);
+      sunk.sort(byDepth);
+      if (sunk.length) err(`${sunk.length} landmark${sunk.length > 1 ? "s" : ""} would sink into the seat: ${sunk.slice(0, 3).map(([l, d]) => `${l} by ${mm(d)}`).join(", ")}`);
     }
 
     // ---- self-intersection (the proxies) -------------------------------------------------------------------------------------
-    const prox = bodyProxies(body);
+    const prox = bodyProxies(c.view);
     c.W = proxyWorld(prox, c.kin, c.W);
-    const lp = lowestPoint(c.W);
-    if (lp.y < -0.02 && !below.length) err(`the body proxy "${lp.proxy}" sinks ${mm(-lp.y)} below the floor`);
+    // the skin (sections of the shape rings, capsules for fingers, foot and toes) not more than 20 mm below the floor; with a seat the buttocks and thighs
+    // are meant to press into it (and a body-model thigh can hang 40 mm below the seat plane), the landmark rules above and the seat check decide
+    const lp = lowestSkinPoint(prox, c.kin, c.W);
+    if (!hasSeat && lp.y < -0.02 && !below.length) err(`the skin (${lp.proxy.replace(/^ring:/, "section of ")}) sinks ${mm(-lp.y)} below the floor`);
     const pens = selfPenetrations(prox, c.W);
     metrics.penetrations = pens;
     metrics.worstPenetration = pens.length ? pens[0].depth : 0;
-    for (const p of pens.slice(0, 4)) err(`${p.a} and ${p.b} overlap by ${mm(p.depth)} (more than ${mm(p.tolerance)}): ${selfHint(p.a, p.b)}`);
+    for (const p of pens.slice(0, 4)) err(`${p.a} and ${p.b} overlap by ${mmVs(p.depth, p.tolerance)} (more than ${mmVs(p.tolerance, p.depth)}): ${selfHint(p.a, p.b)}`);
     if (pens.length > 4) err(`... and ${pens.length - 4} more overlapping pairs`);
 
     // ---- balance --------------------------------------------------------------------------------------------------------------
     const needsBalance = !hints.dynamic && !external && posture.support !== "body" && posture.support !== "seat";
-    const com = new THREE.Vector3();
-    comInto(c, com, hints.load);
-    metrics.com = [com.x, com.y, com.z];
-    if (needsBalance) {
-      const pts = [];
-      for (const [name, surf] of Object.entries(carriers)) {
-        for (const p of carrierPoints(c, name)) if (p.y - surfaces[surf] <= TOUCH) pts.push([p.x, p.y, p.z]);
+    if (!c.massSegs.length) { // a centre of mass at the origin would be compared with the support polygon: say so instead (centerOfMass() throws for the same body)
+      if (needsBalance) err("the balance cannot be checked: the body has no segment masses (body.masses); add masses or declare hints.dynamic / hints.externalSupport");
+    } else {
+      const com = new THREE.Vector3();
+      comInto(c, com, hints.load);
+      metrics.com = [com.x, com.y, com.z];
+      if (needsBalance) {
+        const pts = [], shinTouch = posture.support === "knees"; // the other kneeling supports have the toes, feet, hands or elbows to span the polygon
+        for (const [name, surf] of Object.entries(carriers)) {
+          for (const p of carrierPoints(c, name)) if (p.y - surfaces[surf] <= (shinTouch && SHIN_ID.test(p.id) ? SHIN_TOUCH : TOUCH)) pts.push([p.x, p.y, p.z]);
+        }
+        const b = balance(body, pose, root, pts, { load: hints.load });
+        metrics.balanceMargin = b.margin;
+        if (b.margin < -0.04) err(`the centre of mass is ${mmVs(-b.margin, 0.04)} outside the support polygon (limit 40 mm; the posture would fall: ${posture.support === "feet" ? "move the weight over the feet, or declare hints.dynamic / hints.externalSupport" : "check which contacts carry the weight"})`);
       }
-      const b = balance(body, pose, root, pts, { load: hints.load });
-      metrics.balanceMargin = b.margin;
-      if (b.margin < -0.04) err(`the centre of mass is ${mm(-b.margin)} outside the support polygon (limit 40 mm; the posture would fall: ${posture.support === "feet" ? "move the weight over the feet, or declare hints.dynamic / hints.externalSupport" : "check which contacts carry the weight"})`);
     }
   } catch (e) { err(`cannot place the posture: ${e.message}`); }
   return out();
+}
+
+// The body's horizontal frame in a solved pose, from the pelvis: u = the unit horizontal direction of its left (lateral) axis, f = the forward direction
+// (u turned to the front: at heading 0 u = +x and f = +z). Falls back on the pelvis's own forward axis when the lateral axis is nearly vertical.
+function horizontalFrame(kin) {
+  const q = kin.quaternions, x = q[0], y = q[1], z = q[2], w = q[3];
+  let ux = 1 - 2 * (y * y + z * z), uz = 2 * (x * z - w * y); // the pelvis's x axis
+  const fz0 = 1 - 2 * (x * x + y * y), fx0 = 2 * (x * z + w * y); // its z axis
+  if (Math.hypot(ux, uz) < Math.hypot(fx0, fz0)) { ux = fz0; uz = -fx0; }
+  const l = Math.hypot(ux, uz) || 1;
+  ux /= l; uz /= l;
+  return { ux, uz, fx: -uz, fz: ux };
 }
 
 // The surface a declared contact rests on: that of the carrier set it belongs to, else the usual one for its body set, else the floor.
@@ -970,10 +1072,13 @@ function surfaceOfLandmark(c, id, carriers, surfaces) {
   return surf !== null && Object.hasOwn(surfaces, surf) ? surf : "floor";
 }
 
+// proxies.js names the five fingers of a hand thumb_L, index_L, fingers_L (the middle finger), ring_L, little_L besides palm_L
+const HAND_PARTS = new Set(["palm", "fingers", "thumb", "index", "ring", "little"]);
 function selfHint(a, b) {
   const g = (n) => n.replace(/_[LR]$/, "");
-  const hands = ["palm", "fingers"];
-  if (hands.includes(g(a)) || hands.includes(g(b))) return "a hand is inside the body: check the shoulder, elbow and wrist angles";
+  if (HAND_PARTS.has(g(a)) && HAND_PARTS.has(g(b))) return "the hands (or the fingers of one hand) overlap: check the grip presets and the wrist and elbow angles";
+  if (HAND_PARTS.has(g(a)) || HAND_PARTS.has(g(b))) return "a hand is inside the body: check the shoulder, elbow and wrist angles";
+  if (g(a) === "thigh" && g(b) === "thigh") return "the thighs press into each other: check hip abduction (adduction) and rotation of both legs";
   if (["shank", "foot", "toes"].includes(g(a)) && ["shank", "foot", "toes", "thigh"].includes(g(b))) return "one leg passes through the other: check hip abduction and rotation";
   if (g(a) === "head" || g(b) === "head") return "the head is in the shoulders or chest: check the neck and head angles";
   return "check the joint angles of the two segments";

@@ -1,0 +1,83 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>sandbox adversarial anchors sheet</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/styles.css">
+<!-- Contact sheet of the sandbox catalogue (site/js/human/catalog.js), rendered in one WebGL canvas, for looking at every object.
+     python3 tests/human3d/shot.py /__pages/sandbox-catalog.html out.png --wait-fn 'window.__ready' [--dark]
+     Query: ?cols=8&tile=125 (sheet), ?category=Seating (one category), ?type=cabin_seat&size=800&az=35&el=20 (one object, large; &p={"recline":120} overrides parameters;
+     &color=%23c0493d), ?light=0 hides shadows. window.__demo = { ids, render(opts) } -->
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<style>
+  body { margin: 0; background: var(--surface-2); }
+  #wrap { position: relative; width: fit-content; }
+  #labels { position: absolute; inset: 0; pointer-events: none; font: 600 11px/1.1 var(--mono, monospace); color: var(--text); }
+  #labels span { position: absolute; transform: translateX(-50%); white-space: nowrap; background: color-mix(in srgb, var(--surface) 80%, transparent); padding: 1px 4px; border-radius: 3px; }
+</style>
+<div id="wrap"><canvas id="c"></canvas><div id="labels"></div></div>
+<script type="module">
+import * as THREE from "three";
+import { CATALOG } from "/js/human/catalog.js";
+
+const q = new URLSearchParams(location.search);
+const single = q.get("type");
+const list = single ? CATALOG.filter((t) => t.type === single) : q.get("category") ? CATALOG.filter((t) => t.category === q.get("category")) : CATALOG;
+const cols = single ? 1 : +q.get("cols") || 8, tile = single ? +q.get("size") || 800 : +q.get("tile") || 125;
+const rows = Math.ceil(list.length / cols);
+const canvas = document.getElementById("c");
+const W = cols * tile, H = rows * tile;
+canvas.width = W; canvas.height = H; canvas.style.width = W + "px"; canvas.style.height = H + "px";
+const cs = getComputedStyle(document.body);
+const probe = (name) => { const s = document.createElement("span"); s.style.color = `var(${name})`; document.body.append(s); const c = new THREE.Color(getComputedStyle(s).color); s.remove(); return c; };
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+const bg = probe("--surface-2"), floorCol = probe("--surface");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.setScissorTest(true);
+renderer.shadowMap.enabled = q.get("light") !== "0";
+const scene = new THREE.Scene();
+const hemi = new THREE.HemisphereLight(0xffffff, 0xb0b0b0, dark ? 0.85 : 1.1);
+const key = new THREE.DirectionalLight(0xffffff, dark ? 2.3 : 2.1); key.position.set(2.5, 5, 3.5);
+key.castShadow = true; Object.assign(key.shadow.camera, { left: -2.6, right: 2.6, top: 2.6, bottom: -2.6, near: 0.5, far: 16 }); key.shadow.bias = -0.0004; key.shadow.normalBias = 0.015;
+const fill = new THREE.DirectionalLight(0xffffff, 0.55); fill.position.set(-3, 2.5, -3.5);
+scene.add(hemi, key, key.target, fill);
+const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 60);
+const head = new THREE.DirectionalLight(0xffffff, 0.4); camera.add(head); head.position.set(0.5, 0.8, 0.4); scene.add(camera);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: floorCol }));
+floor.position.y = -0.001; scene.add(floor);
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(40, 40).rotateX(-Math.PI / 2), new THREE.ShadowMaterial({ opacity: dark ? 0.5 : 0.3 })); shadow.receiveShadow = true; scene.add(shadow);
+const grid = new THREE.GridHelper(40, 400, 0x888888, 0x888888); grid.material.opacity = 0.15; grid.material.transparent = true; grid.position.y = 0.0005; scene.add(grid);
+
+const overrides = q.get("p") ? JSON.parse(q.get("p")) : {};
+const az = (+(q.get("az") ?? 35)) * Math.PI / 180, el = (+(q.get("el") ?? 22)) * Math.PI / 180;
+const labels = document.getElementById("labels");
+list.forEach((t, i) => {
+  const mode = q.get("mode") || "default";
+  const pr = {};
+  if (mode !== "default") for (const p of t.params) { if (p.kind === "number") pr[p.key] = mode === "min" ? p.min : p.max; else if (p.kind === "bool") pr[p.key] = mode === "max"; else pr[p.key] = mode === "min" ? p.options[0].value : p.options.at(-1).value; }
+  const g = t.build(single ? { ...pr, ...overrides } : pr, { color: q.get("color") || undefined });
+  scene.add(g);
+  const ov = new THREE.Group(); scene.add(ov);
+  const pm = new THREE.MeshBasicMaterial({ color: 0xff2020, depthTest: false }), gm = new THREE.MeshBasicMaterial({ color: 0x2060ff, depthTest: false });
+  const lineM = new THREE.LineBasicMaterial({ color: 0x00a000, depthTest: false });
+  const pp = mode === "default" ? pr : pr;
+  const cp = t.params.length ? Object.fromEntries(t.params.map((p) => [p.key, p.kind === "number" ? (mode === "min" ? p.min : mode === "max" ? p.max : p.default) : p.kind === "bool" ? (mode === "max") : (p.default)])) : {};
+  const rad = Math.max(g.userData.bbox.getSize(new THREE.Vector3()).length() * 0.012, 0.006);
+  for (const a of Object.values(t.anchors(cp))) { const s = new THREE.Mesh(new THREE.SphereGeometry(rad, 8, 6), pm); s.position.set(...a.position); s.renderOrder = 9; ov.add(s); if (a.normal) { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a.position), new THREE.Vector3(...a.position).addScaledVector(new THREE.Vector3(...a.normal), rad * 8)]), new THREE.LineBasicMaterial({ color: 0xff8000, depthTest: false })); ov.add(l); } }
+  for (const gr of t.grips(cp)) { const s = new THREE.Mesh(new THREE.SphereGeometry(rad * 1.2, 8, 6), gm); s.position.set(...gr.position); s.renderOrder = 10; ov.add(s); const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...gr.position).addScaledVector(new THREE.Vector3(...gr.axis), -rad * 6), new THREE.Vector3(...gr.position).addScaledVector(new THREE.Vector3(...gr.axis), rad * 6)]), new THREE.LineBasicMaterial({ color: 0x2060ff, depthTest: false })); ov.add(l); }
+  for (const s of t.supports(cp)) { const [cx, cz] = s.center, hw = s.size[0] / 2, hd = s.size[1] / 2, pitch = (s.pitch || 0) * Math.PI / 180; const pts = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd], [-hw, -hd]].map(([x, z]) => new THREE.Vector3(cx + x, s.y + z * Math.sin(pitch) * 0, cz + z)); ov.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineM)); ov.children.at(-1).renderOrder = 8; }
+  const box = g.userData.bbox, sph = box.getBoundingSphere(new THREE.Sphere()), r = Math.max(sph.radius, 0.05);
+  const center = sph.center, dist = (r / Math.sin(THREE.MathUtils.degToRad(35 / 2))) * 1.0;
+  camera.position.set(center.x + dist * Math.sin(az) * Math.cos(el), center.y + dist * Math.sin(el), center.z + dist * Math.cos(az) * Math.cos(el));
+  camera.lookAt(center); camera.updateMatrixWorld();
+  const x = (i % cols) * tile, y = H - (Math.floor(i / cols) + 1) * tile;
+  renderer.setViewport(x, y, tile, tile); renderer.setScissor(x, y, tile, tile);
+  renderer.setClearColor(bg); renderer.render(scene, camera);
+  scene.remove(g); scene.remove(ov);
+  if (!single) { const s = document.createElement("span"); s.textContent = t.type; s.style.left = x + tile / 2 + "px"; s.style.top = Math.floor(i / cols) * tile + tile - 14 + "px"; labels.append(s); }
+});
+window.__demo = { ids: list.map((t) => t.type) };
+window.__ready = true;
+</script>

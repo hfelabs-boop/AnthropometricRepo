@@ -1,41 +1,55 @@
 // Skin generator: BodyModel (fit.js) + the rig's bones -> a smooth, closed, skinned mannequin (docs/human3d/MODEL.md section 6).
-// Pure three.js, never touches the DOM. API: buildSkin(body, bones, { quality, color, eyes }) -> { mesh, eyes, dispose(), stats }.
+// Pure three.js, never touches the DOM. API: buildSkin(body, bones, { quality, color, eyes, detail }) -> { mesh, eyes, dispose(), stats }.
 //   mesh   one THREE.SkinnedMesh, one MeshStandardMaterial, bound to a Skeleton of the rig's bones in skeleton.js JOINTS order;
 //          mesh.userData.parts (= stats.parts) names the closed pieces and their vertex / triangle ranges (torso, head, ear_L/R, arm_L/R,
 //          leg_L/R, foot_L/R, index_L ... thumb_R); tube parts also carry { cols, rows } (vertices per ring, rings)
 //   eyes   a second SkinnedMesh (vertex colours: sclera, iris, pupil) on the same skeleton, skinned to eye_L / eye_R; it is a CHILD of mesh
 //          (rig.js traverses the mesh, so visibility, x-ray and disposal follow); null with options.eyes === false
-//   options.quality "high" (default, about 47,000 triangles) | "low" (about 17,000); options.color: any THREE.Color argument
+//   options.quality "high" (default, about 47,000 triangles) | "low" (about 18,000); options.color: any THREE.Color argument;
+//   options.detail: false leaves the face smooth (no nose, brows, eyelids, mouth, chin: the head is the bare superellipsoid)
 //
 // How the surface is made. Every part is a lofted tube. The coarse superellipse rings of body.shape (5 to 10 per tube) are interpolated
 // (C2 cubic splines for the limbs, whose rings are smooth; monotone cubic Hermite for the trunk, whose rings jump) into 25 to 70 rings per
 // piece, denser at the joints; each ring is sampled at equal arc length (a boxy chest ring has as many vertices on its flat sides as on its
-// corners) in the plane perpendicular to the interpolated centre line (limbs) or horizontal (trunk: the fit's rings are horizontal sections).
-// Pieces the fit stores apart are welded into one tube: trunk + neck (crotch to inside the head), upper arm + forearm + palm (the elbow ring is
-// shared, the shoulder is capped by a dome inside the trunk), thigh + shank (the two knee rings are averaged) + ankle. Closed ends are domes
-// (a fan to an apex vertex). The head is a grid of cranium + face rings with smooth displacement fields (nose, brow, eyelids, mouth, chin);
-// ears are small closed pieces; fingers are capsules; feet are lofted along z. Parts overlap where the body does (shoulder dome in the trunk,
-// finger roots in the palm, shank in the foot): every part is a closed, consistently wound 2-manifold on its own and they intersect, they are
-// never merged. The pelvis ends in a rounded bowl under the buttock ring, not in the fit's crotch ring (see buildTorso).
+// corners) in a HORIZONTAL plane: the fit's rings are horizontal sections (measured and fitted so), and rings perpendicular to a leaning centre
+// line lift the outer edge of a shoulder whose arm is pushed outward (a balloon above the trapezius) and fold a thigh whose centre jumps
+// between two rings. Pieces the fit stores apart are welded into one tube: trunk + neck (crotch to inside the head), upper arm + forearm + palm
+// (the elbow ring is shared, the shoulder is capped by a dome inside the trunk), thigh + shank (the two knee rings are averaged) + ankle. Closed
+// ends are domes (a fan to an apex vertex). The head is a grid of cranium + face rings with smooth displacement fields (nose, brow, eyelids,
+// mouth, chin); ears are small closed pieces; fingers are capsules with round tips; feet are lofted along z. Parts overlap where the body does
+// (shoulder dome in the trunk, finger roots in the palm, shank in the foot, thigh tops in the pelvis): every part is a closed, consistently wound
+// 2-manifold on its own and they intersect, they are never merged.
+//
+// The hip (the thigh into the pelvis) is where two lofts meet, and the fit's data do not agree there: the thigh is a circle of the measured
+// girth whose centre lies forward so that its back meets the buttock, and in a woman it stands 11 mm (median) to 73 mm in front of the belly
+// and wider than the hips. The torso ends in a bowl under the buttock ring (addBowl: a quarter ellipse of width, S curves of depth that run into
+// the back of the thigh at the gluteal furrow) and fitLegToTrunk shapes the thigh from the furrow upward: its front is cut by a plane that leans
+// back at 27 degrees from the trunk's front at the buttock ring, its outer edge is brought to the hip's, its back is brought out under the
+// buttock, the medial faces are flattened where the fit lets the thighs cross the midline. The crease is a clean line at a clear angle, no ball
+// is left in front of the pelvis, no shelf under it.
 //
 // Deviations from the data of fit.js, all deliberate and visible in the test log: the front of the shoulder ring is raised so the chest has
-// no notch; the upper thigh is narrowed from the outside where it would stick out of the trunk; the head's dome is a superellipsoid, its
-// back follows the cranium down to the tragion, face rings are smoothed (valleys filled, Gaussian 7 mm), the front of the face is flatter than
-// the ring ellipses so that the pupils are on it; the last foot station (the toe tip) is widened; ring.bind is not used (below).
+// no notch; the thigh is faired into the trunk as above (the thigh at the furrow, which is measured, is untouched; its girth is kept within
+// 1.3 %); the upper arm has no skin wider than the measured half bideltoid breadth within 40 mm of the deltoid and above it (the fit's
+// deltoid ring is up to 34 mm wider for a narrow shoulder); the head's dome is a superellipsoid, its back follows the cranium down to the tragion,
+// face rings are smoothed (valleys filled, Gaussian 7 mm), the front of the face is flatter than the ring ellipses so that the pupils are on it;
+// the last foot station (the toe tip) is widened, and the foot is 5 mm wider than the shank around the ankle; ring.bind is not used (below).
 // Required of the BodyModel: positions (all joints), shape.tubes (torso with rings axilla, shoulder, trapezius, neck_base, buttock and optionally
 // crotch; neck; upper_arm / forearm / thigh / shank _L and _R), shape.head (rings incl. brow, cranium, features), shape.hands, shape.feet,
-// landmarks.crotch (optional), stature.
+// landmarks.crotch (optional), stature; optional: report (the measured bideltoid breadth).
 //
-// Skin weights are recomputed from the geometry (ring.bind is not used). The trunk and neck follow the spine chain (the two joints that
-// bracket the height, as the fit does); the lateral shoulder rings also follow the clavicle. Limbs blend over about a fifth of the bone on each
-// side of a joint (the fit's 15 % loses more volume at a bent knee), and the blend is 2.5 times wider on the inside of the bend (back of the
-// knee, front of the elbow): when the knee bends 150 degrees the back of the thigh sinks 59 mm into the calf with the short blend, 11 to 27 mm
-// with the wide one (body.test.mjs measures it). The arm and the thigh are rigid with their joint from the joint ring down, the dome above it
-// fades to half and half with the clavicle / pelvis (a ring blended half and half collapses when the arm is raised 170 degrees). The
-// forearm roll joint carries the hand only (the forearm skin is skinned to elbow and wrist; the twist of a pronated forearm is a pinch at
-// the wrist, "candy wrapper" is not modelled), each phalanx follows its own joint with a half-and-half blend at the knuckles, the foot follows
-// the ankle and the toes the mtp joint. The jaw joint carries no skin. At most 4 influences per vertex, weights are multiples of 2^-16 that
-// sum to exactly 1 (so that skinning at rest returns every vertex bit for bit).
+// Skin weights are recomputed from the geometry (ring.bind is not used; docs/human3d/MODEL.md 6.4). The trunk and neck follow the spine chain
+// (the two joints that bracket the height, as the fit does); the lateral shoulder rings also follow the clavicle. Limbs blend over about a fifth
+// of the bone on each side of a joint (the fit's 15 % loses more volume at a bent knee), and the blend is 2.5 times wider on the inside of the
+// bend (back of the knee, front of the elbow): when the knee bends 150 degrees the back of the thigh sinks 59 mm into the calf with the short
+// blend, 11 to 27 mm with the wide one (body.test.mjs measures it). The arm and the thigh are rigid with their joint from the joint ring down,
+// the dome above it fades to half and half with the clavicle / pelvis (a ring blended half and half collapses when the arm is raised 170
+// degrees). The forearm roll joint carries the hand only (the forearm skin is skinned to elbow and wrist; the twist of a pronated forearm is a
+// pinch at the wrist, "candy wrapper" is not modelled), each phalanx follows its own joint with a half-and-half blend at the knuckles, the foot
+// follows the ankle and the toes the mtp joint. The jaw joint carries no skin. At most 4 influences per vertex, weights are multiples of 2^-16
+// that sum to exactly 1 (so that skinning at rest returns every vertex bit for bit). Linear blend skinning loses volume where a joint bends far
+// (a knee at 150 degrees keeps 88 % of the leg, a trunk bent 100 degrees 83 % of the heavy man's trunk) and folds a few triangles at the inner
+// side: that is the method, a corrective shape would be needed to avoid it.
 //
 // Rest pose: the inverse bind matrices are translate(-neutral joint centre) from body.positions (identity rotations) and the bind matrix is
 // the identity, so skinning at rest reproduces the geometry whatever pose the bones are in when buildSkin is called; the bones are not touched.
@@ -46,6 +60,11 @@ const PI = Math.PI;
 const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
 const sstep = (x) => { x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); };
 const lerp = (a, b, t) => a + (b - a) * t;
+/** Smooth minimum (polynomial, C1): within k of each other the two values blend, so clamping a section to the trunk leaves no crease. */
+const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - 0.25 * k * h * h; };
+const smax = (a, b, k) => -smin(-a, -b, k);
+/** Perimeter of an ellipse of semi-axes a, b (Ramanujan's second approximation). */
+const ellipseP = (a, b) => { const h = ((a - b) / (a + b)) ** 2; return PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h))); };
 const DEFAULT_COLOR = 0xcbbfb2; // warm light grey: reads on the light (#ecebe6) and the dark (#161615) viewport
 
 // Resolution presets. cols = vertices around a tube (multiple of 4); d* = target ring spacing (m), coarse and near a joint.
@@ -57,7 +76,7 @@ const QUALITY = {
     leg: { cols: 36, dBase: 0.013, dFine: 0.0065 },
     head: { cols: 80, dFace: 0.0035, dSkull: 0.0075, dome: 5, a: 0.42 },
     ear: { rings: 5, cols: 20 },
-    finger: { cols: 16, tip: 3, dBase: 0.0045 },
+    finger: { cols: 16, tip: 4, dBase: 0.0045 },
     foot: { cols: 36, dz: 0.008, dome: 3 },
     eye: { cols: 20, rows: [0, 6, 11, 14, 20, 26, 31, 35, 45, 60, 80, 100, 120, 140, 160, 175, 180] },
     dome: 3,
@@ -67,9 +86,9 @@ const QUALITY = {
     torso: { cols: 32, dBase: 0.026, dFine: 0.014 },
     arm: { cols: 20, dBase: 0.02, dFine: 0.011 },
     leg: { cols: 24, dBase: 0.024, dFine: 0.013 },
-    head: { cols: 52, dFace: 0.006, dSkull: 0.014, dome: 3, a: 0.5 },
+    head: { cols: 64, dFace: 0.0045, dSkull: 0.011, dome: 5, a: 0.58 },
     ear: { rings: 3, cols: 12 },
-    finger: { cols: 8, tip: 1, dBase: 0.0075 },
+    finger: { cols: 8, tip: 2, dBase: 0.0075 },
     foot: { cols: 24, dz: 0.016, dome: 2 },
     eye: { cols: 12, rows: [0, 11, 20, 31, 45, 80, 120, 160, 180] },
     dome: 2,
@@ -288,12 +307,15 @@ function addDome(rows, atEnd, h, k, vertical = false) {
   return { x: e.cx + dx * h, y: e.cy + dy * h, z: e.cz + dz * h, row: e };
 }
 
-/** The pelvis: horizontal rings of k steps under the first row, dropping by h (quarter superellipse), shrinking, rounding and moving their centre to zTarget; returns the apex. */
-function addBowl(rows, h, k, zTarget) {
-  const e = rows[0], add = [];
+/** The pelvis: horizontal rings of k steps under the first row (the buttock ring), dropping by h to a point. The width shrinks like a quarter
+ *  ellipse (a vertical tangent at the hip ring: no notch in the silhouette where the thigh takes over), the front retreats to fB and the back comes forward to bB
+ *  along S curves with a vertical tangent at both ends: the lower buttock is a round form that runs into the back of the thigh at bB, not a
+ *  shelf. Returns the apex. */
+function addBowl(rows, h, k, zTarget, fB, bB) {
+  const e = rows[0], add = [], F0 = e.cz + e.rz, B0 = e.cz - e.rz;
   for (let i = 1; i <= k; i++) {
-    const th = (PI / 2) * (i / (k + 1)), c = Math.cos(th), sn = Math.sin(th), ee = Math.pow(c, 0.8);
-    add.push({ ...e, cy: e.cy - h * Math.pow(sn, 1.25), cz: lerp(e.cz, zTarget, sn), rx: e.rx * ee, rz: e.rz * ee, n: lerp(e.n, 2, sn) });
+    const t = i / (k + 1), u = sstep(t), F = lerp(F0, fB, u), B = lerp(B0, bB, u);
+    add.push({ ...e, cy: e.cy - h * t, cz: 0.5 * (F + B), rx: e.rx * Math.sqrt(1 - t * t), rz: 0.5 * (F - B), n: lerp(e.n, 2, u) });
   }
   rows.unshift(...add.reverse());
   return { x: 0, y: e.cy - h, z: zTarget, row: e };
@@ -422,11 +444,17 @@ function buildTorso(ctx) {
   }
   // The pelvis ends in a bowl under the buttock ring instead of the fit's crotch ring (21 mm below it and 40 % narrower: lofted through, the
   // underside of the hips is a flat shelf that shows as wings when the thighs abduct, and the pelvis a flat plate between them). The bowl
-  // is a quarter superellipse that leaves the buttock ring with a vertical tangent and ends 12 mm below the crotch landmark, and its centre moves
-  // forward to the centre of the crotch ring; in the neutral pose the thighs cover all of it but the lower buttock.
+  // (addBowl) is a quarter ellipse of width that leaves the buttock ring with a vertical tangent; it ends 12 mm below the crotch landmark, or
+  // lower where the buttock overhangs the thigh (below); in the neutral pose the thighs cover all of it but the lower buttock and the crotch.
   const lm = body.landmarks?.crotch, yCrotch = lm ? body.positions.pelvis[1] + lm.offset[1] : (crotch ? crotch.c[1] - 0.02 : rows[0].cy - 0.06);
   const bottomY = Math.min(yCrotch - 0.012, rows[0].cy - 0.02), bowlZ = crotch ? crotch.c[2] : rows[0].cz + 0.03;
-  const A = addBowl(rows, rows[0].cy - bottomY, Q.dome + 3, bowlZ), B = addDome(rows, true, Math.max(0.012, rows[rows.length - 1].rz * 0.3), Q.dome, true);
+  // The bowl goes down to the furrow of the thigh where the buttock ends (the gluteal fold) when the buttock overhangs the back of the thigh
+  // (the fit's thigh is a circle whose back is up to 140 mm in front of the buttock), and runs into the back of the thigh there; at least to
+  // 12 mm under the crotch landmark.
+  const b0 = rows[0], pre = prepLeg(ctx, "L"), furrow = pre.rows.reduce((m, r) => (Math.abs(r.cy - pre.yF) < Math.abs(m.cy - pre.yF) ? r : m)), thBack = furrow.cz - furrow.rz;
+  const shelf = Math.max(thBack - (b0.cz - b0.rz), 0), bottom = Math.max(Math.min(bottomY, b0.cy - 0.8 * shelf), pre.yF + 0.01);
+  const fB = lerp(b0.cz + b0.rz, bowlZ, 0.7), bB = Math.min(Math.max(thBack, b0.cz - b0.rz), fB - 0.04);
+  const A = addBowl(rows, b0.cy - bottom, Q.dome + 3, bowlZ, fB, bB), B = addDome(rows, true, Math.max(0.012, rows[rows.length - 1].rz * 0.3), Q.dome, true);
   const iclL = W.I("clavicle_L"), iclR = W.I("clavicle_R");
   const yAx = ctx.ringY("torso", "axilla"), ySh = ctx.ringY("torso", "shoulder"), yTr = ctx.ringY("torso", "trapezius"), yNb = ctx.ringY("torso", "neck_base");
   const hook = (row, x, y, z, j, wi, ww) => {
@@ -442,14 +470,46 @@ function buildTorso(ctx) {
     }
     return n;
   };
-  // half width of the trunk by height, for the legs (see buildLeg)
-  const hy = rows.map((r) => r.cy), hw = rows.map((r) => r.rx);
-  ctx.trunkHalf = (y) => {
-    if (y <= hy[0]) return hw[0];
-    for (let i = 1; i < hy.length; i++) if (y <= hy[i]) return hw[i - 1] + ((y - hy[i - 1]) / (hy[i] - hy[i - 1])) * (hw[i] - hw[i - 1]);
-    return hw[hw.length - 1];
+  // the trunk's outline by height, for the legs (see buildLeg): rows are sorted by y ascending, the section is a superellipse
+  const hy = rows.map((r) => r.cy);
+  const at = (y) => { // the section between two rows, linear in y
+    let i = 1;
+    while (i < hy.length - 1 && y > hy[i]) i++;
+    const a = rows[i - 1], b = rows[i], f = clamp((y - a.cy) / (b.cy - a.cy || 1), 0, 1);
+    return { cz: lerp(a.cz, b.cz, f), rx: lerp(a.rx, b.rx, f), rz: lerp(a.rz, b.rz, f), n: lerp(a.n, b.n, f) };
+  };
+  const edge = (r, x) => Math.pow(Math.max(1 - Math.pow(Math.min(Math.abs(x) / (r.rx || 1), 0.8), r.n), 1e-6), 1 / r.n); // z of the superellipse at x, in units of rz
+  ctx.trunk = {
+    half: (y) => at(y).rx,
+    hip: b0, // the buttock ring: the widest part of the pelvis
+    // front / back of the trunk at height y over the lateral position x (beyond 0.8 of the half width the value at 0.8 is used)
+    front: (y, x) => { const r = at(y); return r.cz + r.rz * edge(r, x); },
+    back: (y, x) => { const r = at(y); return r.cz - r.rz * edge(r, x); },
   };
   return emitTube(g, rows, Q.torso.cols, true, A, B, hook);
+}
+
+/**
+ * The deltoid is the widest part of the arm: its outer edge is at half the bideltoid breadth. The fit puts the ring there, except for a narrow
+ * shoulder (it keeps the section at least 45 mm wide and 60 mm lateral to the axis: 34 mm too wide for a woman of the 5th percentile of the
+ * US Army), and the rings below it are pushed outward to clear the trunk (armShift), a big estimated biceps adding to that, so the arm was up
+ * to 70 mm wider across the biceps than across the shoulders. Here no skin within 40 mm of the deltoid (and none above it) reaches beyond the
+ * measured half breadth (the ring's own edge when it is not measured); further down the outer edge may grow by 0.25 per unit of height, at
+ * most 12 mm, down to the elbow. A section is narrowed from the outside and deepened to give back its girth.
+ */
+function fitArmToDeltoid(rows, dl, sgn, half, yElbow) {
+  if (!dl) return;
+  const yD = dl.c[1], outerD = Math.min(sgn * dl.c[0] + dl.rx, half ?? Infinity);
+  for (const row of rows) {
+    if (row.cy < yElbow) break; // the forearm and the hand hang where they hang (the rows run downward)
+    const below = Math.max(yD - row.cy, 0);
+    const inner = sgn * row.cx - row.rx, outer = sgn * row.cx + row.rx, limit = outerD + 0.0005 + Math.min(0.25 * Math.max(below - 0.04, 0), 0.012);
+    if (outer <= limit) continue;
+    const outer2 = Math.max(smin(outer, limit, 0.008), inner + 0.6 * row.rx), rx = 0.5 * (outer2 - inner), p0 = ellipseP(row.rx, row.rz);
+    let rz = row.rz;
+    for (let i = 0; i < 4; i++) rz *= p0 / ellipseP(rx, rz);
+    row.rz = Math.min(rz, 1.3 * row.rz); row.rx = rx; row.cx = sgn * (inner + rx);
+  }
 }
 
 /** Arm: shoulder dome, upper arm, forearm and palm as one tube. */
@@ -462,7 +522,9 @@ function buildArm(ctx, s) {
   const anchors = [-yS, -yE, -yW];
   const params = distribute(kn.map((k) => k.s), densityOf(anchors, q.dBase, q.dFine, 0.05));
   const rows = makeRows(sp, params, -1);
-  frames(rows);
+  const bid = body.report?.find((r) => r.id === "bideltoid_breadth" && r.kind === "measure")?.input; // mm, null when it was not measured
+  fitArmToDeltoid(rows, T[`upper_arm_${s}`].rings.find((r) => r.id === "ua_deltoid"), s === "L" ? 1 : -1, bid > 0 ? bid / 2000 : undefined, W.y(`elbow_${s}`));
+  frames(rows, true); // the rings are horizontal sections: perpendicular rings of an arm that leans outward lift the outer edge of the shoulder (a balloon above the trapezius)
   const bones = [W.I(`shoulder_${s}`), W.I(`elbow_${s}`), W.I(`wrist_${s}`)], icl = W.I(`clavicle_${s}`);
   const hE = 0.2 * Math.min(yS - yE, yE - yW), hW = Math.min(0.09 * (yE - yW), 0.026);
   const capH = Math.max(0.02, rows[0].rx * 0.55);
@@ -484,28 +546,58 @@ function buildArm(ctx, s) {
   return emitTube(g, rows, q.cols, false, A, B, hook);
 }
 
-/** Leg: hip dome, thigh, shank and the ankle as one tube (the two knee rings are averaged). */
-function buildLeg(ctx, s) {
-  const { body, g, Q, W } = ctx, T = body.shape.tubes, q = Q.leg;
+/** The rows of the leg tube before it is fitted to the trunk (the torso needs the front of the thigh, buildLeg the whole of it). */
+function prepLeg(ctx, s) {
+  const cache = (ctx.legPre ??= {});
+  if (cache[s]) return cache[s];
+  const { body, Q, W } = ctx, T = body.shape.tubes, q = Q.leg;
   const rings = [...T[`thigh_${s}`].rings, ...T[`shank_${s}`].rings];
   const kn = ringKnots(rings, -1), sp = splineOf(kn, true);
   const yH = W.y(`hip_${s}`), yK = W.y(`knee_${s}`), yA = W.y(`ankle_${s}`);
   const params = distribute(kn.map((k) => k.s), densityOf([-yH, -yK, -yA], q.dBase, q.dFine, 0.06));
   const rows = makeRows(sp, params, -1);
-  frames(rows);
-  // The upper thigh may not stick out of the trunk: the fit lets a thigh that is wider than the hips stand out of the hip ring (it keeps the thighs
-  // from crossing the midline), and lofted so it leaves a ledge, with the dome of the hip bulging under it. From the gluteal furrow up the
-  // outer edge is brought to the trunk's width (+ 4 mm) by narrowing the section from the outside; the inner edge, and the measured thigh ring, stay.
-  const sgn = s === "L" ? 1 : -1;
+  // the furrow ring (th_prox, the measured thigh girth) is the highest ring that stays as measured: the fairing into the trunk starts there
+  const yF = T[`thigh_${s}`].rings.find((r) => r.id === "th_prox")?.c[1] ?? yH - 0.1;
+  return (cache[s] = { rows, yH, yK, yA, yF });
+}
+/**
+ * Fit the rows of a leg to the trunk (the thigh from the furrow upward, the hip dome included). The fit's thigh is a circle of the measured
+ * girth whose centre lies forward so that its back meets the buttock; with a big thigh or a narrow trunk it stands up to 70 mm in front of
+ * the belly and wider than the hips, and lofted as it is it shows as a ball in front of the pelvis and a ledge on the hip. Here the thigh is
+ * cut by a plane that leans back at FAIR_SLOPE from the trunk's outline at the buttock ring (a clean crease, the groin, at a clear angle: two
+ * surfaces that meet at a few degrees show a sawtooth), blended in from the furrow with a smooth minimum so that no kink is left; the back of
+ * the thigh is brought out under the buttock so that the underside of the pelvis is not a shelf; the thighs may touch, not cross.
+ */
+const FAIR_SLOPE = 0.5;
+function fitLegToTrunk(ctx, rows, pre, sgn) {
+  const tr = ctx.trunk, { yF } = pre, yC = Math.max(tr.hip.cy - 0.02, yF + 0.03), hipHalf = tr.hip.rx; // yC: the crease line, 20 mm under the buttock ring (76 mm over the furrow at least in the data)
   for (const row of rows) {
-    const f = sstep((row.cy - (yH - 0.12)) / 0.12);
-    if (f <= 0) continue;
-    const inner = sgn * row.cx - row.rx, outer = sgn * row.cx + row.rx, limit = ctx.trunkHalf(row.cy) + 0.004;
-    if (outer <= limit) continue;
-    const outer2 = Math.max(lerp(outer, limit, f), inner + 1.2 * row.rx), rx2 = 0.5 * (outer2 - inner);
-    row.rx = rx2; row.cx = sgn * (inner + rx2);
+    const w = sstep((row.cy - yF) / (yC - yF)), xc = Math.abs(row.cx), d = yC - row.cy; // d > 0 below the crease line
+    let front = row.cz + row.rz, back = row.cz - row.rz, inner = sgn * row.cx - row.rx, outer = sgn * row.cx + row.rx;
+    if (inner < 0.002) { // the thighs touch at most (the fit lets each cross the midline by up to 30 mm): the medial face is flattened and the depth grows to give back most of the girth
+      const rx = 0.5 * (outer - 0.002), p1 = ellipseP(rx, row.rz), p0 = p1 + 0.85 * (ellipseP(row.rx, row.rz) - p1); // 85 % of the lost girth is given back
+      let rz = row.rz;
+      for (let i = 0; i < 4; i++) rz *= p0 / ellipseP(rx, rz);
+      inner = 0.002; front = row.cz + rz; back = row.cz - rz;
+    }
+    if (row.cy > yF) {
+      const up = tr.front(yC, xc) + FAIR_SLOPE * d, lo = Math.min(tr.front(row.cy, xc) - 0.004, up); // a thigh behind the belly is brought up to it
+      front = lerp(front, smin(smax(front, lo, 0.012), up, 0.012), w);
+      outer = lerp(outer, smin(outer, Math.min(hipHalf, tr.half(Math.max(row.cy, yC))) + 0.004 + FAIR_SLOPE * Math.min(d, 0), 0.012), w);
+      back = lerp(back, Math.min(back, tr.back(row.cy, xc) - 0.003 - FAIR_SLOPE * Math.min(d, 0)), w);
+    }
+    outer = Math.max(outer, inner + 0.01); front = Math.max(front, back + 0.01);
+    row.rx = 0.5 * (outer - inner); row.cx = sgn * (inner + row.rx);
+    row.rz = 0.5 * (front - back); row.cz = 0.5 * (front + back);
   }
-  frames(rows);
+}
+
+/** Leg: hip dome, thigh, shank and the ankle as one tube (the two knee rings are averaged). */
+function buildLeg(ctx, s) {
+  const { g, Q, W } = ctx, q = Q.leg, pre = prepLeg(ctx, s), { yH, yK, yA } = pre;
+  const rows = pre.rows.map((r) => ({ ...r }));
+  fitLegToTrunk(ctx, rows, pre, s === "L" ? 1 : -1);
+  frames(rows, true); // the rings are horizontal sections, as measured (perpendicular rings of a leaning centre line fold on themselves)
   const bones = [W.I(`hip_${s}`), W.I(`knee_${s}`), W.I(`ankle_${s}`)], ipel = W.I("pelvis");
   const hK = 0.2 * Math.min(yH - yK, yK - yA), hA = Math.min(0.5 * yA, 0.4 * (yK - yA), 0.04);
   const capH = Math.max(0.03, rows[0].rx * 0.9);
@@ -538,7 +630,7 @@ function buildFinger(ctx, s, name) {
   const bones = f.joints.map((id) => W.I(id));
   // positions along the arc: extra rings around the two knuckles
   const d1 = Math.min(0.2 * seg[0], 0.005), d2 = Math.min(0.2 * seg[1], 0.005), d3 = Math.min(0.2 * seg[2], 0.005);
-  const tipStart = Lt - 0.55 * r[3];
+  const tipStart = Lt - 1.05 * r[3]; // a round tip: the dome is a hemisphere (0.55 r made the tips look like cut cylinders)
   const arcs = [0, 0.5 * L0, L0 - d1, L0, L0 + d2, 0.5 * (L0 + L1), L1 - d2, L1, L1 + d3, 0.5 * (L1 + tipStart), tipStart].filter((a, i, arr) => i === 0 || a > arr[i - 1] + 0.0008);
   if (q.dBase > 0.006) arcs.splice(0, arcs.length, 0, L0, L1, tipStart); // low quality: the joints only
   const pointAt = (a) => {
@@ -577,7 +669,15 @@ function buildFoot(ctx, s) {
   const zs = Float64Array.from(st, (p, i) => (i === 0 ? p.z + dA : i === n - 1 ? p.z - dB : p.z));
   // the last station is the tip of the longest toe, 14 mm half width: lofted to a point that is a nub; the toe end is made as wide as a
   // rounded forefoot is (0.62 of the section behind it) and closed by the dome
-  const rxs = Float64Array.from(st, (p, i) => (i === n - 1 ? Math.max(p.rx, 0.62 * st[n - 2].rx) : p.rx));
+  // Around the ankle the foot is made 5 mm wider than the shank: the fit's foot is as wide as the shank there (37 mm half width both), two
+  // vertical walls that meet at a tangent and the intersection is a zigzag around the ankle. Wider, the shank leaves the top of the foot at a
+  // clear angle, along a smooth line (a sock).
+  const shankLast = body.shape.tubes[`shank_${s}`].rings.at(-1), zA = W.pos[`ankle_${s}`][2], ankleW = shankLast.rx + 0.005;
+  const rxs = Float64Array.from(st, (p, i) => {
+    if (i === n - 1) return Math.max(p.rx, 0.62 * st[n - 2].rx);
+    const g = 1 - sstep((Math.abs(p.z - zA) - 0.02) / 0.03);
+    return Math.max(p.rx, lerp(p.rx, ankleW, g));
+  });
   const sp = new Spline(zs, [Float64Array.from(st, (p) => p.cx), rxs, Float64Array.from(st, (p) => p.top), Float64Array.from(st, (p) => p.lift)], [false, true, true, true]);
   const params = distribute(Array.from(zs), () => q.dz);
   const iA = W.I(`ankle_${s}`), iM = W.I(foot.toesJoint), zM = W.pos[foot.toesJoint][2], hz = 0.014;
@@ -906,7 +1006,7 @@ export function meshVolume(position, index) {
  * Build the skin of a BodyModel on the bones of a rig.
  * @param {object} body    BodyModel of fit.js (shape, positions, stature are read)
  * @param {Map<string, THREE.Bone>} bones   joint id -> bone (the rig's `bones`); the skeleton is made in skeleton.js JOINTS order
- * @param {{quality?: "high"|"low", color?: number|string|THREE.Color, eyes?: boolean}} options
+ * @param {{quality?: "high"|"low", color?: number|string|THREE.Color, eyes?: boolean, detail?: boolean}} options  eyes: false builds no eyeballs; detail: false leaves the face smooth
  * @returns {{ mesh: THREE.SkinnedMesh, eyes: THREE.SkinnedMesh|null, dispose(): void, stats: object }}
  */
 export function buildSkin(body, bones, options = {}) {

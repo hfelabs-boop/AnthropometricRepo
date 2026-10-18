@@ -6,6 +6,7 @@ import { fitBody } from "../../site/js/human/fit.js";
 import { percentileProfile, subjectProfile } from "../../site/js/human/anthro.js";
 import { JOINTS, clampAngles } from "../../site/js/human/skeleton.js";
 import { Kinematics } from "../../site/js/human/fk.js";
+import { figureOf } from "../../site/js/human/pose.js";
 
 export const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const POPS = path.join(ROOT, "public/api/v1/populations");
@@ -57,7 +58,8 @@ export function randomPose(rand, scale = 1, withRoot = true) {
   return { root, angles };
 }
 
-export const kinOf = (body) => { const o = {}; for (const j of JOINTS) if (j.parent) o[j.id] = body.joints[j.id].offset; return new Kinematics(o); };
-export const lmWorld = (body, kin, id) => kin.toWorld(body.landmarks[id].joint, body.landmarks[id].offset);
+// the figure the rig draws (pose.js poses it, not the raw BodyModel): forearm twist axis at the wrist, sternum landmarks on T4
+export const kinOf = (body) => { const f = figureOf(body), o = {}; for (const j of JOINTS) if (j.parent) o[j.id] = f.joints[j.id].offset; return new Kinematics(o); };
+export const lmWorld = (body, kin, id) => { const f = figureOf(body); return kin.toWorld(f.landmarks[id].joint, f.landmarks[id].offset); };
 
 export const posture = (over) => ({ id: "adv-posture", name: "Adversarial posture", category: "Reference", tags: ["test"], description: "A posture written by the adversarial tests of the validator.", source: "illustrative", support: "feet", grips: { L: "relaxed", R: "relaxed" }, ...over });

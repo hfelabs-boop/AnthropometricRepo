@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { fitBody } from "../../site/js/human/fit.js";
 import { percentileProfile, subjectProfile } from "../../site/js/human/anthro.js";
-import { validatePosture, CATEGORIES as POSE_CATEGORIES } from "../../site/js/human/pose.js";
+import { validatePosture, figureOf, landmarkPosition, solvePose, CATEGORIES as POSE_CATEGORIES } from "../../site/js/human/pose.js";
 import { POSTURES, GROUPS, CATEGORIES, GRIPS, byId, byCategory, search, indexGroups } from "../../site/js/human/postures.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -106,6 +106,61 @@ test("every posture carries the fields of the Posture schema with the right type
     if (p.grips !== undefined) for (const g of Object.values(p.grips)) if (!(g in GRIPS)) problems.push(`${p.id}: grip ${g}`);
   }
   assert.deepEqual(problems, []);
+});
+
+// ---- the library is data, not state -------------------------------------------------------------------------------------------------
+test("the library is deeply frozen: an editor that edits the selected posture in place gets an error, not a corrupted library", () => {
+  const walk = (v, where, bad) => {
+    if (v === null || typeof v !== "object") return;
+    if (!Object.isFrozen(v)) bad.push(where);
+    for (const [k, x] of Object.entries(v)) walk(x, `${where}.${k}`, bad);
+  };
+  const bad = [];
+  walk(POSTURES, "POSTURES", bad); walk(GROUPS, "GROUPS", bad);
+  assert.deepEqual(bad, []);
+  for (const g of GROUPS) assert.ok(Object.isFrozen(g.postures), `${g.id} array`);
+  for (const p of POSTURES) {
+    assert.equal(typeof p.joints, "object", `${p.id}: joints always exists`); assert.equal(typeof p.spine, "object", `${p.id}: spine always exists`);
+    assert.throws(() => { p.name = "changed"; }, TypeError);
+    assert.throws(() => { p.joints.head = [1]; }, TypeError);
+    assert.throws(() => { p.spine.lumbar = [1]; }, TypeError);
+    assert.throws(() => { p.tags.push("x"); }, TypeError);
+  }
+  assert.throws(() => { POSTURES.push({}); }, TypeError);
+  assert.throws(() => { GROUPS[0].postures.push({}); }, TypeError);
+  // a copy is the way to edit one
+  const copy = structuredClone(POSTURES[0]);
+  copy.joints.head = [3, 0, 0];
+  assert.equal(validatePosture(BODIES[0][1], { ...copy, id: "edited-copy" }, {}).errors.filter((e) => /head/.test(e)).length, 0);
+  assert.equal(POSTURES[0].joints.head, undefined);
+});
+
+test("a plain BodyModel and the figure of the rig (figureOf, rig.restBody) give the same verdict for every posture", () => {
+  for (const [label, body] of BODIES) {
+    const fig = figureOf(body);
+    for (const p of POSTURES) {
+      const a = validatePosture(body, p, { library: POSTURES }), b = validatePosture(fig, p, { library: POSTURES });
+      assert.deepEqual(a.errors, b.errors, `${label} | ${p.id}`); assert.deepEqual(a.warnings, b.warnings, `${label} | ${p.id}`);
+    }
+  }
+});
+
+test("the library's t-pose is horizontal for the population medians: acromion to stylion within 7 degrees, shoulder to wrist within 5", () => {
+  const dir = path.join(ROOT, "public/api/v1/populations");
+  const files = [];
+  for (const c of fs.readdirSync(dir)) for (const r of fs.readdirSync(path.join(dir, c))) for (const f of fs.readdirSync(path.join(dir, c, r))) if (f.endsWith(".json") && !f.includes("latest")) files.push(path.join(dir, c, r, f));
+  assert.ok(files.length >= 150, `${files.length} population files`);
+  const t = byId("t-pose"), pose = { root: {}, angles: { shoulder_L: [0, t.joints.shoulder_LR[1], 0], shoulder_R: [0, t.joints.shoulder_LR[1], 0] } };
+  const deg = (a, s) => (Math.atan2(s.y - a.y, Math.hypot(s.x - a.x, s.z - a.z)) * 180) / Math.PI;
+  let worstLine = 0, worstArm = 0;
+  for (const f of files.sort()) {
+    const body = fitBody(percentileProfile(JSON.parse(fs.readFileSync(f)), { percentile: 50, meanStature: true }));
+    worstLine = Math.max(worstLine, Math.abs(deg(landmarkPosition(body, pose, { y: 1 }, "acromion_L"), landmarkPosition(body, pose, { y: 1 }, "stylion_L"))));
+    const kin = solvePose(body, pose, { y: 1 });
+    worstArm = Math.max(worstArm, Math.abs(deg(kin.position("shoulder_L"), kin.position("wrist_L"))));
+  }
+  assert.ok(worstLine < 7, `acromion to stylion is ${worstLine.toFixed(1)} degrees off the horizontal`);
+  assert.ok(worstArm < 5.5, `shoulder joint to wrist is ${worstArm.toFixed(1)} degrees off the horizontal`);
 });
 
 // ---- acceptance: validatePosture on six bodies ----------------------------------------------------------------------------------------

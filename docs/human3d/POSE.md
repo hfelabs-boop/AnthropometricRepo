@@ -57,9 +57,10 @@ Locomotion, Work, Military, Vehicle & cockpit, Reference. The file `postures/<id
   mid-position, palms facing the thighs, feet flat and parallel, the spine in its natural standing curvature (lumbar `flex = 0` is the natural
   lordosis, not a straight back).
 * **Spine** by region: `spine: { lumbar: [flex, lat, rot], … }` are *totals* over the region (5 lumbar, 12 thoracic, 7 cervical vertebrae), shared by
-  the vertebrae with fixed weights (`REGIONS` in `skeleton.js`). Vertebra ids (`L3`, `T8`, `C5`) in `joints` are added on top. A vertebra that would leave its own range is
-  pinned and the rest is redistributed; a total that the whole region cannot take is an error (`spine lumbar flex: requested 90°, the vertebrae of the region can take 60°`).
-  `head` (occiput-C1) is separate from `cervical`.
+  the vertebrae with fixed weights (`REGIONS` in `skeleton.js`). Vertebra ids (`L3`, `T8`, `C5`) in `joints` are added on top. A vertebra that would leave its own range takes
+  no more of the total and the rest is redistributed over the others (water-filling, exact: `expandSpine`); a total that the whole region cannot take is an error
+  (`spine lumbar flex: requested 90°, the vertebrae of the region can take 60°`). **An explicit vertebra angle beyond that vertebra's own range is an error as well, and the
+  vertebra keeps the value you wrote** (`L3 flex = 40° is outside the range of motion [-6.7, 11.5]`): it is never moved onto its neighbours. `head` (occiput-C1) is separate from `cervical`.
 * **Root** (`root`): `heading` is the world yaw (+ = turn left), `flex` / `lat` / `rot` tilt and twist the pelvis, and with it the whole body, about the pelvis:
   `flex` −90 lies the body on its back (supine), +90 on its front (prone), `lat` ±90 on a side. They are not limited.
 * **Eyes**: in a posture `eye_LR: [elev, azim]` has `azim` + = both eyes look toward the figure's left (the right eye's joint angle is the negation: `expandSides`). Raw joint angles
@@ -135,7 +136,7 @@ is its own joint (`forearm_LR: [pron]`) and the **wrist** is `[flex, dev]`; `hip
 
 1. `root`: the four fields, default 0. `x`, `y`, `z` are an error ("a posture has no position").
 2. `grips`: each hand's preset becomes its 15 finger joints (`thumb_cmc_L`, …, `little_dip_R`).
-3. `spine` totals and vertebra ids in `joints` go through `expandRegions`.
+3. `spine` totals and vertebra ids in `joints` go through `expandSpine` (the exact version of `skeleton.js` `expandRegions`: a level pinned at its limit is freed again when the others would take more, and an addition beyond its vertebra's range stays as written).
 4. `joints` goes through `expandSides` (`_LR` first, then explicit `_L` / `_R`), and overrides what the grips set.
 
 `angles` lists only the joints that the posture specifies or that come out non-zero; every other joint is 0 (the rig treats missing as 0, and
@@ -146,8 +147,15 @@ non-finite numbers. `validatePosture` catches that error and reports it.
 Other helpers of `pose.js` work on poses (never mutating their input): `clampPose(pose)` → `{ pose, clamped: [{ joint, dof, requested, applied }] }`,
 `mirrorPose(pose)` (left and right exchanged; unpaired joints keep flexion and negate lateral bend and axial rotation; heading, root lat and rot are negated; an involution),
 `copySide(pose, "L")` (the editor's "mirror left to right": the other side gets the same anatomical angles, the eyes keep looking the same way),
-`blendPoses(a, b, t)` (joints with two swing DOF: the bone direction moves on the great circle, the twist linearly; hinges linearly; heading the short way round; t = 0 and 1 exact),
-`poseEquals(a, b, eps)`, `neutralPose()`.
+`blendPoses(a, b, t)` (joints with two swing DOF: the bone direction moves on the great circle when that provably stays inside the range of motion and away from the pole
+(swing under 140 degrees), else along the straight line of the two swing angles, which cannot leave the box of the ranges; the twist linearly; hinges linearly; heading the short way
+round; t = 0 and 1 exact; **the blend of two poses inside the ranges is inside them for every t**, so an animation between two library postures never needs `clamp`, and a raised arm does not
+flick), `poseEquals(a, b, eps)`, `neutralPose()`, `figureOf(body)` (below).
+
+**Which figure.** Everything in `pose.js` poses the figure the RIG draws, whether you pass a `fitBody` result or `rig.restBody`: the forearm twist axis is moved from the elbow to the
+wrist and the sternum landmarks ride on T4, exactly as `rig.js` does (`rig.restBody` is that figure; for it the call changes nothing). Before this was done a pronated forearm put every forearm,
+wrist, hand and fingertip landmark 20 to 50 mm off the drawn figure, more than the contact and hand-overlap tolerances. `figureOf(body)` returns the body in that form when you need the
+matching offsets elsewhere (a `Kinematics`, `bodyProxies`). If `rig.js` ever rebases differently, `pose.test.mjs` ("a plain body gives the same figure") fails.
 
 ## 4. Support, placement and hints
 
@@ -166,7 +174,7 @@ horizontal centroid of ALL its contact points at the anchor (default x = z = 0).
 | `hands-knees` | `knees` → floor, `palms` → floor | quadruped, crawling |
 | `hands-feet` | `feet` → floor, `palms` → floor | push-up, bear crawl, plank |
 | `elbows-knees` | `knees` → floor, `elbows` → floor | low crawl, kneeling on the forearms |
-| `body` | `body` → floor | lying: the lowest points of the body proxies and of every landmark rest on the floor; the anchor is the horizontal position of the centre of mass |
+| `body` | `body` → floor | lying: the lowest points of the skin (the superellipse sections of the shape rings, `lowestSkinPoint`, plus fingers, foot and toes, the toe and finger tips counted at the tip landmark, not one end-sphere radius beyond it) and of every landmark rest on the floor; the sections are interpolated between the shape rings the way the skin is, so the rig's skin is within 5 mm of the floor in 98 % of the 792 bodies x positions checked (supine, prone, on a side, rolled 20 to 90 degrees; worst 7 mm, at the head of a body rolled onto its side); the anchor is the horizontal position of the centre of mass |
 
 The contact sets are those of `body.contacts` (MODEL.md section 5: `feet seat knees hands elbows back front side_L side_R head`) plus the derived `toes` (`toe_tip_L/R`),
 `heels`, `palms` (`palm_centre_L/R`), `shins`, `kneecaps`. A support that you need and that is not in the table: ask for it in `pose.js` rather than faking it with `hints`.
@@ -175,7 +183,7 @@ The contact sets are those of `body.contacts` (MODEL.md section 5: `feet seat kn
 `surfaces` (`{ floor: 0, seat: 0.45, desk: 0.74 }`, heights in metres of horizontal planes); `anchor` (`{ x, z }`); `heading` (degrees added to the posture's heading: the body turns about
 the vertical through the anchor, the carrier centroid stays put). `placePoseDetailed` returns the report in the open: `{ root, gaps: { [set]: metres }, primary, carriers, surfaces }`
 (`gaps` = height of the lowest point of each carrier above its surface: 0 for the primary, > 0 floats, < 0 sinks). `contactClearances(body, pose, root, surfaces, carriers)`
-lists every contact point with its clearance. The pose can be placed with `rig.restBody` instead of the BodyModel to agree with the rig when forearms are pronated (see the header of `rig.js`).
+lists every contact point with its clearance. Support and surface names are looked up as own properties: `"toString"`, `"constructor"` and `"__proto__"` are errors like any other unknown name.
 
 ### The seat
 
@@ -196,7 +204,7 @@ no shoe. With it, the 90-90-90 posture touches the floor for every body, and you
 
 ## 5. What the validator checks (`validatePosture`)
 
-`validatePosture(body, posture, { library })` → `{ ok, errors, warnings, metrics }`. It never throws for a bad posture. `metrics`: `romViolations`, `regionShortfalls`, `gaps`
+`validatePosture(body, posture, { library })` → `{ ok, errors, warnings, metrics }`. It never throws for a bad posture. A gap is printed with one decimal when it is within a millimetre of its limit (`15.1 mm above the floor … within 15 mm`), and the right eye's azimuth in the convention you wrote (`eye_R azim = 60° is outside …`). `metrics`: `romViolations`, `regionShortfalls`, `gaps`
 (per carrier), `clearances` (declared contacts), `penetrations`, `worstPenetration`, `balanceMargin` (m, positive = inside the support polygon), `seatHeight`, `root`, `com`.
 `tests/human3d/postures.test.mjs` runs it on six bodies (median man, median woman, 5th-percentile woman, 95th-percentile man, a stature-only 1.70 m man, one real heavy man) for every
 posture of the library; the test lists every problem as `body | posture id | message`.
@@ -206,15 +214,21 @@ posture of the library; the test lists every problem as `body | posture id | mes
 | schema | kebab-case unique `id` (`options.library`), `category` in CATEGORIES, `name`, `description`, `source`, lower-case `tags`, known `support`, known landmarks in `contacts`, well-formed `hints` | `category "sitting" is not one of: …` → use the `name` of the category (capital S); `duplicate id "x" in the library` → rename |
 | expansion | the errors of `expandPosture` | `posture "x": joints.bogus_LR: unknown joint id` → see the joint table; `joints.hip: … needs a side` → `hip_LR` |
 | 2 range of motion | every angle inside its range, the 180 degree swing cap, spine region totals | `shoulder_R flex = 200° is outside the range of motion [-60, 180] (clamps to 180°)` → reduce it; `spine lumbar flex: requested 90°, the vertebrae of the region can take 60°` → put the rest in the thoracic region or the hips |
-| 3 support | the posture is placed (floor, and a seat plane); the primary carrier touches by construction; every other carrier of the support and every landmark in `contacts` is at most 15 mm above its surface and not more than 5 mm below; no landmark is more than 5 mm below the floor (or below the seat plane under the buttocks and thighs); no body proxy more than 20 mm below the floor | `contact set "feet": its lowest point is 54 mm above the floor (the posture is placed by its seat on a seat plane of 428 mm; support "seat+feet" needs the feet to touch within 15 mm)` → change knee / ankle / hip angles until the feet land (the gap is a number to aim at; try the median body first); `6 landmarks are below the floor: toe_sole_L by 29 mm, …` → the pose pushes through the floor: wrong support, or an angle too large |
-| 5 gross self-intersection | the 29 capsule proxies of `proxies.js`: hands, forearms, arms, legs, feet, head against the rest, with a tolerance per pair | `pelvis_R and palm_L overlap by 68 mm (more than 21 mm): a hand is inside the body: check the shoulder, elbow and wrist angles`. Hands may rest on the body (up to about 20 mm into it), arms hang against the trunk (up to 50 mm), thighs press into the belly and chest (up to 110 mm), legs may cross (up to 25 to 55 mm). All tolerances grow with the body-mass index, ×min(1.8, BMI / 24) |
-| 6 balance | for supports on the feet, knees or hands (not `seat` alone, not `body`): the centre of mass projected on the floor is within 40 mm of the convex hull of the carrier points that touch (within 15 mm of their surface); `hints.dynamic` / `externalSupport` waive it, `hints.load` adds a held weight | `the centre of mass is 117 mm outside the support polygon (limit 40 mm; …)` → move the hips back / the weight over the feet; or declare `hints.dynamic`, `hints.externalSupport` or `hints.load` |
+| 3 support | the posture is placed (floor, and a seat plane); the primary carrier touches by construction; every other carrier of the support and every landmark in `contacts` is at most 15 mm above its surface and not more than 5 mm below; no landmark is more than 5 mm below the floor; with a seat, no landmark of the pelvis, lower spine and hips behind the front of the contact points (as far back as the buttocks reach when the pelvis is tilted back) is more than 5 mm below the seat plane (`1 landmark would sink into the seat: buttock_extremity by 26 mm`; "behind" and "beside" are measured in the body's own horizontal frame, so turning the posture about the vertical, with `root.heading` or `root.rot`, never changes the verdict), and without a seat the skin is not more than 20 mm below the floor | `contact set "feet": its lowest point is 54 mm above the floor (the posture is placed by its seat on a seat plane of 428 mm; support "seat+feet" needs the feet to touch within 15 mm)` → change knee / ankle / hip angles until the feet land (the gap is a number to aim at; try the median body first); `6 landmarks are below the floor: toe_sole_L by 29 mm, …` → the pose pushes through the floor: wrong support, or an angle too large |
+| 5 gross self-intersection | the 39 capsule proxies of `proxies.js`: hands (palm and five fingers), forearms, arms, legs, feet, head against the rest, with a tolerance per pair | `pelvis_R and palm_L overlap by 68 mm (more than 21 mm): a hand is inside the body: check the shoulder, elbow and wrist angles`. Hands may rest on the body (up to about 20 mm into it), arms hang against the trunk (up to 50 mm), thighs press into the belly and chest (up to 110 mm), legs may cross (up to 25 to 55 mm). All tolerances grow with the body-mass index, ×min(1.8, BMI / 24), and a pair that overlaps more than that in the reference postures of this very body (ISO 7250-1 standing and sitting, the T-pose; thighs of a boundary-case P5 body: 61 mm in the neutral pose, the neck against the raised arms of a 1.31 m woman of 180 kg) is allowed the depth it has there plus 6 mm, so the reference postures are never rejected for the body's own geometry. The hint names the hand for any of its parts (palm, thumb, index, middle, ring, little finger) |
+| 6 balance | for supports on the feet, knees or hands (not `seat` alone, not `body`): the centre of mass projected on the floor is within 40 mm of the convex hull of the carrier points that touch (within 15 mm of their surface); `hints.dynamic` / `externalSupport` waive it, `hints.load` adds a held weight. For `support: "knees"` (feet free) the shin landmarks count as touching up to 30 mm, not 15: with the knee front on the floor the shin point of a shank lying on it is 25 mm up, and without it the support of an upright kneeling body would be the segment between the two knees. Kneeling on the heels (centre of mass 200 mm behind the knees) still needs `hints.externalSupport`. A body without `masses` gets an error instead (a centre of mass at the origin would be compared with the polygon) | `the centre of mass is 117 mm outside the support polygon (limit 40 mm; …)` → move the hips back / the weight over the feet; or declare `hints.dynamic`, `hints.externalSupport` or `hints.load` |
 | 4 hands (warning) | a hand with neither a `grips` preset nor finger joints in `joints` | `no grip for the left hand (rule 4: choose a preset of GRIPS, e.g. grips: { L: "relaxed" })` |
 | 7 symmetry (warnings) | tag `"symmetric"` with unequal sides; `_L` and `_R` written separately with equal values; sides that differ by less than 2° | `hip_L and hip_R are written separately with equal values: use hip_LR` |
 
 How the proxies look (see `proxies.js`): head, neck, the trunk in three parts (pelvis, abdomen, chest) each a pair of capsules left and right of the midline (an ellipse in section is a
-stadium), a shoulder-girdle capsule, buttock spheres, upper arms, forearms, palms and fingers, thighs, shanks, kneecaps, feet, toes. Radii are taken from the shape rings of the body, so they follow its
-girths. They are about 10 to 25 mm inside or outside the skin landmarks (coarse on purpose: the checks have tolerances). `proxyWorld` + `lowestPoint` cost about 1 microsecond, the 328 pair checks of `selfPenetrations` about 25.
+stadium), a shoulder-girdle capsule, buttock spheres, upper arms, forearms, palms and five finger capsules per hand (knuckle to tip, following the grip), thighs in two pieces, shanks, kneecaps, feet,
+toes: 39 capsules. A limb capsule is fitted to all the rings of its tube (the rings are not on a line), radii come from the shape rings so they follow the body's girths. Measured against
+the skin of `body.js` (the worst vertex outside every capsule, 16 bodies, neutral pose): limbs 13 to 32 mm, hands and fingers 2 to 21, buttocks 22, pelvis 40, head, neck, foot and toes 30 to 36,
+chest 55 and abdomen 58 (corners of boxy sections, which a stadium cannot follow), the groin of a seated body 70. Coarse on purpose: the checks have tolerances, and the lowest point of a lying body
+does not use the capsules but the skin sections themselves (`lowestSkinPoint`). `capsuleOverlap` is exact for tapered capsules (the maximum of r1 + r2 - distance over both axes, by a closed form along one
+axis and a bisection along the other). Cost (Node 22, median man): `proxyWorld` + `lowestPoint` about 1 microsecond, + `lowestSkinPoint` 17, the 621 pair checks of `selfPenetrations` about 60.
+
+Known limits: (1) the neutral centre of mass of a fitted body is only about 2 mm (-2 to +7) in front of the ankle joint centre, 11 % of the foot length from the heel, where quiet standing is 20 to 50 mm in front of it: the balance rule is a little too generous backwards and too strict forwards, on tiptoe and in a deep squat. The cause is the placement of the masses and landmarks in `fit.js` (`pose.test.mjs` has an open `todo` test for it). (2) The proxies are capsules: a hand 25 mm thick is judged by a fitted capsule, and the lowest point of a lying body is the loft of the sections, not the skin mesh (see the table). (3) A body far beyond the data (BMI above about 100) has more soft tissue than any tolerance here is meant for; the reference postures still pass because the tolerances adapt to them, other postures are judged at the capped factor of 1.8.
 
 ## 6. A worked example: seated, reaching forward
 
@@ -270,12 +284,12 @@ also run by `pose.test.mjs`, so it cannot rot.)
 | name | in | what |
 | --- | --- | --- |
 | `CATEGORIES`, `SUPPORT_CARRIERS`, `SUPPORT_INFO` | `pose.js` | the 13 groups (`{ id, name, blurb }`), the supports and their carriers |
-| `expandPosture`, `clampPose`, `mirrorPose`, `copySide`, `blendPoses`, `poseEquals`, `neutralPose` | `pose.js` | posture → pose and pose algebra |
-| `placePose`, `placePoseDetailed`, `contactClearances`, `seatHeightFor`, `solvePose`, `landmarkPosition` | `pose.js` | placement on supports, clearances, the shared kinematics of a body |
+| `expandPosture`, `expandSpine`, `clampPose`, `mirrorPose`, `copySide`, `blendPoses`, `poseEquals`, `neutralPose` | `pose.js` | posture → pose and pose algebra; `expandSpine(spine, perVertebra)` is the region distribution on its own |
+| `placePose`, `placePoseDetailed`, `contactClearances`, `seatHeightFor`, `solvePose`, `landmarkPosition`, `figureOf` | `pose.js` | placement on supports, clearances, the shared kinematics of a body, the figure the rig draws |
 | `centerOfMass`, `balance` | `pose.js` | centre of mass (optionally with a held load), static balance against a support polygon |
 | `validatePosture` | `pose.js` | the rules above |
-| `bodyProxies`, `proxyWorld`, `lowestPoint`, `capsuleOverlap`, `overlapAt`, `selfPenetrations`, `worldCapsule`, `pairTolerance` | `proxies.js` | the ~29 capsules of a body and what is done with them |
+| `bodyProxies`, `proxyWorld`, `lowestPoint`, `lowestSkinPoint`, `capsuleOverlap`, `overlapAt`, `selfPenetrations`, `worldCapsule`, `pairTolerance`, `PROXY_GROUPS` | `proxies.js` | the 39 capsules and the skin sections of a body, and what is done with them |
 | `GRIPS`, `GRIP_NAMES`, `HAND_JOINTS`, `gripAngles` | `postures/grips.js` | hand presets: relaxed, open, flat, fist, power, precision, hook, trigger, point, wheel, pinch, cup, thumbsup, spread, tripod, lateral, spherical, typing, mouse |
-| `POSTURES`, `GROUPS`, `CATEGORIES`, `GRIPS`, `byId`, `byCategory`, `search`, `indexGroups` | `postures.js` | the library; `search("squat lift")` is case, diacritics and word-order insensitive (every word must occur in the name, description, tags or category) |
+| `POSTURES`, `GROUPS`, `CATEGORIES`, `GRIPS`, `byId`, `byCategory`, `search`, `indexGroups` | `postures.js` | the library, **deeply frozen** (copy a posture before you edit it: `structuredClone(p)`); every entry has `joints` and `spine` objects; `search("squat lift")` is case, diacritics and word-order insensitive (every word must occur in the name, description, tags or category) |
 
-Cost (Node 22, one core): `placePose` about 40 microseconds, `proxyWorld` + `lowestPoint` 1, `selfPenetrations` 25, `centerOfMass` 25, `blendPoses` 40, `validatePosture` 0.5 ms, so an editor can place the figure and look at the proxies on every drag event.
+Cost (Node 22, one core, median man, measured with `performance.now` over thousands of calls): `kin.solve` 13 microseconds, `placePose` 20 (support `body`: 55), `centerOfMass` 20, `blendPoses` of two poses with all 77 joints 105, `validatePosture` 0.3 to 0.4 ms, so an editor can place the figure and look at the proxies on every drag event.

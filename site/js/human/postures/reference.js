@@ -30,10 +30,10 @@ export default [
     name: "T-pose",
     category: "Reference",
     tags: ["reference", "standing", "static", "symmetric", "calibration"],
-    description: "Arms raised sideways to the horizontal, palms down, fingers straight, standing erect: the calibration pose of motion capture and the posture of the arm-span measurement. The neutral arm hangs abducted by 3 to 14 degrees, so 82 degrees of shoulder abduction is horizontal for the median person.",
-    source: "common mocap and anthropometry reference; 82 deg = 90 minus the median neutral arm abduction of 7.6 deg (fit.js referencePose(body, 'tpose') gives the exact angle per body)",
+    description: "Arms raised sideways to the horizontal, palms down, fingers straight, standing erect: the calibration pose of motion capture and the posture of the arm-span measurement. The neutral arm hangs abducted by 3 to 14 degrees, so 84 degrees of shoulder abduction is the horizontal arm of the median person (within 7 degrees, acromion to stylion, for every population median).",
+    source: "common mocap and anthropometry reference; 84 deg = the median over the 176 population medians of the abduction that makes the arm horizontal (fit.js referencePose(body, 'tpose'): 79 to 87 deg, the exact angle per body)",
     support: "feet",
-    joints: { shoulder_LR: [0, 82, 0] },
+    joints: { shoulder_LR: [0, 84, 0] },
     grips: { L: "open", R: "open" },
   },
 ];

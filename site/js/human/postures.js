@@ -20,17 +20,29 @@ import reference from "./postures/reference.js";
 
 export { CATEGORIES, GRIPS };
 
-/** The group files by category id (the ids of CATEGORIES), in display order: [{ id, category (name), postures }]. */
+// The library is shared state: an editor that changes "the selected posture" in place would change it for everybody else (and for the next selection), so
+// everything is frozen all the way down: the group arrays, the postures, their joints / spine / grips / hints / tags / contacts. Copy with structuredClone
+// (or { ...p, joints: { ...p.joints } }) before editing; the editor's custom postures are copies anyway.
+function deepFreeze(v) {
+  if (v !== null && typeof v === "object" && !Object.isFrozen(v)) {
+    Object.freeze(v);
+    for (const k of Reflect.ownKeys(v)) deepFreeze(v[k]);
+  }
+  return v;
+}
+
+/** The group files by category id (the ids of CATEGORIES), in display order: [{ id, category (name), postures }]. Deeply frozen. */
 export const GROUPS = Object.freeze(
   Object.entries({ standing, sitting, leaning, holding, lifting, reaching, kneeling, lying, locomotion, work, military, vehicle, reference }).map(([id, postures]) => {
     const cat = CATEGORIES.find((c) => c.id === id);
     if (!cat) throw new Error(`postures.js: group file "${id}" has no entry in CATEGORIES`);
     if (!Array.isArray(postures)) throw new Error(`postures/${id}.js must export default an array of postures`);
-    return Object.freeze({ id, category: cat.name, postures });
+    // `joints` and `spine` always exist (empty when the author left them out), so that code which reads or copies them never meets undefined; the stub files stay arrays of authored entries
+    return Object.freeze({ id, category: cat.name, postures: deepFreeze(postures.map((p) => (p !== null && typeof p === "object" && !Array.isArray(p) ? { ...p, joints: p.joints ?? {}, spine: p.spine ?? {} } : p))) });
   })
 );
 
-/** Every posture of the library, in group order. */
+/** Every posture of the library, in group order (frozen, like everything in it). */
 export const POSTURES = Object.freeze(GROUPS.flatMap((g) => g.postures));
 
 /**

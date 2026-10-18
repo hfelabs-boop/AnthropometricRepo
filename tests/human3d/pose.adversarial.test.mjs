@@ -108,7 +108,7 @@ test("expand: region totals follow the water-filling reference (no per-vertebra 
     got.forEach((g, i) => near(g, exp[i], 1e-6, `${k.rn}[${k.c}] total ${k.total}`));
   }
 });
-test("expand: a region total that the vertebrae can take is never reported as a shortfall when per-vertebra values are added", { todo: "DEFECT skeleton.js expandRegions: water-filling pins levels one way and never unpins, so with mixed-sign per-vertebra additions part of a feasible total is dropped and a false 'requested X, the vertebrae can take Y' error appears" }, () => {
+test("expand: a region total that the vertebrae can take is never reported as a shortfall when per-vertebra values are added", () => {
   const rand = H.rng(11);
   let bad = 0;
   for (let it = 0; it < 20000; it++) {
@@ -137,7 +137,7 @@ test("expand: error messages name the posture and the key; docs examples", () =>
   assert.throws(() => P.expandPosture({ id: "q", root: { x: 1 } }), /no position/);
   assert.throws(() => P.expandPosture({ id: "q", spine: { lumbar: [1, 2, 3, 4] } }), /spine\.lumbar/);
 });
-test("expand: the message for 'hip_L_LR' calls the sided joint 'not a paired joint' (misleading)", { todo: "LOW: pose.js:158 says '\"hip_L\" is not a paired joint' for a key like hip_L_LR; hip_L IS a (sided) joint" }, () => {
+test("expand: the message for 'hip_L_LR' calls the sided joint 'not a paired joint' (misleading)", () => {
   assert.throws(() => P.expandPosture({ id: "q", joints: { hip_L_LR: [1] } }), (e) => !/is not a paired joint/.test(e.message));
 });
 
@@ -246,7 +246,7 @@ test("blend: continuity in t for random pairs whose swing stays below 150 degree
   assert.ok(worst < 0.3 * Math.PI / 100 * 3, `largest step ${worst}`);
 });
 
-test("blend: continuity in t when an end pose has a shoulder swing near 180 degrees (raised arm): the hand must not flick", { todo: "DEFECT pose.js blendJoint: near a swing of 150..180 degrees the exp-map swing vector is ill-conditioned (axis of the swing flips near the pole), so the hand moves up to ~25x faster than the average over a 1% step of t" }, () => {
+test("blend: continuity in t when an end pose has a shoulder swing near 180 degrees (raised arm): the hand must not flick", () => {
   const k2 = H.kinOf(MAN), rand = H.rng(5), sh = JOINT_BY_ID.shoulder_L;
   let worst = 0;
   for (let it = 0; it < 1500; it++) {
@@ -263,7 +263,7 @@ test("blend: continuity in t when an end pose has a shoulder swing near 180 degr
   assert.ok(worst < 0.3 * Math.PI / 200 * 3, `largest step ${(worst * 1000).toFixed(0)} mm`);
 });
 
-test("blend: the blend of two poses inside the range of motion stays inside it (animation between library postures must not need clamping)", { todo: "DEFECT pose.js blendPoses: the great-circle swing path is not ROM-aware: shoulder flexion 170 -> extension 60 passes through flexion -157..-93 (limit -60); about 27% of random pose pairs leave the ROM at some joint (shoulder, hip abduction, wrist deviation)" }, () => {
+test("blend: the blend of two poses inside the range of motion stays inside it (animation between library postures must not need clamping)", () => {
   const rand = H.rng(8);
   let bad = 0, n = 0;
   for (let it = 0; it < 1500; it++) {
@@ -382,7 +382,7 @@ test("placement: wrong carrier / support / surface names are errors with a messa
   near(P.placePose(MAN, ISO, { support: "seat", surfaces: { seat: 0.6 } }).y - P.placePose(MAN, ISO, { support: "seat", surfaces: { seat: 0.5 } }).y, 0.1, 1e-12);
 });
 
-test("placement: surface / support names that are inherited object properties ('toString', 'constructor', '__proto__') are errors, not a NaN root", { todo: "DEFECT pose.js:529 / 517: `surf in surfaces` and `SUPPORT_CARRIERS[support]` see Object.prototype, so carriers {feet: 'toString'} returns y = NaN and support 'toString' gives the misleading 'unknown contact set \"undefined\"'" }, () => {
+test("placement: surface / support names that are inherited object properties ('toString', 'constructor', '__proto__') are errors, not a NaN root", () => {
   for (const name of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
     assert.throws(() => P.placePose(MAN, NEUTRAL, { carriers: { feet: name } }), Error, `surface ${name}`);
     assert.throws(() => P.placePose(MAN, NEUTRAL, { support: name }), /unknown support/, `support ${name}`);
@@ -390,7 +390,7 @@ test("placement: surface / support names that are inherited object properties ('
   }
 });
 
-test("placement: rig agreement. With rig.restBody the placed pose agrees with the rig to 1e-9; with the plain BodyModel the hands/forearms differ from the drawn figure by up to ~50 mm when the forearms are pronated", () => {
+test("placement: rig agreement. With rig.restBody AND with the plain BodyModel the placed pose agrees with the rig to 1e-9 (figureOf)", () => {
   const rig = buildRig(MAN, {}), rb = rig.restBody, rand = H.rng(3);
   let worstRB = 0, worstBody = 0;
   for (let it = 0; it < 60; it++) {
@@ -403,9 +403,9 @@ test("placement: rig agreement. With rig.restBody the placed pose agrees with th
     }
   }
   assert.ok(worstRB < 1e-9, `restBody vs rig ${worstRB}`);
-  assert.ok(worstBody > 0.02, "(documents the size of the disagreement)");
+  assert.ok(worstBody < 1e-9, `plain BodyModel vs rig ${worstBody} (pose.js poses the figure the rig draws)`);
 });
-test("placement and validation of hand positions on the BodyModel agree with the figure drawn by the rig (palm within 15 mm)", { todo: "DEFECT (documented in POSE.md, not handled by the validator/tests): placePose/validatePosture(body) solve the BodyModel, whose forearm twist axis passes through the elbow; the rig (rig.restBody) pronates about the wrist. Hand/forearm landmarks differ by 20-55 mm in position for forearm pronation 40-80 degrees (palm height 10-22 mm for a forearm resting on a desk), more than the 15-20 mm contact and hand-overlap tolerances, so hand-on-surface / hand-near-body decisions of the validator do not describe the figure the user sees. postures.test.mjs validates on fitBody bodies, not rig.restBody" }, () => {
+test("placement and validation of hand positions on the BodyModel agree with the figure drawn by the rig (palm within 15 mm)", () => {
   const rig = buildRig(MAN, {});
   const pose = { root: {}, angles: { shoulder_L: [50, 5, 0], elbow_L: [80], forearm_L: [80], wrist_L: [-20, 0] } }, root = { y: 1 };
   rig.setPose({ root, angles: pose.angles }, { clamp: false });
@@ -413,7 +413,7 @@ test("placement and validation of hand positions on the BodyModel agree with the
   assert.ok(d < 0.015, `palm differs by ${(d * 1000).toFixed(0)} mm`);
 });
 
-test("placement: lying postures: the skin of the rig does not sink more than 5 mm below the floor or float more than 5 mm above it", { todo: "DEFECT proxies.js / pose.js 'body' carrier: supine rests the buttock landmark and a buttock sphere on the floor but the skin (body.js) reaches up to 13 mm lower (median man 14 mm, 95th-percentile men 9-12 mm); side-lying floats up to 9 mm" }, () => {
+test("placement: lying postures: the skin of the rig does not sink more than 5 mm below the floor or float more than 5 mm above it", () => {
   let worstSink = 0, worstFloat = 0;
   for (const body of [MAN, WOMAN5, MAN95, H.popBody(FILES[7]), H.popBody(FILES[40])]) {
     const rig = buildRig(body, { skinBuilder: (b, bones, o) => buildSkin(b, bones, o) });
@@ -516,7 +516,7 @@ test("proxies: the capsules cover the skin: no skin vertex of the rig is more th
   assert.ok(worst < 0.08, `worst skin vertex ${(worst * 1000).toFixed(0)} mm outside the capsules`);
 });
 
-test("proxies: thigh capsule follows the thigh rings (the capsule axis uses only the first and last ring centre)", { todo: "DEFECT proxies.js:131: the thigh capsule runs from the first to the last ring centre with linear radii; for bodies whose thigh rings are not collinear (median woman: ring z-centres +45 mm at the hip, -24 mm at the knee) the capsule misses the front of the mid-thigh by up to 55 mm (skin vertices 40-57 mm outside every capsule); also chest/abdomen up to 59 mm and palms up to 46 mm" }, () => {
+test("proxies: thigh capsule follows the thigh rings (the capsule axis uses only the first and last ring centre)", () => {
   const body = WOMAN, rig = buildRig(body, { skinBuilder: (b, bones, o) => buildSkin(b, bones, o) });
   const root = P.placePose(body, NEUTRAL, {});
   rig.setPose({ root, angles: {} }, { clamp: false }); rig.group.updateMatrixWorld(true);
@@ -537,7 +537,7 @@ test("proxies: thigh capsule follows the thigh rings (the capsule axis uses only
   assert.ok(worst < 0.03, `thigh skin ${(worst * 1000).toFixed(0)} mm outside the capsules`);
 });
 
-test("proxies: a thumb pushed deep into the head is detected", { todo: "LOW proxies.js: the hand is two capsules (palm, and the MIDDLE finger only); the thumb, index, ring and little finger have no proxy, so a thumb tip 50 mm inside the skull (palm outside) passes the self-intersection rule" }, () => {
+test("proxies: a thumb pushed deep into the head is detected", () => {
   const rb = buildRig(MAN, {}).restBody, root = { y: rb.joints.pelvis.offset[1] };
   // thumb tip inside the head, palm just outside: search a wrist/forearm combination near the head
   let found = null;
@@ -545,8 +545,9 @@ test("proxies: a thumb pushed deep into the head is detected", { todo: "LOW prox
   const c = new THREE.Vector3(0, (vx.y + me.y) / 2 + 0.01, 0.028);
   const rand = H.rng(5);
   for (let it = 0; it < 20000 && !found; it++) {
-    const a = P.clampPose({ angles: { shoulder_L: [-30 + rand() * 210, -20 + rand() * 110, -60 + rand() * 120], elbow_L: [rand() * 150], forearm_L: [-60 + rand() * 120], wrist_L: [-40 + rand() * 80, -10 + rand() * 20] } }).pose.angles;
-    const t = P.landmarkPosition(rb, { angles: a }, root, "thumb_tip_L");
+    const j = P.clampPose({ angles: { shoulder_L: [-30 + rand() * 210, -20 + rand() * 110, -60 + rand() * 120], elbow_L: [rand() * 150], forearm_L: [-60 + rand() * 120], wrist_L: [-40 + rand() * 80, -10 + rand() * 20] } }).pose.angles;
+    const a = j, full = P.expandPosture(posture({ id: "thumb", joints: a })).angles; // the thumb tip is judged in the pose that is validated (with the relaxed grip)
+    const t = P.landmarkPosition(rb, { angles: full }, root, "thumb_tip_L");
     const inside = (((t.x - c.x) / 0.0766 / 0.6) ** 2 + ((t.y - c.y) / 0.1175 / 0.6) ** 2 + ((t.z - c.z) / 0.0985 / 0.6) ** 2) < 1;
     if (inside && val(rb, posture({ id: "thumb", joints: a })).ok) found = a;
   }
@@ -648,7 +649,7 @@ test("validator: accepts the reference postures for every population median and 
   for (const [i, b] of [...MEDIANS, ...people].entries()) for (const p of good) { const r = val(b, p); if (!r.ok) fails.push(`${i}:${p.id}: ${r.errors[0]}`); }
   assert.deepEqual(fails, []);
 });
-test("validator: accepts the reference postures for 5th and 95th percentile bodies of every population", { todo: "DEFECT (fit.js + tolerance) iso-7250-standing / iso-7250-sitting / t-pose are rejected ('thigh_L and thigh_R overlap by 61 mm, more than 58 mm') for P5 boundary bodies australia/army/both, india/army/M, united-states/officers/M: their fitted thighs overlap in the neutral pose (ring half-breadth 0.099 + 0.099 > ring-centre distance 0.138), and the message tells the author to 'check the joint angles' of a posture that has none" }, () => {
+test("validator: accepts the reference postures for 5th and 95th percentile bodies of every population", () => {
   const fails = [];
   for (const f of FILES) for (const pct of [5, 95]) {
     const b = H.popBody(f, pct);
@@ -695,14 +696,14 @@ test("validator: rejects each adversarial posture with a message that names the 
   }
 });
 
-test("validator: an explicit per-vertebra angle beyond that vertebra's own range is an error (POSTURES.md rule 2), it is not silently moved onto the neighbours", { todo: "DEFECT skeleton.js expandRegions via pose.js expandPosture: joints { L3: [40] } (limit 11.5) expands to L3 = 11.5 plus 28.5 degrees spread over L5, L4, L2, L1 and the validator says ok; { T7: [-80] } and { C1: [0, 0, 200] } likewise. The requested angle is replaced by a different posture without any message" }, () => {
+test("validator: an explicit per-vertebra angle beyond that vertebra's own range is an error (POSTURES.md rule 2), it is not silently moved onto the neighbours", () => {
   for (const j of [{ L3: [40, 0, 0] }, { T7: [-80, 0, 0] }, { C1: [0, 0, 200] }, { L5: [0, 90, 0] }]) {
     const r = errs(MAN, { joints: j });
     assert.equal(r.ok, false, `${JSON.stringify(j)} is outside the range of motion of that vertebra`);
   }
 });
 
-test("validator: a reclined seated posture does not let the buttocks sink into the seat plane (rule 3: no landmark more than 5 mm below the supporting surface)", { todo: "DEFECT pose.js:819-828: the sink check only looks inside the hull of the four seat contact points + 60 mm (about 113 mm behind the pelvis origin), so with the pelvis tilted back 45 degrees buttock_extremity (z = -141 mm) is 26 mm (median man) / 48 mm (median woman) below the seat plane and the validator says ok" }, () => {
+test("validator: a reclined seated posture does not let the buttocks sink into the seat plane (rule 3: no landmark more than 5 mm below the supporting surface)", () => {
   for (const body of [MAN, WOMAN]) {
     const r = val(body, posture({ id: "recline", support: "seat+feet", root: { flex: -45 }, joints: { hip_LR: [45, 0, 0], knee_LR: [90] } }));
     const sunk = r.errors.filter((e) => /sink|below the (floor|seat)/.test(e));
@@ -714,7 +715,7 @@ test("validator: a reclined seated posture does not let the buttocks sink into t
   }
 });
 
-test("library: postures are plain mutable objects (a consumer that edits the selected posture in place corrupts the library)", { todo: "LOW postures.js: POSTURES and GROUPS are frozen but the posture objects, their joints/spine/tags and the group arrays are not" }, () => {
+test("library: postures are plain mutable objects (a consumer that edits the selected posture in place corrupts the library)", () => {
   assert.ok(Object.isFrozen(LIB.POSTURES[0]) && Object.isFrozen(LIB.POSTURES[0].joints ?? {}) && Object.isFrozen(LIB.GROUPS[0].postures));
 });
 

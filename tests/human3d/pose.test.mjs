@@ -11,7 +11,8 @@ import { percentileProfile } from "../../site/js/human/anthro.js";
 import { JOINTS, JOINT_BY_ID, REGIONS, clampAngles, jointQuaternion } from "../../site/js/human/skeleton.js";
 import { Kinematics } from "../../site/js/human/fk.js";
 import * as P from "../../site/js/human/pose.js";
-import { bodyProxies, proxyWorld, lowestPoint, capsuleOverlap, selfPenetrations } from "../../site/js/human/proxies.js";
+import * as PX from "../../site/js/human/proxies.js";
+import { bodyProxies, proxyWorld, lowestPoint, lowestSkinPoint, capsuleOverlap, selfPenetrations } from "../../site/js/human/proxies.js";
 import { GRIPS, GRIP_NAMES, HAND_JOINTS, gripAngles } from "../../site/js/human/postures/grips.js";
 import REFERENCE from "../../site/js/human/postures/reference.js";
 import { dofTable } from "../../scripts/human_dof_table.mjs";
@@ -135,7 +136,7 @@ test("expandPosture: the three reference postures expand to the textbook angles"
   const sit = P.expandPosture(REFERENCE.find((p) => p.id === "iso-7250-sitting"));
   assert.deepEqual(sit.angles.hip_L, [90, 0, 0]); assert.deepEqual(sit.angles.knee_R, [90, 0]);
   const t = P.expandPosture(REFERENCE.find((p) => p.id === "t-pose"));
-  assert.equal(t.angles.shoulder_L[1], 82); assert.equal(t.angles.shoulder_R[1], 82);
+  assert.equal(t.angles.shoulder_L[1], 84); assert.equal(t.angles.shoulder_R[1], 84);
 });
 
 // ---- clamp --------------------------------------------------------------------------------------------------------------------
@@ -395,8 +396,8 @@ for (const [name, body] of Object.entries(BODIES)) {
       near(Math.min(...rows.map((r) => r.clearance)), 0, 1e-12, `lowest point of the body on the floor (flex ${flex})`);
       assert.ok(rows.every((r) => r.clearance >= -1e-12));
       const kin = P.solvePose(body, pose, root);
-      const w = proxyWorld(bodyProxies(body), kin);
-      assert.ok(lowestPoint(w).y >= -1e-12, "no proxy below the floor");
+      const prox = bodyProxies(body), w = proxyWorld(prox, kin);
+      assert.ok(lowestSkinPoint(prox, kin, w).y >= -1e-12, "no skin section below the floor"); // not the capsules: the end spheres of the toes and fingers stick out beyond the skin
       let lm = Infinity;
       for (const id of Object.keys(body.landmarks)) lm = Math.min(lm, lmWorld(body, kin, id).y);
       assert.ok(lm >= -1e-12);
@@ -770,8 +771,10 @@ test("capsuleOverlap: spheres, parallel and crossing capsules, tapered capsules"
   near(capsuleOverlap({ a: [-1, 0, 0], b: [1, 0, 0], r: 0.04 }, { a: [0, 0.05, -1], b: [0, 0.05, 1], r: 0.04 }), 0.03, 1e-12);
   // end to end
   near(capsuleOverlap({ a: [0, 0, 0], b: [0, 1, 0], r: 0.05 }, { a: [0, 1.08, 0], b: [0, 2, 0], r: 0.05 }), 0.02, 1e-12);
-  // tapered: radius interpolated at the closest points (sphere-cone against a sphere)
-  near(capsuleOverlap({ a: [0, 0, 0], b: [0, 1, 0], ra: 0.1, rb: 0.02 }, { a: [0.2, 1, 0], b: [0.2, 1, 0], r: 0.03 }), 0.02 + 0.03 - 0.2, 1e-12);
+  // tapered: the maximum over the axis of r(s) + r2 - distance, not the radius at the closest point. Sphere-cone against a sphere beside its small end: with e = 1 - s
+  // the derivative of 0.1 - 0.08 s + 0.03 - sqrt(0.2^2 + e^2) vanishes at e = 0.08 * 0.2 / sqrt(1 - 0.08^2), a gain of 0.64 mm over the closest point's -0.15
+  const e = (0.08 * 0.2) / Math.sqrt(1 - 0.08 ** 2);
+  near(capsuleOverlap({ a: [0, 0, 0], b: [0, 1, 0], ra: 0.1, rb: 0.02 }, { a: [0.2, 1, 0], b: [0.2, 1, 0], r: 0.03 }), 0.1 - 0.08 * (1 - e) + 0.03 - Math.hypot(0.2, e), 1e-12);
   near(capsuleOverlap({ a: [0, 0, 0], b: [0, 1, 0], ra: 0.1, rb: 0.02 }, { a: [0.15, 0, 0], b: [0.15, 0, 0], r: 0.1 }), 0.05, 1e-12);
   // Vector3 and {x,y,z} inputs
   near(capsuleOverlap({ a: new THREE.Vector3(0, 0, 0), b: { x: 0, y: 1, z: 0 }, r: 0.1 }, sph(0.15, 0.1)), 0.05, 1e-12);
@@ -876,27 +879,456 @@ for (const side of ["L", "R"]) {
 }
 
 // ---- agreement with the rig ----------------------------------------------------------------------------------------------------
-test("pose.js on rig.restBody agrees with rig.kin (forearm rebasing included)", async (t) => {
+test("pose.js on rig.restBody agrees with rig.kin (forearm rebasing included); a plain body gives the same figure, an independent FK of body.joints does not", async (t) => {
   let buildRig;
   try { ({ buildRig } = await import("../../site/js/human/rig.js")); } catch (e) { t.skip(`rig.js not importable: ${e.message}`); return; }
   const rig = buildRig(MAN, { skeleton: false });
   const pose = randomPose(rng(77), 0.8);
   pose.angles.forearm_L = [70]; pose.angles.forearm_R = [-60]; // pronation is where the rebased rig differs from the raw body
   const place = P.placePose(rig.restBody, pose);
+  near(place.y, P.placePose(MAN, pose).y, 1e-12, "the same placement from the plain body");
   rig.setPose({ root: place, angles: pose.angles });
-  let worst = 0, rawWorst = 0;
-  const raw = P.solvePose(MAN, pose, place);
-  const rawPos = Object.fromEntries(Object.keys(MAN.landmarks).map((id) => [id, lmWorld(MAN, raw, id)]));
+  let worst = 0, worstPlain = 0, rawWorst = 0;
+  const raw = kinOf(MAN); // what a Kinematics built from body.joints (the elbow-centred twist axis) says
+  raw.solve(pose.angles, place);
   for (const id of Object.keys(MAN.landmarks)) {
     worst = Math.max(worst, rig.landmarkWorld(id).distanceTo(P.landmarkPosition(rig.restBody, pose, place, id)));
-    rawWorst = Math.max(rawWorst, rig.landmarkWorld(id).distanceTo(rawPos[id]));
+    worstPlain = Math.max(worstPlain, rig.landmarkWorld(id).distanceTo(P.landmarkPosition(MAN, pose, place, id)));
+    rawWorst = Math.max(rawWorst, rig.landmarkWorld(id).distanceTo(lmWorld(MAN, raw, id)));
   }
   assert.ok(worst < 1e-9, `rig.restBody: ${worst}`);
-  assert.ok(rawWorst > 0.005, `the raw body differs from the rig by up to ${(rawWorst * 1000).toFixed(1)} mm where the forearm is pronated`);
+  assert.ok(worstPlain < 1e-9, `plain body: ${worstPlain}`);
+  assert.ok(rawWorst > 0.005, `the raw offsets differ from the rig by up to ${(rawWorst * 1000).toFixed(1)} mm where the forearm is pronated`);
   assert.ok(rig.centerOfMass().point.distanceTo(P.centerOfMass(rig.restBody, pose, place).point) < 1e-9, "centre of mass");
+  assert.ok(rig.centerOfMass().point.distanceTo(P.centerOfMass(MAN, pose, place).point) < 1e-9, "centre of mass, plain body");
   const lows = P.contactClearances(rig.restBody, pose, place, { floor: 0 }, { feet: "floor" });
   assert.ok(Math.abs(Math.min(...lows.map((r) => r.clearance)) - Math.min(...rig.contactPoints("feet").map((p) => p.y))) < 1e-9, "feet contacts");
   rig.dispose();
+});
+
+// ---- regression tests of the verifier's defects (round 2) ------------------------------------------------------------------------
+const popFile = (rel) => JSON.parse(fs.readFileSync(path.join(ROOT, "public/api/v1/populations", rel)));
+const popBody = (rel, percentile = 50) => fitBody(percentileProfile(popFile(rel), { percentile, meanStature: true }));
+const lazy = async (t, file) => { try { return await import(file); } catch (e) { t.skip(`${file} not importable: ${e.message}`); return null; } };
+
+test("defect: an explicit vertebra angle beyond that vertebra's own range is kept as written and rejected, never spread over its neighbours (rule 2)", () => {
+  const cases = [[{ L3: [40, 0, 0] }, "L3", 0, 40, /L3 flex = 40° is outside the range of motion/], [{ T7: [-80] }, "T7", 0, -80, /T7 flex = -80° is outside/], [{ C1: [0, 0, 200] }, "C1", 2, 200, /C1 rot = 200° is outside/]];
+  for (const [joints, id, c, value, re] of cases) {
+    const e = P.expandPosture({ id: "v", joints });
+    near(e.angles[id][c], value, 1e-12, `${id} keeps the requested value`);
+    for (const other of Object.values(REGIONS).find((r) => r.joints.includes(id)).joints) if (other !== id) assert.ok(!e.angles[other] || e.angles[other][c] === 0, `${other} must not take the surplus of ${id}`);
+    assert.deepEqual(e.shortfall, [], "no region shortfall is invented for it");
+    for (const body of [MAN, WOMAN5]) {
+      const r = P.validatePosture(body, base({ joints }));
+      assert.equal(r.ok, false, `${id}: ${r.errors}`);
+      assert.equal(r.errors.length, 1, r.errors.join("\n"));
+      assert.match(r.errors[0], re);
+    }
+  }
+  // inside its range an addition still goes on top of the region total
+  const ok = P.expandPosture({ id: "w", spine: { lumbar: [20, 0, 0] }, joints: { L3: [5, 0, 0] } });
+  near(REGIONS.lumbar.joints.reduce((s, id) => s + ok.angles[id][0], 0), 25, 1e-9);
+  assert.equal(P.validatePosture(MAN, base({ spine: { lumbar: [20, 0, 0] }, joints: { L3: [5, 0, 0] } })).ok, true);
+});
+
+test("defect: a region total that the vertebrae can take is never reported as a shortfall, whatever per-vertebra additions are written", () => {
+  // the case of the verifier: additions of both signs, three of them (T9, T4, T1) beyond their own vertebra's range. The old expandRegions pinned those levels, moved the
+  // surplus onto the others and reported "requested 40.79, the vertebrae can take 39.19". Now the out-of-range ones are range-of-motion errors that name the vertebra and
+  // no shortfall is invented; with in-range additions the old algorithm never dropped anything (0 of 40,000 random cases), the loop below keeps it that way.
+  const joints = { T10: [-1.78, 0, 0], T9: [3.87, 0, 0], T8: [0.83, 0, 0], T4: [4.41, 0, 0], T3: [-0.75, 0, 0], T1: [-4.6, 0, 0] };
+  const e = P.expandPosture({ id: "a", spine: { thoracic: [40.79, 0, 0] }, joints });
+  assert.deepEqual(e.shortfall, []);
+  const r = P.validatePosture(MAN, base({ spine: { thoracic: [40.79, 0, 0] }, joints }));
+  assert.deepEqual(r.errors.map((m) => /^(T\d+) flex = /.exec(m)?.[1]), ["T9", "T4", "T1"], r.errors.join("\n"));
+  assert.equal(r.metrics.regionShortfalls, 0);
+  for (const id of ["T9", "T4", "T1"]) near(e.angles[id][0], joints[id][0], 1e-12, `${id} keeps its written value`);
+  // random cases against an independent bisection on the water level
+  const rand = rng(31);
+  const channels = [["flex", "weights"], ["lat", "weightsLat"], ["rot", "weightsRot"]];
+  let n = 0;
+  for (let it = 0; it < 1500; it++) {
+    const [name, rg] = Object.entries(REGIONS)[Math.floor(rand() * 3)], c = Math.floor(rand() * 3), w = rg[channels[c][1]], ids = rg.joints;
+    const lo = ids.map((id) => JOINT_BY_ID[id].dof[c].min), hi = ids.map((id) => JOINT_BY_ID[id].dof[c].max);
+    const add = ids.map((_, i) => (rand() < 0.5 ? 0 : lo[i] + rand() * (hi[i] - lo[i])));
+    const A = lo.map((l, i) => Math.min(0, l - add[i])), B = hi.map((h, i) => Math.max(0, h - add[i]));
+    const sa = A.reduce((s, v) => s + v, 0), sb = B.reduce((s, v) => s + v, 0), total = sa + rand() * (sb - sa);
+    let l0 = -1e4, l1 = 1e4;
+    for (let k = 0; k < 200; k++) { const m = (l0 + l1) / 2, s = w.reduce((t, wi, i) => t + Math.min(B[i], Math.max(A[i], m * wi)), 0); if (s < total) l0 = m; else l1 = m; }
+    const ref = w.map((wi, i) => Math.min(B[i], Math.max(A[i], l1 * wi)));
+    const vals = [0, 0, 0];
+    const joints = Object.fromEntries(ids.map((id, i) => [id, vals.map((_, q) => (q === c ? add[i] : 0))]).filter(([id], i) => add[i] !== 0));
+    const r = P.expandPosture({ id: "r", spine: { [name]: vals.map((_, q) => (q === c ? total : 0)) }, joints });
+    assert.deepEqual(r.shortfall, [], `${name} ${channels[c][0]} total ${total} is feasible`);
+    ids.forEach((id, i) => { const got = r.angles[id]?.[c] ?? 0; near(got, add[i] + ref[i], 1e-6, `${id}`); });
+    n++;
+  }
+  assert.equal(n, 1500);
+});
+
+test("defect: blendPoses stays inside the range of motion (corners and random poses of every joint with 2 or more DOF), t from 0.1 to 0.9", () => {
+  const rand = rng(12);
+  const corners = (j) => { const out = []; const rec = (i, a) => { if (i === j.dof.length) { out.push(clampAngles(j.id, a).angles); return; } for (const v of [j.dof[i].min, j.dof[i].max, 0]) rec(i + 1, [...a, v]); }; rec(0, []); return out; };
+  let n = 0;
+  for (const j of JOINTS.filter((x) => x.parent && x.dof.length >= 2)) {
+    const pool = [...corners(j), ...Array.from({ length: 12 }, () => clampAngles(j.id, j.dof.map((d) => d.min + rand() * (d.max - d.min))).angles)];
+    for (let i = 0; i < pool.length; i++) for (let k = 0; k < pool.length; k += 2) for (const t of [0.1, 0.5, 0.9]) {
+      const r = P.blendPoses({ angles: { [j.id]: pool[i] } }, { angles: { [j.id]: pool[k] } }, t).angles[j.id], c = clampAngles(j.id, r).angles;
+      r.forEach((x, q) => assert.ok(Math.abs(x - c[q]) < 1e-7, `${j.id} ${JSON.stringify(pool[i])} -> ${JSON.stringify(pool[k])} at ${t}: ${JSON.stringify(r)} leaves the range`));
+      n++;
+    }
+  }
+  assert.ok(n > 20000, `${n} blends`);
+  // the example of the verifier: shoulder flexion 170 -> extension 60 must not pass flexion -157
+  for (const t of [0.25, 0.5, 0.75]) {
+    const m = P.blendPoses({ angles: { shoulder_L: [170, 0, 0] } }, { angles: { shoulder_L: [-60, 0, 0] } }, t).angles.shoulder_L;
+    assert.ok(m[0] >= -60 && m[0] <= 180, `flexion ${m[0]} at ${t}`);
+  }
+  // whole random poses, as an animation between two library postures would blend them
+  for (let it = 0; it < 300; it++) assert.equal(P.clampPose(P.blendPoses(randomPose(rand, 1, false), randomPose(rand, 1, false), 0.5)).clamped.length, 0);
+});
+
+test("defect: blendPoses does not make the hand flick when a shoulder or hip swing is near 180 degrees", () => {
+  const kin = kinOf(MAN), rand = rng(5);
+  for (const [jid, tip] of [["shoulder_L", "wrist_L"], ["hip_L", "ankle_L"]]) {
+    const j = JOINT_BY_ID[jid];
+    let worstRatio = 0, worstStep = 0;
+    for (let it = 0; it < 250; it++) {
+      const mk = () => { for (;;) { const a = j.dof.map((d) => d.min + rand() * (d.max - d.min)); if (Math.hypot(a[0], a[1]) <= 178) return a; } };
+      const a = { angles: { [jid]: mk() } }, b = { angles: { [jid]: mk() } };
+      let prev = null;
+      const steps = [];
+      for (let k = 0; k <= 200; k++) { kin.solve(P.blendPoses(a, b, k / 200).angles, { y: 1 }); const cur = kin.position(tip).clone(); if (prev) steps.push(cur.distanceTo(prev)); prev = cur; }
+      const mean = steps.reduce((s, v) => s + v, 0) / steps.length, mx = Math.max(...steps);
+      worstStep = Math.max(worstStep, mx);
+      if (mean > 1e-3) worstRatio = Math.max(worstRatio, mx / mean);
+    }
+    assert.ok(worstRatio < 3.5, `${jid}: the largest step is ${worstRatio.toFixed(1)} times the mean step`);
+    assert.ok(worstStep < 0.02, `${jid}: ${(worstStep * 1000).toFixed(0)} mm in 1/200 of t`);
+  }
+});
+
+test("defect: pose.js poses the figure the rig draws, from a plain BodyModel as from rig.restBody (forearm pronation, sternum)", async (t) => {
+  const R = await lazy(t, "../../site/js/human/rig.js");
+  if (!R) return;
+  for (const body of [MAN, WOMAN5]) {
+    const rig = R.buildRig(body, { skeleton: false }), rand = rng(3);
+    assert.equal(P.figureOf(rig.restBody), rig.restBody, "a rig.restBody passes through unchanged");
+    assert.equal(P.figureOf(body), P.figureOf(body), "stable per body");
+    let worst = 0;
+    for (let it = 0; it < 40; it++) {
+      const pose = randomPose(rand, 0.9), root = { x: 0.2, y: 1, z: 0.1, ...pose.root };
+      rig.setPose({ root, angles: pose.angles }, { clamp: false });
+      for (const id of Object.keys(body.landmarks)) worst = Math.max(worst, rig.landmarkWorld(id).distanceTo(P.landmarkPosition(body, pose, root, id)), rig.landmarkWorld(id).distanceTo(P.landmarkPosition(rig.restBody, pose, root, id)));
+      assert.ok(rig.centerOfMass().point.distanceTo(P.centerOfMass(body, pose, root).point) < 1e-9, "centre of mass");
+    }
+    assert.ok(worst < 1e-9, `${worst}`);
+    // the case of the verifier: a forearm on a desk, pronation 80, elbow 80: the palm is where the rig draws it
+    const pose = { root: {}, angles: { shoulder_L: [50, 5, 0], elbow_L: [80], forearm_L: [80], wrist_L: [-20, 0] } }, root = { y: 1 };
+    rig.setPose({ root, angles: pose.angles }, { clamp: false });
+    for (const id of ["palm_centre_L", "grip_centre_L", "middle_tip_L", "stylion_L", "thumb_tip_L"]) assert.ok(rig.landmarkWorld(id).distanceTo(P.landmarkPosition(body, pose, root, id)) < 1e-9, id);
+    // placement and clearances follow: the palm carrier of a quadruped sits where the rig draws the palms
+    const quad = { root: { flex: 90 }, angles: { hip_L: [90, 0, 0], hip_R: [90, 0, 0], knee_L: [90, 0], knee_R: [90, 0], shoulder_L: [90, 0, 0], shoulder_R: [90, 0, 0], forearm_L: [60], forearm_R: [60] } };
+    const placed = P.placePose(body, quad, { support: "hands-knees" });
+    rig.setPose({ root: placed, angles: quad.angles }, { clamp: false });
+    near(Math.min(...rig.contactPoints("knees").map((p) => p.y)), 0, 1e-9, "the knees touch the floor");
+    near(Math.min(rig.landmarkWorld("palm_centre_L").y, rig.landmarkWorld("palm_centre_R").y), Math.min(...P.contactClearances(body, quad, placed, { floor: 0 }, { palms: "floor" }).map((r) => r.clearance)), 1e-9, "the palm clearances are the rig's");
+    rig.dispose();
+  }
+});
+
+test("defect: the lowest point of a lying body is the lowest point of its skin (within 5 mm), lowestSkinPoint is exact for the sections", async (t) => {
+  const R = await lazy(t, "../../site/js/human/rig.js"), S = await lazy(t, "../../site/js/human/body.js");
+  if (!R || !S) return;
+  const poses = {
+    supine: ["body", { root: { flex: -90 }, angles: { ankle_L: [-15, 0, 0], ankle_R: [-15, 0, 0] } }],
+    prone: ["body", { root: { flex: 90 }, angles: { ankle_L: [-45, 0, 0], ankle_R: [-45, 0, 0] } }],
+    side: ["body", { root: { lat: 90 }, angles: {} }],
+    supine_flat_feet: ["body", { root: { flex: -90 }, angles: {} }],
+  };
+  const bodies = [MAN, WOMAN5, army("M", 95), army("F", 50), popBody("germany/army/both.json"), popBody("canada/tri-service/M.json"), popBody("czech-republic/tri-service/F.json", 25)];
+  let worstSink = 0, worstFloat = 0;
+  for (const body of bodies) {
+    const rig = R.buildRig(body, { skinBuilder: (b, bones, o) => S.buildSkin(b, bones, { ...o, }), skeleton: false });
+    for (const [name, [support, pose]] of Object.entries(poses)) {
+      const placed = P.placePose(body, pose, { support });
+      rig.setPose({ root: placed, angles: pose.angles }, { clamp: false });
+      const y = rig.lowestY({ skin: true });
+      worstSink = Math.max(worstSink, -y); worstFloat = Math.max(worstFloat, y);
+      assert.ok(Math.abs(y) < 0.005, `${name}: the skin is ${(y * 1000).toFixed(1)} mm from the floor`);
+    }
+    rig.dispose();
+  }
+  assert.ok(worstSink < 0.005 && worstFloat < 0.005);
+  // lowestSkinPoint against a brute-force sampling of the superellipse sections (margin of the skin between the sections: 3 mm)
+  const px = bodyProxies(P.figureOf(MAN)), rand = rng(21), kin = kinOf(P.figureOf(MAN));
+  for (let it = 0; it < 15; it++) {
+    const pose = randomPose(rand, 0.9), root = { x: 0, y: 1, z: 0, ...pose.root };
+    kin.solve(pose.angles, root);
+    const got = lowestSkinPoint(px, kin, { n: 0 });
+    let best = Infinity;
+    for (const r of px.rings) {
+      const n = r.q / (r.q - 1);
+      for (let k = 0; k < 1440; k++) {
+        const th = (k / 1440) * 2 * Math.PI, c = Math.cos(th), s = Math.sin(th);
+        const x = Math.sign(c) * r.rx * Math.abs(c) ** (2 / n), z = Math.sign(s) * r.rz * Math.abs(s) ** (2 / n);
+        const p = kin.toWorld(r.joint, [r.off[0] + x * r.ex[0] + z * r.ez[0], r.off[1] + x * r.ex[1] + z * r.ez[1], r.off[2] + x * r.ex[2] + z * r.ez[2]]);
+        best = Math.min(best, p.y);
+      }
+    }
+    near(got.y, best - 0.003, 5e-5, "lowest skin point of the sections");
+  }
+});
+
+test("defect: the buttocks of a reclined seated posture do not sink into the seat plane (rule 3)", () => {
+  for (const body of [MAN, army("F", 50)]) {
+    const r = P.validatePosture(body, base({ support: "seat+feet", root: { flex: -45 }, joints: { hip_LR: [45, 0, 0], knee_LR: [90] } }));
+    assert.ok(r.errors.some((e) => /sinks? into the seat: .*buttock_extremity by \d+ mm/.test(e)), r.errors.join("\n"));
+    // a posture that only leans back 10 degrees sits as usual
+    const ok = P.validatePosture(body, base({ support: "seat+feet", root: { flex: -10 }, joints: { hip_LR: [100, 0, 0], knee_LR: [90] } }));
+    assert.ok(!ok.errors.some((e) => /sink/.test(e)), ok.errors.join("\n"));
+  }
+});
+
+test("defect: names that are inherited object properties are errors for supports and surfaces, not a NaN root", () => {
+  for (const name of ["toString", "constructor", "__proto__", "hasOwnProperty", "valueOf"]) {
+    assert.throws(() => P.placePose(MAN, P.neutralPose(), { carriers: { feet: name } }), /surface/, `surface ${name}`);
+    assert.throws(() => P.placePose(MAN, P.neutralPose(), { support: name }), /unknown support/, `support ${name}`);
+    assert.throws(() => P.contactClearances(MAN, P.neutralPose(), { y: 1 }, { floor: 0 }, { feet: name }), /surface/, `clearances ${name}`);
+    assert.equal(P.validatePosture(MAN, base({ support: name })).ok, false);
+  }
+  assert.equal(Number.isFinite(P.placePose(MAN, P.neutralPose(), { carriers: { feet: "floor" } }).y), true);
+});
+
+test("defect: the reference postures are accepted for the P5 and P95 bodies of the populations whose thighs overlap in the neutral pose", () => {
+  const files = ["australia/army/both.json", "india/army/M.json", "united-states/officers/M.json"];
+  for (const rel of files) for (const pct of [5, 95]) {
+    const body = popBody(rel, pct);
+    for (const p of REFERENCE) {
+      const r = P.validatePosture(body, p);
+      assert.equal(r.ok, true, `${rel} P${pct} ${p.id}: ${r.errors.join("; ")}`);
+    }
+  }
+  // the tolerance was raised for the pair that overlaps in the reference postures, and only for it
+  const body = popBody("australia/army/both.json", 5), px = bodyProxies(body), plain = bodyProxies(MAN);
+  const pair = (x, a, b) => { const i = x.byId.get(a), j = x.byId.get(b); for (let k = 0; k < x.tol.length; k++) if (x.pairs[2 * k] === Math.min(i, j) && x.pairs[2 * k + 1] === Math.max(i, j)) return x.tol[k]; return null; };
+  assert.ok(pair(px, "thigh_L", "thigh_R") > 0.055 * px.softness + 0.005, "thigh-thigh tolerance follows the body's own neutral overlap");
+  near(pair(plain, "thigh_L", "thigh_R"), 0.055 * plain.softness, 1e-9, "unchanged for a body that does not need it");
+  // crossing the legs deeply is still rejected, and the message says what to look at
+  const crossed = P.validatePosture(MAN, base({ joints: { hip_LR: [0, -20, 0] } }));
+  assert.equal(crossed.ok, false);
+  assert.ok(crossed.errors.some((e) => /thigh.* and thigh.* overlap.*the thighs press into each other/.test(e)), crossed.errors.join("\n"));
+});
+
+test("defect: the limb capsules follow the rings of their tube, the thigh in two pieces (no ring end is further than 30 mm outside)", () => {
+  for (const body of [army("F", 50), MAN, WOMAN5, army("M", 95)]) {
+    const px = bodyProxies(body), kin = kinOf(body);
+    kin.solve({}, { y: body.joints.pelvis.offset[1] });
+    const W = proxyWorld(px, kin);
+    const outside = (p) => { let best = Infinity; for (let k = 0; k < W.n; k++) { const ax = W.ax[k], ay = W.ay[k], az = W.az[k], bx = W.bx[k] - ax, by = W.by[k] - ay, bz = W.bz[k] - az, L = bx * bx + by * by + bz * bz, tt = L > 0 ? Math.max(0, Math.min(1, ((p[0] - ax) * bx + (p[1] - ay) * by + (p[2] - az) * bz) / L)) : 0; best = Math.min(best, Math.hypot(p[0] - ax - bx * tt, p[1] - ay - by * tt, p[2] - az - bz * tt) - (W.ra[k] + tt * (W.rb[k] - W.ra[k]))); } return best; };
+    for (const tube of ["thigh_L", "upper_arm_L", "forearm_L", "shank_L"]) {
+      for (const r of body.shape.tubes[tube].rings) {
+        if (r.id === "sh_malleolus") continue; // belongs to the foot capsule
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const o = outside([r.c[0] + dx * r.rx, r.c[1], r.c[2] + dz * r.rz]);
+          assert.ok(o < 0.03, `${tube} ring ${r.id} (${dx},${dz}) is ${(o * 1000).toFixed(0)} mm outside every capsule`);
+        }
+      }
+    }
+  }
+  assert.ok(bodyProxies(MAN).n <= 40 && bodyProxies(MAN).byId.has("thigh_lo_L"));
+});
+
+test("defect: thumb, index, ring and little finger have capsules; a thumb pushed into the head is detected", () => {
+  const px = bodyProxies(MAN);
+  for (const s of ["L", "R"]) for (const f of ["fingers", "index", "ring", "little", "thumb"]) assert.ok(px.byId.has(`${f}_${s}`), `${f}_${s}`);
+  const rb = P.figureOf(MAN), root = { y: rb.joints.pelvis.offset[1] };
+  const vx = P.landmarkPosition(rb, P.neutralPose(), root, "vertex"), me = P.landmarkPosition(rb, P.neutralPose(), root, "menton");
+  const c = new THREE.Vector3(0, (vx.y + me.y) / 2 + 0.01, 0.028), rand = rng(5);
+  let inside = 0, accepted = 0;
+  for (let it = 0; it < 20000; it++) {
+    const a = P.clampPose({ angles: { shoulder_L: [-30 + rand() * 210, -20 + rand() * 110, -60 + rand() * 120], elbow_L: [rand() * 150], forearm_L: [-60 + rand() * 120], wrist_L: [-40 + rand() * 80, -10 + rand() * 20] } }).pose.angles;
+    const tip = P.landmarkPosition(rb, { angles: a }, root, "thumb_tip_L");
+    if ((((tip.x - c.x) / 0.0766 / 0.6) ** 2 + ((tip.y - c.y) / 0.1175 / 0.6) ** 2 + ((tip.z - c.z) / 0.0985 / 0.6) ** 2) >= 1) continue;
+    inside++;
+    // the hand of the probe is the neutral one, so the posture has no grip either
+    if (P.validatePosture(rb, { ...base({ joints: a }), grips: {} }).ok) accepted++;
+  }
+  assert.ok(inside > 5, `${inside} probes with the thumb tip 40 mm or more inside the head`);
+  assert.equal(accepted, 0, `${accepted} of ${inside} accepted`);
+});
+
+test("defect: capsuleOverlap is exact for tapered capsules (strong taper, thigh against thigh), and never below the closest-point value", () => {
+  const rand = rng(40), V = () => new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5);
+  const brute = (c1, c2) => { // fine grid, then pattern refinement
+    const f = (s, t) => { const p = c1.a.clone().lerp(c1.b, s), q = c2.a.clone().lerp(c2.b, t); return c1.ra + (c1.rb - c1.ra) * s + c2.ra + (c2.rb - c2.ra) * t - p.distanceTo(q); };
+    let bs = 0, bt = 0, bv = -Infinity;
+    for (let i = 0; i <= 80; i++) for (let j = 0; j <= 80; j++) { const v = f(i / 80, j / 80); if (v > bv) { bv = v; bs = i / 80; bt = j / 80; } }
+    for (let w = 1 / 80; w > 1e-9; w *= 0.7) for (const ds of [-w, 0, w]) for (const dt of [-w, 0, w]) { const s = Math.min(1, Math.max(0, bs + ds)), t = Math.min(1, Math.max(0, bt + dt)), v = f(s, t); if (v > bv) { bv = v; bs = s; bt = t; } }
+    return bv;
+  };
+  let worst = 0;
+  for (let it = 0; it < 250; it++) {
+    const mk = () => { const a = V(), b = it % 9 === 0 ? a.clone() : a.clone().add(V().multiplyScalar(0.6)), ra = 0.02 + rand() * 0.08; return { a, b, ra, rb: ra * (0.3 + 0.7 * rand()) }; };
+    const c1 = mk(), c2 = mk();
+    worst = Math.max(worst, Math.abs(capsuleOverlap(c1, c2) - brute(c1, c2)));
+  }
+  assert.ok(worst < 2e-6, `worst difference ${worst}`);
+  // two thighs of a woman side by side: the old formula said "apart by 33 mm" for capsules whose spheres are 2 mm apart
+  const th = (x) => ({ a: new THREE.Vector3(x, 0.82, -0.05), b: new THREE.Vector3(x, 0.47, -0.13), ra: 0.09, rb: 0.058 });
+  near(capsuleOverlap(th(0.086), th(-0.086)), brute(th(0.086), th(-0.086)), 1e-6);
+});
+
+test("defect: expandPosture names a sided joint written with _LR correctly", () => {
+  assert.throws(() => P.expandPosture({ id: "m", joints: { hip_L_LR: [1] } }), (e) => /joints\.hip_L_LR: "hip_L" already names one side: write "hip_L" for that side or "hip_LR" for both/.test(e.message) && !/not a paired joint/.test(e.message));
+  assert.throws(() => P.expandPosture({ id: "m", joints: { head_LR: [1] } }), /"head" is not a paired joint/);
+});
+
+// ---- regressions of the second verification round -----------------------------------------------------------------------------
+test("defect: the verdict of the validator does not depend on the heading of the posture (seat sink footprint in the body's own frame)", () => {
+  const iso = REFERENCE.find((q) => q.id === "iso-7250-sitting");
+  const recl = (h, rot = 0) => base({ support: "seat+feet", root: { heading: h, flex: -45, rot }, joints: { hip_LR: [90], knee_LR: [90] }, hints: { dynamic: true } });
+  let sinking = 0;
+  for (const body of [MAN, army("F", 50), WOMAN5, army("M", 95)]) {
+    for (const h of [0, 30, 45, 90, 135, 180, -90, -135]) {
+      const r = P.validatePosture(body, { ...structuredClone(iso), root: { heading: h } });
+      assert.ok(r.ok, `ISO sitting at heading ${h}: ${r.errors.join("; ")}`);
+    }
+    // the buttocks of a reclined seated posture sink into the seat at every heading, by the same depth
+    const msgs = [0, 30, 90, 180, -90].map((h) => P.validatePosture(body, recl(h)).errors.find((e) => /sink into the seat/.test(e)));
+    assert.ok(msgs.every((m) => m === msgs[0]), msgs.join(" | "));
+    sinking += msgs[0] ? 1 : 0;
+  }
+  assert.ok(sinking >= 3, `${sinking} of 4 bodies sink into the seat when reclined by 45 degrees`);
+  // a twist of the pelvis about the vertical (root.rot with the pelvis upright) is the same turn
+  for (const body of [MAN, army("F", 50)]) {
+    const a = P.validatePosture(body, base({ support: "seat+feet", root: { heading: 135 }, joints: { hip_LR: [90], knee_LR: [90] } })), b = P.validatePosture(body, base({ support: "seat+feet", root: { rot: 135 }, joints: { hip_LR: [90], knee_LR: [90] } }));
+    assert.deepEqual(b.errors, a.errors);
+  }
+  // 1200 random seated and standing postures: every error list is the same at five headings
+  const rand = rng(77), bodies = [MAN, army("F", 50), WOMAN5, army("M", 95)];
+  for (let it = 0; it < 1200; it++) {
+    const pose = randomPose(rand, 0.4, false), sup = ["seat+feet", "seat", "feet", "knees"][it % 4], body = bodies[it % 4];
+    if (sup.startsWith("seat")) { pose.angles.hip_L = pose.angles.hip_R = [60 + rand() * 50, 0, 0]; pose.angles.knee_L = pose.angles.knee_R = [60 + rand() * 40, 0]; }
+    const flex = (rand() - 0.5) * 100, at = (heading) => P.validatePosture(body, { ...base({ support: sup, joints: pose.angles, hints: { dynamic: true } }), root: { flex, heading } });
+    const r0 = at(0);
+    for (const h of [37, 90, 135, 180, -100]) assert.deepEqual(at(h).errors, r0.errors, `random posture ${it} at heading ${h}`);
+  }
+});
+
+test("defect: upright kneeling (support knees, thighs vertical, shanks on the floor) is stable, kneeling too far forward or back is still not", () => {
+  const kneel = (hip, knee, ankle = -60) => base({ id: "kneel-upright", name: "Kneeling", category: "Kneeling & squatting", tags: ["kneeling"], support: "knees", joints: { hip_LR: [hip], knee_LR: [knee], ankle_LR: [ankle] } });
+  for (const body of [MAN, army("F", 50), WOMAN5, army("M", 95), TALL]) {
+    const up = P.validatePosture(body, kneel(0, 90));
+    assert.ok(up.ok, up.errors.join(" | "));
+    assert.ok(up.metrics.balanceMargin > 0.03, `margin ${up.metrics.balanceMargin}`);
+    // the verdict does not hang on a lean of 10 degrees (it did: 0 failed, 10 passed)
+    assert.ok(P.validatePosture(body, kneel(10, 100)).errors.every((e) => !/centre of mass/.test(e)));
+    // leaning 40 degrees forward on straight thighs puts the centre of mass over the knees' front, 110 to 140 mm ahead of the shanks: falls
+    assert.ok(P.validatePosture(body, kneel(40, 90)).errors.some((e) => /centre of mass is \d+ mm outside the support polygon/.test(e)));
+    // sitting back on the heels needs something else to carry the weight (hints.externalSupport), as POSE.md says
+    const heels = P.validatePosture(body, kneel(100, 150, -50));
+    assert.ok(heels.errors.some((e) => /centre of mass is \d+ mm outside/.test(e)), heels.errors.join(" | "));
+  }
+  // the shin counts as touching up to 30 mm only for the "knees" support: the other kneeling supports have their own carriers
+  const rows = P.contactClearances(MAN, P.expandPosture(kneel(0, 90)), P.placePose(MAN, P.expandPosture(kneel(0, 90)), { support: "knees" }), { floor: 0 }, { knees: "floor" });
+  const shin = rows.find((q) => q.point === "shin_L").clearance;
+  assert.ok(shin > 0.015 && shin < 0.03, `the shin landmark is ${shin} m above the floor with the knee front on it`);
+});
+
+test("defect: the hint of an overlap with a thumb, index, ring or little finger blames the hand, not the neck, head or shoulders", () => {
+  const cases = [
+    [{ shoulder_L: [77.16, 65.55, -20.96], elbow_L: [137.58], forearm_L: [-1.19], wrist_L: [6.83, 9.29] }, "point", /^head and thumb_L overlap by \d+ mm \(more than \d+ mm\): a hand is inside the body/],
+    [{ shoulder_L: [131.52, 68.79, 14.78], elbow_L: [148.61], forearm_L: [28.6], wrist_L: [22.42, 9.49] }, "point", /^neck and thumb_L overlap by \d+ mm \(more than \d+ mm\): a hand is inside the body/],
+    [{ shoulder_L: [114.16, 67.69, 9.46], elbow_L: [113.04], forearm_L: [-14.96], wrist_L: [1.56, 9.22] }, "flat", /^head and index_L overlap by \d+ mm \(more than \d+ mm\): a hand is inside the body/],
+    [{ shoulder_L: [4.14, -11.23, -27.65], elbow_L: [3.59], forearm_L: [10.12], wrist_L: [7.98, -3.73] }, "point", /^(little|ring)_L and thigh_L overlap by \d+ mm \(more than \d+ mm\): a hand is inside the body/],
+  ];
+  for (const [joints, grip, re] of cases) {
+    const r = P.validatePosture(MAN, base({ joints, grips: { L: grip, R: "relaxed" } }));
+    assert.ok(r.errors.some((e) => re.test(e)), `${re}\n${r.errors.join("\n")}`);
+    assert.ok(!r.errors.some((e) => /^(thumb|index|ring|little)_[LR] and \w+ overlap.*(head is in the shoulders|check the joint angles of the two segments)/.test(e) || /^head and (thumb|index|ring|little)_[LR].*head is in the shoulders/.test(e)), r.errors.join("\n"));
+  }
+  // two hands, or two fingers of one hand, say so
+  const clasp = P.validatePosture(MAN, base({ joints: { shoulder_LR: [60, 0, 0], elbow_LR: [90], forearm_LR: [60] }, grips: { L: "fist", R: "fist" } }));
+  assert.ok(clasp.errors.every((e) => !/head is in the shoulders/.test(e)), clasp.errors.join("\n"));
+});
+
+test("defect: lying prone with the toes pointing at the floor, and rolled half way, rests within 5 mm of the floor on the rig's skin", async (t) => {
+  const R = await lazy(t, "../../site/js/human/rig.js"), S = await lazy(t, "../../site/js/human/body.js");
+  if (!R || !S) return;
+  const lying = (rig, body, root, angles) => { const placed = P.placePose(body, { root, angles }, { support: "body" }); rig.setPose({ root: placed, angles }, { clamp: false }); return rig.lowestY({ skin: true }); };
+  const rand = rng(31);
+  for (const body of [MAN, army("F", 50), WOMAN5, army("M", 95)]) {
+    const rig = R.buildRig(body, { skinBuilder: (b, bones, o) => S.buildSkin(b, bones, o), skeleton: false });
+    for (const ank of [0, -10, -20, -30, -45, 15]) for (const flex of [90, 80]) {
+      const y = lying(rig, body, { flex }, { ankle_L: [ank, 0, 0], ankle_R: [ank, 0, 0] });
+      assert.ok(Math.abs(y) < 0.005, `prone, ankle ${ank}, flex ${flex}: the skin is ${(y * 1000).toFixed(1)} mm from the floor`);
+    }
+    for (let i = 0; i < 12; i++) { // random ankles, the fingers pointing at the floor as well (arms overhead, hands open)
+      const ank = -50 + rand() * 70, y = lying(rig, body, { flex: 60 + rand() * 30 }, { ankle_L: [ank, 0, 0], ankle_R: [ank, 0, 0], shoulder_L: [170, 0, 0], shoulder_R: [170, 0, 0], ...gripAngles("open", "L"), ...gripAngles("open", "R") });
+      assert.ok(Math.abs(y) < 0.006, `prone, ankle ${ank.toFixed(0)}: the skin is ${(y * 1000).toFixed(1)} mm from the floor`);
+    }
+    for (const flex of [-90, 90]) for (const lat of [20, 45, 70]) {
+      const y = lying(rig, body, { flex, lat }, flex > 0 ? { ankle_L: [-45, 0, 0], ankle_R: [-45, 0, 0] } : {});
+      assert.ok(y > -0.005 && y < 0.0065, `${flex} / roll ${lat}: the skin is ${(y * 1000).toFixed(1)} mm from the floor`);
+    }
+    rig.dispose();
+  }
+});
+
+test("defect: a body without segment masses is an error for the balance rule, never a centre of mass at the origin", () => {
+  const noMass = { ...MAN, masses: undefined };
+  const stand = base({ id: "stand" });
+  const r = P.validatePosture(noMass, stand);
+  assert.equal(r.metrics.balanceMargin, null); assert.equal(r.metrics.com, null);
+  assert.ok(r.errors.some((e) => /no segment masses/.test(e)), r.errors.join("\n"));
+  // where the balance is not checked nothing is said about the masses
+  assert.ok(P.validatePosture(noMass, { ...stand, hints: { dynamic: true } }).ok);
+  assert.ok(P.validatePosture(noMass, { ...stand, hints: { externalSupport: true } }).ok);
+  assert.throws(() => P.balance(noMass, P.neutralPose(), { y: 1 }, ["heel_sole_L"]), /no segment masses/);
+  assert.throws(() => P.centerOfMass(noMass, P.neutralPose(), { y: 1 }), /no segment masses/);
+});
+
+test("defect: proxyWorld does not hand out the radii and ids of another body when given its result as `out`", () => {
+  const A = MAN, B = army("F", 5), pa = bodyProxies(A), pb = bodyProxies(B);
+  assert.equal(pa.n, pb.n);
+  const ka = P.solvePose(A, P.neutralPose(), { y: 1 }), wa = proxyWorld(pa, ka);
+  const kb = P.solvePose(B, P.neutralPose(), { y: 1 }), wb = proxyWorld(pb, kb, wa);
+  assert.notEqual(wb, wa, "another body's result is not reused");
+  assert.deepEqual(Array.from(wb.ra), pb.list.map((c) => c.ra)); assert.deepEqual(Array.from(wb.rb), pb.list.map((c) => c.rb));
+  assert.notDeepEqual(Array.from(wb.ra), Array.from(wa.ra));
+  // the same body's result is reused (no allocation) and stays right
+  const again = proxyWorld(pa, P.solvePose(A, P.neutralPose(), { y: 1.1 }), wa);
+  assert.equal(again, wa); near(again.ay[0], wa.ay[0], 0);
+});
+
+test("defect: messages. One value, rounded vertebra ranges, a gap that is 15.1 mm is not '15 mm above ... within 15 mm', the right eye in the convention that was written", () => {
+  assert.throws(() => P.expandPosture({ id: "x", joints: { elbow_LR: [] } }), /expected 1 value \(flex\), got 0/);
+  assert.throws(() => P.expandPosture({ id: "x", joints: { elbow_LR: [1, 2] } }), /expected 1 value \(flex\), got 2/);
+  assert.throws(() => P.expandPosture({ id: "x", joints: { hip_LR: [] } }), /expected 1 to 3 values \(flex, abd, rot\), got 0/);
+  const v = P.validatePosture(MAN, base({ joints: { L3: [40], eye_LR: [0, 60] } }));
+  assert.ok(v.errors.includes("L3 flex = 40\u00b0 is outside the range of motion [-6.7, 11.5] (clamps to 11.5\u00b0)"), v.errors.join("\n"));
+  assert.ok(v.errors.includes("eye_R azim = 60\u00b0 is outside the range of motion [-45, 45] (clamps to 45\u00b0)"), v.errors.join("\n")); // not -60
+  assert.ok(v.errors.includes("eye_L azim = 60\u00b0 is outside the range of motion [-45, 45] (clamps to 45\u00b0)"));
+  const r = P.validatePosture(MAN, base({ joints: { eye_LR: [0, -60], shoulder_R: [200, 0, 0] } }));
+  assert.ok(r.errors.some((e) => /^eye_R azim = -60\u00b0 is outside/.test(e)) && r.errors.some((e) => /^shoulder_R flex = 200\u00b0 is outside the range of motion \[-60, 180\]/.test(e)));
+  const sh = P.seatHeightFor(MAN), iso = (d) => P.validatePosture(MAN, base({ support: "seat+feet", joints: { hip_LR: [90], knee_LR: [90] }, hints: { seat: { height: sh + d } } }));
+  const e = iso(0.0151).errors[0];
+  assert.match(e, /^contact set "feet": its lowest point is 15\.1 mm above the floor .*within 15 mm\)$/);
+  assert.match(iso(0.054).errors[0], /its lowest point is 54 mm above the floor/);
+});
+
+test("defect: the reference postures are accepted for bodies far beyond the data (BMI above 100): the T-pose is a reference posture of the tolerances", () => {
+  for (const [sex, st, ms] of [["F", 1310, 180], ["F", 1450, 250], ["M", 1310, 300], ["M", 1750, 300]]) {
+    const body = fitBody({ sex, measures: { stature: { value: st, unit: "mm" }, mass: { value: ms, unit: "kg" } } });
+    for (const posture of REFERENCE) { const r = P.validatePosture(body, posture); assert.ok(r.ok, `${sex} ${st} mm ${ms} kg, ${posture.id}: ${r.errors.join("; ")}`); }
+  }
+});
+
+test("standing centre of mass lies in front of the ankle (quiet standing: 20 to 50 mm)", { todo: "OPEN fit.js (mass and landmark placement, not pose.js): for the 528 bodies (176 populations x P5/P50/P95) the neutral centre of mass is -2 to +7 mm (median 2) in front of the ankle joint centre, about 11 % of the foot length from the heel; the literature has it 20 to 50 mm in front. It makes the balance rule too generous backwards and too strict forwards, on tiptoe and in a deep squat. Fix in fit.js (the de Leva centres, the ankle and foot placement), then this test passes and the balance limits can be revisited" }, () => {
+  for (const body of [MAN, army("F", 50), WOMAN5, army("M", 95)]) {
+    const root = { y: body.joints.pelvis.offset[1] }, com = P.centerOfMass(body, P.neutralPose(), root).point, ankle = P.solvePose(body, P.neutralPose(), root).position("ankle_L");
+    assert.ok(com.z - ankle.z > 0.02 && com.z - ankle.z < 0.05, `COM is ${((com.z - ankle.z) * 1000).toFixed(1)} mm in front of the ankle`);
+  }
 });
 
 test("the worked example of POSE.md (section 6) is valid on six bodies; its two broken variants give the quoted messages", () => {
@@ -926,6 +1358,7 @@ test("POSE.md documents every support, grip, category and hint of the code", () 
   for (const h of ["seat: { height }", "dynamic", "externalSupport", "contactTolerance", "load: { mass"]) assert.ok(text.includes(h), `hint ${h}`);
   for (const f of ["expandPosture", "clampPose", "mirrorPose", "blendPoses", "poseEquals", "placePose", "placePoseDetailed", "contactClearances", "centerOfMass", "balance", "validatePosture", "bodyProxies", "proxyWorld", "lowestPoint", "capsuleOverlap", "seatHeightFor"]) assert.ok(text.includes(f), `function ${f}`);
   for (const f of Object.keys(P)) assert.ok(text.includes(f), `export ${f} of pose.js is not in POSE.md`);
+  for (const f of Object.keys(PX)) assert.ok(text.includes(f), `export ${f} of proxies.js is not in POSE.md`);
 });
 
 // ---- documentation ------------------------------------------------------------------------------------------------------------
