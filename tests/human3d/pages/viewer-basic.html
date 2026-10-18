@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>viewport demo</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/human.css">
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<style>
+  body { padding: 16px; }
+  #vp { width: 900px; max-width: 100%; height: 600px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+</style>
+</head>
+<body>
+<div id="vp"></div>
+<script type="module">
+// Demo / test page of viewport.js: a stand-in mannequin made of capsules (the rig is tested elsewhere).
+// URL parameters: ?theme=dark|light  ?quality=low  ?view=front|back|left|right|top|iso  ?labels=1  ?nogizmo=1  ?w=360&h=500
+import * as THREE from "three";
+import { createViewport } from "/js/human/viewport.js";
+
+const q = new URLSearchParams(location.search);
+if (q.get("theme")) document.documentElement.dataset.theme = q.get("theme");
+const el = document.getElementById("vp");
+if (q.get("w")) el.style.width = q.get("w") + "px";
+if (q.get("h")) el.style.height = q.get("h") + "px";
+const vp = createViewport(el, { quality: q.get("quality") || "high" });
+
+// stand-in figure
+const skin = new THREE.MeshStandardMaterial({ color: 0xc89a7c, roughness: 0.75, metalness: 0 });
+const fig = new THREE.Group();
+fig.name = "standin";
+const cap = (r, len, x, y, z, rx = 0, rz = 0) => {
+  const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 6, 16), skin);
+  m.position.set(x, y, z); m.rotation.set(rx, 0, rz); m.castShadow = true; m.receiveShadow = true; fig.add(m); return m;
+};
+cap(0.17, 0.30, 0, 1.18, 0);              // torso
+cap(0.15, 0.12, 0, 0.92, 0);              // pelvis
+cap(0.095, 0.02, 0, 1.64, 0.01);          // head
+cap(0.055, 0.1, 0, 1.5, 0);               // neck
+for (const s of [1, -1]) {
+  cap(0.045, 0.28, 0.24 * s, 1.22, 0);    // arm
+  cap(0.04, 0.26, 0.24 * s, 0.9, 0);      // forearm
+  cap(0.075, 0.34, 0.1 * s, 0.62, 0);     // thigh
+  cap(0.055, 0.34, 0.1 * s, 0.22, 0);     // shank
+  const f = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.24), skin); f.position.set(0.1 * s, 0.025, 0.06); f.castShadow = true; fig.add(f);
+}
+vp.add(fig);
+const joint = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), new THREE.MeshBasicMaterial({ color: 0x1c5cab }));
+joint.position.set(0.24, 1.42, 0); joint.name = "joint-demo"; vp.add(joint);
+vp.setPickTargets([joint]);
+
+if (q.get("labels")) vp.addLabelSource("demo", () => [
+  { id: "a", text: "Left shoulder", position: new THREE.Vector3(0.24, 1.42, 0), priority: 10 },
+  { id: "b", text: "Right shoulder", position: new THREE.Vector3(-0.24, 1.42, 0) },
+  { id: "c", text: "Neck", position: new THREE.Vector3(0, 1.5, 0) },
+  { id: "d", text: "Head", position: new THREE.Vector3(0, 1.74, 0) },
+]);
+if (!q.get("nogizmo") && q.get("gizmo")) vp.attachGizmo(fig, { mode: q.get("gizmo") });
+
+const events = [];
+for (const t of ["click", "click-unhandled", "pointerdown", "pointerup", "gizmo-start", "gizmo-end", "gizmo-change"]) vp.on(t, (e) => events.push(t));
+window.vp = vp; window.events = events; window.THREE = THREE;
+const box = new THREE.Box3(new THREE.Vector3(-0.5, 0, -0.4), new THREE.Vector3(0.5, 1.8, 0.4));
+vp.frame(box, { animate: false, view: q.get("view") || "iso" });
+vp.renderNow();
+window.__ready = { revision: THREE.REVISION };
+</script>
+</body>
+</html>

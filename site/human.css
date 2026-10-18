@@ -1,0 +1,215 @@
+/* Digital human tab. Every class is prefixed hm-. Colours come from the site's tokens (styles.css), so light and dark themes just work. */
+
+.hm-root { display: grid; gap: 12px; }
+
+/* ---------- hero ---------- */
+.hm-hero h1 { font-size: 1.55rem; margin: 4px 0 4px; letter-spacing: -.01em; }
+.hm-hero p { margin: 0 0 8px; color: var(--text-2); max-width: 820px; }
+.hm-notes { max-width: 820px; font-size: .88rem; }
+.hm-notes > summary { cursor: pointer; color: var(--accent); width: fit-content; border-radius: 6px; }
+.hm-notes ul { margin: 8px 0 0; padding-left: 20px; color: var(--text-2); }
+.hm-notes li { margin: 3px 0; }
+
+/* ---------- layout: panel | stage | inspector ---------- */
+.hm-app {
+  --hm-stage-h: clamp(440px, calc(100vh - 290px), 760px);
+  display: grid; gap: 14px; align-items: start;
+  grid-template-columns: minmax(280px, 320px) minmax(0, 1fr) minmax(220px, 280px);
+  grid-template-areas: "panel center inspector";
+}
+.hm-app[data-inspector="closed"] { grid-template-columns: minmax(280px, 320px) minmax(0, 1fr) 40px; }
+.hm-left { grid-area: panel; display: flex; flex-direction: column; min-width: 0; max-height: calc(var(--hm-stage-h) + 76px); overflow: hidden; }
+.hm-center { grid-area: center; min-width: 0; display: grid; gap: 8px; }
+.hm-inspector { grid-area: inspector; min-width: 0; max-height: calc(var(--hm-stage-h) + 76px); overflow: auto; }
+
+@media (max-width: 1259px) {
+  .hm-app, .hm-app[data-inspector="closed"] {
+    grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
+    grid-template-areas: "panel center" "panel inspector";
+  }
+  .hm-left { max-height: none; }
+  .hm-inspector { max-height: none; }
+}
+@media (max-width: 899px) {
+  .hm-app, .hm-app[data-inspector="closed"] { grid-template-columns: minmax(0, 1fr); grid-template-areas: "center" "panel" "inspector"; }
+}
+
+/* ---------- left panel and its tabs ---------- */
+.hm-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; border-bottom: 1px solid var(--line); background: var(--surface-2); border-radius: var(--radius) var(--radius) 0 0; }
+.hm-tab { border: 0; background: none; padding: 6px 10px; border-radius: 8px; color: var(--text-2); cursor: pointer; font-weight: 500; font-size: .86rem; white-space: nowrap; min-height: 32px; }
+.hm-tab:hover { background: var(--surface); color: var(--text); }
+.hm-tab[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.hm-tab:focus-visible { outline-offset: -2px; }
+.hm-panels { flex: 1; min-height: 0; overflow: auto; }
+.hm-panel-body { padding: 12px 14px; }
+.hm-panel-body[hidden] { display: none; }
+.hm-panel-title { font-size: 1.05rem; margin: 0 0 6px; }
+.hm-soon p { margin: 6px 0; }
+.hm-live { padding: 8px 10px; border-radius: 8px; background: var(--surface-2); color: var(--text-2); overflow-wrap: anywhere; }
+@media (max-width: 899px) {
+  .hm-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; mask-image: linear-gradient(90deg, #000 88%, transparent); }
+  .hm-tabs::-webkit-scrollbar { display: none; }
+  .hm-left { max-height: none; overflow: visible; }
+  .hm-panels { overflow: visible; }
+}
+
+/* ---------- stage: the 3D view with its toolbars ---------- */
+.hm-card { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); container: hm-card / inline-size; }
+.hm-stage { position: relative; height: var(--hm-stage-h); background: var(--surface-2); }
+/* own stacking context: the WebGL message (z-index 5 inside) and the labels stay below the toolbars, so the controls remain usable without WebGL */
+.hm-viewport { position: absolute; inset: 0; z-index: 0; isolation: isolate; background: var(--hm-vp-bg, var(--surface-2)); }
+.hm-canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
+.hm-overlay { font-size: 11px; }
+.hm-label {
+  position: absolute; left: 0; top: 0; margin: -9px 0 0 7px; height: 18px; padding: 0 5px; line-height: 16px; box-sizing: border-box;
+  font: 600 11px/16px var(--hm-font, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif); color: var(--text);
+  background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--line); border-radius: 4px; pointer-events: none; user-select: none;
+}
+.hm-label::before { content: ""; position: absolute; left: -9px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--hm-label-accent, var(--accent)); }
+.hm-label.hm-label-landmark { font-weight: 500; color: var(--text-2); }
+.hm-label.hm-label-landmark::before { border-radius: 1px; }
+.hm-label.hm-label-dof { z-index: 2; border-color: var(--hm-label-accent, var(--accent)); font-family: var(--mono); font-weight: 700; padding: 0 4px; }
+/* a backing like every label (a bare "Y" vanished against the bones); --text-3 is 4.07:1 on the light floor, --text-2 passes AA */
+.hm-label.hm-label-axis { border-color: transparent; background: color-mix(in srgb, var(--surface) 78%, transparent); color: var(--text-2); font-weight: 500; }
+.hm-label.hm-label-axis::before { display: none; }
+/* near the right edge the label sits to the left of its anchor (viewport.js decides) */
+.hm-label.hm-label-flip { margin-left: -7px; translate: -100% 0; }
+.hm-label.hm-label-flip::before { left: auto; right: -9px; }
+.hm-label.hm-label-sel { border-color: var(--accent); color: var(--accent); }
+.hm-tip { position: absolute; z-index: 3; pointer-events: none; padding: 3px 7px; border-radius: 6px; font-size: .78rem; background: var(--text); color: var(--surface); box-shadow: var(--shadow); white-space: nowrap; transform: translate(10px, 12px); }
+
+.hm-bar { position: absolute; left: 0; right: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px 10px; padding: 8px; pointer-events: none; }
+.hm-bar-top { top: 0; justify-content: space-between; }
+.hm-bar-bottom { bottom: 0; }
+.hm-group { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; pointer-events: auto; }
+.hm-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px; min-height: 28px; border: 1px solid var(--line); border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--text-2); font-size: .78rem; line-height: 1.2; cursor: pointer; white-space: nowrap;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.hm-chip:hover { border-color: var(--line-strong); color: var(--text); background: var(--surface); }
+.hm-chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); font-weight: 600; }
+.hm-chip:focus-visible, .hm-seg button:focus-visible { outline-offset: -2px; }
+.hm-icon { flex: none; }
+.hm-bar .seg { background: color-mix(in srgb, var(--surface) 90%, transparent); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.hm-bar .seg button { padding: 4px 8px; font-size: .8rem; min-height: 26px; white-space: nowrap; }
+@media (pointer: coarse) {
+  .hm-chip { min-height: 36px; padding: 6px 11px; }
+  .hm-bar .seg button { min-height: 34px; padding: 6px 11px; }
+  .hm-tab { min-height: 40px; }
+  .hm-quality { min-height: 32px; min-width: 40px; padding: 0 8px; }
+  .hm-inspector-x { min-height: 36px; min-width: 44px; padding: 6px 12px; }
+}
+
+.hm-busy { position: absolute; inset: 0; z-index: 1; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.hm-busy > div { display: inline-flex; align-items: center; gap: 10px; padding: 8px 14px; border-radius: 999px; background: color-mix(in srgb, var(--surface) 92%, transparent); border: 1px solid var(--line); color: var(--text-2); font-size: .85rem; box-shadow: var(--shadow); }
+.hm-busy[hidden] { display: none; }
+
+.hm-vp-msg { background: var(--surface-2); color: var(--text-2); }
+.hm-vp-msg p { margin: 0; max-width: 46ch; }
+
+/* help popover */
+.hm-help { position: absolute; right: 8px; top: 48px; z-index: 6; width: min(360px, calc(100% - 16px)); max-height: calc(100% - 64px); overflow: auto; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: var(--shadow); font-size: .86rem; }
+.hm-help[hidden] { display: none; }
+.hm-help:focus-visible { outline-offset: -2px; }
+.hm-help h2 { font-size: .95rem; margin: 0 0 6px; padding-right: 32px; }
+.hm-help-x { position: absolute; right: 8px; top: 8px; width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text-2); cursor: pointer; }
+.hm-help-x:hover { border-color: var(--line-strong); color: var(--text); }
+@media (pointer: coarse) { .hm-help-x { width: 36px; height: 36px; } }
+.hm-help h3 { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); margin: 10px 0 4px; }
+.hm-help dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+.hm-help dt { white-space: nowrap; }
+.hm-help dd { margin: 0; color: var(--text-2); }
+.hm-kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; text-align: center; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--surface-2); font: 600 .78rem/1.4 var(--mono); color: var(--text); }
+
+/* Notices float over the top of the stage (below the toolbar), so one that arrives after the first paint never pushes the view down.
+   A narrow stage (see above) shows them in the flow between the toolbar and the view instead. */
+.hm-notices { position: absolute; top: 48px; left: 8px; right: 8px; z-index: 4; display: grid; gap: 5px; max-height: 42%; overflow: auto; pointer-events: none; }
+.hm-notices > * { pointer-events: auto; box-shadow: var(--shadow); padding: 6px 10px; font-size: .8rem; line-height: 1.35; } /* compact: they cover part of the view */
+.hm-notices:empty { display: none; }
+
+/* The toolbars float over the 3D view only when the stage is wide enough for them to fit on one row each (about 580 px). A narrower stage,
+   whatever the window (a phone, or a laptop with the side panels open), stacks them above and below the view and lets them scroll sideways. */
+@container hm-card (max-width: 579px) {
+  .hm-stage { height: auto; display: flex; flex-direction: column; }
+  .hm-viewport { position: relative; inset: auto; height: var(--hm-stage-h); order: 3; }
+  .hm-bar { position: static; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; background: var(--surface); padding: 6px 8px; mask-image: linear-gradient(90deg, #000 92%, transparent); }
+  .hm-bar::-webkit-scrollbar { display: none; }
+  .hm-bar-top { order: 1; border-bottom: 1px solid var(--line); justify-content: flex-start; }
+  .hm-bar-bottom { order: 4; border-top: 1px solid var(--line); }
+  .hm-group { flex-wrap: nowrap; flex: none; }
+  .hm-notices { position: static; order: 2; max-height: none; padding: 6px 8px 0; }
+  .hm-notices > * { padding: 10px 12px; font-size: .86rem; line-height: inherit; box-shadow: none; }
+  .hm-help { top: 8px; }
+}
+@media (max-width: 899px) { .hm-app { --hm-stage-h: clamp(300px, 60vh, 640px); } } /* one column: the view is a share of the screen, not of the column */
+
+/* ---------- notices and status bar ---------- */
+.hm-notice { display: flex; align-items: flex-start; gap: 10px; justify-content: space-between; }
+.hm-notice-warn { border-color: var(--warn); color: var(--text); background: var(--chip-warn-bg); }
+.hm-notice-error { border-color: var(--bad); color: var(--bad); background: var(--chip-bad-bg); white-space: normal; font-family: inherit; }
+.hm-notice-text { min-width: 0; overflow-wrap: anywhere; flex: 1; }
+.hm-notice-act { flex: none; padding: 2px 10px; font-size: .8rem; }
+.hm-notice-x { flex: none; border: 0; background: none; color: inherit; cursor: pointer; border-radius: 6px; width: 24px; height: 24px; display: grid; place-items: center; }
+.hm-notice-x:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+
+.hm-status { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); align-items: baseline; gap: 2px 16px; padding: 7px 12px; border-top: 1px solid var(--line); background: var(--surface); font-size: .8rem; color: var(--text-2); }
+.hm-stat { display: flex; gap: 5px; min-width: 0; }
+.hm-stat > span:first-child { color: var(--text-3); flex: none; }
+.hm-stat > span:nth-child(2) { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.hm-stat-gl { align-items: center; }
+.hm-stat-gl .hm-dot { flex: none; color: var(--text-3); }
+.hm-stat-gl .hm-quality { flex: none; }
+.hm-stat-grow { grid-column: span 2; }
+@media (max-width: 599px) { /* two cells per row at most: every cell is wide enough for its content, the Quality button included */
+  .hm-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hm-stat-grow, .hm-stat-gl { grid-column: 1 / -1; }
+}
+.hm-quality { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---------- inspector ---------- */
+.hm-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.hm-inspector-head h2 { font-size: .95rem; margin: 0; }
+.hm-inspector-body { padding: 12px; font-size: .88rem; }
+.hm-inspector-x { border: 1px solid var(--line); background: var(--surface); color: var(--text-2); border-radius: 8px; padding: 3px 9px; cursor: pointer; font-size: .8rem; }
+.hm-inspector-x:hover { border-color: var(--line-strong); color: var(--text); }
+.hm-app[data-inspector="closed"] .hm-inspector-body { display: none; }
+.hm-app[data-inspector="closed"] .hm-inspector-head { border-bottom: 0; }
+@media (min-width: 1260px) {
+  .hm-app[data-inspector="closed"] .hm-inspector { overflow: hidden; }
+  .hm-app[data-inspector="closed"] .hm-inspector-head { padding: 8px 4px; justify-content: center; }
+  .hm-app[data-inspector="closed"] .hm-inspector-head h2 { display: none; }
+  .hm-app[data-inspector="closed"] .hm-inspector-x { writing-mode: vertical-rl; padding: 10px 6px; }
+}
+.hm-kv { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; margin: 4px 0 0; }
+.hm-kv dt { color: var(--text-3); font-size: .75rem; margin-top: 8px; }
+.hm-kv dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+
+/* ---------- shared pieces for panels (ui.js) ---------- */
+.hm-empty { color: var(--text-2); padding: 6px 0; }
+.hm-empty p { margin: 0 0 6px; }
+.hm-section { border-top: 1px solid var(--line); padding: 8px 0; }
+.hm-section:first-child { border-top: 0; }
+.hm-section > summary { cursor: pointer; font-weight: 600; font-size: .88rem; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 8px; border-radius: 6px; }
+.hm-section > summary::-webkit-details-marker { display: none; }
+.hm-section > summary::after { content: "▾"; color: var(--text-3); font-size: .8rem; transition: transform .15s; margin-left: auto; }
+.hm-section:not([open]) > summary::after { transform: rotate(-90deg); }
+.hm-section-body { margin-top: 8px; display: grid; gap: 6px; }
+.hm-slider { margin: 0 0 8px; }
+.hm-slider-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.hm-slider-label { font-size: .8rem; font-weight: 600; color: var(--text-2); }
+.hm-slider-ctl { display: grid; grid-template-columns: minmax(0, 1fr) 76px auto; gap: 8px; align-items: center; }
+.hm-range { width: 100%; accent-color: var(--accent); min-width: 0; }
+.hm-num { padding: 4px 6px; min-height: 30px; text-align: right; font-variant-numeric: tabular-nums; }
+.hm-unit { color: var(--text-3); font-size: .8rem; min-width: 2ch; }
+
+/* forced-colors (Windows high contrast) drops backgrounds: show the pressed / selected state with a border instead */
+@media (forced-colors: active) {
+  .hm-chip[aria-pressed="true"], .hm-seg button[aria-pressed="true"] { border: 2px solid Highlight; }
+  .hm-tab[aria-selected="true"] { border-bottom: 3px solid Highlight; border-radius: 0; }
+  .hm-label { border-color: CanvasText; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-root * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}

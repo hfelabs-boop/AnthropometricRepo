@@ -1,0 +1,125 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>rig demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<!-- Demo / screenshot harness for rig.js + skeletonview.js against the synthetic body.
+     python3 tests/human3d/shot.py /__pages/rig-demo.html out.png --wait-fn 'window.__ready' --eval 'window.__demo.shot({az: 30, pose: "seated", display: {xray: true}})'
+     URL parameters: ?skin=1 (a crude static skin to check x-ray / marker occlusion), ?quality=low, ?stature=1.6&form=female, ?size=640.
+     window.__demo: { rig, body, view({az, el, dist, target, fov}), pose(poseOrName), only(boneIdRegex), render(), shot({ az, el, dist, target, pose, display, select, only }) }
+     named poses: neutral, seated (90-90-90), squat, armsUp, armsOut, bend. The root height is solved so that the lowest landmark touches the floor.
+     The label overlay below the canvas is a stand-in for the viewport's: it draws rig.labelAnchors() (window.__labelMin hides the unimportant ones). -->
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<style>
+  html, body { margin: 0; background: #ecebe6; }
+  @media (prefers-color-scheme: dark) { html, body { background: #161615; } }
+  canvas { display: block; max-width: 100%; height: auto; aspect-ratio: 1; } /* scales down on a phone; the label overlay is positioned in percent */
+</style>
+<div id="wrap" style="position:relative;width:fit-content;max-width:100%"><canvas id="c" width="800" height="800"></canvas><div id="labels" style="position:absolute;inset:0;pointer-events:none;overflow:hidden;font:11px/1 system-ui,sans-serif"></div></div>
+<script type="module">
+import * as THREE from "three";
+import { syntheticBody } from "/js/human/synthetic.js";
+import { buildRig } from "/js/human/rig.js";
+import { Mesher } from "/js/human/skeletonview.js";
+
+const params = new URLSearchParams(location.search);
+const size = +params.get("size") || 800;
+const canvas = document.getElementById("c");
+canvas.width = size; canvas.height = size;
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(size, size, false);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(dark ? 0x161615 : 0xecebe6);
+scene.add(new THREE.HemisphereLight(0xffffff, dark ? 0x30302c : 0xb9b6ac, dark ? 1.1 : 1.35));
+const key = new THREE.DirectionalLight(0xffffff, dark ? 1.7 : 2.0); key.position.set(1.5, 3, 3); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, dark ? 0.7 : 0.8); fill.position.set(-3, 1, -2); scene.add(fill);
+const grid = new THREE.GridHelper(4, 40, dark ? 0x55554f : 0xb0aea5, dark ? 0x2a2a27 : 0xd0cec5);
+scene.add(grid);
+const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 50);
+
+const body = syntheticBody(+params.get("stature") || 1.75, params.get("form") || "male");
+// ?skin=1: a crude static capsule "skin" (not skinned, neutral pose only) to check x-ray, wireframe and marker occlusion
+function fakeSkin(b, bones) {
+  const m = new Mesher(0.7), P = b.positions, v = (id) => new THREE.Vector3(...P[id]);
+  const rod = (a, c, r, r2 = r) => m.rod(v(a), typeof c === "string" ? v(c) : c, r, r, r2, r2, { capA: 1, capB: 1 });
+  for (const s of ["L", "R"]) {
+    const k = s === "L" ? 1 : -1;
+    rod(`shoulder_${s}`, `elbow_${s}`, 0.048, 0.04); rod(`elbow_${s}`, `wrist_${s}`, 0.04, 0.03);
+    rod(`wrist_${s}`, `middle_mcp_${s}`, 0.032, 0.04); rod(`middle_mcp_${s}`, v(`middle_dip_${s}`).add(new THREE.Vector3(0, -0.03, 0)), 0.02, 0.012);
+    rod(`hip_${s}`, `knee_${s}`, 0.088, 0.06); rod(`knee_${s}`, `ankle_${s}`, 0.058, 0.04);
+    rod(`ankle_${s}`, `mtp_${s}`, 0.04, 0.035);
+    m.ellipsoid(v(`mtp_${s}`).add(new THREE.Vector3(0, 0, 0.04)), [0.04, 0.025, 0.07], null, {});
+    m.ellipsoid(v(`shoulder_${s}`), [0.06, 0.06, 0.06], null, {});
+  }
+  const spine = ["pelvis", "L5", "L3", "L1", "T10", "T8", "T6", "T4", "T2", "C7", "C4", "head"].map(v);
+  m.tube(spine, (u) => ({ a: 0.095 + 0.03 * Math.sin(Math.PI * Math.min(1, u * 1.7)) * (u < 0.6 ? 1 : 0.3), b: 0.17 - 0.05 * Math.abs(u - 0.5) - (u > 0.8 ? 0.13 * (u - 0.8) / 0.2 : 0) , pow: 2.4 }), { hint: new THREE.Vector3(0, 0, 1), capA: 0.6, capB: 0.6, segs: 20 });
+  m.ellipsoid(v("head").add(new THREE.Vector3(0, 0.07, 0.015)), [0.082, 0.105, 0.098], null, { lat: 14, lon: 20 });
+  const geo = m.build(new THREE.Vector3(), false);
+  const mat = new THREE.MeshStandardMaterial({ color: dark ? 0xb08a78 : 0xd9a58a, roughness: 0.75 });
+  const mesh = new THREE.Mesh(geo, mat);
+  return { mesh, dispose() { geo.dispose(); mat.dispose(); } };
+}
+const rig = buildRig(body, { quality: params.get("quality") || "high", skinBuilder: params.get("skin") ? fakeSkin : null });
+scene.add(rig.group);
+
+function view({ az = 0, el = 8, dist = 5, target = [0, 0.9, 0], fov = 30 } = {}) {
+  // az: degrees around +Y, 0 = looking at the front of the figure (camera on +Z); el: elevation in degrees
+  const a = (az * Math.PI) / 180, e = (el * Math.PI) / 180;
+  camera.fov = fov; camera.updateProjectionMatrix();
+  camera.position.set(target[0] + dist * Math.sin(a) * Math.cos(e), target[1] + dist * Math.sin(e), target[2] + dist * Math.cos(a) * Math.cos(e));
+  camera.lookAt(...target);
+  render();
+}
+function render() { renderer.render(scene, camera); drawLabels(); }
+// the viewport's job in the real app: project the anchors of rig.labelAnchors() and draw them as HTML
+const labelsEl = document.getElementById("labels");
+function drawLabels() {
+  const els = [];
+  const minImp = window.__labelMin ?? 0;
+  for (const a of rig.labelAnchors()) {
+    if ((a.importance ?? 1) < minImp) continue;
+    const p = a.position.clone().project(camera);
+    if (p.z > 1) continue;
+    const d = document.createElement("div");
+    d.textContent = a.text;
+    d.style.cssText = `position:absolute;left:calc(${((p.x + 1) / 2) * 100}% + 6px);top:calc(${((1 - p.y) / 2) * 100}% - 6px);white-space:nowrap;padding:1px 3px;border-radius:3px;background:${a.kind === "dof" ? "#222" : "rgba(255,255,255,.8)"};color:${a.kind === "dof" ? (a.color ? "#" + a.color.toString(16).padStart(6, "0") : "#fff") : "#111"};font-weight:${a.kind === "dof" ? 700 : 400}`;
+    els.push(d);
+  }
+  labelsEl.replaceChildren(...els);
+}
+// named demo poses (angles in degrees; the root height is solved so that the lowest landmark touches the floor)
+const POSES = {
+  neutral: { angles: {} },
+  seated: { angles: { hip_L: [90, 0, 0], hip_R: [90, 0, 0], knee_L: [90, 0], knee_R: [90, 0], elbow_L: [90], elbow_R: [90], shoulder_L: [10, 0, 0], shoulder_R: [10, 0, 0] } },
+  // flat feet: shank pitch = root flex - hip + knee = 5 - 105 + 130 = 30 = the ankle dorsiflexion (the pitch of the foot is 0)
+  squat: { root: { flex: 5 }, angles: { hip_L: [105, 12, 0], hip_R: [105, 12, 0], knee_L: [130, 0], knee_R: [130, 0], ankle_L: [30, 0, 0], ankle_R: [30, 0, 0], shoulder_L: [80, 0, 0], shoulder_R: [80, 0, 0], elbow_L: [20], elbow_R: [20] }, spine: { lumbar: [20, 0, 0], thoracic: [15, 0, 0], cervical: [-10, 0, 0] } },
+  armsUp: { angles: { shoulder_L: [175, 0, 0], shoulder_R: [175, 0, 0], elbow_L: [5], elbow_R: [5] } },
+  armsOut: { angles: { shoulder_L: [0, 90, 0], shoulder_R: [0, 90, 0], elbow_L: [10], elbow_R: [10], forearm_L: [-30], forearm_R: [-30] } },
+  bend: { root: { flex: 10 }, angles: { hip_L: [50, 0, 0], hip_R: [50, 0, 0], knee_L: [20, 0], knee_R: [20, 0] }, spine: { lumbar: [50, 0, 0], thoracic: [30, 0, 0], cervical: [10, 0, 0] } },
+};
+function pose(p) {
+  const named = typeof p === "string" ? POSES[p] : p;
+  rig.resetPose();
+  if (named.spine) rig.setSpine(named.spine);
+  const rep = rig.setPose({ root: { y: 0, ...(named.root || {}) }, angles: { ...rig.angles, ...(named.angles || {}) } });
+  rig.setRoot({ y: -rig.lowestY() });
+  return rep;
+}
+// only: regex of bone ids to show (all others hidden); the display flags still apply
+function only(re) { const r = re ? new RegExp(re) : null; rig.view.boneMeshes.forEach((m) => { m.visible = !r || r.test(m.userData.boneId); }); }
+function shot(o = {}) {
+  if (o.display) rig.setDisplay(o.display);
+  if (o.select !== undefined) rig.select(o.select);
+  if (o.pose !== undefined) pose(o.pose);
+  if (o.only !== undefined) only(o.only); else if (rig.display.skeleton) only(null);
+  view(o);
+  return rig.getPose().root;
+}
+
+window.__labelMin = 0;
+window.__demo = { THREE, rig, body, scene, camera, renderer, view, pose, render, shot, grid, only };
+view();
+window.__ready = true;
+</script>
