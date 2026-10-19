@@ -40,11 +40,15 @@ It never throws for any profile or options (even `undefined`, `null`, an empty o
 | `report` | fit report rows (section 8) |
 | `reportSummary` | counts of ok / warn / off / n/a, dimension counts by status, `closure` (stature and sitting height deltas in mm) |
 | `spine` | `{ balanceRotationDeg, t1SlopeDeg, kyphosisDeg, lordosisDeg, cervicalDeg, sagittalOffsetM, l5BehindHipM }` the curve that was baked in |
+| `stance` | `{ ankleBehindKneeM, shankLeanDeg, comAheadOfAnkleM, comFromHeel, ankleFromHeel }`: how far the ankles are behind the knees in the neutral pose (the lean of quiet standing, 4.1), the neutral centre of mass in front of the ankle joint centre and as a fraction of the foot length from the heel (7.1), and the ankle axis as a fraction of the foot length from the heel (4.1) |
 
 ### 1.1 Joints
 
 * `joints[id].offset` is the rest offset relative to the parent joint (`skeleton.js` `JOINTS[].parent`). The pelvis has no parent: its offset is the
   position of the pelvis (the hip-joint midpoint) in the world, `[0, hip_height, 0]`, so the feet are flat on `y = 0` and the figure stands on the floor.
+* The neutral pose is quiet standing, and quiet standing leans forward about the ankles: the thigh is vertical (hip over knee) and the **shank leans**, so the ankle (and the foot) is
+  `stance.ankleBehindKneeM` (44 mm, 5.8 degrees for the median man) behind the knee and the hip: `positions.ankle_L[2] = -stance.ankleBehindKneeM`. The whole-body centre of mass is 40 % of
+  the foot length from the heel (4.1, 7.1). Every height is what it would be with upright legs.
 * The 77 joints are all laid out: pelvis; hip, knee, ankle, mtp (metatarsophalangeal, the toe joint) x2; the 25 spine joints `L5` (L5/S1) to `T1`, `C7` (C7/T1) to `C1`, and
   `head` (the occiput-C1 joint); `jaw`; `eye_L/R`; `clavicle`, `shoulder` (glenohumeral), `elbow`, `forearm`, `wrist` x2; index, middle, ring, little finger `mcp, pip, dip` x2 sides; thumb `cmc, mcp, ip` x2 sides.
 * `forearm_*` is the pronation/supination joint: its offset is `[0, 0, 0]` (it is at the elbow centre, as `skeleton.js` documents), the wrist is its child one forearm length down.
@@ -243,6 +247,10 @@ seated sitting height of the model = (1750 - 907.8) + 73.7      = 915.9    (the 
 | `l5BelowIliocristale` | 0.035 m | L5/S1 below the iliac crest line | approx. |
 | `ocBelowTragion` | 0.018 m | occiput-C1 axis below the tragion | approx. |
 | `patellaAhead` | 0.07 m | skin over the patella ahead of the knee axis, knee flexed 90 degrees | approx. (about 52 mm standing, more when flexed) |
+| `ankleFromHeel` | 0.24 | ankle joint centre (the talocrural axis) in front of the pternion, fraction of foot length | A scanner study of 20 people (40 feet, mean foot length 250.4 mm; "Validation of an Automated Optical Scanner for a Comprehensive Anthropometric Analysis of the Foot and Ankle", PMC10451213): the lateral malleolus is 54.0 mm (21.6 %) and the medial malleolus 60.7 mm (24.2 %) from the pternion along the foot axis, their midpoint 22.9 %. Inman (1976, quoted by a clinical text found by search, the book not opened): the axis passes 8 mm in front of the lateral tip (24.8 % of that foot). 24 % lies between the two. It was 0.20, the lateral tip alone (which is why the ankle sat 11 mm too far back in the foot). verified (the scanner values), approx. (the choice inside 22.9 to 24.8 %) |
+| `malleolusBehindAxis` | 0.008 m | lateral malleolus tip behind the ankle axis, for a 0.27 m foot (scaled by the foot length) | Inman (1976), same remark: the axis is 8 mm in front of and 3 mm below the lateral tip. The model keeps the ankle centre at the lateral tip's height (de Leva) and puts the medial malleolus on the axis in depth. approx. |
+| `comFromHeel` | 0.4 | whole-body centre of mass of the neutral (quiet standing) pose from the heel, fraction of foot length | Kawai et al. (congress abstract P-3-09-21, 1997, National Rehabilitation Center for the Disabled, Japan; 20 healthy people for the base of support, 14 young men for the landmarks): the centre of gravity at the 39.6th percentile of the base of support from its rear edge, 56 mm in front of the lateral malleolus, over the greater trochanter and the acromion. Di Giulio and Baltzopoulos 2019 (Front Physiol 10:625, doi 10.3389/fphys.2019.00625, 13 adults): 47 mm (0.5 s after the feet are flat) to 58 mm (7.6 s) in front of the ankle joint centre, the hip joint centre within 2 to 5 mm of that line. Hellebrandt (1940, quoted by a 2010 paper): 40 to 50 mm. 0.40 of a 265 mm foot is 106 mm from the heel, 42 mm in front of the ankle axis: the low end of the measured means. The fit puts the ankles back until the model is here (4.1, 7.1). approx. (the rounding of 39.6) |
+| `leanMax` | 0.08 m | upper limit of the set-back of the ankles from the knee | never reached by a body of the fitted range (26 to 56 mm over 2,928 bodies, 7.1). approx. |
 | `spineBack` | 95 / 95 / 52 mm | vertebral centre line to the skin of the back, lumbar / thoracic / cervical | approx.; the lumbar value is also tuned so that the abdominal depth sitting measured against the wall is 20 mm more than the standing waist depth, as in the surveys |
 | `t1Slope` | 24 degrees | slope of the T1 upper end plate from the horizontal | approx. (healthy adults about 25 degrees) |
 | `kyphosis` | 38 degrees | T1 to T12 thoracic kyphosis (change of direction of the vertebral centre line) | Yukawa et al. 2018 (Eur Spine J, 626 asymptomatic Japanese adults): mean 36.0, SD 10.1 degrees, via a search summary; the model's 38 is 0.2 SD above that mean (approx. rounding) |
@@ -268,8 +276,24 @@ All numbers below are in `layout(c)`; `c.d` are the resolved dimensions of 2.4. 
 
 ### 4.1 Legs and feet
 
-Hip centres at `x = +-hip_halfwidth`, height `hip_height`; knee centres below them at `knee_height`; ankle centres at `ankle_height` (the lateral malleolus tip); the legs are vertical.
-Foot: the heel (pternion) is `0.2 x foot_length` behind the ankle centre (approx.), the toe tip `foot_length` ahead of the heel, the first metatarsal head `ball_length = 0.737 x foot_length` (the mean of 11,365 people) from the heel; the `mtp` joint is at 26 mm height (scaled by `foot_length / 0.27 m`), 11 mm (scaled) behind the first metatarsal head (midway between the first and fifth heads). Soles are on `y = 0`.
+Hip centres at `x = +-hip_halfwidth`, height `hip_height`; knee centres **directly below them** (the thigh is vertical) at `knee_height`; ankle centres at `ankle_height` (the lateral malleolus height) and
+**behind the knee by the stance lean** `stance.ankleBehindKneeM`: the shank leans forward about the ankle, because the neutral pose is quiet standing (7.1). The lean is solved in `leanLegs()`:
+the ankles, the feet and the toe joints go back, the knees, the hips and everything above stay, until the neutral whole-body centre of mass lies `comFromHeel` = 40 % of the foot length from the
+heel (16 % of it, 42 mm for a 265 mm foot, in front of the ankle axis). Result: 44 mm for the median man; 34 to 50 mm (shank lean 5.1 to 6.6 degrees, median 5.8) over the 528 population bodies and 26 to 56 mm
+(4.2 to 7.5 degrees) over 2,400 real people. The knee is still `knee_height - ankle_height` above the ankle (`shank_length` is that vertical distance; the bone is lean^2 / (2 L) = 2 mm longer), so
+every height and every seated measure of the fit report is what it would be with an upright shank (in the 2,928 bodies of 7.1 no value of the report moves by more than 0.002 mm), and the report statuses are the same.
+
+Why the thigh stays vertical and the shank carries the lean: every posture is written against a vertical thigh (`hip flex = 90` is the ISO 7250-1 horizontal thigh, `DESIGN.md` 1.1), and the seat plane
+of the seated posture is `knee_height - hip_to_seat`. Real legs lean as a whole (Di Giulio and Baltzopoulos: the knee 21 to 26 mm and the hip 45 to 64 mm in front of the ankle, 3 to 4 degrees); here the
+knee is 44 mm ahead and the thigh upright, so the leg has a 5.8 degree angle at the knee, like a slightly flexed knee. A posture whose shank frame is not turned (hip 90 with knee 90, ankle 0) has the
+ankle behind the knee by the lean in every pose; one whose net shank rotation is beta has the foot moved, of the order of `lean x sin(beta)`, in height (a seated posture with the hips at 90 and the knees at 60:
+the feet float 28 mm above the floor instead of 54 mm), which is how the posture library feels the stance.
+
+Foot: the heel (pternion) is `ankleFromHeel` = 0.24 x `foot_length` behind the ankle axis (the midpoint of the malleoli; the lateral malleolus tip is `malleolusBehindAxis` = 8 mm (scaled by `foot_length /
+0.27 m`) behind the axis, 21 % of the foot from the heel, the medial one level with it in depth), the toe tip `foot_length` ahead of the heel, the first metatarsal head `ball_length = 0.737 x foot_length`
+(the mean of 11,365 people) from the heel; the `mtp` joint is at 26 mm height (scaled by `foot_length / 0.27 m`), 11 mm (scaled) behind the first metatarsal head (midway between the first and fifth heads).
+Soles are on `y = 0`. The ankle axis was at 0.20 of the foot length (the lateral tip alone, 54 mm of a 270 mm foot); the measured lateral tip is at 0.216 and the axis at 0.23 to 0.25, so the foot moved 4 % of
+its length (11 mm) back relative to the ankle. The foot length, breadth, ball length, heel and malleolus heights are driving inputs and are reproduced exactly as before (tests).
 
 ### 4.2 Pelvis and the hip
 
@@ -411,6 +435,9 @@ the seated points come from the dimension table. `{L,R}` = the pair `X_L`, `X_R`
 | `toe_tip_{L,R}` | `mtp_{L,R}` | bony | akropodion (tip of the longest toe) |
 | `toe_sole_{L,R}` | `mtp_{L,R}` | contact | toes (sole) |
 
+The foot landmarks are placed as 4.1 says: the heel 0.24 of the foot length behind the `ankle` joint centre (the ankle axis, midway between the malleoli), the lateral malleolus 8 mm (scaled) behind that centre at its height, the medial one level with it in depth and 12 mm higher. Both feet are
+`positions.ankle_L[2]` (= minus the stance lean) behind the pelvis in the neutral pose.
+
 **Arm** (5 rows, 10 landmarks)
 
 | id | joint | kind | meaning |
@@ -512,10 +539,10 @@ Placement rules (heights are of the neutral pose; for `L` limbs, the right is th
   **Clearance of the trunk.** The glenohumeral centre is inside the width of the chest, so the bone axis alone put the biceps ring 43 mm (1750 mm / 78 kg man; 59 mm at 110 kg, 66 mm at BMI 46) into the chest ring. Each ring of `ua_biceps`, `ua_distal`, `ua_elbow`, `fa_elbow`, `fa_max`, `fa_mid` is therefore moved outward, away from the bone axis (the bones are not moved), by what it takes to leave at most `armClear` = 16 mm of overlap with the trunk's half-breadth at its height (the torso rings from the buttock to the axilla, at the adiposity factor of that pass), up to `armShiftMax` = 50 mm. Result: 16 mm of overlap at the biceps for the 4 body types of the test, 10 to 17 mm along the arm; a BMI 46 man keeps 30 mm at the elbow. `ua_elbow` and `fa_elbow` get the same offset (they stay one ring); the right arm is the mirror image. The skin of a posed arm is the ring offset carried by the bone: in a T-pose it sits up to 50 mm above the bone axis, which is inside the arm's soft tissue (ring radius 45 to 70 mm).
 * **Thigh.** Along hip to knee at 0, `tG`, 0.6, 0.9, 1. `th_prox` is the thigh section where the thigh circumference is measured (just below the gluteal furrow: `tG = clamp((hip height - gluteal furrow height) / femur length, 0.18, 0.5)`): a CIRCLE of the thigh girth (depth / breadth `THIGH_RATIO` = 1, approx.: no survey measures the breadth of the thigh). It used to be as deep as the thigh clearance, which is the thickness of the thigh SEATED, compressed by the body weight, 10 to 20 % thinner than the standing section; with the girth fixed that made the thigh 213 mm wide (for a 346 mm hip ring) and the pair of thighs overlapped by about 70 mm. Now the median man's thigh is 198 mm wide and 198 deep (the girth of 616 mm). The seated thigh clearance is still exact: it is carried by the landmark `thigh_top`; in a seated pose the skin is on average 12 mm thicker than the clearance (the ring is the uncompressed section).
   The rings are moved medially/laterally so that the thigh does not stick out more than 6 mm beyond the hip ring, but never so that the left thigh crosses the midline by more than 30 mm (`inner(rx)`: a thigh that would is moved outward again and sticks out of the hip ring instead; the bound used to be violated by the first rule winning, up to 82 mm), and the back of the thigh rings lies `hip_to_seat` behind the hip-knee line (at most 1.6 rz) so that the thigh meets the buttock. `th_low` (lower thigh girth in proportion), `th_knee` (knee girth, depth = knee top to popliteal underside).
-* **Shank.** `sh_knee` (knee x 0.97), `sh_calf` at 0.3 (calf girth, centre 15 % of rz behind the axis), `sh_low` at 0.72 (70 % of the way from the calf girth to the ankle girth), `sh_ankle` at 0.9 (ankle girth, ratio 0.95), `sh_malleolus` at 1 (bimalleolar breadth, 1.08 x the ankle girth).
+* **Shank.** `sh_knee` (knee x 0.97), `sh_calf` at 0.3 (calf girth, centre 15 % of rz behind the axis), `sh_low` at 0.72 (70 % of the way from the calf girth to the ankle girth), `sh_ankle` at 0.9 (ankle girth, ratio 0.95), `sh_malleolus` at 1 (bimalleolar breadth, 1.08 x the ankle girth). The ring centres lie on the knee-ankle line, which leans (4.1); the rings stay in horizontal planes, as for every tube.
 * **Head.** `crown` (12 mm below the vertex) and `upper_skull` (40 mm) are scaled ellipsoid slices (`cranium`: centre at the tragion level, semi-axes head breadth / 2, tragion-to-vertex height, head length / 2); `brow` at the glabella (a superellipse through head breadth and length with the head circumference), `eye`, `ear`, `cheek`, `mouth`, `chin_top`, `chin`. The stomion is a fixed 70 mm below the sellion and the menton `menton_sellion_length` (80 to 160 mm) below it, so the gap between the menton and the mouth ring is `menton_sellion_length` - 70 mm (10 mm at the lower end of the band). Fixed offsets of 30 and 4 mm for `chin_top` and `chin` crossed the mouth ring below 100 mm (90 of the 13,792 people): both are now placed at 50 % and 20 % of the gap between the menton and the mouth ring (30 mm and 4 mm above the menton when the gap is 60 mm or more, i.e. for a menton-sellion length of 130 mm or more) so that the rings stay strictly ordered from the crown down and the loft does not fold.
   `features` gives the nose (tip, bridge, width), brows, ears (tragion, length, breadth, protrusion), chin, eyes (pupils, eyeball radius 12 mm, socket 19 mm), mouth.
-* **Hands.** `hands.L`: `palm` rings `wrist`, `mid` (22 % of the length), `knuckles` (45.6 %); `fingers[name] = { joints, tip, points, radiusZ, thicknessRatio }` for index, middle, ring, little, thumb: capsules along the finger joints with the given radii (z across the hand). **Feet.** `feet.L.stations[]`: 8 cross-sections from heel to toe
+* **Hands.** `hands.L`: `palm` rings `wrist`, `mid` (22 % of the length), `knuckles` (45.6 %); `fingers[name] = { joints, tip, points, radiusZ, thicknessRatio }` for index, middle, ring, little, thumb: capsules along the finger joints with the given radii (z across the hand). **Feet.** `feet.L.stations[]`: 8 cross-sections from heel to toe (the third, at `ankleFromHeel` of the foot length, is the ankle station; `z` is a world coordinate, the heel is at `positions.ankle_L[2] - 0.24 x foot_length`)
   `{ z, cx, rx, top, lift }` (half-width `rx` about `x = cx`, flat sole at `y = lift`, top at `y = top`); beyond `toesFrom` the toes are skinned to `mtp_L`.
 
 ### 6.4 Skin weights
@@ -542,6 +569,8 @@ The original rule of the fit, for reference: limb rings at fraction `t` along th
 
 The skin volume has a fixed part (every ring with `src` of `measured` or `derived`, the head, hands and feet) and a part that scales (the `estimated` rings). The model weight is `volume x 1050 kg/m3 x VOL_CAL`. When at least 25 % of the volume is estimated, the estimated rings
 are scaled in both axes by the adiposity factor `s = sqrt((mass / (1050 x VOL_CAL) - V_fixed) / V_est)` (clamped to 0.75 to 1.35, and a floor of 15 % of `V_est`), so the body weighs what the profile says; below 25 % nothing is scaled (a few small estimated rings must not swallow the whole mass difference).
+The volume of the shank is summed over its rings as if the ankle were under the knee: the lean of 4.1 would add lean^2 / (2 L) = 0.4 % to the distances along its axis, but leaning a rigid shank does not change its volume
+(horizontal sections: Cavalieri) and `VOL_CAL` was fitted with upright shanks; so the mass of the report, the adiposity factor and the girths of the estimated sections do not depend on the lean.
 Measured and derived sections are NEVER scaled. So a profile with every girth measured keeps its measured shape and its model mass may differ from the profile mass (report row `mass`, 8.3); a profile with only stature and mass gets `s` from the mass (about 1.00 for a typical BMI; 0.88 to 1.18 over the population files). `body.shape.adiposity` and the dimension `adiposity` carry `s`.
 
 ### 6.6 Calibration of `VOL_CAL`
@@ -578,7 +607,51 @@ Fractions from de Leva (1996), "Adjustments to Zatsiorsky-Seluyanov's segment in
 
 The trunk is cut into three rigid parts so that bending the spine moves its mass: `trunk_upper` (thorax), `trunk_middle` (abdomen), `trunk_lower` (pelvis), with shares 15.96 / 16.33 / 11.17 % of body mass (men) and 15.45 / 14.65 / 12.47 % (women) of de Leva's 15-segment model, boundaries at 0, 32.1, 72.6 and 100 % of the C7 to hip-midpoint line
 (170.7, 215.5 and 145.7 mm segment lengths; recalled, approx.), each part's centre at its own fraction of its part; the three centres are then shifted together along the line so that the combined centre of mass is exactly the verified whole-trunk value. Each part is carried by the spine joint (or pelvis) nearest to its centre. There are 16 segments: the head, the 3 trunk parts and, on each side (`_L`, `_R`), upper arm, forearm, hand, thigh, shank and foot. The part centres inside the three parts are at 50.7 / 45.0 / 61.2 % (men) and 50.5 / 45.1 / 49.2 % (women) of the part length before the common shift.
-Neutral pose COM of a 1.75 m, 78 kg man: 0.975 m (0.557 of stature), 2 mm ahead of the hip midpoint. No inertia tensors are provided.
+Neutral pose COM of a 1.75 m, 78 kg man: 0.975 m (0.557 of stature), 0.7 mm behind the hip midpoint and 42.9 mm in front of the ankle joint centre, 40 % of the foot length from the heel (7.1; it was 2.4 mm ahead of the hip midpoint
+and 2.4 mm ahead of the ankle before the ankles went back). No inertia tensors are provided.
+
+### 7.1 The centre of mass of quiet standing (the stance)
+
+**Finding.** For the 528 bodies (176 populations x P5, P50, P95) the neutral whole-body centre of mass lay -1.6 to +7.5 mm (median 2.3) in front of the ankle joint centre, 19 to 23 % of the foot length from the heel
+(the report that opened this question quoted 11 %: the ankle was 20 % of the foot length from the heel and the centre of mass 2 mm in front of it, so 21 %); for 2,400 real people (600 of each survey) -5.5 to +10.7 mm (median 2.7).
+Quiet standing has it 40 to 58 mm in front of the ankle and about 40 % of the foot length from the heel:
+
+| source | what | value |
+|---|---|---|
+| Di Giulio and Baltzopoulos 2019, Front Physiol 10:625 (13 adults, centre of gravity from the filtered centre of pressure, ankle centre from the malleoli markers and their distance) | centre of gravity in front of the ankle / the knee / the hip joint centre | 47.3 +- 4.1 mm at 0.5 s after the feet are flat, 58.3 +- 5.3 mm at 7.6 s / 25.8 and 32.3 mm / 1.8 and -5.3 mm (so the knee is 21 to 26 mm and the hip 45 to 64 mm in front of the ankle) |
+| Kawai et al., congress abstract (Japan, 1997; 20 people, 14 men for the landmarks, video) | centre of gravity | 39.6th percentile of the base of support from its rear edge; 56 mm in front of the lateral malleolus; over the greater trochanter and the acromion |
+| Hellebrandt (1940), quoted by Journal of Human Kinetics 2010 (pregnancy posture), not opened | centre of gravity | 40 to 50 mm in front of the line joining the lateral malleoli |
+| Winter 1995 (Gait & Posture 3:193) and his textbook | the same, by the inverted pendulum | not retrieved in this environment: no number from them is used |
+
+**Which of the four suspects it was.** (a) The ankle along the foot: the model had the ankle axis 0.20 of the foot length from the heel; the data say 0.23 to 0.25 (4.1, section 3). That moves the foot 11 mm relative to the ankle, not the
+centre of mass relative to the ankle: a correction of the foot, now made, and a 4 % shift of the centre of mass along the foot. (b) The foot rings and stations follow the heel, the ankle, the ball and the toes and are not to blame (the ankle
+station moved with the ankle). (c) The de Leva fractions and centres reproduce the published values (tests) and the whole-body centre of mass is -5 to +4 mm from the hip joint line in the model against +2 and -5 mm of Di Giulio and
+Baltzopoulos: the upper body, with its masses and the 25 mm L5 set-back, is right. (d) **The legs were upright**: hip directly over the ankle, so the centre of mass could not be more than the 2 mm it lies in front of the hip. Real people lean forward about
+the ankles in quiet standing, the hip 45 to 64 mm in front of the ankle. That is the cause, and the fix is in the placement of the ankles, in `leanLegs()` (4.1).
+
+**Result** (`stance`; mm unless said; min, P5, P25, median, P75, P95, max):
+
+| | 528 population bodies | 2,400 real people |
+|---|---|---|
+| centre of mass in front of the ankle | 35.2, 37.1, 39.6, 42.1, 43.3, 45.8, 47.1 (before: -1.6, 1.0, 2.1, 2.3, 2.4, 4.0, 7.5) | 31.7, 37.6, 40.8, 42.6, 44.2, 46.6, 50.6 (before: -5.5, -1.5, 0.8, 2.7, 5.0, 8.7, 10.7) |
+| centre of mass from the heel, % of the foot | 40.0 in all (before: 19.4, 20.4, 20.8, 20.9, 20.9, 21.5, 22.6) | 40.0 in all (before: 17.9, 19.4, 20.3, 21.0, 21.9, 23.3, 24.2) |
+| hip joint centre in front of the ankle (the lean) | 33.8, 37.6, 40.5, 42.8, 44.0, 46.4, 49.7 | 25.8, 36.0, 39.7, 42.4, 45.2, 49.3, 56.3 |
+| centre of mass in front of the hip joint centre | -4.9, -2.0, -1.0, -0.7, -0.7, 1.0, 4.4 | -9.3, -5.0, -2.4, -0.4, 2.0, 6.0, 8.1 |
+| shank lean, degrees | 5.1, 5.5, 5.7, 5.8, 5.9, 6.1, 6.6 | 4.2, 5.0, 5.5, 5.8, 6.1, 6.5, 7.5 |
+
+All 528 bodies are inside 20 to 50 mm, 2,399 of the 2,400 people are (one ASRAN man with a 316 mm foot has 50.6 mm: the target is a fraction of the foot length). The centre of mass is 0.16 of the foot length in front of the ankle, 42 mm for the
+median 265 mm foot: the low end of the measured 40 to 58 mm (the measured means are 47, 56 and 58 mm). More lean would come closer to them, but each further 10 mm is 1.3 degrees more angle at the knee of a model that keeps the thigh vertical, and the tallest feet would pass the 50 mm that the check allows.
+
+**What the lean does to the checks of the posture engine** (`pose.js` `balance` over the contact points of both feet; US Army man P50 / man P95 / woman P5 / woman P50; before and after, margin in mm, negative = outside the support polygon):
+standing 28 / 31 / 24 / 23 to 78 / 84 / 64 / 70; on tiptoe (ankles plantar-flexed 45, toe joints dorsiflexed 45, ball and toes) -33 / -33 / -31 / -34 to +13 / +18 / +7 / +10 (a person on tiptoe is balanced; the upright model fell backward);
+a flat-footed deep squat with the trunk upright (hips 120, knees 145, ankles 30) -84 / -95 / -95 / -66 to -38 / -45 / -58 / -22 (still outside: a real squat leans the trunk or reaches forward).
+
+**What did not change** (all 2,928 bodies of the sweeps, the measure rows of the fit report before and after): no model value moved by more than 0.002 mm, not one report status changed, no warning appeared (the lean moves the ankle only: heights, the seated
+posture, the seat plane, the sitting height, the volume and the mass are as they were, 4.1, 6.5).
+
+**Limits.** The target is a calibration (`comFromHeel`), not a measurement on the model: the evidence is that it lies where the centre of mass of the people of the three sources above lies, in a model whose upper body already matched the hip line. Quiet standing only: the centre of mass moves 20 mm or so in sway and
+50 to 100 mm when a person leans deliberately. The shank carries the whole lean (4.1): the knee angle of the neutral pose is 0 and the leg has a 5.8 degree angle there; real legs lean as a whole, so the knee is 20 mm too far forward and the ankle is dorsiflexed 6 degrees more than
+a person's in the same stance. Di Giulio and Baltzopoulos derive the centre of gravity from the centre of pressure and Kawai's source is a congress abstract; the Winter numbers could not be retrieved (see the table).
 
 ## 8. The fit report
 
@@ -606,7 +679,9 @@ Neutral pose COM of a 1.75 m, 78 kg man: 0.975 m (0.557 of stature), 2 mm ahead 
 
 The table is the NOMINAL definition of the postures (`REFERENCE_POSTURES`). For `tpose` and `forward` the angles are corrected for this body's neutral abduction `beta` (4.5): `referencePose(body, 'tpose')` returns `shoulder_L/R [0, 90 - beta, 0]` and `referencePose(body, 'forward')` returns `shoulder_L/R [90, a, 0]` with the adduction `a` (about -`beta`) that puts the arm in the sagittal plane, so that the arm is horizontal and the span and reach are not shortened by `L (1 - cos beta)`. The report uses these.
 
-In the seated postures the root is at the knee height of the body (thighs horizontal, hips and knees at 90 degrees, ankles 0), the seat plane is the lowest ischial landmark, and the floor under the feet; the wall for thumbtip reach and abdominal depth sitting is the mean of the shoulder-blade extremity and the buttock extremity (a rigid trunk cannot touch with both).
+In the seated postures the root is at the knee height of the body (thighs horizontal, hips and knees at 90 degrees, ankles 0), the seat plane is the lowest ischial landmark, and the floor under the feet. The shank of a seated body is the shank of the neutral pose (hip 90 and knee 90 turn its frame
+by 90 degrees and back), so the lower leg leans back by the stance lean (5.8 degrees, the ankle 44 mm behind the knee) instead of being vertical as ISO 7250-1 draws it; the feet are flat and every height is what it is with a vertical shank. A strictly vertical shank would be knee `90 - lean`, ankle `-lean`
+degrees, and its bone, 2 mm longer than the vertical distance, would put the soles 2 mm below the floor; the wall for thumbtip reach and abdominal depth sitting is the mean of the shoulder-blade extremity and the buttock extremity (a rigid trunk cannot touch with both).
 
 ### 8.2 What is exact and what is not (by design)
 
@@ -827,7 +902,9 @@ Reproduce with the test file; the sweeps need `public/api/v1/populations` and `d
   Of the 30,765 alternative-route checks, 5,717 are off by more than max(15 mm, 2 %): surveys contain contradictory measures, and the report shows them rather than hiding them.
 * **Unit tests** (the original ones and one regression test per defect of the two independent verifications): contract (77 joints, mirrored offsets, Kinematics positions, flat feet), landmarks and contacts, the contract with `rig.js` (masses is a segment map), the worked example of 2.6 and a 1.75 m man whose proportions are checked against published ranges, women and neutral forms, a complete typical profile, seated closure, over-determined profiles, determinism and purity (no mutation of the input),
   symmetry, proportional versus percentile scaling of populations, overrides win, section maths (`ellipsePerimeter`, `sectionFrom`, `ringPerimeter`, `ringArea`), shape (rings, girths, adiposity), landmark/ring consistency, masses, spine, regression and relation reproduction from the database, implausible and missing inputs, `DIM_DEFS` coverage, report statuses, fit time under 15 ms; and, for the fixes: heading and position independence of the report, the ANSUR II chest, the reach bias per survey, horizontal arms, arm-trunk clearance, thigh width, override limits, mass beyond the BMI range, null options and prototype-named keys, deep-frozen tables, exact mirroring, ascending neck rings from 1.3 m, stale deltas, mass clamp labels, the direct forearm and ankle routes, the seat plane.
-  The independent suite `tests/human3d/fit.adversarial.test.mjs` (written by the verifier, left untouched) passes; of its 23 `todo` known-defect tests 20 now pass (the rest are documented limitations: the female segment mass deficit of 0.01 %, the survey-dependent thigh length and the overhead reach, section 11).
+  The independent suite `tests/human3d/fit.adversarial.test.mjs` (written by the verifier, left untouched) passed before the stance of 4.1 and 7.1; of its 23 `todo` known-defect tests 20 passed (the rest are documented limitations: the female segment mass deficit of 0.01 %, the survey-dependent thigh length and the overhead reach, section 11).
+  Three of its tests encode the upright legs and the old centre of mass and fail by design since: "neutral posture ... legs vertical" (hip over knee over ankle), "ISO 7250 seated posture ... shanks vertical" (the ankle behind the knee by the lean) and the line of "MODEL.md versus code" that pins the centre of mass at 2 +- 1 mm in front of the hip midpoint (it is 0.7 mm behind it and 43 mm in front of the ankle); the fourth failure of its first run, the 8 ms fit-time test, was the load of other test processes (4.3 ms per fit alone).
+* **The stance** (7.1): for the 528 bodies and 2,400 real people the centre of mass is 20 to 50 mm in front of the ankle and 40 % of the foot length from the heel, the hip is over the knee, the knee is `knee_height - ankle_height` above the ankle, the ankle axis is 24 % of the foot length from the heel (`sane()` of the test file checks it for every body of every sweep); the report rows of 2,928 bodies are unchanged (to 0.002 mm, statuses identical); tiptoe is balanced.
 
 ## 11. What the model is not (limitations)
 
@@ -842,6 +919,8 @@ Reproduce with the test file; the sweeps need `public/api/v1/populations` and `d
 * **Sections are approximations of what a tape and calipers measure.** The ANSUR II men's chest is a rounded rectangle (exponent 11 on average) because their tape, breadth and depth cannot all be true for a believable section; the thigh is a circle (nobody measures its breadth); the arm's skin is offset from its bone by up to 50 mm to clear the trunk; the thigh is the uncompressed standing section, about 12 mm thicker than the seated thigh clearance when sitting. The thumbtip reach of a profile without it is unbiased on average for the pooled surveys, not for each (ASRAN women +28 mm).
 * **The arm hangs straight.** Upper arm, forearm and hand are collinear in the neutral pose (3 to 14 degrees from the vertical); real arms hang with a slightly bent elbow, so the wrist of a person is about 8 mm higher than the model's (`other:wrist_height`).
 * **Symmetry.** Left and right are identical (a mirror image); surveys measure one side. Handedness, scoliosis, leg-length differences are not modelled.
+* **The stance is a calibration and the shank carries the whole lean** (7.1, 4.1): the neutral pose is quiet standing with the centre of mass 40 % of the foot length from the heel; the thigh is vertical, the shank leans 5 to 7 degrees, the knee is 20 mm too far forward and the
+  ankle dorsiflexed about 3 degrees more than a real person in the same stance; a posture with a net shank rotation moves the feet by lean x sin(rotation) relative to an upright shank (26 mm in a seated posture with the knees at 60, 0 for hips 90 and knees 90). The ISO 7250-1 seated lower leg is 5.8 degrees off vertical.
 * **Hands and feet are simplified**: straight fingers (no grip pose until the posture engine bends them), thumb splayed at a fixed angle, a fixed arch, toes as one joint. Finger lengths are proportional to the hand length.
 * **Face and head are schematic**: an ellipsoid cranium and rings; ears, nose and eyes are features, not a scanned face.
 * **Mass distribution is a population average** (de Leva): the segment masses scale with the profile mass, but fat and muscle distribution of the person are not modelled; the mass of a model with measured girths is whatever the volume gives (8.2).

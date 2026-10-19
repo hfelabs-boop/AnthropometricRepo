@@ -51,6 +51,34 @@ function sane(b, tag, bones = BONES) {
   assert.ok(y("head") < b.stature && y("shoulder_L") < y("C7") && y("shoulder_L") > y("T12") && y("elbow_L") < y("shoulder_L") && y("wrist_L") < y("elbow_L") && y("wrist_L") > y("hip_L") - 0.2, `${tag}: arm`);
   near(b.landmarks.vertex.offset[1] + y("head"), b.stature, 2e-5, `${tag}: vertex`);
   assert.ok(b.shape.adiposity >= 0.75 && b.shape.adiposity <= 1.35);
+  stanceOk(b, tag);
+}
+// The neutral pose is quiet standing (MODEL.md 4.1, 7.1): the whole-body centre of mass 40 % of the foot length from the heel and 25 to 60 mm in front of the ankle joint centre
+// (the foot length is 0.18 to 0.36 m: 29 to 58 mm), the thigh vertical (hip over knee: every posture is written against a vertical thigh), the knee as high above the ankle as the
+// knee height says, the shank carrying the lean: the ankle (and the foot) behind the knee, 3 to 9 degrees
+function stanceOk(b, tag, hi = 0.06) {
+  const pos = b.positions, ankle = pos.ankle_L[2], FL = b.d.foot_length, st = b.stance;
+  const ahead = b.massInfo.com[2] - ankle, heel = ankle + b.landmarks.heel_L.offset[2];
+  assert.ok(ahead > 0.025 && ahead < hi, `${tag}: the centre of mass is ${mm(ahead).toFixed(1)} mm in front of the ankle`);
+  near((b.massInfo.com[2] - heel) / FL, CONSTANTS.comFromHeel, 2e-4, `${tag}: centre of mass from the heel, fraction of the foot`);
+  for (const s of ["L", "R"]) {
+    const sg = s === "L" ? 1 : -1;
+    near(pos[`hip_${s}`][2], pos[`knee_${s}`][2], 1e-9, `${tag}: hip over knee`);
+    near(pos[`knee_${s}`][1] - pos[`ankle_${s}`][1], b.d.shank_length, 2e-6, `${tag}: knee height above the ankle`);
+    near(pos[`ankle_${s}`][2], ankle, 0, `${tag}: ankles level`);
+    near(pos[`ankle_${s}`][0], sg * pos.ankle_L[0], 0, `${tag}: ankles mirrored`);
+  }
+  const lean = pos.knee_L[2] - ankle;
+  near(lean, st.ankleBehindKneeM, 2e-6, `${tag}: stance.ankleBehindKneeM`);
+  const deg = Math.atan2(lean, b.d.shank_length) * 180 / Math.PI;
+  assert.ok(deg > 3 && deg < 9, `${tag}: the shank leans ${deg.toFixed(1)} degrees`);
+  near(st.shankLeanDeg, deg, 1e-4, `${tag}: stance.shankLeanDeg`); near(st.comAheadOfAnkleM, ahead, 2e-6, `${tag}: stance.comAheadOfAnkleM`);
+  // the ankle axis is K.ankleFromHeel of the foot length from the heel (the pternion); the lateral malleolus tip is K.malleolusBehindAxis (scaled) behind the axis, the medial one on it
+  near((ankle - (ankle + b.landmarks.heel_L.offset[2])) / FL, CONSTANTS.ankleFromHeel, 2e-5, `${tag}: ankle from the heel`);
+  near(b.landmarks.lateral_malleolus_L.offset[2], -CONSTANTS.malleolusBehindAxis * FL / 0.27, 2e-6, `${tag}: lateral malleolus`); near(b.landmarks.medial_malleolus_L.offset[2], 0, 0, `${tag}: medial malleolus`);
+  // the centre of mass is over the soles with room on both sides: 50 mm behind it to the heel sole, 80 mm in front of it to the toe sole
+  const soles = b.contacts.feet.map((id) => pos[b.landmarks[id].joint][2] + b.landmarks[id].offset[2]);
+  assert.ok(b.massInfo.com[2] - Math.min(...soles) > 0.05 && Math.max(...soles) - b.massInfo.com[2] > 0.08, `${tag}: the centre of mass is not over the soles`);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -212,10 +240,12 @@ test("closure: stature exact, sitting height in the ISO 7250 posture, report for
   const w = (id) => k.toWorld(b.landmarks[id].joint, b.landmarks[id].offset);
   near(mm(w("vertex").y - w("ischial_L").y), 936, 0.01);
   near(mm(w("heel_sole_L").y), 0, 0.02);
-  // knees at 90: the shank is vertical and the thigh horizontal
+  // knees at 90: the thigh is horizontal; the shank is the shank of the neutral pose (its frame is not turned: hip 90 and knee 90 cancel), so the ankle is as far behind the
+  // knee as it is standing (the stance lean, MODEL.md 4.1) and as far below it as the knee height says: every seated height is what it was with an upright shank
   near(k.position("knee_L").y, k.position("hip_L").y, 1e-9);
   near(k.position("ankle_L").x, k.position("knee_L").x, 1e-9);
-  near(k.position("ankle_L").z, k.position("knee_L").z, 1e-9);
+  near(k.position("knee_L").z - k.position("ankle_L").z, b.stance.ankleBehindKneeM, 2e-6);
+  near(k.position("knee_L").y - k.position("ankle_L").y, b.d.shank_length, 2e-6);
   // the same definitions evaluated in the user's pose: the seated pose gives the seated report, a forward bend moves the vertex
   const rows = evaluateMeasures(b, seat);
   near(rows.find((r) => r.id === "sitting_height").model, 936, 0.05);
@@ -260,6 +290,7 @@ test("sweep: the median, P5 and P95 person of all 176 populations", { skip: !HAV
       const prof = percentileProfile(pop, { percentile: pct, minReliability: pct === 50 ? "low" : "medium", meanStature: true });
       const b = fitBody(prof), tag = `${path.relative(POP_DIR, f)} P${pct}`;
       sane(b, tag);
+      stanceOk(b, tag, 0.05); // the quiet-standing centre of mass is 20 to 50 mm in front of the ankle for every one of the 528 bodies (35 to 47 mm in fact)
       fits++;
       const st = prof.measures.stature?.value;
       if (st) { withStature++; near(row(b, "stature").delta, 0, 0.01, tag); near(b.stature, st / 1000, 1e-9); }
@@ -273,6 +304,75 @@ test("sweep: the median, P5 and P95 person of all 176 populations", { skip: !HAV
     }
   }
   assert.ok(fits === 528 && withStature > 250 && measured > 3000, `${fits} fits, ${withStature} with stature`);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// The stance: the neutral pose is quiet standing, which leans a little forward about the ankles (MODEL.md 4.1 and 7.1). Before, the legs were upright and the neutral centre of
+// mass lay -2 to +7 mm (median 2) in front of the ankle joint centre, 21 % of the foot length from the heel; quiet standing has it 40 mm and more in front, 40 % from the heel.
+const comOf = (b, kin) => { let m = 0, z = 0; for (const sg of Object.values(b.masses)) { const p = kin.toWorld(sg.com.joint, sg.com.offset); m += sg.mass; z += sg.mass * p.z; } return z / m; };
+test("stance: the centre of mass of quiet standing is 40 % of the foot length from the heel and 20 to 50 mm in front of the ankle; the hip is over the knee, the shank carries the lean", () => {
+  for (const [sex, S, M] of [["M", 1750, 78], ["F", 1620, 62], ["M", 1950, 110], ["F", 1500, 50], ["M", 1450, 40]]) {
+    const b = fitBody(P(S, sex, M)), tag = `${sex} ${S} mm ${M} kg`;
+    stanceOk(b, tag, 0.05);
+    // a hand check with the kinematics of fk.js (the offsets, not the positions): the same centre of mass, the same lean
+    const k = new Kinematics(OFFS(b)).solve({}, { x: 0, y: b.joints.pelvis.offset[1], z: 0 });
+    near(comOf(b, k), b.massInfo.com[2], 2e-6, tag);
+    near(k.position("knee_L").z - k.position("ankle_L").z, b.stance.ankleBehindKneeM, 2e-6, tag);
+    near(k.position("hip_L").z - k.position("ankle_L").z, b.stance.ankleBehindKneeM, 2e-6, `${tag}: the hip is as far in front of the ankle as the knee`);
+    // 42 mm for a 265 mm foot: the low end of the measured ranges, Di Giulio and Baltzopoulos 2019 (47 to 58 mm, 13 adults, SD 4 to 5 mm) and Hellebrandt (40 to 50 mm)
+    assert.ok(b.stance.comAheadOfAnkleM > 0.03 && b.stance.comAheadOfAnkleM < 0.05, tag);
+  }
+  // the upper body is as it was: the centre of mass is within 5 mm of the hip joint line (Di Giulio and Baltzopoulos: hip within 2 to 5 mm of the centre of gravity), 2 mm in front of it before
+  for (const [sex, S, M] of [["M", 1750, 78], ["F", 1620, 62]]) { const b = fitBody(P(S, sex, M)); assert.ok(Math.abs(b.massInfo.com[2] - b.positions.hip_L[2]) < 0.005, `${sex}: COM ${b.massInfo.com[2]} vs hip ${b.positions.hip_L[2]}`); }
+});
+
+test("stance: the ankle axis is 24 % of the foot length from the heel, the foot length, breadth and heights are reproduced, the toe joint and the ball keep their place in the foot", () => {
+  const b = fitBody({ ...P(1750, "M", 78), measures: { ...P(1750, "M", 78).measures, foot_length: { value: 270, unit: "mm" }, foot_breadth: { value: 101, unit: "mm" }, "other:lateral_malleolus_height": { value: 70, unit: "mm" } } });
+  const k = new Kinematics(OFFS(b)).solve({}, { x: 0, y: b.joints.pelvis.offset[1], z: 0 });
+  const w = (id) => k.toWorld(b.landmarks[id].joint, b.landmarks[id].offset).toArray();
+  near(mm(w("toe_tip_L")[2] - w("heel_L")[2]), 270, 2e-3); near(mm(w("metatarsale_fibulare_L")[0] - w("metatarsale_tibiale_L")[0]), 101, 2e-3);
+  near(mm(w("lateral_malleolus_L")[1]), 70, 1e-3); near(mm(w("heel_sole_L")[1]), 0, 1e-3);
+  near(k.position("ankle_L").z - w("heel_L")[2], 0.24 * 0.27, 2e-6, "heel (pternion) to the ankle axis: 64.8 mm");
+  near(k.position("ankle_L").z - w("lateral_malleolus_L")[2], 0.008, 2e-6, "the lateral malleolus tip is 8 mm behind the axis (Inman 1976)");
+  near(mm(k.position("ankle_L").z - w("lateral_malleolus_L")[2] + (k.position("ankle_L").z - w("heel_L")[2])), 64.8 + 8, 1e-2, "so 56.8 mm from the pternion to the lateral tip, 21 % of the foot (a scanner measured 54.0 mm in 250.4 mm feet)");
+  near(w("ball_sole_medial_L")[2] - w("heel_L")[2], b.d.ball_length, 2e-6, "ball length");
+  // the foot stations run from the heel to the toe tip and the ankle station is at the ankle axis
+  const st = b.shape.feet.L.stations;
+  near(st[0].z, w("heel_L")[2], 2e-6); near(st[st.length - 1].z, w("toe_tip_L")[2], 2e-6); near(st[2].z, k.position("ankle_L").z, 2e-6);
+  assert.ok(st[2].z - st[0].z > 0.06 && st[3].z > st[2].z + 0.03);
+});
+
+test("stance: the seated measures and the skin volume are what they were with upright legs (the lean moves the ankle only), and the shank rings lean with the bone", () => {
+  // numbers of the 1750 mm, 78 kg man of the worked example, before the stance was introduced: the heights of the seated posture and the volume of the skin sections
+  const b = fitBody(P(1750, "M", 78)), v = (id) => row(b, id).model;
+  near(v("sitting_height"), 915.943, 1e-3); near(v("knee_height_sitting"), 554.1762, 1e-3); near(v("popliteal_height"), 429.6762, 1e-3); near(v("buttock_knee_length"), 622.382, 1e-3);
+  near(v("buttock_popliteal_length"), 510.282, 1e-3); near(v("thigh_clearance"), 169.791, 1e-3); near(v("eye_height_sitting"), 796.543, 1e-3);
+  near(b.shape.volume.m3, 0.08101, 1e-6); near(b.shape.adiposity, 1.010125, 1e-6); near(b.massInfo.com[1], 0.97513, 1e-5);
+  // the volume of the shank is measured upright: a leaning shank of the same sections holds the same flesh
+  const rings = b.shape.tubes.shank_L.rings, top = rings[0].c, bot = rings.at(-1).c;
+  assert.ok(Math.hypot(top[2] - bot[2], top[1] - bot[1]) > Math.abs(top[1] - bot[1]) * 1.004, "the rings do lean");
+  // the shank rings lean with the bone: the centre of every ring is on the knee-ankle line (the calf and the knee are offset in depth by their own rules)
+  const kn = b.positions.knee_L, an = b.positions.ankle_L;
+  for (const r of rings) { const t = (kn[1] - r.c[1]) / (kn[1] - an[1]); assert.ok(Math.abs(r.c[2] - (kn[2] + t * (an[2] - kn[2]))) < 0.03, `${r.id}: ring off the shank line`); }
+});
+
+test("stance: balanced standing and on tiptoe (the upright legs fell backward on tiptoe): the centre of mass lies over the soles, the ball and the toes", () => {
+  for (const [sex, S, M] of [["M", 1750, 78], ["F", 1500, 50], ["M", 1950, 110]]) {
+    const b = fitBody(P(S, sex, M)), tag = `${sex} ${S}`;
+    const soleZ = (k, ids) => ids.map((id) => k.toWorld(b.landmarks[id].joint, b.landmarks[id].offset));
+    // standing: between the heel sole and the toe sole with a margin
+    let k = new Kinematics(OFFS(b)).solve({}, { x: 0, y: b.joints.pelvis.offset[1], z: 0 });
+    let z = comOf(b, k), pts = soleZ(k, b.contacts.feet).map((p) => p.z);
+    assert.ok(z - Math.min(...pts) > 0.05 && Math.max(...pts) - z > 0.08, `${tag}: standing ${z}`);
+    // on tiptoe: ankles plantar-flexed 45 degrees, toe joints dorsiflexed 45, the ball and the toe soles carry: the centre of mass lies between the rear edge of the ball line (the lateral head
+    // is 22 mm behind the medial one) and the toes; with upright legs it lay 32 to 38 mm behind it, now 9 to 15 mm in front of it
+    const ang = { ankle_L: [-45, 0, 0], ankle_R: [-45, 0, 0], mtp_L: [45], mtp_R: [45] };
+    k = new Kinematics(OFFS(b)).solve(ang, { x: 0, y: 1, z: 0 });
+    const ids = ["ball_sole_medial_L", "ball_sole_medial_R", "ball_sole_lateral_L", "ball_sole_lateral_R", "toe_sole_L", "toe_sole_R"], ps = soleZ(k, ids);
+    z = comOf(b, k);
+    const zs = ps.map((p) => p.z);
+    assert.ok(z > Math.min(...zs) && z < Math.max(...zs), `${tag}: on tiptoe the centre of mass (${mm(z).toFixed(0)} mm) is outside the contacts ${mm(Math.min(...zs)).toFixed(0)} to ${mm(Math.max(...zs)).toFixed(0)} mm`);
+  }
 });
 
 function subjects(dataset, n) {

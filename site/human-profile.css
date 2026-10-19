@@ -55,6 +55,9 @@
 .hm-pf-survey { display: grid; gap: 4px; }
 .hm-pf-survey .seg { width: 100%; }
 .hm-pf-survey .seg button { flex: 1; padding: 6px 4px; }
+/* four options in two rows (.seg.wrap): in one row the last button ended outside the 320 px panel and "Random" was cut */
+.hm-pf-methodseg { width: 100%; }
+.hm-pf-methodseg button { min-width: 0; padding: 6px 4px; }
 .hm-pf-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .hm-pf-withunit { display: grid; grid-template-columns: minmax(0, 1fr) 76px; gap: 6px; }
 .hm-pf-unit { padding-left: 6px; padding-right: 4px; }

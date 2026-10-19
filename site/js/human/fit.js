@@ -9,7 +9,8 @@
 //                                         measure first); a dimension without a usable route is ESTIMATED from stature, mass and sex
 //                                         (regressions on the 13,792 real subjects of database/anthro.sqlite, table REG below). The
 //                                         routes that were not used but could have been are kept as `alt` (a check with its delta).
-//   3. layout      layout()              joint centres: legs, pelvis, spine curve (lordosis / kyphosis baked in), arms, hands, head
+//   3. layout      layout()              joint centres: legs, pelvis, spine curve (lordosis / kyphosis baked in), arms, hands, head;
+//                  leanLegs()            then the ankles and feet go back so that the standing centre of mass is where quiet standing has it (MODEL.md 4.1, 7.1)
 //   4. landmarks   landmarks()           bony / surface landmarks placed so that the standard measure definitions evaluate to the profile
 //   5. shape       shape()               girth rings (superellipses) for the skin generator; an `adiposity` scalar closes the mass
 //   6. masses      masses()              de Leva (1996) segment masses and centres of mass
@@ -175,6 +176,17 @@ const K = {
   l5BelowIliocristale: 0.035, // L5/S1 below the iliac crest line (L4/L5 level) (approx.)
   ocBelowTragion: 0.018,    // occiput-C1 axis below the tragion (approx.)
   patellaAhead: 0.07,       // patella front (skin) ahead of the knee axis with the knee flexed 90 degrees (approx.; 52 mm standing, more when flexed)
+  // The foot and the stance (MODEL.md 4.1, 7.1). The neutral pose is relaxed quiet standing, and in quiet standing the body leans a little forward about the ankles:
+  ankleFromHeel: 0.24,      // ankle joint centre (the talocrural axis, midway between the malleoli) in front of the pternion, fraction of foot length. Scanner of 20 people
+                            // (foot 250.4 mm, PMC10451213): lateral malleolus tip 54.0 mm = 21.6 %, medial 60.7 mm = 24.2 %, midpoint 22.9 %; Inman (1976, quoted by a clinical text, the
+                            // paper not opened): the axis passes 8 mm in front of the lateral tip = 24.8 % of that foot. 24 % is between the two. (It was 20 %: the lateral tip alone.)
+  malleolusBehindAxis: 0.008, // lateral malleolus tip behind the ankle axis (m, for a 0.27 m foot, scaled by foot length): Inman (1976), same remark
+  comFromHeel: 0.40,        // whole-body centre of mass of quiet standing from the heel, fraction of foot length. Kawai et al. (National Rehabilitation Center for the Disabled, Japan; a
+                            // congress abstract, 14 to 20 healthy people): the centre of gravity at the 39.6th percentile of the base of support from its rear edge and 56 mm in front of the
+                            // lateral malleolus. Di Giulio and Baltzopoulos 2019 (Front Physiol 10:625, 13 adults): 47 mm (0.5 s after the feet are flat) to 58 mm (7.6 s) in front of the ankle
+                            // joint centre; the hip joint centre within 2 to 5 mm of the centre-of-gravity line, the knee 26 to 32 mm behind it. Hellebrandt (1940, quoted): 40 to 50 mm. The
+                            // fit puts the ankles back until the model's centre of mass is here (0.16 foot length from the ankle = 42 mm for a 265 mm foot; MODEL.md 7.1)
+  leanMax: 0.08,            // the largest set-back of the ankles from the knee (m); never reached by a body of the fitted range (26 to 56 mm over the 2,928 bodies of MODEL.md 7.1)
   spineBack: { lumbar: 0.095, thoracic: 0.095, cervical: 0.052 }, // vertebral body centre to the skin of the back (approx.; the lumbar value is also tuned so that the
                             // abdominal depth sitting, measured against a wall, is 20 mm more than the standing waist depth as in the surveys)
   // spine curve: angles of the vertebral centre line from the vertical, + = leaning forward going up
@@ -888,10 +900,10 @@ DIM_DEFS.push(...DEFS.map((d) => ({
 
 // =====================================================================================================================
 // Layout of the neutral standing pose. All joint centres in world coordinates (m); the offsets of skeleton.js are differences of these.
-// Feet flat on y = 0, legs vertical, arms hanging along the body (slightly abducted so that the hands clear the hips), forearms in
-// mid-position (palms face the thighs, thumbs forward), spine in its natural standing curvature.
+// Feet flat on y = 0, hip over knee, the shank leaning forward about the ankle (leanLegs: quiet standing has the centre of mass 40 % of the foot
+// length from the heel), arms hanging along the body (slightly abducted so that the hands clear the hips), forearms in mid-position (palms face
+// the thighs, thumbs forward), spine in its natural standing curvature.
 const G = {
-  heelToAnkle: 0.2,        // heel (pternion) to the ankle centre, fraction of foot length (approx.; lateral malleolus is 55-60 mm from the back of the heel)
   mtpHeight: 0.026,        // centre of the metatarsal heads above the sole (m, for a 0.27 m foot; scaled by foot length) (approx.)
   mt5Behind: 0.022,        // fifth metatarsal head behind the first (m, scaled) (approx.)
   heelPoint: 0.045,        // height of the pternion above the sole (scaled) (approx.)
@@ -995,7 +1007,7 @@ function layout(c) {
   put("knee_L", [hx, d.knee_height, 0]);
   put("ankle_L", [hx, d.ankle_height, 0]);
   const fs = d.foot_length / 0.27; // scale of the foot constants
-  const heelZ = -G.heelToAnkle * d.foot_length;
+  const heelZ = -K.ankleFromHeel * d.foot_length; // the ankles are put at z = 0 here and moved back by leanLegs once the whole body is laid out
   put("mtp_L", [hx, G.mtpHeight * fs, heelZ + d.ball_length - 0.5 * G.mt5Behind * fs]);
 
   // ---- spine
@@ -1085,6 +1097,29 @@ function layout(c) {
   return { P, zAt, hs, beta, u, hand, heelZ, fs, sp, spine, yEcto, yTr, zTr, zGl, yPupil, zPupil, ssY };
 }
 
+/**
+ * Quiet standing leans a little forward about the ankles. The whole-body centre of mass is 47 to 58 mm in front of the ankle joint centre and about 40 % of the foot length
+ * from the heel (K.comFromHeel: Kawai et al.; Di Giulio and Baltzopoulos 2019), with the hip joint centre in line with it (within 2 to 5 mm) and the knee 26 to 32 mm behind it.
+ * layout() puts the ankle under the knee and the hip under that, which leaves the centre of mass 2 mm in front of the ankle (the upper body is right: it is as far in front of the
+ * hip as people's is; the legs were upright). The thigh must stay vertical, so that "hip 90" is still a horizontal thigh (ISO 7250-1 sitting, every posture of the library), and so
+ * must the heights: the shank carries the lean. The ankle, the foot and the toe joint go back by `lean`, the knee, the hip and everything above stay where they are; the knee is
+ * still `knee_height - ankle_height` above the ankle, so every height and every seated measure of the fit report is what it was (the bone is lean^2 / (2 L) = 2 mm longer). `lean`
+ * is solved so that the neutral centre of mass lies K.comFromHeel of the foot length from the heel (a linear equation: only the feet and the shanks move).
+ */
+function leanLegs(c, geo) {
+  const P = geo.P, m = massModel(c, geo), seg = m.segments;
+  let moving = 0; // the mass that goes back with the ankle: both feet, and each shank by the fraction of its length from the knee (the centre of mass lies on the knee-ankle line)
+  for (const s of ["L", "R"]) moving += seg[`foot_${s}`].mass + seg[`shank_${s}`].mass * seg[`shank_${s}`].comFraction;
+  const mu = moving / m.info.total;
+  const ahead = m.info.com[2] - P.ankle_L[2]; // the centre of mass in front of the ankle now
+  const want = (K.comFromHeel - K.ankleFromHeel) * c.d.foot_length;
+  const lean = clamp((want - ahead) / (1 - mu), 0, K.leanMax);
+  for (const id of ["ankle_L", "ankle_R", "mtp_L", "mtp_R"]) P[id] = [P[id][0], P[id][1], P[id][2] - lean];
+  geo.heelZ -= lean;
+  geo.lean = lean;
+  return geo;
+}
+
 /** Joint offsets of a layout: each joint relative to its parent (the pelvis offset is its height above the floor). */
 function offsetsOf(P) {
   const out = {};
@@ -1156,10 +1191,11 @@ function bindLimb(prev, own, next, t) {
 }
 
 /** Volume (m3) of a tube from its rings (trapezoid rule along the centre line), split into the part that scales with s^2 and the rest. */
-function tubeVolume(rings) {
+function tubeVolume(rings, zOf = (r) => r.c[2]) { // zOf: the depth of a ring centre as the volume sees it (the shank is measured upright, see buildShape)
   let fixed = 0, est = 0;
+  const at = (r) => [r.c[0], r.c[1], zOf(r)];
   rings.forEach((r, i) => {
-    const a = i > 0 ? dist3(r.c, rings[i - 1].c) : 0, b = i < rings.length - 1 ? dist3(r.c, rings[i + 1].c) : 0;
+    const a = i > 0 ? dist3(at(r), at(rings[i - 1])) : 0, b = i < rings.length - 1 ? dist3(at(r), at(rings[i + 1])) : 0;
     const v = 0.5 * (a + b) * ringArea(r.rx, r.rz, r.n);
     if (r._scal) est += v; else fixed += v;
   });
@@ -1372,7 +1408,11 @@ function buildShape(c, geo, s, record) {
     shRing("sh_ankle", 0.9, ankleSec),
     shRing("sh_malleolus", 1, malSec),
   ];
-  addVol(tubeVolume(thigh)); addVol(tubeVolume(shank)); addVol(tubeVolume(thigh)); addVol(tubeVolume(shank));
+  // The skin volume (hence the adiposity factor and the mass of the report) must not depend on the lean of the shank: leaning a rigid shank does not change its volume, but the
+  // distances between the ring centres along the slanted axis would add lean^2 / (2 L) = 0.4 % to it (and the VOL_CAL calibration was fitted on upright shanks). The rings are
+  // therefore measured as if the ankle were under the knee.
+  const upright = (r) => r.c[2] + geo.lean * (kn[1] - r.c[1]) / (kn[1] - an[1]);
+  addVol(tubeVolume(thigh)); addVol(tubeVolume(shank, upright)); addVol(tubeVolume(thigh)); addVol(tubeVolume(shank, upright));
   return { torso, neck, upper, fore, thigh, shank, vol, sections };
 }
 
@@ -1474,9 +1514,10 @@ function landmarks(c, geo, shp) {
   putLR("patella", "knee_L", [hx, c.g("other:knee_height_midpatella") ?? ky + c.R("midpatella_over_knee"), 0.052], "patella (mid-patella)", "leg", "surface");
   putLR("shin", "knee_L", [hx, ky - 0.16 * (d.shank_length / 0.42), 0.045], "shin (kneeling contact)", "leg", "contact");
   const bm = c.g("other:bimalleolar_breadth") ?? c.E("other:bimalleolar_breadth");
-  putLR("lateral_malleolus", "ankle_L", [hx + bm / 2, ay, 0], "lateral malleolus", "foot");
-  putLR("medial_malleolus", "ankle_L", [hx - bm / 2, ay + 0.012, 0], "medial malleolus", "foot");
-  const fs = geo.fs, heelZ = geo.heelZ, FL = d.foot_length, FB = d.foot_breadth, ballZ = heelZ + d.ball_length;
+  // the ankle axis runs through both malleoli; the lateral tip lies a little behind it (K.malleolusBehindAxis), the medial one on it
+  const fs = geo.fs, heelZ = geo.heelZ, FL = d.foot_length, FB = d.foot_breadth, ballZ = heelZ + d.ball_length, az = P.ankle_L[2];
+  putLR("lateral_malleolus", "ankle_L", [hx + bm / 2, ay, az - K.malleolusBehindAxis * fs], "lateral malleolus", "foot");
+  putLR("medial_malleolus", "ankle_L", [hx - bm / 2, ay + 0.012, az], "medial malleolus", "foot");
   putLR("heel", "ankle_L", [hx, G.heelPoint * fs, heelZ], "pternion (back of the heel)", "foot");
   putLR("heel_sole", "ankle_L", [hx, 0, heelZ + 0.03 * fs], "centre of the heel (sole)", "foot", "contact");
   putLR("metatarsale_tibiale", "ankle_L", [hx - FB / 2, 0.03 * fs, ballZ], "medial ball of the foot (first metatarsal head)", "foot");
@@ -1598,13 +1639,13 @@ function footShape(c, geo) {
   const hb = c.g("other:heel_breadth") ?? c.E("other:heel_breadth"), bm = c.g("other:bimalleolar_breadth") ?? c.E("other:bimalleolar_breadth");
   const ay = d.ankle_height;
   // stations from the heel to the toes: [fraction of foot length, half width, top height above the sole, sole lift (arch)]
-  const tab = [[0, 0.5 * hb * 0.55, 0.04 * fs, 0], [0.07, 0.5 * hb, 0.075 * fs, 0], [0.2, 0.5 * bm, ay + 0.035, 0.004], [0.36, 0.43 * FB, 0.07 * fs, 0.016 * fs],
+  const tab = [[0, 0.5 * hb * 0.55, 0.04 * fs, 0], [0.07, 0.5 * hb, 0.075 * fs, 0], [K.ankleFromHeel, 0.5 * bm, ay + 0.035, 0.004], [0.36, 0.43 * FB, 0.07 * fs, 0.016 * fs],
     [0.55, 0.46 * FB, 0.056 * fs, 0.008 * fs], [d.ball_length / FL, 0.5 * FB, 0.034 * fs, 0], [0.88, 0.4 * FB, 0.027 * fs, 0], [1, 0.14 * FB, 0.018 * fs, 0]];
   return {
     joint: "ankle_L", label: "Left foot", length: r6(FL), breadth: r6(FB), heelBreadth: r6(hb),
     stations: tab.map(([fr, hw, top, lift]) => ({ z: r6(heelZ + fr * FL), cx: r6(hx), rx: r6(hw), top: r6(top), lift: r6(lift) })),
     toesJoint: "mtp_L", toesFrom: r6(heelZ + d.ball_length),
-    note: "z in world coordinates (the ankle centre is at z = 0); each station is a cross-section with half width rx about x = cx, flat sole at y = lift, top at y = top; toes (z beyond toesFrom) are skinned to mtp_L",
+    note: "z in world coordinates (the pelvis is at z = 0, the ankle centre behind it by the lean of the shank: positions.ankle_L[2]); each station is a cross-section with half width rx about x = cx, flat sole at y = lift, top at y = top; toes (z beyond toesFrom) are skinned to mtp_L",
   };
 }
 
@@ -1938,7 +1979,7 @@ function adiposity(c, pass0) {
 export function fitBody(profile, opts) {
   const snap = snapshot(profile), c = new Fit(snap, snapshotOptions(opts));
   for (const def of DEFS) c.resolve(def);
-  const geo = tuneShoulder(c, layout(c));
+  const geo = leanLegs(c, tuneShoulder(c, layout(c)));
 
   // ---- shape and the adiposity factor: scale the ESTIMATED sections so that volume x 1.05 kg/L is the mass; measured sections are untouched
   const pass0 = buildShape(c, geo, 1, false);
@@ -2004,6 +2045,11 @@ export function fitBody(profile, opts) {
     note: "stature is exact by construction; the sitting height is exact when a sitting height is in the profile and the hip-to-seat dimension stays inside its plausible range",
   };
   body.spine = geo.spine;
+  // the stance (MODEL.md 4.1, 7.1): how far the ankles were put behind the knees so that the standing centre of mass is where quiet standing has it
+  body.stance = {
+    ankleBehindKneeM: r6(geo.lean), shankLeanDeg: r6(Math.atan2(geo.lean, c.d.shank_length) / D2R),
+    comAheadOfAnkleM: r6(massM.info.com[2] - P.ankle_L[2]), comFromHeel: r6((massM.info.com[2] - (P.ankle_L[2] + L.heel_L.offset[2])) / c.d.foot_length), ankleFromHeel: K.ankleFromHeel,
+  };
   addWarnings(c, body, snap);
   body.warnings = [...new Set(body.warnings)];
   return body;

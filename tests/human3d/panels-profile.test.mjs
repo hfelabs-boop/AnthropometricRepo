@@ -15,7 +15,7 @@ import { fitBody, DIM_DEFS, evaluateMeasures } from "../../site/js/human/fit.js"
 import * as anthro from "../../site/js/human/anthro.js";
 import { JOINTS, JOINT_BY_ID, BONES } from "../../site/js/human/skeleton.js";
 import { buildRig } from "../../site/js/human/rig.js";
-import { fmtLength } from "../../site/js/human/ui.js";
+import { fmtLength, toUnit, unitDigits } from "../../site/js/human/ui.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const DATA = path.join(ROOT, "public/api/v1");
@@ -541,8 +541,8 @@ test("JOINT_DIMS covers all 77 joints; every dimension it names exists in fit.js
   assert.deepEqual(Object.keys(S.JOINT_DIMS).sort(), JOINTS.map((j) => j.id).sort());
   const known = new Set(DIM_DEFS.map((d) => d.id));
   for (const [id, e] of Object.entries(S.JOINT_DIMS)) {
-    assert.ok(Array.isArray(e.dims) && Array.isArray(e.also), id);
-    for (const d of [...e.dims, ...e.also]) assert.ok(known.has(d), `${id}: ${d}`);
+    assert.ok(Array.isArray(e.dims) && Array.isArray(e.also) && Array.isArray(e.stance), id);
+    for (const d of [...e.dims, ...e.also, ...e.stance]) assert.ok(known.has(d), `${id}: ${d}`);
     if (!e.dims.length) assert.ok(e.note.length > 10, `${id} is fixed and says why`);
   }
   assert.deepEqual(JOINTS.filter((j) => !S.JOINT_DIMS[j.id].dims.length).map((j) => j.id).sort(), ["forearm_L", "forearm_R", "jaw"]);
@@ -563,7 +563,8 @@ test("JOINT_DIMS covers all 77 joints; every dimension it names exists in fit.js
 
 test("the joint -> dimension table agrees with fit.js: moving a dimension only moves joints that list it", () => {
   // Each overridable dimension is moved by 6 mm; every joint whose rest offset to its parent changes by more than 1.2 mm (the 17 vertebrae share a
-  // trunk change in small parts, so they are checked by the sums below) must list that dimension, directly or through a derived one.
+  // trunk change in small parts, so they are checked by the sums below) must list that dimension, directly or through a derived one. The ankles are held to 0.1 mm:
+  // fit.js leanLegs() puts them behind the knees by an amount solved from the centre of mass of the whole body, so every mass-bearing dimension moves them a little.
   // Aliases (shank_length, hip_height, gh_halfwidth) are edits of other dimensions and are covered by those.
   const sample = [profiles.manual, profiles.manualF, anthro.manualProfile({ sex: "M", stature: 1900, mass: 95 })];
   if (haveData) { const p = { ...profiles.armyF, measures: { ...profiles.armyF.measures } }; delete p.measures.span; delete p.measures.thumbtip_reach; sample.push(p); }
@@ -577,7 +578,7 @@ test("the joint -> dimension table agrees with fit.js: moving a dimension only m
       const b1 = fitBody(prof, { overrides: { [d.id]: d.value + 0.006 } });
       for (const j of JOINTS) {
         const o0 = b0.joints[j.id].offset, o1 = b1.joints[j.id].offset, moved = Math.hypot(o0[0] - o1[0], o0[1] - o1[1], o0[2] - o1[2]);
-        if (moved > 0.0012) { assert.ok(S.jointInfluences(j.id).has(d.id), `${prof.id}: ${d.id} moves ${j.id} by ${(moved * 1000).toFixed(1)} mm but the table does not say so`); pairs++; }
+        if (moved > (/^ankle_/.test(j.id) ? 0.0001 : 0.0012)) { assert.ok(S.jointInfluences(j.id).has(d.id), `${prof.id}: ${d.id} moves ${j.id} by ${(moved * 1000).toFixed(1)} mm but the table does not say so`); pairs++; }
       }
     }
   }
@@ -929,14 +930,69 @@ test("the notice for an ignored body form tells the person to choose Auto, not t
   assert.match(text, /^The model ignored the body form: /);
   assert.match(text, /Choose Auto under Body form/);
   assert.doesNotMatch(text, /Revert the edit/);
-  // an edit the fitter dropped on its own keeps the old advice
+  // an edit the shell dropped keeps the old advice
   const row = rowOf(bodies.manual, profiles.manual, "ring_waist"), edited = P.editDimension(profiles.manual, row, row.mm * 1.3);
-  const t2 = P.extrasNotice({ ...edited, overrides: { ...edited.overrides, femur_length: 0.43 } }, fitBody(edited, { overrides: { femur_length: 0.43 } }));
-  if (t2) assert.doesNotMatch(t2, /Choose Auto/);
+  const t2 = P.extrasNotice(edited, fitBody(edited, {}));
+  assert.match(t2, /^The model ignored the dimension edits: /);
+  assert.doesNotMatch(t2, /Choose Auto/);
   // the figure on the stage is not called by a form it does not have
   assert.match(prof.label, / · female form$/);
   assert.doesNotMatch(P.shownLabel(prof, body), /female form/);
   assert.equal(P.shownLabel(prof, { ...body, profileId: "another" }), prof.label, "a body of another profile says nothing about this label");
   assert.equal(P.shownLabel(prof, fitBody(prof, { form: "female" })), prof.label, "applied: the label stands");
   assert.equal(P.shownLabel(null, body), "");
+});
+
+test("Revert always does something on a row that shows it: also on a row that is edited only through a measure it comes from (hip height after the knee height)", () => {
+  for (const base of [P.finalizeProfile(profiles.manual, {}), P.finalizeProfile(profiles.manualF, {}), ...(haveData ? [P.finalizeProfile(profiles.armyM, {})] : [])]) {
+    const b0 = fitBody(base, { form: P.defaultForm(base) });
+    const knee = rowOf(b0, base, "knee_height");
+    const p1 = P.editDimension(base, knee, knee.mm + 40);
+    const b1 = fitWith(p1);
+    const rows = P.dimensionRows(b1, p1);
+    const derived = rows.filter((r) => r.edited && r.id !== "knee_height" && ["measure", "override"].includes(r.editability.kind));
+    assert.ok(derived.some((r) => r.id === "hip_height"), "hip height is marked edited through the knee height");
+    for (const r of derived) {
+      const p2 = P.revertDimension(p1, r);
+      assert.notEqual(p2.id, p1.id, `${r.id}: Revert changed nothing`);
+      assert.equal(p2.measures["other:lateral_femoral_epicondyle_height"]?.status !== "edited", true, `${r.id}: the edited knee height is still in the profile`);
+    }
+    // and nothing is left behind: the row that was reverted is not edited any more
+    const p3 = P.revertDimension(p1, rows.find((r) => r.id === "hip_height"));
+    assert.equal(P.countEdits(p3), 0);
+    assert.equal(P.dimensionRows(fitWith(p3), p3).find((r) => r.id === "hip_height").edited, false);
+  }
+});
+
+test("fieldNumber rounds like fmtLength and fmtKg (the edit field and the row of the list never disagree)", () => {
+  assert.equal(P.fieldNumber(19.15, 1), "19.2"); // Number(19.15.toFixed(1)) is 19.1
+  assert.equal(P.fieldNumber(1234.5, 0), "1235");
+  assert.equal(P.fieldNumber(7.5, 2), "7.5");
+  assert.equal(P.fieldNumber(NaN, 1), "");
+  for (const unit of ["mm", "cm", "in"]) {
+    for (let mm = 40; mm < 2600; mm += 0.5) {
+      const row = fmtLength(mm, unit, { suffix: false }).replaceAll(",", "");
+      assert.equal(P.fieldNumber(toUnit(mm, unit), unitDigits(unit)), String(Number(row)), `${mm} mm in ${unit}`);
+    }
+  }
+  for (const kg of [76.25, 76.35, 80.05, 61.45, 99.95]) assert.equal(Number(P.fieldNumber(kg, 1)), Number(P.fmtKg(kg).replace(" kg", "")), `${kg} kg`);
+});
+
+test("the ankle rows say that the stance lean (fit.js leanLegs) moves them: the dimensions that move the centre of mass are listed, the note explains the 2 mm", () => {
+  for (const id of ["ankle_L", "ankle_R"]) {
+    const e = S.JOINT_DIMS[id], inf = S.jointInfluences(id);
+    for (const d of ["hip_height", "femur_length", "foot_length", "shoulder_height", "upper_arm_length", "forearm_length", "hand_length", "buttock_back"]) assert.ok(inf.has(d), `${id} lists ${d}`);
+    assert.match(e.note, /centre of mass/);
+    assert.deepEqual(e.also, [], "the long list is explained by the note, not printed as a list of a dozen dimensions");
+    assert.ok(S.dimensionJoints("forearm_length").includes(id));
+  }
+  // the knee and the hip are not moved by the lean: the table must not claim it
+  assert.ok(!S.dimensionJoints("forearm_length").includes("knee_L") && !S.dimensionJoints("hand_length").includes("hip_L"));
+});
+
+test("isGenericBody recognises the shell's fallback body (synthetic.js)", async () => {
+  const { syntheticBody } = await import("../../site/js/human/synthetic.js");
+  assert.equal(P.isGenericBody(syntheticBody(1.75, "male")), true);
+  assert.equal(P.isGenericBody(bodies.manual), false);
+  assert.equal(P.isGenericBody(null), false);
 });

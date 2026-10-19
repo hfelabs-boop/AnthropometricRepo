@@ -277,12 +277,12 @@ async function build(undo) {
   const deps = {
     async fit(profile) {
       const m = await loadModule("fit").catch(() => { throw new Error("the fitting module (fit.js) is not available"); });
-      return m.fitBody(profile, { form: formOf(profile) });
+      return m.fitBody(profile, { form: profile?.form ?? formOf(profile), overrides: profile?.overrides });
     },
     async synthetic(profile) {
       const m = await loadModule("synthetic").catch(() => { throw new Error("the generic body (synthetic.js) is not available"); });
       const mm = profile?.measures?.stature?.value;
-      return m.syntheticBody(Number.isFinite(mm) ? mm / 1000 : 1.75, formOf(profile));
+      return m.syntheticBody(Number.isFinite(mm) ? mm / 1000 : 1.75, profile?.form ?? formOf(profile));
     },
     async buildRig(body, { quality }) {
       const m = await loadModule("rig").catch(() => { throw new Error("the rig module (rig.js) is not available"); });

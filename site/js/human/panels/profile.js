@@ -40,6 +40,11 @@ export function fmtSigned(v, digits = 1) {
 }
 /** Decimals for a difference between two lengths in `unit`: one more than the lengths themselves. */
 export const deltaDigits = (unit) => unitDigits(unit) + 1;
+/**
+ * A value as the text of an input field, rounded the way fmtLength / fmtKg round the same number in the list ("19.15" is "19.2" in both; Number.toFixed would give
+ * "19.1" for the binary double below it) and without a thousands separator, so that the field and the row never disagree.
+ */
+export const fieldNumber = (v, digits = 0) => (Number.isFinite(v) ? v.toLocaleString("en-US", { useGrouping: false, minimumFractionDigits: 0, maximumFractionDigits: digits }) : "");
 /** "76.3 kg" */
 export const fmtKg = (kg) => (kg == null || !Number.isFinite(kg) ? "—" : `${kg.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kg`);
 /** Display text of a report or dimension number: lengths in the display unit, masses in kg, ratios plain. `v` is in mm / kg / ratio. */
@@ -333,6 +338,8 @@ export function shownLabel(profile, body) {
   if (profile?.form && body?.form && body.form !== profile.form && (body.profileId == null || body.profileId === profile.id)) return label.replace(` · ${profile.form} form`, "");
   return label;
 }
+/** Whether the body on the stage is the generic fallback (synthetic.js: only the stature is the profile's) that the shell shows when the profile could not be fitted. */
+export const isGenericBody = (body) => body?.synthetic === true;
 /** Two profiles the fitter would turn into the same body (same id, form and overrides). */
 export function sameProfile(a, b) {
   return !!a && !!b && a.id === b.id && (a.form ?? null) === (b.form ?? null) && JSON.stringify(a.overrides ?? {}) === JSON.stringify(b.overrides ?? {});
@@ -403,7 +410,10 @@ export function editDimension(profile, row, value, unit = row.kind === "kg" ? "k
   ov[row.id] = mm / 1000;
   return finalizeProfile(profile, { overrides: ov });
 }
-/** Undo the edit of one dimension (its measure back to the value it had, or its override removed). */
+/**
+ * Undo the edit of one dimension: its measure back to the value it had, or its override removed. A derived row is also marked edited when a measure it comes from
+ * (`row.via`) was edited (hip height after the knee height): Revert undoes those too, so that the row is not edited any more and the button always does something.
+ */
 export function revertDimension(profile, row) {
   const ed = row.editability ?? editability(row);
   if (ed.kind === "measure") {
@@ -413,7 +423,8 @@ export function revertDimension(profile, row) {
   const ov = { ...(profile.overrides ?? {}) }, from = ALIASED_OVERRIDES[row.id];
   delete ov[row.id];
   if (from) delete ov[from]; // the row is marked edited by an edit of the dimension it comes from
-  const p = finalizeProfile(profile, { overrides: ov });
+  let p = finalizeProfile(profile, { overrides: ov });
+  for (const k of row.via ?? []) if (p.measures[k]?.status === "edited") p = finalizeProfile(anthro.revertMeasure(p, k));
   if (!from) return p;
   const src = { id: from, via: row.via ?? [], status: "derived" }; // that dimension may be a profile measure (knee height): its edit goes too
   src.editability = editability(src);
@@ -660,9 +671,11 @@ async function mount(container, ctx) {
   /** The line after a build: what is shown, and what of the person's choices the model did not take. */
   function showBuilt(fallbackLabel) {
     const cur = ctx.getProfile(), b = ctx.getBody();
-    const miss = cur && b && (b.profileId == null || b.profileId === cur.id) ? verifyExtras(cur, b) : [];
+    const miss = cur && b && !isGenericBody(b) && (b.profileId == null || b.profileId === cur.id) ? verifyExtras(cur, b) : [];
     const label = (cur ? shownLabel(cur, b) : null) ?? fallbackLabel;
-    if (miss.length) setStatus("warn", `Showing ${label}, but the model did not apply ${miss.join(" and ")} (the message above the 3D view says why).`);
+    // the shell builds a generic body when the profile cannot be fitted: the line must not name the profile as if it were on the stage
+    if (isGenericBody(b)) setStatus("warn", `Showing a generic body of ${fmtLength(b.stature * 1000, ctx.units)}, not “${label}”: only the stature is the profile's (the message above the 3D view says why).`);
+    else if (miss.length) setStatus("warn", `Showing ${label}, but the model did not apply ${miss.join(" and ")} (the message above the 3D view says why).`);
     else setStatus("ok", `Showing ${label}`);
   }
   const retryBtn = (fn) => h("button", { type: "button", class: "btn small", onclick: fn }, "Retry");
@@ -673,10 +686,12 @@ async function mount(container, ctx) {
   const current = el("div", "hm-pf-card", curName, curFacts, curMeter, curMeterText);
   function renderCurrent() {
     const p = ctx.getProfile(), b = ctx.getBody();
-    curName.textContent = (p ? shownLabel(p, b) : null) ?? "Loading the profile…";
+    const generic = isGenericBody(b);
+    curName.textContent = generic ? `Generic body (the profile “${p?.label ?? ""}” could not be built)` : (p ? shownLabel(p, b) : null) ?? "Loading the profile…";
     const facts = [];
     if (b) {
-      facts.push(h("span", {}, "Stature ", h("b", {}, ctx.fmt(b.stature * 1000))), h("span", {}, "Mass ", h("b", {}, fmtKg(b.mass))), h("span", {}, "Form ", h("b", {}, b.form)));
+      // a generic body has a typical mass, not the person's: say so next to the number
+      facts.push(h("span", {}, "Stature ", h("b", {}, ctx.fmt(b.stature * 1000))), h("span", {}, "Mass ", h("b", {}, fmtKg(b.mass)), generic ? " (typical)" : null), h("span", {}, "Form ", h("b", {}, b.form)));
     }
     curFacts.replaceChildren(...facts);
     const c = statusCounts(rows);
@@ -686,12 +701,19 @@ async function mount(container, ctx) {
     curMeterText.textContent = c.all ? `Estimated: ${c.estimated} of ${c.all} dimensions · derived ${c.derived} · measured ${c.measured}${c.edited ? ` · edited ${c.edited}` : ""}` : "";
   }
 
+  // ---- who may still build: the newest thing the person asked for
+  // Every action that builds a figure (a population choice, a person, a file, the manual form, an edit) claims the next number before its first await and
+  // checks it after each one, so that a slower request that was started earlier (a population file still downloading, a database query, a debounced slider)
+  // never replaces the figure the person built after it. Claiming also cancels the debounce timer of the population controls.
+  let intent = 0, popTimer = 0;
+  const claim = () => { clearTimeout(popTimer); popTimer = 0; return ++intent; };
+
   // ---- submit a profile to the shell (the one place that calls ctx.setProfile)
   let submitGen = 0;
   async function submit(profile, { immediate = true, quiet = false } = {}) {
     const p = finalizeProfile(profile, { form: formChoice });
     note(p);
-    if (sameProfile(p, ctx.getProfile())) { if (!quiet) setStatus("ok", `Showing ${p.label}`); return { ok: true, same: true }; }
+    if (sameProfile(p, ctx.getProfile())) { if (!quiet) showBuilt(p.label); return { ok: true, same: true }; }
     const my = ++submitGen;
     setStatus("busy", [h("span", { class: "spinner", "aria-hidden": "true" }), " Building the model…"]);
     let res;
@@ -706,7 +728,7 @@ async function mount(container, ctx) {
   // =====================================================================================================================
   // source: population
   const popView = el("div", "hm-pf-view");
-  let index = null, indexState = "idle", popGen = 0, popTimer = 0, popEntry = null;
+  let index = null, indexState = "idle", popEntry = null;
   const ids = { country: nextId("hm-pf-country"), role: nextId("hm-pf-role"), sex: nextId("hm-pf-sex"), rel: nextId("hm-pf-rel") };
   const selCountry = h("select", { class: "input", id: ids.country }), selRole = h("select", { class: "input", id: ids.role }), selSex = h("select", { class: "input", id: ids.sex });
   const popHint = el("p", "hm-pf-hint small muted"), poolNote = el("p", "small muted");
@@ -822,35 +844,33 @@ async function mount(container, ctx) {
   }
   /** Load the population file (cached by anthro), take the percentile, build. Only the newest request may finish: an older one that returns late is dropped. */
   async function applyPopulation() {
-    clearTimeout(popTimer);
-    popTimer = 0;
-    if (!popEntry || disposed) return;
-    const my = ++popGen, entry = popEntry, opts = { percentile: pop.percentile, scaling: pop.scaling, minReliability: pop.reliability, meanStature: true };
+    if (!popEntry || disposed) { clearTimeout(popTimer); popTimer = 0; return; }
+    const my = claim(), entry = popEntry, opts = { percentile: pop.percentile, scaling: pop.scaling, minReliability: pop.reliability, meanStature: true };
     const latest = pop.survey === "latest" && entry.has_latest;
     setStatus("busy", [h("span", { class: "spinner", "aria-hidden": "true" }), ` Loading ${shortCountry(entry.country)} · ${entry.role}…`]);
     let profile, file;
     try {
       file = await anthro.loadPopulation(entry, { latest });
     } catch (e) { // the network, a missing file: asking again can help
-      if (my !== popGen || disposed) return;
+      if (my !== intent || disposed) return;
       setStatus("error", [`${msgOf(e)}. `, retryBtn(applyPopulation)]);
       return;
     }
-    if (my !== popGen || disposed) return;
+    if (my !== intent || disposed) return;
     try {
       profile = tidyPopulationLabel(anthro.percentileProfile(file, opts), entry);
     } catch (e) { // the data cannot give this profile (no stature to scale by): another choice is needed, not another try
       setStatus("error", `${msgOf(e)}. Choose another way to scale or another reliability level.`);
       return;
     }
-    if (my !== popGen) return;
+    if (my !== intent) return;
     writeLast(pop);
     const before = ctx.getProfile(), lost = countEdits(before);
     const res = await submit(profile, { immediate: true });
     // a new population is a new body: the edits of the old one cannot follow (they are values of that body). Say so, and offer the way back.
-    if (lost && my === popGen && !disposed && res?.ok !== false && !res?.same && ctx.getProfile()?.id !== before?.id) {
+    if (lost && my === intent && !disposed && res?.ok !== false && !res?.same && ctx.getProfile()?.id !== before?.id) {
       setStatus("warn", [`Loaded ${profile.label}. Your ${lost} edit${lost === 1 ? "" : "s"} to the previous profile ${lost === 1 ? "was" : "were"} not carried over. `,
-        h("button", { type: "button", class: "btn small", onclick: () => submit(before) }, "Go back to the previous profile")]);
+        h("button", { type: "button", class: "btn small", onclick: () => { claim(); submit(before); } }, "Go back to the previous profile")]);
     }
   }
 
@@ -894,18 +914,18 @@ async function mount(container, ctx) {
     } catch (e) { if (my !== ind.gen) return; ind.message = { level: "error", text: msgOf(e) }; }
     renderIndividual();
   }
-  async function useSubject(key) {
+  async function useSubject(key, mine = claim()) {
     const my = ++ind.gen;
     setStatus("busy", [h("span", { class: "spinner", "aria-hidden": "true" }), " Loading the person…"]);
     try {
       const row = await anthro.subjectById(subjectQuery, key);
-      if (my !== ind.gen || disposed) return;
+      if (my !== ind.gen || mine !== intent || disposed) return;
       if (!row) throw new Error("That person is not in the database.");
       const p = anthro.subjectProfile(row);
       ind.message = { level: "ok", text: `Showing person #${row.subject_key}: stature ${ctx.fmt(row.stature)}, mass ${row.mass == null ? "not measured" : fmtKg(row.mass)}.` };
       renderIndividual();
       await submit(p);
-    } catch (e) { if (my !== ind.gen) return; ind.message = { level: "error", text: msgOf(e) }; setStatus("error", msgOf(e)); renderIndividual(); }
+    } catch (e) { if (my !== ind.gen || mine !== intent) return; ind.message = { level: "error", text: msgOf(e) }; setStatus("error", msgOf(e)); renderIndividual(); }
   }
   async function findClosest() {
     const o = subjectOptions(ind.filters, ind.sel);
@@ -913,24 +933,24 @@ async function mount(container, ctx) {
     const mass = ms ? parseNumber(ms) : null;
     if (!Number.isFinite(st)) { ind.message = { level: "error", text: "Enter the stature you are looking for." }; renderIndividual(); return; }
     if (ms && !Number.isFinite(mass)) { ind.message = { level: "error", text: "Enter the mass as a number of kilograms, or leave it empty." }; renderIndividual(); return; }
-    const my = ++ind.gen;
+    const my = ++ind.gen, mine = claim();
     setStatus("busy", [h("span", { class: "spinner", "aria-hidden": "true" }), " Searching the database…"]);
     try {
       const row = await anthro.nearestSubject(subjectQuery, { ...o.sel, stature: st, mass: mass ?? undefined });
-      if (my !== ind.gen || disposed) return;
+      if (my !== ind.gen || mine !== intent || disposed) return;
       if (!row) throw new Error("Nobody in this group has a stature and a mass.");
       ind.message = { level: "ok", text: `Closest: person #${row.subject_key}, stature ${ctx.fmt(row.stature)} (you asked for ${ctx.fmt(st)}), mass ${row.mass == null ? "not measured" : fmtKg(row.mass)}.` };
       renderIndividual();
       await submit(anthro.subjectProfile(row));
-    } catch (e) { if (my !== ind.gen) return; ind.message = { level: "error", text: msgOf(e) }; setStatus("error", msgOf(e)); renderIndividual(); }
+    } catch (e) { if (my !== ind.gen || mine !== intent) return; ind.message = { level: "error", text: msgOf(e) }; setStatus("error", msgOf(e)); renderIndividual(); }
   }
   async function pickRandom() {
     if (!ind.total) return;
-    const my = ++ind.gen, o = subjectOptions(ind.filters, ind.sel);
+    const my = ++ind.gen, mine = claim(), o = subjectOptions(ind.filters, ind.sel);
     try {
       const [r] = await anthro.listSubjects(subjectQuery, { ...o.sel, limit: 1, offset: Math.floor(Math.random() * ind.total) });
-      if (my !== ind.gen || disposed) return;
-      if (r) await useSubject(r.subject_key);
+      if (my !== ind.gen || mine !== intent || disposed) return;
+      if (r) await useSubject(r.subject_key, mine);
     } catch (e) { if (my === ind.gen) { ind.message = { level: "error", text: msgOf(e) }; renderIndividual(); } }
   }
   async function findByNumber() {
@@ -965,14 +985,14 @@ async function mount(container, ctx) {
     ];
     if (o.branches.length) parts.push(sel(iids.br, o.branches.map((b) => ({ id: b.id, name: `${b.id} (${fmtInt(b.n)})` })), o.sel.branch ?? "", "Branch", (v) => { ind.sel = { ...ind.sel, branch: v || null }; ind.page = 0; refreshCount(); renderIndividual(); }, h("option", { value: "" }, "Any branch")));
     parts.push(el("p", "small muted", `${fmtInt(ind.total || o.n)} people with a stature in this group. People stay anonymous: only the survey's own number is shown.`));
-    const seg = segmented({ label: "How to choose a person", value: ind.method, options: [{ value: "closest", label: "Closest match" }, { value: "list", label: "From a list" }, { value: "number", label: "By number", title: "The survey's own number of a person, as shown in the list" }, { value: "random", label: "Random" }],
+    const seg = segmented({ label: "How to choose a person", value: ind.method, className: "wrap hm-pf-methodseg", options: [{ value: "closest", label: "Closest match" }, { value: "list", label: "From a list" }, { value: "number", label: "By number", title: "The survey's own number of a person, as shown in the list" }, { value: "random", label: "Random" }],
       onChange: (v) => { ind.method = v; ind.message = null; if (v === "list") loadPage(0); else renderIndividual(); } });
     for (const b of seg.el.querySelectorAll("button")) b.dataset.focusKey = `method:${b.dataset.value}`;
     parts.push(seg.el);
     if (ind.method === "closest") {
       const cur = ctx.getBody();
-      const stIn = h("input", { class: "input", id: iids.st, type: "number", step: "any", inputmode: "decimal", value: ind.closest.stature ?? (cur ? Number(toUnit(cur.stature * 1000, ctx.units).toFixed(unitDigits(ctx.units))) : "") });
-      const msIn = h("input", { class: "input", id: iids.ms, type: "number", step: "any", inputmode: "decimal", value: ind.closest.mass ?? (cur ? Number(cur.mass.toFixed(1)) : "") });
+      const stIn = h("input", { class: "input", id: iids.st, type: "number", step: "any", inputmode: "decimal", value: ind.closest.stature ?? (cur ? fieldNumber(toUnit(cur.stature * 1000, ctx.units), unitDigits(ctx.units)) : "") });
+      const msIn = h("input", { class: "input", id: iids.ms, type: "number", step: "any", inputmode: "decimal", value: ind.closest.mass ?? (cur ? fieldNumber(cur.mass, 1) : "") });
       stIn.addEventListener("input", () => { ind.closest.stature = stIn.value; }); // what was typed survives a redraw (a failed search, a unit change)
       msIn.addEventListener("input", () => { ind.closest.mass = msIn.value; });
       parts.push(el("div", "hm-pf-two",
@@ -1027,22 +1047,24 @@ async function mount(container, ctx) {
     impOk.textContent = "";
     impErr.replaceChildren(el("div", "notice error hm-pf-errbox", h("b", {}, "Could not import: "), message, hint ? el("div", "hm-pf-errhint", hint) : null));
   }
-  async function importText(text, name) {
+  async function importText(text, name, mine = claim()) {
     impErr.replaceChildren();
     impOk.textContent = "";
     let profile;
     try { profile = anthro.parseImport(text, name, { minReliability: impRel.value }); } catch (e) { showImportError(e); return; }
     const n = Object.keys(profile.measures).length;
+    if (mine !== intent || disposed) return; // something else was built while the file was read: that one stays on the stage
     impOk.textContent = `Read ${n} measure${n === 1 ? "" : "s"} from ${name ? `“${name}”` : "the pasted text"}.`;
     await submit(profile);
   }
   async function importFile(file) {
     const bad = checkImportFile(file);
     if (bad) { showImportError(new Error(bad)); return; }
+    const mine = claim();
     let text;
     try { text = await file.text(); } catch (e) { showImportError(new Error(`The file could not be read (${msgOf(e)}).`)); return; }
-    if (disposed) return;
-    await importText(text, file.name);
+    if (disposed || mine !== intent) return;
+    await importText(text, file.name, mine);
   }
   fileInput.addEventListener("change", async () => { const f = fileInput.files?.[0]; fileInput.value = ""; if (f) await importFile(f); });
   let dragDepth = 0;
@@ -1095,7 +1117,7 @@ async function mount(container, ctx) {
   // text fields, not number fields: a number field reads "175,5" as 1755 in some browsers, and manualFromForm reads a decimal comma itself
   const manSt = h("input", { class: "input", id: mids.st, type: "text", inputmode: "decimal", autocomplete: "off", placeholder: "1755", value: cur0 ? Math.round(cur0.stature * 1000) : "" });
   const manStU = h("select", { class: "input hm-pf-unit", id: mids.stu, "aria-label": "Stature unit" }, STATURE_UNITS.map((u) => h("option", { value: u }, u)));
-  const manMs = h("input", { class: "input", id: mids.ms, type: "text", inputmode: "decimal", autocomplete: "off", placeholder: "80", value: cur0 ? Number(cur0.mass.toFixed(1)) : "" });
+  const manMs = h("input", { class: "input", id: mids.ms, type: "text", inputmode: "decimal", autocomplete: "off", placeholder: "80", value: cur0 ? fieldNumber(cur0.mass, 1) : "" });
   const manMsU = h("select", { class: "input hm-pf-unit", id: mids.msu, "aria-label": "Mass unit" }, MASS_UNITS.map((u) => h("option", { value: u }, u)));
   const manErr = el("p", "small hm-pf-msg hm-pf-msg-error");
   manErr.setAttribute("role", "alert");
@@ -1104,6 +1126,7 @@ async function mount(container, ctx) {
     manErr.textContent = "";
     let p;
     try { p = manualFromForm({ sex: manSex.value, stature: manSt.value, statureUnit: manStU.value, mass: manMs.value, massUnit: manMsU.value }); } catch (err) { manErr.textContent = err.message; return; }
+    claim();
     submit(p);
   }
   // Sliders over the same two values (DESIGN.md 3.1): they move the fields in the unit chosen there, and the fields move them. The rest of the body is the
@@ -1137,7 +1160,7 @@ async function mount(container, ctx) {
     if (manDirty || !b) return;
     manSt.value = String(Math.round(b.stature * 1000));
     manStU.value = "mm";
-    manMs.value = String(Number(b.mass.toFixed(1)));
+    manMs.value = fieldNumber(b.mass, 1);
     manMsU.value = "kg";
     manSex.value = p?.sex === "F" ? "F" : p?.sex === "both" ? "both" : "M";
     syncSliders();
@@ -1190,7 +1213,7 @@ async function mount(container, ctx) {
   const chipEls = new Map(chipDefs.map(([k, label]) => [k, h("button", { type: "button", class: "hm-chip hm-pf-fchip", "aria-pressed": k === "all" ? "true" : "false", dataset: { filter: k }, onclick: () => { dimState.filter = k; renderDims(); } }, label)]));
   const dimList = el("div", "hm-pf-dims");
   const dimSummary = el("p", "small muted hm-pf-dimsum");
-  const revertAllBtn = h("button", { type: "button", class: "btn small", hidden: true, "data-focus-key": "revertall", onclick: () => { editResult = null; if (editNote) showBuilt(); submit(revertAll(ctx.getProfile())); } }, "Revert all edits");
+  const revertAllBtn = h("button", { type: "button", class: "btn small", hidden: true, "data-focus-key": "revertall", onclick: () => { claim(); editResult = null; if (editNote) showBuilt(); submit(revertAll(ctx.getProfile())); } }, "Revert all edits");
   const dimLegend = el("p", "small muted", "Measured: the value is a measure of the profile (or typed by you). Derived: computed from measures with a documented relation. Estimated: no measure, so the model uses a typical value for the stature, mass and sex. Select a row to see where it came from and to edit it; the 3D view shows what it moves.");
   dimSearch.addEventListener("input", () => { dimState.query = dimSearch.value; renderDims(); });
 
@@ -1245,7 +1268,7 @@ async function mount(container, ctx) {
       const id = nextId("hm-pf-ed");
       // type text, not number: a number field reads "175,5" as 1755 in some browsers, and the panel reads a decimal comma itself (parseNumber)
       const input = h("input", { type: "text", class: "input hm-pf-edit", id, inputmode: "decimal", autocomplete: "off", "data-focus-key": `edit:${row.id}`,
-        value: kg ? Number(row.value.toFixed(1)) : Number(toUnit(row.mm, u).toFixed(unitDigits(u) + (u === "mm" ? 1 : 0))) });
+        value: kg ? fieldNumber(row.value, 1) : fieldNumber(toUnit(row.mm, u), unitDigits(u)) });
       const msg = el("div", "small hm-pf-msg hm-pf-msg-error");
       msg.setAttribute("role", "alert");
       const say = (text, kind = "error") => { msg.className = `small hm-pf-msg hm-pf-msg-${kind}`; msg.setAttribute("role", kind === "error" ? "alert" : "status"); msg.textContent = text; };
@@ -1256,6 +1279,8 @@ async function mount(container, ctx) {
       const apply = async () => {
         say("");
         if (editNote) showBuilt(); // the result of the previous edit is not the result of this one
+        editResult = null;
+        result?.remove();
         const v = parseNumber(input.value);
         if (!Number.isFinite(v)) { say("Enter a number."); return; }
         // the field is rounded (a tenth of a centimetre is a millimetre): sending the same text back would store a change of up to half a millimetre as an edit
@@ -1263,10 +1288,10 @@ async function mount(container, ctx) {
         let next;
         try { next = editDimension(ctx.getProfile(), row, v, kg ? "kg" : u); } catch (e) { say(e.message); return; }
         dimState.open = row.id;
-        editResult = null;
+        claim();
         const done = await submit(next);
         const b = ctx.getBody(), cur = ctx.getProfile();
-        if (disposed || done?.ok === false || !b || (b.profileId != null && b.profileId !== cur?.id)) return;
+        if (disposed || done?.ok === false || done?.fallback || !b || isGenericBody(b) || (b.profileId != null && b.profileId !== cur?.id)) return;
         // say what the model did with the value when it is not what was typed (held at an edge, not applied, built another way)
         const ex = explainEdit(row, kg ? v : fromUnit(v, u), b, u);
         if (ex) {
@@ -1279,7 +1304,7 @@ async function mount(container, ctx) {
       input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); apply(); } });
       parts.push(el("div", "hm-pf-editor", h("label", { for: id, class: "small" }, `Set ${kg ? "the mass" : "this dimension"} to`), el("div", "hm-pf-editrow", input, el("span", "hm-unit", kg ? "kg" : UNIT_LABEL[u]),
         h("button", { type: "button", class: "btn primary small", "data-focus-key": `apply:${row.id}`, onclick: apply }, "Apply"),
-        row.edited ? h("button", { type: "button", class: "btn small", "data-focus-key": `revert:${row.id}`, onclick: async () => { dimState.open = row.id; editResult = null; if (editNote) showBuilt(); await submit(revertDimension(ctx.getProfile(), row)); } }, "Revert") : null), msg, result,
+        row.edited ? h("button", { type: "button", class: "btn small", "data-focus-key": `revert:${row.id}`, onclick: async () => { dimState.open = row.id; editResult = null; if (editNote) showBuilt(); claim(); await submit(revertDimension(ctx.getProfile(), row)); } }, "Revert") : null), msg, result,
         ed.kind === "measure" ? el("div", "small muted", `Stored as the profile measure “${niceLabel(ed.key)}”.`) : el("div", "small muted", "Applied to the model; the profile's measures stay as they are.")));
     } else if (ed.kind === "derived") {
       parts.push(el("div", "hm-pf-editor", el("div", "small muted", ed.why), el("div", "hm-pf-fromlinks", ed.from.map((id2) => {
@@ -1415,6 +1440,7 @@ async function mount(container, ctx) {
   function checkExtras() {
     const p = ctx.getProfile(), b = ctx.getBody();
     if (!p || !b || (b.profileId != null && b.profileId !== p.id)) return;
+    if (isGenericBody(b)) { ctx.dismiss(noExtrasId); return; } // the generic body takes nothing of the profile but its stature: the shell's own notice says so
     const text = extrasNotice(p, b);
     if (text) ctx.notify(text, { level: "warn", id: noExtrasId });
     else ctx.dismiss(noExtrasId);

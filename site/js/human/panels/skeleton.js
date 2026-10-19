@@ -37,7 +37,8 @@ export function ensureStyles() {
 // shoulder width turns the elbow and wrist offsets; the thigh length follows the knee height when it is estimated, ...). Ids are those of body.dims (fit.js).
 // A derived dimension stands for the dimensions it is built from (DERIVED_FROM), so that a test can check the table against fit.js: moving any
 // dimension by a few millimetres must only move joints that list it, directly or through DERIVED_FROM (tests/human3d/panels-profile.test.mjs).
-const entry = (dims, also = [], note = "") => ({ dims, also, note });
+// dims: set the segment; also: move it a little (listed to the person); stance: move it by the stance lean only (counted by the tests, explained by the note, not listed)
+const entry = (dims, also = [], note = "", stance = []) => ({ dims, also, note, stance });
 const FIXED_NOTE = "Placed by a model constant, not by a dimension of the profile.";
 const ARM_TILT = "The arm hangs tilted outward just enough for the wrist to clear the hip, so the shoulder width and the hip breadth turn its direction a little.";
 const SHOULDER_NOTE = "A profile with an arm span or a thumbtip reach makes the model solve the shoulder width and the protraction so that the span and reach come out exactly.";
@@ -55,6 +56,11 @@ export const EDIT_AS = Object.freeze({ shank_length: "knee_height", hip_height: 
 const ARM_DIMS = ["acromion_halfwidth", "acromion_to_gh", "upper_arm_length", "forearm_length", "shoulder_height"];
 // A longer thigh or a different L5 height leaves less of the stature for the neck and the shoulder girdle (found by moving each dimension and refitting).
 const STATURE_SHARE = ["femur_length", "l5_above_hip"];
+// Quiet standing leans the body forward about the ankles: fit.js leanLegs() puts each ankle behind its knee by an amount solved from the centre of mass of the WHOLE
+// body (mass sits in the feet, shanks, arms and trunk), so every dimension that moves mass moves the ankle offset by a fraction of a millimetre to a few millimetres
+// (found by moving each dimension by 5 % and refitting). The dimensions below are all those that move it by more than about 0.02 mm.
+const STANCE_LEAN = ["hip_height", "foot_length", "shoulder_height", "shoulder_protraction", "upper_arm_length", "forearm_length", "hand_length", "buttock_back", "c7_height", "l5_above_hip", "vertex_to_eye", "acromion_halfwidth", "acromion_to_gh"];
+const STANCE_NOTE = "The ankle is placed behind the knee so that the standing centre of mass is where quiet standing has it (the shank leans forward a few degrees), so this segment is about 2 mm longer than the shank length and a mass-bearing dimension anywhere in the body can move it by a millimetre or two.";
 
 function buildJointDims() {
   const t = {};
@@ -80,7 +86,7 @@ function buildJointDims() {
     }
     t[`hip_${s}`] = entry(["hip_halfwidth"], [], "Sideways from the pelvis midpoint to the hip joint centre.");
     t[`knee_${s}`] = entry(["femur_length"], ["knee_height"]);
-    t[`ankle_${s}`] = entry(["shank_length"]);
+    t[`ankle_${s}`] = entry(["shank_length"], [], STANCE_NOTE, STANCE_LEAN);
     t[`mtp_${s}`] = entry(["foot_length", "ball_length"], ["ankle_height"]);
   }
   return t;
@@ -102,7 +108,7 @@ export function expandDims(ids) {
 /** Dimensions (own and secondary) that can move a joint, derived ones expanded: the set the tests compare with fit.js. */
 export function jointInfluences(jointId) {
   const e = JOINT_DIMS[jointId];
-  return e ? expandDims([...e.dims, ...e.also]) : new Set();
+  return e ? expandDims([...e.dims, ...e.also, ...e.stance]) : new Set();
 }
 /** Joints whose rest segment a dimension sets or moves (the inverse of JOINT_DIMS, derived dimensions expanded). */
 export function dimensionJoints(dimId) {
