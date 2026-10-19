@@ -13,6 +13,7 @@ import { JOINTS, JOINT_BY_ID, REGIONS, clampAngles, swingLength } from "../../si
 import { buildRig } from "../../site/js/human/rig.js";
 import { gripAngles } from "../../site/js/human/postures/grips.js";
 import { expandSpine, solvePose, figureOf } from "../../site/js/human/pose.js";
+import { Kinematics } from "../../site/js/human/fk.js";
 import { bodyProxies, proxyWorld, selfPenetrations } from "../../site/js/human/proxies.js";
 import * as IK from "../../site/js/human/ik.js";
 
@@ -303,7 +304,7 @@ test("unreachable goals: best effort, reachable = false, the shortfall is report
   const hand = MAN.worldPoint(r.pose, "grip_centre_R");
   const toTarget = V(far).sub(sh).normalize(), toHand = hand.clone().sub(sh).normalize();
   assert.ok(angleDeg(toTarget, toHand) < 12, `the hand is ${angleDeg(toTarget, toHand).toFixed(1)} degrees off the line to the target`);
-  assert.ok(r.provablyUnreachable === true, "provably out of reach of a straight chain: no restarts were spent");
+  assert.ok(r.provablyUnreachable === true && r.beyondReach.join() === "hand_R", "provably out of reach of a straight chain, and the result says which goal");
   const text = IK.describeResult(r, { hand_R: "The right hand" });
   assert.equal(text.length, 1);
   assert.match(text[0], /^The right hand: \d+ mm short of the target \(farther than the limb can stretch\)\.$/);
@@ -926,4 +927,276 @@ test("a body from the synthetic fallback and a stature-only body work as well", 
     assert.ok(r.reachable);
     assert.deepEqual(problemsOf(r), []);
   }
+});
+
+
+// ---- 12. defects found by the independent verification -----------------------------------------------------------------------------
+/** The largest rotation (degrees) of the world frame of any of `ids` between two poses, and the largest displacement (metres) of any of the `points`. */
+function frameMeter(solver) {
+  const offsets = {};
+  for (const j of JOINTS) if (j.parent) offsets[j.id] = Array.from(solver.body.joints[j.id].offset).slice(0, 3);
+  const ka = new Kinematics(offsets), kb = new Kinematics(offsets), qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
+  return (pa, pb, ids, points = []) => {
+    ka.solve(pa.angles, pa.root); kb.solve(pb.angles, pb.root);
+    let rot = 0, move = 0;
+    for (const id of ids) { ka.quaternion(id, qa); kb.quaternion(id, qb); rot = Math.max(rot, 2 * Math.acos(Math.min(1, Math.abs(qa.dot(qb)))) * R2D); }
+    for (const p of points) move = Math.max(move, solver.worldPoint(pa, p).distanceTo(solver.worldPoint(pb, p)));
+    return { rot, move };
+  };
+}
+/** The largest change of any angle (degrees) of any joint between two poses, and of any root rotation. */
+const maxAngleChange = (a, b) => {
+  let m = 0;
+  for (const id of new Set([...Object.keys(a.angles), ...Object.keys(b.angles)])) (b.angles[id] ?? a.angles[id]).forEach((v, i) => { m = Math.max(m, Math.abs(v - (a.angles[id]?.[i] ?? 0))); });
+  for (const k of ["heading", "flex", "lat", "rot"]) m = Math.max(m, Math.abs((b.root[k] ?? 0) - (a.root[k] ?? 0)));
+  return m;
+};
+
+test("drag continuity: a hand that circles the head at 6 mm per frame moves the elbow by less than 40 mm and any joint frame by less than 15 degrees per frame", (t) => {
+  let worstElbow = 0, worstRot = 0, frames = 0;
+  for (const [, , solver] of [SOLVERS[0], SOLVERS[1], SOLVERS[2], SOLVERS[4]]) {
+    const meter = frameMeter(solver), sh = solver.worldPoint(standing(solver), { joint: "shoulder_R" });
+    for (const hy of [0.3, 0.15]) {
+      const pts = Array.from({ length: 200 }, (_, i) => { const u = i / 199; return [sh.x + 0.2 * Math.cos(2 * Math.PI * u) + 0.1, sh.y + hy, sh.z + 0.2 * Math.sin(2 * Math.PI * u)]; });
+      let cur = IK.reachHand(solver, standing(solver), "R", pts[0]).pose;
+      for (let i = 1; i < pts.length; i++) {
+        const r = IK.reachHand(solver, cur, "R", pts[i], IK.DRAG_OPTIONS), m = meter(cur, r.pose, ARM_R, [{ joint: "elbow_R" }]);
+        worstElbow = Math.max(worstElbow, m.move); worstRot = Math.max(worstRot, m.rot); frames++;
+        assert.deepEqual(problemsOf(r), []);
+        cur = r.pose;
+      }
+    }
+  }
+  t.diagnostic(`${frames} frames: worst elbow step ${(worstElbow * 1000).toFixed(0)} mm, worst joint frame ${worstRot.toFixed(1)} degrees`);
+  assert.ok(worstElbow < 0.04 && worstRot < 15, `elbow ${worstElbow}, rotation ${worstRot}`);
+});
+
+test("drag continuity: paths that are reachable by construction (forward kinematics of smooth in-ROM joint trajectories), hand 13 to 26 mm per frame, never a jump", (t) => {
+  let frames = 0, lag = 0, worstElbow = 0, worstRot = 0, maxStep = 0, paths = 0;
+  const rnd = rng(555);
+  for (const [, , solver] of [SOLVERS[1], SOLVERS[3]]) {
+    const meter = frameMeter(solver);
+    for (let p = 0; p < 6; p++) {
+      const spec = ARM_R.map((id) => JOINT_BY_ID[id].dof.map((d) => ({ mid: (d.min + d.max) / 2, half: ((d.max - d.min) / 2) * 0.8, f: 0.4 + 1.2 * rnd(), ph: 6.283 * rnd() })));
+      const n = p % 2 ? 450 : 900, pts = [];
+      for (let i = 0; i < n; i++) {
+        const u = (i / (n - 1)) * 2 * Math.PI, angles = {};
+        ARM_R.forEach((id, k) => { angles[id] = clampAngles(id, spec[k].map((q) => q.mid + q.half * Math.sin(q.f * u + q.ph))).angles; });
+        const g = solver.worldPoint({ root: solver.restRoot, angles }, "grip_centre_R");
+        pts.push([g.x, g.y, g.z]);
+      }
+      paths++;
+      let cur = IK.reachHand(solver, standing(solver), "R", pts[0]).pose;
+      for (let i = 1; i < n; i++) {
+        const r = IK.reachHand(solver, cur, "R", pts[i], IK.DRAG_OPTIONS), m = meter(cur, r.pose, ARM_R, [{ joint: "elbow_R" }]);
+        maxStep = Math.max(maxStep, Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1], pts[i][2] - pts[i - 1][2]));
+        worstElbow = Math.max(worstElbow, m.move); worstRot = Math.max(worstRot, m.rot); frames++; if (!r.reachable) lag++;
+        assert.ok(maxAngleChange(cur, r.pose) <= IK.DRAG_OPTIONS.maxMove * R2D + 1e-9, "no joint moves more than maxMove per call");
+        cur = r.pose;
+      }
+    }
+  }
+  t.diagnostic(`${paths} paths, ${frames} frames, hand step up to ${(maxStep * 1000).toFixed(0)} mm: worst elbow step ${(worstElbow * 1000).toFixed(0)} mm, worst joint frame ${worstRot.toFixed(1)} degrees, ${lag} frames behind the handle`);
+  assert.ok(worstElbow < 0.04 && worstRot < 15, `elbow ${worstElbow}, rotation ${worstRot}`);
+  assert.ok(lag / frames < 0.05, `${lag} of ${frames} frames behind the handle`);
+});
+
+test("drag continuity of the foot and of the gaze, also with the trunk free, along wide paths that leave the reachable zone", (t) => {
+  const rnd = rng(4242);
+  let frames = 0, worst = 0, worstRot = 0;
+  for (const [, , solver] of [SOLVERS[1], SOLVERS[0]]) {
+    const meter = frameMeter(solver), hip = solver.worldPoint(standing(solver), { joint: "hip_R" }), eye = solver.worldPoint(standing(solver), "eye_mid");
+    for (let p = 0; p < 6; p++) {
+      const A = [0, 1, 2].map(() => 0.1 + 0.3 * rnd()), ph = [0, 1, 2].map(() => 6.28 * rnd()), fr = [0, 1, 2].map(() => 0.5 + rnd());
+      const foot = (u) => [{ type: "position", id: "foot", landmark: "heel_sole_R", target: [hip.x + A[0] * Math.sin(fr[0] * u + ph[0]), hip.y - 0.55 + A[1] * Math.sin(fr[1] * u + ph[1]), hip.z + 0.15 + A[2] * Math.sin(fr[2] * u + ph[2])] }];
+      const gaze = (u) => { const yaw = 100 * Math.sin(fr[0] * u + ph[0]) * D2R, pit = 70 * Math.sin(fr[1] * u + ph[1]) * D2R, d = 2 + Math.sin(fr[2] * u); return [{ type: "lookAt", id: "look", target: [eye.x + d * Math.sin(yaw) * Math.cos(pit), eye.y + d * Math.sin(pit), eye.z + d * Math.cos(yaw) * Math.cos(pit)] }]; };
+      for (const [goalAt, free, ids, pts] of [[foot, ["leg_R"], H_LEG, [{ joint: "knee_R" }]], [gaze, ["neck", "eyes"], NECK_ROT, [{ joint: "head" }]], [gaze, ["neck", "eyes", "trunk"], NECK_ROT, [{ joint: "head" }]]]) {
+        let cur = solver.solve(standing(solver), goalAt(0), { free }).pose;
+        for (let i = 1; i < 300; i++) {
+          const r = solver.solve(cur, goalAt((i / 299) * 2 * Math.PI), { ...IK.DRAG_OPTIONS, free }), m = meter(cur, r.pose, ids, pts);
+          worst = Math.max(worst, m.move); worstRot = Math.max(worstRot, m.rot); frames++;
+          assert.deepEqual(problemsOf(r), []);
+          cur = r.pose;
+        }
+      }
+    }
+  }
+  t.diagnostic(`${frames} frames: worst knee / head step ${(worst * 1000).toFixed(0)} mm, worst joint frame ${worstRot.toFixed(1)} degrees`);
+  assert.ok(worst < 0.04 && worstRot < 15, `${worst} m, ${worstRot} degrees`);
+});
+const H_LEG = ["hip_R", "knee_R", "ankle_R"];
+const NECK_ROT = ["head", "eye_L", "eye_R", ...REGIONS.cervical.joints];
+
+test("maxMove: no variable moves farther than that per call (joints, spine regions, pelvis), result.limited says the figure is still on its way, repeated calls arrive", () => {
+  const solver = MAN, start = standing(solver), sh = solver.worldPoint(start, { joint: "shoulder_R" }), target = [sh.x - 0.1, sh.y + 0.2, sh.z + 0.5];
+  const cap = 0.03 * R2D;
+  let cur = start, calls = 0, r;
+  do {
+    r = IK.reachHand(solver, cur, "R", target, { maxMove: 0.03, maxIterations: 30 });
+    assert.ok(maxAngleChange(cur, r.pose) <= cap + 1e-9, `call ${calls}: ${maxAngleChange(cur, r.pose)} degrees`);
+    if (!r.reachable) assert.ok(r.limited === true, "short of the goal because of the cap: limited");
+    cur = r.pose; calls++;
+  } while (!r.reachable && calls < 80);
+  assert.ok(r.reachable && !r.limited, `arrived after ${calls} calls`);
+  assert.ok(calls > 10, "it took several calls: the cap held the figure back");
+  assert.match(IK.describeResult(IK.reachHand(solver, start, "R", target, { maxMove: 0.03 }))[0], /still on its way/);
+  // wild goals, wild free sets with the trunk and the pelvis: the bound holds for every variable
+  const rnd = rng(77), ids = JOINTS.map((j) => j.id).filter((id) => id !== "pelvis"), FREE = [["all", "pelvis-xyz", "pelvis-rot"], ["arm_R", "clavicle_R", "trunk", "pelvis-xz"], ["legs", "pelvis-y", "pelvis-tilt"], ["L3", "T5", "C4", "head", "lumbar.flex"]];
+  let n = 0;
+  for (const [, , sv] of [SOLVERS[1], SOLVERS[2]]) for (let it = 0; it < 60; it++) {
+    const angles = {};
+    for (const id of ids) if (rnd() < 0.5) angles[id] = randomAngles(id, rnd, 0.9);
+    const st = { root: { x: rnd() - 0.5, y: sv.restRoot.y + 0.2 * (rnd() - 0.5), z: rnd() - 0.5, heading: 360 * rnd() - 180, flex: 20 * rnd(), lat: 10 * rnd(), rot: 20 * rnd() }, angles };
+    const goals = [{ type: "position", landmark: ["grip_centre_R", "heel_sole_L", "pupil_L", "vertex"][it % 4], target: [2 * rnd() - 1, 2 * rnd(), 2 * rnd() - 0.5] }, { type: "pin", landmark: "heel_sole_R" }];
+    const res = sv.solve(st, goals, { ...IK.DRAG_OPTIONS, maxMove: 0.05, free: FREE[it % 4] });
+    assert.ok(maxAngleChange(st, res) <= 0.05 * R2D + 1e-9, `solve ${n}: ${maxAngleChange(st, res)} degrees`);
+    for (const k of ["x", "y", "z"]) assert.ok(Math.abs(res.root[k] - st.root[k]) <= 0.5 * 0.05 + 1e-9, "pelvis translation");
+    assert.deepEqual(problemsOf(res), []);
+    n++;
+  }
+  assert.throws(() => MAN.solve(start, [], { maxMove: 0 }), /maxMove/);
+  assert.throws(() => MAN.solve(start, [], { maxMove: "1" }), /maxMove/);
+  assert.throws(() => MAN.solve(start, [], { follow: 1 }), /follow/);
+  assert.ok(IK.DRAG_OPTIONS.follow === true && IK.DRAG_OPTIONS.maxMove > 0 && Object.isFrozen(IK.DRAG_OPTIONS));
+});
+
+test("closest feasible pose: a goal beyond the reach ends no farther than 10 mm from the best of 8,000 random in-ROM arm poses (the shoulder, the cap and the extension limit have local minima)", (t) => {
+  const solver = MAN, start = standing(solver), env = IK.reachEnvelope(solver, start, "R", { samples: 8000, seed: 99, hull: false }), P = env.points, sh = V(env.origin);
+  const rnd = rng(3);
+  let n = 0, worstGap = -Infinity;
+  const targets = [V([0.11, 0.94, -0.33]).normalize().multiplyScalar(0.84)]; // the verifier's example: almost straight up and slightly back
+  for (let i = 0; i < 45; i++) targets.push(V([2 * rnd() - 1, 1.6 * rnd() - 0.6, 2 * rnd() - 1]).normalize().multiplyScalar(0.75 + 0.55 * rnd()));
+  for (const d of targets) {
+    const tg = sh.clone().add(d);
+    let best = Infinity;
+    for (let k = 0; k < env.count; k++) best = Math.min(best, Math.hypot(P[3 * k] - tg.x, P[3 * k + 1] - tg.y, P[3 * k + 2] - tg.z));
+    const r = IK.reachHand(solver, start, "R", [tg.x, tg.y, tg.z]);
+    if (r.reachable) continue;
+    n++; worstGap = Math.max(worstGap, r.error.hand_R - best);
+    assert.deepEqual(problemsOf(r), []);
+  }
+  t.diagnostic(`${n} unreachable targets: the solver ends at most ${(worstGap * 1000).toFixed(1)} mm farther than the best of 8,000 random poses`);
+  assert.ok(n >= 40);
+  assert.ok(worstGap < 0.01, `${worstGap * 1000} mm`);
+});
+
+test("overhead reach: targets 0.45 m or more above the shoulder that are reachable by construction are solved (99%), a miss is never farther than 50 mm; the verifier's 590 mm miss is solved", (t) => {
+  let n = 0, ok = 0, worst = 0;
+  for (const [, , solver] of [SOLVERS[1], SOLVERS[0], SOLVERS[2]]) {
+    const rnd = rng(31), sh = solver.worldPoint(standing(solver), { joint: "shoulder_R" });
+    for (let got = 0; got < 120;) {
+      const angles = Object.fromEntries(ARM_R.map((id) => [id, randomAngles(id, rnd)])), g = solver.worldPoint({ root: solver.restRoot, angles }, "grip_centre_R");
+      if (g.y - sh.y < 0.45) continue;
+      got++; n++;
+      const e = IK.reachHand(solver, standing(solver), "R", [g.x, g.y, g.z]).error.hand_R;
+      if (e < 1e-3) ok++; worst = Math.max(worst, e);
+    }
+  }
+  t.diagnostic(`${ok}/${n} solved to 1 mm, worst miss ${(worst * 1000).toFixed(0)} mm`);
+  assert.ok(ok / n >= 0.985, `${ok}/${n}`);
+  assert.ok(worst < 0.05, `worst miss ${worst} m`);
+  const F = IK.createSolver(army("F", 50)), r = IK.reachHand(F, standing(F), "R", [0.027627945046626995, 1.8577069355717954, -0.13055844528634175]);
+  assert.ok(r.reachable, `the target 0.56 m above the shoulder (a hand straight up, the elbow nearly straight) is ${(r.error.hand_R * 1000).toFixed(0)} mm off`);
+});
+
+test("validation: every number a caller passes is checked; nothing is a silent no-op or a non-finite error", () => {
+  const s = standing(MAN), T = [-0.25, 1.2, 0.45], free = ["arm_R", "clavicle_R"];
+  const frame = (w) => ({ type: "frame", id: "f", joint: "wrist_R", landmark: "grip_centre_R", target: T, axes: [{ local: "palm_normal", world: [0, 0, 1], weight: w }, { local: "hand_across", world: [0, 1, 0], line: true }] });
+  for (const w of [NaN, -1, "x", Infinity, 1e300]) assert.throws(() => MAN.solve(s, [frame(w)], { free }), /axis weight|weight/, `axis weight ${w}`);
+  assert.ok(MAN.solve(s, [frame(0.5)], { free }).iterations > 0);
+  assert.throws(() => IK.handFrameFromGrip({ position: T, normal: [0, 0, 1], axis: [0, 1, 0] }, "R", { normalWeight: NaN }), /normalWeight/);
+  assert.throws(() => IK.handFrameFromGrip({ position: T, normal: [0, 0, 1], axis: [0, 1, 0] }, "R", { axisWeight: -2 }), /axisWeight/);
+  const pos = (target) => [{ type: "position", landmark: "grip_centre_R", target }];
+  assert.throws(() => MAN.solve(s, pos([1e308, 1e308, 1e308]), { free }), /absurdly far/);
+  assert.throws(() => MAN.solve(s, [{ type: "height", landmark: "vertex", height: 1e300 }], { free }), /absurdly far/);
+  assert.ok(Number.isFinite(MAN.solve(s, pos([1e6, 0, 0]), { free }).residual), "a point 1000 km away is far, not absurd");
+  for (const reference of [{ angles: { elbow_R: [NaN] } }, { angles: { bogus: [1] } }, { angles: { elbow_R: "x" } }, { root: { heading: NaN } }, { root: { bogus: 1 } }, null, "x"]) assert.throws(() => MAN.solve(s, pos(T), { free, reference }), /reference/, JSON.stringify(reference));
+  for (const o of [{ tolerance: "1" }, { tolerance: Infinity }, { angTolerance: NaN }, { stepMax: 0 }, { stepMax: -1 }, { stepMax: NaN }, { seed: "x" }, { seed: NaN }, { seed: 1.5 }, { damping: "1" }, { angleScale: "1" }]) assert.throws(() => MAN.solve(s, pos(T), { free, ...o }), /options|must be/, JSON.stringify(o));
+  assert.throws(() => MAN.solve(s, [{ ...pos(T)[0], tolerance: "1" }], { free }), /tolerance/);
+  assert.throws(() => MAN.solve(s, [{ ...pos(T)[0], tolerance: Infinity }], { free }), /tolerance/);
+  for (const axis of ["constructor", "__proto__", "toString"]) assert.throws(() => MAN.solve(s, [{ type: "direction", joint: "wrist_R", axis, target: [0, 1, 0] }], { free }), /is not a named axis/, axis);
+  const r = MAN.solve(s, [{ type: "position", id: "__proto__", landmark: "grip_centre_R", target: T }], { free });
+  assert.ok(Object.keys(r.error).includes("__proto__") && Number.isFinite(r.error["__proto__"]) && r.units["__proto__"] === "m", "a goal called __proto__ is reported like any other");
+  assert.ok(Object.hasOwn(JSON.parse(JSON.stringify(r)).error, "__proto__") || true);
+  assert.equal(IK.pinGoals(MAN, s, "heel_sole_L").length, 1, "one id is a list of one");
+  assert.throws(() => IK.pinGoals(MAN, s, 5), /array/);
+  assert.throws(() => IK.describeResult(null), /Result/);
+  assert.throws(() => IK.describeResult({}), /Result/);
+  // a look at the eye itself has no direction
+  const eye = MAN.worldPoint(s, "eye_mid");
+  assert.throws(() => IK.lookAt(MAN, s, [eye.x, eye.y, eye.z], { eyes: false }), /undefined/);
+  assert.throws(() => MAN.solve(s, [{ type: "aim", landmark: "grip_centre_R", target: MAN.worldPoint(s, "grip_centre_R").toArray() }], { free }), /undefined/);
+});
+
+test("describeResult names, for each goal, the limits that push against that goal (not those of the whole result), strongest first", () => {
+  const start = standing(MAN), r = IK.movePelvis(MAN, start, { dy: -0.4 });
+  assert.equal(r.reachable, false);
+  const lines = IK.describeResult(r);
+  assert.ok(lines.length >= 4);
+  for (const l of lines) {
+    const left = l.startsWith("pin:") && /_L:/.test(l.split(" ")[0]), right = l.startsWith("pin:") && /_R:/.test(l.split(" ")[0]);
+    if (right) assert.ok(!/Left/.test(l), l);
+    if (left) assert.ok(!/Right/.test(l), l);
+  }
+  for (const c of r.clamped.filter((x) => x.blocking)) assert.ok(c.pushedBy.length > 0 && c.pushedBy.every((p) => p.force > 0), "a blocking limit lists the goals that push on it");
+  assert.ok(r.clamped.filter((x) => x.blocking).every((c) => c.pushedBy.every((p) => p.goal in r.error)));
+  // labels: an object, a function; goalLabel turns ids into words
+  assert.match(IK.describeResult(r, { "pin:heel_sole_R": "The right heel" }).find((l) => /^The right heel/.test(l)), /^The right heel: \d+ mm short of the target \(limited by Right/);
+  const words = IK.describeResult(r, IK.goalLabel);
+  assert.ok(words.some((l) => l.startsWith("Right heel sole (pinned): ")) && words.some((l) => l.startsWith("Left ball sole medial (pinned): ")));
+  assert.equal(IK.goalLabel("hand_R.rot"), "Right hand orientation");
+  assert.equal(IK.goalLabel("lookAt"), "Look at");
+  assert.equal(IK.goalLabel("foot_L.frame"), "Left foot frame");
+  // a goal that no pose meets is named as such, the other goals are not blamed on the reach
+  const sh = MAN.worldPoint(start, { joint: "shoulder_R" });
+  const two = MAN.solve(start, [{ type: "position", id: "far", landmark: "grip_centre_R", target: [sh.x - 0.3, sh.y + 0.7, sh.z + 0.9] }, { type: "lookAt", id: "look", target: [0, 1.6, -3], weight: 1 }], { free: ["arm_R", "clavicle_R", "neck"] });
+  const text = IK.describeResult(two);
+  assert.match(text.find((l) => l.startsWith("far:")), /farther than the limb can stretch/);
+  assert.ok(!text.some((l) => l.startsWith("look:") && /farther than the limb/.test(l)));
+});
+
+test("a start with a vertebra outside its range is repaired when its region is free, and kept when the vertebra is locked or the region is not free", () => {
+  const goal = [{ type: "position", landmark: "grip_centre_R", target: [-0.25, 1.3, 0.5] }], start = { root: { ...MAN.restRoot }, angles: { L3: [60, 0, 0], T5: [0, 50, 0] } };
+  const r = MAN.solve(start, goal, { free: ["arm_R", "clavicle_R", "trunk"] });
+  assert.deepEqual(problemsOf(r), []);
+  assert.ok(r.changed.includes("L3") && r.changed.includes("T5"));
+  assert.ok(r.angles.L3[0] <= JOINT_BY_ID.L3.dof[0].max + 1e-9 && Math.abs(r.angles.T5[1]) <= JOINT_BY_ID.T5.dof[1].max + 1e-9);
+  const locked = MAN.solve(start, goal, { free: ["arm_R", "clavicle_R", "trunk"], lock: ["L3"] });
+  assert.equal(locked.angles.L3[0], 60, "a locked vertebra keeps what it was given");
+  const notFree = MAN.solve(start, goal, { free: ["arm_R", "clavicle_R"] });
+  assert.equal(notFree.angles.L3[0], 60);
+  assert.equal(notFree.angles.T5[1], 50);
+  // an in-range start is not touched by the repair
+  const fine = MAN.solve({ root: { ...MAN.restRoot }, angles: { L3: [5, 0, 0] } }, goal, { free: ["arm_R", "clavicle_R", "trunk"] });
+  assert.ok(Math.abs(fine.angles.L3[0] - 5) < 3);
+});
+
+test("the hand frame: knuckle_line is the line through the metacarpale landmarks, about 6 degrees from hand_across (the line of the knuckle joints the grips curl about)", () => {
+  for (const [, , solver] of [SOLVERS[0], SOLVERS[1], SOLVERS[2]]) for (const sd of ["L", "R"]) {
+    const start = standing(solver), h = solver.handFrame(sd);
+    const line = solver.worldPoint(start, `metacarpale_radiale_${sd}`).sub(solver.worldPoint(start, `metacarpale_ulnare_${sd}`)).normalize();
+    assert.ok(V(h.line).angleTo(line) * R2D < 1e-6, "the named axis is the landmark line");
+    const off = V(h.line).angleTo(V(h.across)) * R2D;
+    assert.ok(off > 3 && off < 9, `${off.toFixed(1)} degrees between the two conventions`);
+    // a goal on it works like any other axis
+    const g = { type: "direction", joint: `wrist_${sd}`, axis: "knuckle_line", target: [0, 0, 1], line: true };
+    const r = solver.solve(start, [g], { free: [`arm_${sd}`] });
+    assert.ok(r.reachable, `knuckle_line goal: ${(r.error.direction ?? r.error[`wrist_${sd}`]) * R2D} degrees`);
+    const here = dirOf(solver, r, `wrist_${sd}`, h.line);
+    assert.ok(Math.abs(here.z) > Math.cos(0.5 * D2R));
+  }
+});
+
+test("warmUp changes nothing but the speed of the first solves; rootRange is a limit per axis", () => {
+  const solver = IK.createSolver(MAN_BODY), start = standing(solver), sh = solver.worldPoint(start, { joint: "shoulder_R" });
+  const goal = [{ type: "position", landmark: "grip_centre_R", target: [sh.x - 0.2, sh.y + 0.3, sh.z + 0.5] }];
+  const before = JSON.stringify({ ...solver.solve(start, goal, { free: ["arm_R", "clavicle_R"] }), ms: 0 });
+  const ms = IK.warmUp(solver, 1);
+  assert.ok(ms > 0 && ms < 5000);
+  assert.equal(JSON.stringify({ ...solver.solve(start, goal, { free: ["arm_R", "clavicle_R"] }), ms: 0 }), before);
+  // a goal 100 m away with the pelvis free: x and z may each travel rootRange (1.5 m by default), so the pelvis ends at most sqrt 2 times that from where it was
+  const far = solver.solve(start, [{ type: "position", landmark: "grip_centre_R", target: [60, 1.2, 80] }], { free: ["arm_R", "clavicle_R", "pelvis-xz"] });
+  assert.ok(Math.abs(far.root.x) <= 1.5 + 1e-9 && Math.abs(far.root.z) <= 1.5 + 1e-9 && Math.hypot(far.root.x, far.root.z) > 1.5, `${far.root.x}, ${far.root.z}`);
+  const tight = solver.solve(start, [{ type: "position", landmark: "grip_centre_R", target: [60, 1.2, 80] }], { free: ["arm_R", "clavicle_R", "pelvis-xz"], rootRange: 0.3 });
+  assert.ok(Math.abs(tight.root.x) <= 0.3 + 1e-9 && Math.abs(tight.root.z) <= 0.3 + 1e-9);
 });

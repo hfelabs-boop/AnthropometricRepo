@@ -22,7 +22,15 @@
 //   goals are met to the tolerance when they can be met at all;
 // * a start that fails (a local minimum at the joint limits, an arm that has to go over the head) is retried: the analytic two-bone solution
 //   (shoulder-elbow-wrist, hip-knee-ankle, elbow / knee toward a pole direction, swivel sampled inside the range of motion), then random poses ranked by
-//   cost, deterministically (seeded). A reach bound (a straight chain of the free joints) tells goals that no pose can reach: no restarts for those.
+//   cost, deterministically (seeded). The runs from the start and from the analytic poses can all fall into the same corner of the ranges, so the search
+//   stops early only when random poses have agreed too. A reach bound (a straight chain of the free joints) tells goals that no pose can reach: for those
+//   the closest pose is searched for (the distance has local minima as well), unless the first run is already as close as the straight chain allows;
+// * FOLLOWING a pose (the start is within 5 cm of the goals, or options.follow: a drag): the pose is the previous frame, so it is never replaced by an
+//   analytic or random pose; the variables stay in a trust region around it (0.03 rad + 4 rad per metre of starting error, widened only when the soft
+//   preferences are out of the way and a variable sits on the border), and options.maxMove bounds the move of every variable per call (DRAG_OPTIONS: 0.04 rad).
+//   The soft preferences that are absolute (the pole of the elbow, the avoidance of the ends of the ranges) would otherwise carry the pose to wherever they
+//   are minimal in one call, and a minimum that appears or disappears with the goal makes the pose jump; the avoidance keeps a tracked hand out of the corners
+//   of the ranges (a joint at its limit, the clavicle at both of its limits, the shoulder at the 180 degree cap) where the figure would stop following.
 // Everything in solve() is deterministic. The iteration loop works on preallocated typed arrays (under 0.3 KB of garbage per iteration, measured); the
 // set-up of a solve and its Result allocate some 100 KB.
 //
@@ -91,10 +99,12 @@ const ROOT_GROUP = {
 const ALL_GROUPS = ["arms", "clavicles", "legs", "neck", "eyes", "trunk"]; // 'all'
 
 /**
- * Options for a live drag: no restarts (the previous pose is the right basin, so a goal beyond the reach costs one run, not nine) and a short iteration budget.
+ * Options for a live drag: no restarts (the previous pose is the right basin, so a goal beyond the reach costs one run, not nine), a short iteration budget,
+ * `follow` (the start is the previous frame: it is never replaced by an analytic or random pose) and `maxMove` 0.04 (no variable changes by more than 2.3 degrees
+ * per call: a pose that is stuck, or a handle that jumps, makes the figure glide toward the goal over a few frames instead of snapping; `result.limited` says so).
  * solver.solve(pose, goals, { ...DRAG_OPTIONS, free }) ; call again without them when the drag ends if the result must be as good as the solver can make it.
  */
-export const DRAG_OPTIONS = Object.freeze({ restarts: 0, maxIterations: 24 });
+export const DRAG_OPTIONS = Object.freeze({ restarts: 0, maxIterations: 24, follow: true, maxMove: 0.04 });
 
 /** Names accepted by options.free / options.lock besides joint ids ("elbow_R") and joint.dof ("shoulder_R.rot"). */
 export const FREE_GROUPS = Object.freeze([
@@ -109,6 +119,17 @@ const COST = {
   vertebra: 0.04, lumbar: 0.03, thoracic: 0.03, cervical: 0.012,
   tx: 0.15, ty: 0.05, tz: 0.15, heading: 0.03, tilt: 0.03, // pelvis: metres per metre (a step is the last resort, a squat is cheaper), radians
 };
+// Soft avoidance of the ends of the ranges of motion (cost length in metres per radian, and the width of the zone before each end as a part of the half range):
+// a tracked hand that wanders into a corner of the ranges (a joint at its limit, the clavicle at both of its limits, the shoulder at the 180 degree cap) has no
+// way out and the figure stops following the handle; this keeps the redundant joints away from the ends while a goal can still be met. It is scaled by mu like
+// the other soft preferences, so a goal that needs the end of a range gets it. Only while following a pose (a drag): for a reach from far away the order of
+// the stiffness decides which joint takes the motion, and a clavicle at its limit is better than an elbow that is never straight.
+const LIMIT_COST = 0.05, LIMIT_ZONE = 0.5;
+// The trust region of a solve that follows a previous pose: the variables stay within TRUST_MIN + TRUST_GAIN * (worst starting goal error in metres) radians of
+// their start (a translation counts TRANS_PER_RAD metres per radian), widened by TRUST_GROW when the soft preferences are exhausted and a variable sits on the border of the region.
+const TRUST_MIN = 0.03, TRUST_GAIN = 4, TRUST_GROW = 4, TRUST_OPEN = 6, FOLLOW_BELOW = 0.05;
+const CLOSEST_RESTARTS = 10; // restarts for a goal beyond the reach: the closest pose is searched for, not a pose that meets it
+const TRANS_PER_RAD = 0.5; // metres of pelvis translation that count as one radian in the trust region
 const DOF_FACTOR = { "shoulder.rot": 1.5, "hip.rot": 1.5, "knee.rot": 2, "ankle.inv": 2, "ankle.rot": 2, "wrist.dev": 1.2, "hip.abd": 1.2 };
 function costOf(jd, d) {
   const b = baseName(jd.id);
@@ -130,16 +151,19 @@ for (const s of SIDES) {
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Small helpers
-function vec3(v, what) {
+const FAR = 1e7; // metres: a point beyond ten thousand kilometres is a mistake, and its square would not leave room for the sums of the solver
+function vec3(v, what, far = FAR) {
   const a = Array.isArray(v) || ArrayBuffer.isView(v) ? v : v !== null && typeof v === "object" ? [v.x, v.y, v.z] : null;
   if (!a || a.length !== 3) throw new TypeError(`${what} must be [x, y, z] (metres)`);
   if (!isNum(a[0]) || !isNum(a[1]) || !isNum(a[2])) throw new RangeError(`${what} must be three finite numbers, got ${JSON.stringify([a[0], a[1], a[2]])}`);
+  if (Math.abs(a[0]) > far || Math.abs(a[1]) > far || Math.abs(a[2]) > far) throw new RangeError(`${what} is absurdly far away (more than ${far} m from the origin): ${JSON.stringify([a[0], a[1], a[2]])}`);
   return [a[0], a[1], a[2]];
 }
-function unit3(v, what) {
-  const a = vec3(v, what), l = Math.hypot(a[0], a[1], a[2]);
-  if (!(l > 1e-12)) throw new RangeError(`${what} must not be the zero vector`);
-  return [a[0] / l, a[1] / l, a[2] / l];
+function unit3(v, what) { // a direction: any length is fine, only its direction counts
+  const a = vec3(v, what, Infinity), m = Math.max(Math.abs(a[0]), Math.abs(a[1]), Math.abs(a[2]));
+  if (!(m > 1e-12)) throw new RangeError(`${what} must not be the zero vector`);
+  const b = [a[0] / m, a[1] / m, a[2] / m], l = Math.hypot(b[0], b[1], b[2]); // scaled first: the length of [1e200, 1e200, 0] does not overflow
+  return [b[0] / l, b[1] / l, b[2] / l];
 }
 function mulberry32(a) {
   return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -219,7 +243,16 @@ export function createSolver(body) {
     f = norm3([f[0] - d * across[0], f[1] - d * across[1], f[2] - d * across[2]]);
     let n = norm3(cross3(f, across));
     if (n[0] * w[0] > 0) n = [-n[0], -n[1], -n[2]]; // the palm faces the midline in the neutral pose
-    S.hand[s] = { finger: f, across, normal: n };
+    // the line through the landmarks of the heads of the metacarpals (what a measurement along the knuckles sees): about 6 degrees from the line of the knuckle
+    // joints in the neutral pose, which is the hand_across the grips use (the fingers curl about the joints). Same sign as hand_across.
+    let line = null;
+    const mr = lm.get(`metacarpale_radiale_${s}`), mu = lm.get(`metacarpale_ulnare_${s}`);
+    if (mr && mu) {
+      const at = (e) => [0, 1, 2].map((k) => P0[3 * e.ji + k] + e.off[k]); // every joint frame is the world frame in the neutral pose
+      line = norm3(sub3(at(mr), at(mu)));
+      if (dot3(line, across) < 0) line = line.map((v) => -v);
+    }
+    S.hand[s] = { finger: f, across, normal: n, line };
   }
   S.limbs = LIMBS.map((L) => {
     const U = pos0(IDS[L.u]), M = pos0(IDS[L.m]), E = pos0(IDS[L.e]);
@@ -230,7 +263,7 @@ export function createSolver(body) {
   for (let i = 0; i < N; i++) {
     const id = IDS[i], s = JOINTS[i].side;
     let ax = { forward: [0, 0, 1], up: [0, 1, 0], left: [1, 0, 0] };
-    if (id.startsWith("wrist_")) ax = { palm_normal: S.hand[s].normal, finger_axis: S.hand[s].finger, hand_across: S.hand[s].across };
+    if (id.startsWith("wrist_")) ax = { palm_normal: S.hand[s].normal, finger_axis: S.hand[s].finger, hand_across: S.hand[s].across, ...(S.hand[s].line ? { knuckle_line: S.hand[s].line } : {}) };
     else if (id.startsWith("ankle_") || id.startsWith("mtp_")) ax = { foot_forward: [0, 0, 1], foot_up: [0, 1, 0], sole_normal: [0, -1, 0] };
     else if (id === "head" || id.startsWith("eye_")) ax = { gaze: [0, 0, 1], head_up: [0, 1, 0] };
     S.axes.set(i, ax);
@@ -245,8 +278,8 @@ export function createSolver(body) {
     solve: (start, goals, options) => solveImpl(S, start, goals, options),
     /** World position of a landmark id, or of { joint, local } in a pose (strict: validates the pose). */
     worldPoint: (pose, point, out = new THREE.Vector3()) => worldPointImpl(S, pose, point, out),
-    /** Named hand axes of the neutral pose, in the wrist frame: { finger, across, normal } per side (unit vectors). */
-    handFrame: (side) => { const h = S.hand[sideOf(side)]; return { finger: [...h.finger], across: [...h.across], normal: [...h.normal] }; },
+    /** Named hand axes of the neutral pose, in the wrist frame: { finger, across, normal, line } per side (unit vectors; line: through the metacarpale landmarks, about 6 degrees from across). */
+    handFrame: (side) => { const h = S.hand[sideOf(side)]; return { finger: [...h.finger], across: [...h.across], normal: [...h.normal], ...(h.line ? { line: [...h.line] } : {}) }; },
     /** Diagnostics: the Jacobian the solver uses, { names, rows, J (row-major m x n), r, x, poseAt(x) }. Used by the tests. */
     jacobian: (start, goals, options) => jacobianImpl(S, start, goals, options),
     /** Random in-ROM poses of an arm (and the trunk): end points, bounds and convex hull of the reachable region. See reachEnvelope(). */
@@ -318,7 +351,7 @@ function pointOf(S, g, what) {
 }
 function localDir(S, ji, spec, what) {
   if (typeof spec === "string") {
-    const a = S.axes.get(ji)[spec];
+    const table = S.axes.get(ji), a = Object.hasOwn(table, spec) ? table[spec] : null;
     if (!a) throw new Error(`${what}: "${spec}" is not a named axis of ${IDS[ji]} (known: ${Object.keys(S.axes.get(ji)).join(", ")})`);
     return a.slice();
   }
@@ -339,10 +372,10 @@ function compileGoals(P, goals, options) {
   const S = P.S, terms = [], slots = [], ids = new Set();
   if (!Array.isArray(goals)) throw new TypeError("goals must be an array");
   const angTol = options.angTolerance ?? DEFAULT_ANG_TOL, posTol = options.tolerance ?? DEFAULT_TOL;
-  if (!(posTol > 0) || !(angTol > 0)) throw new RangeError("tolerance and angTolerance must be positive");
+  if (!(isNum(posTol) && posTol > 0) || !(isNum(angTol) && angTol > 0)) throw new RangeError("options.tolerance (metres) and options.angTolerance (radians) must be finite numbers > 0");
   const uniq = (base) => { let id = base, k = 2; while (ids.has(id)) id = `${base}#${k++}`; ids.add(id); return id; };
   const slot = (id, unit, tol) => { slots.push({ id, unit, tol, err: 0 }); return slots.length - 1; };
-  const needStartFK = goals.some((g) => g && g.type === "pin" && g.target == null);
+  const needStartFK = goals.some((g) => g && ((g.type === "pin" && g.target == null) || g.type === "aim" || g.type === "lookAt"));
   if (needStartFK) S.kin.solve(S.ang, S.root);
   goals.forEach((g, gi) => {
     if (g === null || typeof g !== "object") throw new TypeError(`goal ${gi} must be an object`);
@@ -352,16 +385,21 @@ function compileGoals(P, goals, options) {
     const id = uniq(String(idBase));
     const what = `goal "${id}"`;
     const weight = g.weight ?? (type === "pin" ? 100 : 1);
-    if (!isNum(weight) || weight < 0) throw new RangeError(`${what}: weight must be a number >= 0`);
+    if (!isNum(weight) || weight < 0 || weight > 1e12) throw new RangeError(`${what}: weight must be a finite number from 0 to 1e12`);
     if (weight === 0) return;
     // `tolerance` is in the unit of the goal's error: metres for a point, radians for a direction, an aim, a look-at, a frame without a position;
     // `angTolerance` is the radians of the orientation of a frame that also has a position. A pin is meant to stay put: five times tighter.
     const angular = type === "direction" || type === "aim" || type === "lookAt" || (type === "frame" && g.target == null);
     const tol = angular ? posTol : g.tolerance ?? (type === "pin" ? 0.2 * posTol : posTol);
     const atol = g.angTolerance ?? (angular ? g.tolerance : undefined) ?? angTol;
-    if (!(tol > 0) || !(atol > 0)) throw new RangeError(`${what}: tolerance must be positive`);
+    if (!(isNum(tol) && tol > 0) || !(isNum(atol) && atol > 0)) throw new RangeError(`${what}: tolerance and angTolerance must be finite numbers > 0`);
     const add = (t) => terms.push({ w: weight, ...t });
-    const aimTerm = (pt, dirSpec, target, sl) => add({ kind: T_AIM, ji: pt.ji, off: pt.off, dir: localDir(S, pt.ji, dirSpec, `${what}.axis`), tgt: target, slot: sl });
+    const aimTerm = (pt, dirSpec, target, sl) => {
+      // the direction from the point to the target is undefined when they coincide (the gaze at the eye itself)
+      const here = toWorld(S.kin, pt.ji, pt.off, new THREE.Vector3());
+      if (Math.hypot(here.x - target[0], here.y - target[1], here.z - target[2]) < 1e-6) throw new RangeError(`${what}: the target is at the point that aims (${here.x.toFixed(3)}, ${here.y.toFixed(3)}, ${here.z.toFixed(3)}): the direction is undefined`);
+      add({ kind: T_AIM, ji: pt.ji, off: pt.off, dir: localDir(S, pt.ji, dirSpec, `${what}.axis`), tgt: target, slot: sl });
+    };
     switch (type) {
       case "position": case "pin": {
         const pt = pointOf(S, g, what);
@@ -374,6 +412,7 @@ function compileGoals(P, goals, options) {
       case "height": {
         const pt = pointOf(S, g, what);
         if (!isNum(g.height)) throw new TypeError(`${what}: a height goal needs height (metres along the direction, default up)`);
+        if (Math.abs(g.height) > FAR) throw new RangeError(`${what}: height ${g.height} is absurdly far away`);
         const n = g.direction != null ? unit3(g.direction, `${what}.direction`) : [0, 1, 0];
         add({ kind: T_HEIGHT, ji: pt.ji, off: pt.off, dir: n, tgt: [n[0] * g.height, n[1] * g.height, n[2] * g.height], slot: slot(id, "m", tol) });
         break;
@@ -416,7 +455,11 @@ function compileGoals(P, goals, options) {
         if (!axes.length && !hasPoint) throw new Error(`${what}: a frame goal needs axes, a quaternion or a frame { x, y, z }, or a target`);
         if (axes.length) {
           const sl = slot(hasPoint ? `${id}.rot` : id, "rad", atol);
-          for (const a of axes) add({ kind: T_DIR, ji, dir: localDir(S, ji, a.local, `${what}.axes.local`), tgt: unit3(a.world, `${what}.axes.world`), line: !!a.line, w: weight * (a.weight ?? 1), slot: sl });
+          for (const a of axes) {
+            const aw = a.weight ?? 1;
+            if (!isNum(aw) || aw < 0 || !isNum(weight * aw)) throw new RangeError(`${what}.axes: an axis weight must be a finite number >= 0, got ${JSON.stringify(a.weight)}`);
+            add({ kind: T_DIR, ji, dir: localDir(S, ji, a.local, `${what}.axes.local`), tgt: unit3(a.world, `${what}.axes.world`), line: !!a.line, w: weight * aw, slot: sl });
+          }
         }
         break;
       }
@@ -485,7 +528,27 @@ function applyNames(S, flags, names, value, what, goalJoints) {
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The problem
-const OPTION_KEYS = ["free", "lock", "maxIterations", "tolerance", "angTolerance", "damping", "stiffness", "reference", "referenceWeight", "pole", "poleWeight", "angleScale", "stepMax", "rootRange", "restarts", "seed", "warmStart"];
+/** options.reference is a pose like start: unknown joints, non-finite angles and root fields are errors (a silent NaN would stop the solve before it began). */
+function checkReference(ref) {
+  const root = ref.root ?? null, angles = ref.angles ?? null;
+  if (root !== null) {
+    if (typeof root !== "object") throw new TypeError("options.reference.root must be an object { x, y, z, heading, flex, lat, rot }");
+    for (const k of Object.keys(root)) if (!["x", "y", "z", "heading", "flex", "lat", "rot"].includes(k)) throw new Error(`options.reference.root: unknown field "${k}"`);
+    try { checkRoot(root); } catch (e) { e.message = `options.reference: ${e.message}`; throw e; }
+  }
+  if (angles !== null) {
+    if (typeof angles !== "object") throw new TypeError("options.reference.angles must be an object { jointId: [degrees] }");
+    const scratch = new Float64Array(3);
+    for (const id of Object.keys(angles)) {
+      const i = INDEX.get(id);
+      if (i === undefined) throw new Error(`options.reference.angles: unknown joint id "${id}"`);
+      const v = angles[id];
+      if (v === null || typeof v !== "object" || typeof v.length !== "number") throw new TypeError(`options.reference.angles.${id} must be an array in DOF order (${JOINTS[i].dof.map((d) => d.key).join(", ")})`);
+      try { checkedAngles(JOINTS[i], v, scratch); } catch (e) { e.message = `options.reference: ${e.message}`; throw e; }
+    }
+  }
+}
+const OPTION_KEYS = ["free", "lock", "maxIterations", "tolerance", "angTolerance", "damping", "stiffness", "reference", "referenceWeight", "pole", "poleWeight", "angleScale", "stepMax", "rootRange", "restarts", "seed", "warmStart", "follow", "maxMove", "limitStiffness"];
 function compile(S, start, goals, options) {
   if (options === null || typeof options !== "object") throw new TypeError("options must be an object");
   for (const k of Object.keys(options)) if (!OPTION_KEYS.includes(k)) throw new Error(`unknown option "${k}" (known: ${OPTION_KEYS.join(", ")})`);
@@ -516,10 +579,12 @@ function compile(S, start, goals, options) {
       let sumA = 0, sumB = 0;
       const A = new Float64Array(R.n), B = new Float64Array(R.n), base = new Float64Array(R.n);
       for (let v = 0; v < R.n; v++) {
-        const cur = S.angArr[R.ji[v]][c] * D2R;
-        base[v] = S.angArr[R.ji[v]][c];
+        const locked = flags.locked[R.ji[v] * 3 + c], dd = JOINTS[R.ji[v]].dof[c];
+        // a vertebra outside its range is repaired like any free joint (a locked one keeps what it was given); the region total is on top of that
+        base[v] = locked ? S.angArr[R.ji[v]][c] : Math.min(dd.max, Math.max(dd.min, S.angArr[R.ji[v]][c]));
+        const cur = base[v] * D2R;
         A[v] = Math.min(0, R.lo[c][v] - cur); B[v] = Math.max(0, R.hi[c][v] - cur);
-        if (flags.locked[R.ji[v] * 3 + c]) A[v] = B[v] = 0; // a locked vertebra of a free region carries none of the total
+        if (locked) A[v] = B[v] = 0; // a locked vertebra of a free region carries none of the total
         sumA += A[v]; sumB += B[v];
         flags.dof[R.ji[v] * 3 + c] = 0; // the region carries it
       }
@@ -554,9 +619,17 @@ function compile(S, start, goals, options) {
     names.push(`pelvis.${rootNames[k]}`); rbase.push(null); rA.push(null); rB.push(null);
   }
   const n = vk.length;
+  const limitCost = options.limitStiffness ?? LIMIT_COST; // only while following a pose unless asked for, see optimise()
+  if (!(isNum(limitCost) && limitCost >= 0)) throw new RangeError("options.limitStiffness must be a cost length >= 0 (metres per radian)");
   Object.assign(P, {
     n, nt, vk: Uint8Array.from(vk), vj: Int16Array.from(vj), vd: Int8Array.from(vd), lo: Float64Array.from(lo), hi: Float64Array.from(hi), x0: Float64Array.from(x0), x0deg: Float64Array.from(x0deg),
     s: Float64Array.from(cost, (c) => c * c), names, rbase, rA, rB, flags,
+    tlo: Float64Array.from(lo), thi: Float64Array.from(hi), B: Infinity, // the trust region (see setBox); lo / hi are the ranges of motion
+    // the avoidance of the ends of the ranges: weight, and the borders of the zones (-Infinity / Infinity: none). A limit at 0 (the elbow and the knee straight)
+    // is the rest posture, not a corner: it has no zone
+    lb: Float64Array.from(vk, (v) => (v === 0 ? limitCost * limitCost : 0)),
+    zl: Float64Array.from(vk, (v, k) => (v === 0 && lo[k] < -1e-9 ? lo[k] + LIMIT_ZONE * 0.5 * (hi[k] - lo[k]) : -Infinity)),
+    zh: Float64Array.from(vk, (v, k) => (v === 0 && hi[k] > 1e-9 ? hi[k] - LIMIT_ZONE * 0.5 * (hi[k] - lo[k]) : Infinity)),
     x: Float64Array.from(x0), xt: new Float64Array(n), xr: Float64Array.from(x0),
     rdelta: new Float64Array(n * MAXV), rdw: new Float64Array(n * MAXV), // region shares and their derivatives per variable
   });
@@ -567,11 +640,16 @@ function compile(S, start, goals, options) {
     for (let k = 0; k < n; k++) if (vk[k] === 0 && vj[k] === ji && JOINTS[ji].dof[vd[k]].role !== "twist") ks.push(k);
     if (ks.length) P.caps.push({ ji, ks, u: new Float64Array(ks.length), on: false });
   }
+  // the projection onto the cap (the nearest point of a disk) moves the swing by no more than the step it corrects: a box of B / sqrt 2 keeps the move of each
+  // component within B (a box corner is sqrt 2 B away)
+  P.boxScale = new Float64Array(n).fill(1);
+  for (const c of P.caps) if (c.ks.length > 1) for (const k of c.ks) P.boxScale[k] = Math.SQRT1_2;
   // ---- reference pose (null-space pull)
   P.refW = 0;
   if (options.reference != null) {
     const ref = options.reference;
-    if (typeof ref !== "object") throw new TypeError("options.reference must be a pose { root, angles }");
+    if (ref === null || typeof ref !== "object") throw new TypeError("options.reference must be a pose { root, angles }");
+    checkReference(ref);
     P.refW = options.referenceWeight ?? 0.25;
     if (!(isNum(P.refW) && P.refW >= 0)) throw new RangeError("options.referenceWeight must be a number >= 0");
     for (let k = 0; k < n; k++) {
@@ -587,7 +665,7 @@ function compile(S, start, goals, options) {
   }
   // ---- term arrays
   const wsc = options.angleScale ?? 0.3;
-  if (!(wsc > 0)) throw new RangeError("options.angleScale must be > 0 (metres of residual per radian)");
+  if (!(isNum(wsc) && wsc > 0)) throw new RangeError("options.angleScale must be a finite number > 0 (metres of residual per radian)");
   P.angleScale = wsc;
   P.tk = new Uint8Array(nt); P.tj = new Int16Array(nt); P.toff = new Float64Array(3 * nt); P.tdir = new Float64Array(3 * nt); P.ttgt = new Float64Array(3 * nt);
   P.tsw = new Float64Array(nt); P.tbase = new Float64Array(nt); P.tsign = new Float64Array(nt).fill(1); P.tline = new Uint8Array(nt); P.tslot = new Int16Array(nt);
@@ -636,12 +714,20 @@ function compile(S, start, goals, options) {
   P.sol = new Float64Array(n); P.idx = new Int16Array(n); P.fpos = new Int16Array(n); P.tvars = new Int16Array(n);
   P.lambda0 = options.damping ?? 1e-3;
   P.stepMax = options.stepMax ?? 0.4;
-  if (!(P.lambda0 > 0)) throw new RangeError("options.damping must be > 0");
+  if (!(isNum(P.lambda0) && P.lambda0 > 0)) throw new RangeError("options.damping must be a finite number > 0");
+  if (!(typeof P.stepMax === "number" && P.stepMax > 0)) throw new RangeError("options.stepMax must be a number > 0 (the largest change of one variable per iteration, radians or metres)");
   P.maxIter = options.maxIterations ?? 60;
   if (!(Number.isInteger(P.maxIter) && P.maxIter >= 0)) throw new RangeError("options.maxIterations must be an integer >= 0");
   if (options.restarts !== undefined && !(Number.isInteger(options.restarts) && options.restarts >= 0)) throw new RangeError("options.restarts must be an integer >= 0");
   P.restarts = options.restarts ?? -1; // -1: automatic, see optimise()
+  if (options.follow !== undefined && typeof options.follow !== "boolean") throw new TypeError("options.follow must be true, false or undefined (automatic)");
+  P.followOpt = options.follow ?? null;
+  P.restartsAuto = options.restarts === undefined;
+  P.limitOpt = options.limitStiffness;
+  P.maxMove = options.maxMove ?? Infinity;
+  if (!(typeof P.maxMove === "number" && P.maxMove > 0)) throw new RangeError("options.maxMove must be a number > 0 (radians per variable per call; Infinity: unlimited)");
   P.seed = options.seed ?? 20240607;
+  if (!Number.isInteger(P.seed)) throw new RangeError("options.seed must be an integer");
   P.useWarm = options.warmStart !== false;
   P.poleDir = new Float64Array(3 * P.poles.length); P.pf = new Float64Array(11 * P.poles.length);
   return P;
@@ -802,8 +888,12 @@ function evalTerms(P) {
 
 function regCost(P, x) {
   let c = 0;
-  const { n, s, x0, xr } = P;
-  for (let k = 0; k < n; k++) { const d = x[k] - x0[k]; c += s[k] * d * d; }
+  const { n, s, x0, xr, lb, zl, zh } = P;
+  for (let k = 0; k < n; k++) {
+    const d = x[k] - x0[k];
+    c += s[k] * d * d;
+    if (lb[k] > 0) { const e = x[k] < zl[k] ? zl[k] - x[k] : x[k] > zh[k] ? x[k] - zh[k] : 0; c += lb[k] * e * e; }
+  }
   c *= P.mu;
   if (P.rho > 0) { let c2 = 0; for (let k = 0; k < n; k++) { const d = x[k] - P.xr[k]; c2 += s[k] * d * d; } c += P.mu * P.rho * c2; }
   return 0.5 * c;
@@ -1030,13 +1120,14 @@ function cholSolve(H, nf, b, out) {
 
 /** Gradient g, the active set (variables not blocked at a limit) and the normal matrix of the active variables, at the current state. */
 function prepareStep(P, x) {
-  const { n, m, J, r, s, x0, xr, lo, hi, g, act, posn } = P;
+  const { n, m, J, r, s, x0, xr, g, act, posn, lb, zl, zh } = P, lo = P.tlo, hi = P.thi;
   const eps = 1e-10;
   for (let k = 0; k < n; k++) {
     let a = 0;
     const o = k * m;
     for (let i = 0; i < m; i++) a += J[o + i] * r[i];
     a += P.mu * s[k] * (x[k] - x0[k]);
+    if (lb[k] > 0) { if (x[k] < zl[k]) a -= P.mu * lb[k] * (zl[k] - x[k]); else if (x[k] > zh[k]) a += P.mu * lb[k] * (x[k] - zh[k]); }
     if (P.rho > 0) a += P.mu * P.rho * s[k] * (x[k] - xr[k]);
     g[k] = a;
   }
@@ -1077,12 +1168,16 @@ function prepareStep(P, x) {
       }
     }
   }
-  for (let a = 0; a < na; a++) H[a * na + a] += P.mu * s[act[a]] * (1 + P.rho);
+  for (let a = 0; a < na; a++) {
+    const k = act[a];
+    H[a * na + a] += P.mu * s[k] * (1 + P.rho);
+    if (lb[k] > 0 && (x[k] < zl[k] || x[k] > zh[k])) H[a * na + a] += P.mu * lb[k];
+  }
 }
 
 /** One solve of the damped, box-constrained step into P.dl; `mask` bit c = the cap c is held (its radial step is forced to zero by a stiff penalty). */
 function solveStep(P, x, lam, mask) {
-  const { na, act, posn, lo, hi, g, H0, Hs, b, dl, fx, sol, idx, fpos } = P;
+  const { na, act, posn, g, H0, Hs, b, dl, fx, sol, idx, fpos } = P, lo = P.tlo, hi = P.thi;
   dl.fill(0);
   fx.fill(0);
   let nf = na;
@@ -1133,6 +1228,24 @@ function computeStep(P, x, lam) {
 }
 
 const MU_STEPS = 4; // mu = 1, 0.1, 0.01, 0.001
+
+/**
+ * The trust region of a solve that follows a previous pose: no variable leaves [x0 - B, x0 + B] (radians; a translation counts TRANS_PER_RAD metres per radian) nor its range of
+ * motion. The soft preferences that are absolute rather than relative to the start (the pole of the elbow, the avoidance of the ends of the ranges) would
+ * otherwise carry the pose to wherever they are minimal in one call, and a minimum that appears or disappears with the goal makes the pose jump.
+ */
+function setBox(P, B) {
+  P.B = B;
+  for (let k = 0; k < P.n; k++) {
+    const b = (P.vk[k] === 2 ? TRANS_PER_RAD * B : B) * P.boxScale[k];
+    P.tlo[k] = Math.max(P.lo[k], P.x0[k] - b); P.thi[k] = Math.min(P.hi[k], P.x0[k] + b);
+  }
+}
+/** Does a variable sit on the border of the trust region (not on a range of motion)? */
+function atTrustBound(P) {
+  for (let k = 0; k < P.n; k++) if ((P.thi[k] < P.hi[k] && P.x[k] >= P.thi[k] - 1e-9) || (P.tlo[k] > P.lo[k] && P.x[k] <= P.tlo[k] + 1e-9)) return true;
+  return false;
+}
 /**
  * Iterate from the current x. Returns { iters, status } with status "ok" (every goal within tolerance), "stalled" (stationary), "maxiter". The soft
  * preferences are relaxed (mu / 10) at a stationary point only while the worst goal error is below `polishBelow` (the first run always does).
@@ -1155,7 +1268,7 @@ function lm(P, maxIter, polishBelow = Infinity) {
       let mx = 0, big = 0;
       for (let k = 0; k < n; k++) { const a = Math.abs(P.dl[k]); if (a > big) big = a; }
       const sc = big > P.stepMax ? P.stepMax / big : 1; // a trust region: no variable moves more than stepMax per iteration
-      for (let k = 0; k < n; k++) { xt[k] = Math.min(P.hi[k], Math.max(P.lo[k], x[k] + sc * P.dl[k])); const a = Math.abs(xt[k] - x[k]); if (a > mx) mx = a; }
+      for (let k = 0; k < n; k++) { xt[k] = Math.min(P.thi[k], Math.max(P.tlo[k], x[k] + sc * P.dl[k])); const a = Math.abs(xt[k] - x[k]); if (a > mx) mx = a; }
       if (mx < 1e-11) { tiny = true; break; }
       // reduction the quadratic model predicts for this step (before the cap projection)
       const { na, act, g, H0 } = P;
@@ -1190,7 +1303,15 @@ function lm(P, maxIter, polishBelow = Infinity) {
     if (P.ok) return { iters, status: "ok" };
     let w1 = 0;
     for (let t = 0; t < P.ngoal; t++) if (P.te[t] > w1) w1 = P.te[t];
-    if (mulevel + 1 < MU_STEPS && w1 < polishBelow) {
+    const relax = mulevel + 1 < MU_STEPS && w1 < polishBelow;
+    if (!relax && P.B < Infinity && P.B < P.maxMove && atTrustBound(P)) { // the preferences are out of the way and the region is what stops the goal: widen it (up to maxMove)
+      const wide = P.B * TRUST_GROW;
+      setBox(P, wide > P.maxMove ? P.maxMove : wide > TRUST_OPEN ? Infinity : wide);
+      small = 0; slow = 0; prevW = Infinity; lam = P.lambda0; nu = 2;
+      F = evaluate(P, x);
+      continue;
+    }
+    if (relax) {
       mulevel++; setMu(P, Math.pow(0.1, mulevel)); lam = P.lambda0; nu = 2; small = 0; slow = 0; prevW = Infinity;
       F = evaluate(P, x);
       continue;
@@ -1338,17 +1459,24 @@ function chooseSigns(P) {
   }
 }
 
-/** Is any goal beyond what a straight chain of its free joints could reach? Then no restart can succeed. */
+/**
+ * Is any goal beyond what a straight chain of its free joints could reach? Then no pose meets it. P.gcLower receives the least goal cost any pose can have
+ * (the sum, over the position goals that are beyond, of the cost of the distance by which they are): a run that ends there has found the closest pose.
+ */
 function provablyOutOfReach(P) {
   evaluate(P, P.x0);
   const Pk = P.kin.positions;
+  let out = false;
+  P.gcLower = 0;
+  P.beyond = [];
   for (let t = 0; t < P.ngoal; t++) {
     const b = reachBound(P, t);
     if (!b) continue;
     const t3 = 3 * t, d = Math.hypot(P.ttgt[t3] - Pk[3 * b.top], P.ttgt[t3 + 1] - Pk[3 * b.top + 1], P.ttgt[t3 + 2] - Pk[3 * b.top + 2]);
-    if (d > b.len + P.slots[P.tslot[t]].tol) return true;
+    if (d > b.len + P.slots[P.tslot[t]].tol) { out = true; if (!P.beyond.includes(P.slots[P.tslot[t]].id)) P.beyond.push(P.slots[P.tslot[t]].id); }
+    if (d > b.len) P.gcLower += 0.5 * P.tbase[t] * P.tbase[t] * (d - b.len) ** 2;
   }
-  return false;
+  return out;
 }
 
 function optimise(P) {
@@ -1360,11 +1488,17 @@ function optimise(P) {
     if (P.vk[k] === 0) P.freeJoint[P.vj[k]] = 1;
     else if (P.vk[k] === 1) for (const j of REGION[P.vj[k]].ji) P.freeJoint[j] = 1;
   }
-  const F0 = evaluate(P, P.x);
+  let F0 = evaluate(P, P.x);
   if (P.ok) return { iters: 0, status: "ok" }; // already there: the pose is returned untouched
   if (P.n === 0) { chooseSigns(P); return { iters: 0, status: "stalled" }; } // nothing is free: there is nothing to solve
   // restarts: by default 8, but only 1 when the start is already close to the goals (a drag follows a path: the previous pose is the right basin)
-  if (P.restarts < 0) { let w0 = 0; for (let t = 0; t < P.ngoal; t++) if (P.te[t] > w0) w0 = P.te[t]; P.restarts = w0 < 0.05 ? 1 : 8; }
+  let w0 = 0, e0 = 0; // worst start error (metres or radians) and in metres (an angle counts angleScale metres per radian)
+  for (let t = 0; t < P.ngoal; t++) { const e = P.te[t], m = P.tk[t] === T_DIR || P.tk[t] === T_AIM ? e * P.angleScale : e; if (e > w0) w0 = e; if (m > e0) e0 = m; }
+  P.follow = P.followOpt ?? w0 < FOLLOW_BELOW;
+  if (!P.follow && P.limitOpt === undefined) { P.lb.fill(0); F0 = evaluate(P, P.x); } // the order of the stiffness (the arm first, then the clavicle, then the trunk) decides a reach
+  if (P.restarts < 0) P.restarts = P.follow ? 1 : 8;
+  if (P.maxMove < Infinity) { P.restarts = 0; setBox(P, Math.min(P.maxMove, TRUST_MIN + TRUST_GAIN * e0)); } // a restart starts anywhere: it cannot keep the move small
+  else if (P.follow) setBox(P, TRUST_MIN + TRUST_GAIN * e0);
   chooseSigns(P);
   const plain = Float64Array.from(P.x), signs0 = Float64Array.from(P.tsign);
   // the analytic two-bone solution for a swivel sector, from the pose as given
@@ -1378,15 +1512,17 @@ function optimise(P) {
   };
   const warm = P.useWarm && P.poles.length ? analytic(undefined) : null;
   let first = plain;
-  if (warm && evaluate(P, warm) < F0) first = warm;
+  if (warm && !P.follow && evaluate(P, warm) < F0) first = warm; // following a pose: its own basin, never the analytic pose
   P.x.set(first);
   evaluate(P, P.x); chooseSigns(P);
   let totalIters = 0;
   const res = lm(P, P.maxIter);
   totalIters += res.iters;
+  if (P.maxMove === Infinity) setBox(P, Infinity); // the restarts start anywhere
   let best = { snap: snapshot(P), ok: P.ok, gc: P.gc, status: res.status };
-  // when to stop restarting: three restarts ended where the best run ended (that is the closest the pose gets), or the best is already within 3 cm and three
-  // restarts in a row did not improve on it (a goal just beyond what the limits allow)
+  // when to stop restarting: three restarts ended where the best run ended, two of them from random poses (that is the closest the pose gets: the runs from the
+  // start and from the analytic poses can all fall into the same corner of the ranges), or the best is already within 3 cm and three restarts in a row did not
+  // improve on it (a goal just beyond what the limits allow)
   let still = 0, agree = 0;
   const worst = () => { let w = 0; for (let t = 0; t < P.ngoal; t++) if (P.te[t] > w) w = P.te[t]; return w; };
   best.err = worst();
@@ -1396,15 +1532,20 @@ function optimise(P) {
     if (!P.ok && Math.abs(P.gc - best.gc) <= 1e-3 * best.gc + 1e-12) agree++;
     if ((P.ok && !best.ok) || (!best.ok && P.gc < best.gc * (1 - 1e-3))) { best = { snap: snapshot(P), ok: P.ok, gc: P.gc, status: r2.status, err }; still = 0; } else still++;
   };
-  if (!best.ok) P.provablyUnreachable = provablyOutOfReach(P); // beyond a straight chain of the free joints: no pose and no restart can help
-  if (!best.ok && P.maxIter > 0 && P.restarts > 0) {
-    if (!P.provablyUnreachable) {
+  if (!best.ok) P.provablyUnreachable = provablyOutOfReach(P); // beyond a straight chain of the free joints: no pose can meet the goal
+  // ... but the closest pose is still to be found: the distance to the goal has local minima (the extension limit of the shoulder, the 180 degree cap), a single
+  // run from the start sits in the nearest one. Three runs that agree do not prove much there, so the automatic budget is spent in full.
+  const asClose = P.provablyUnreachable && best.gc <= P.gcLower * 1.02 + 1e-12; // a run that is as close as the straight chain allows has found the closest pose
+  const closest = P.provablyUnreachable && P.restartsAuto && !P.follow;
+  if (!best.ok && !asClose && P.maxIter > 0 && P.restarts > 0) {
+    {
       const half = Math.max(10, P.maxIter >> 1), rng = mulberry32(P.seed);
       const run = (xs, flip) => {
         P.x.set(xs); evaluate(P, P.x);
         if (flip) { for (let t = 0; t < P.ngoal; t++) if (P.tline[t]) P.tsign[t] = -signs0[t]; } else P.tsign.set(signs0);
         consider(lm(P, half, 0.03)); // a restart is polished only when it comes close
       };
+      let sampleRuns = 0;
       const queue = [];
       // random poses of the free joints (40 samples cost about the same as one LM iteration each): the best few by cost are refined
       let pool = null;
@@ -1422,17 +1563,20 @@ function optimise(P) {
         return pool[i]?.x;
       };
       const analyticRun = (sec) => () => { const x = analytic(sec); if (x) run(x, false); };
-      const sampleRun = (i) => () => { const x = sampled(i); if (x) run(x, false); };
+      const sampleRun = (i) => () => { const x = sampled(i); if (x) { sampleRuns++; run(x, false); } };
+      if (closest) queue.push(sampleRun(0), sampleRun(1)); // the random poses are the most productive restarts for a goal beyond the reach
       if (warm) queue.push(() => run(first === warm ? plain : warm, false));
       if (P.poles.length) queue.push(analyticRun(1), analyticRun(2));
-      queue.push(sampleRun(0), sampleRun(1));
+      if (!closest) queue.push(sampleRun(0), sampleRun(1));
       if (P.poles.length) queue.push(analyticRun(3));
       if (P.tline.some((v, t) => v && t < P.ngoal)) queue.push(() => run(first, true));
       for (let i = 2; i < 12; i++) queue.push(sampleRun(i));
-      for (let q = 0; q < queue.length && q < P.restarts && !best.ok && agree < 3 && !(best.err < 0.03 && still >= 3); q++) queue[q]();
+      const most = closest ? Math.max(P.restarts, CLOSEST_RESTARTS) : P.restarts;
+      for (let q = 0; q < queue.length && q < most && !best.ok && (closest || (!(agree >= 3 && sampleRuns >= 2) && !(best.err < 0.03 && still >= 3))); q++) queue[q]();
     }
   }
   restore(P, best.snap);
+  setMu(P, Math.pow(0.1, MU_STEPS - 1)); // the soft preferences hardly count in the gradient that finish() reads to tell which limits push against the goals
   evaluate(P, P.x);
   return { iters: totalIters, status: best.status };
 }
@@ -1443,6 +1587,9 @@ function solveImpl(S, start, goals, options = {}) {
   const out = optimise(P);
   return finish(P, out, start, t0);
 }
+
+/** obj[key] = value as an own property also for key "__proto__" (a goal id is a user string). */
+function setOwn(obj, key, value) { Object.defineProperty(obj, key, { value, enumerable: true, writable: true, configurable: true }); }
 
 function finish(P, out, start, t0) {
   const S = P.S;
@@ -1457,7 +1604,7 @@ function finish(P, out, start, t0) {
   }
   const error = {}, tolerances = {}, units = {};
   let reachable = true;
-  for (const sl of P.slots) { error[sl.id] = sl.err; tolerances[sl.id] = sl.tol; units[sl.id] = sl.unit; if (sl.err > sl.tol) reachable = false; }
+  for (const sl of P.slots) { setOwn(error, sl.id, sl.err); setOwn(tolerances, sl.id, sl.tol); setOwn(units, sl.id, sl.unit); if (sl.err > sl.tol) reachable = false; }
   // pose out
   const angles = {};
   const src = start.angles ?? {};
@@ -1484,14 +1631,26 @@ function finish(P, out, start, t0) {
     blocking = new Set();
     for (const k of limits) if ((P.x[k] <= P.lo[k] + 1e-9 && P.g[k] > 1e-9) || (P.x[k] >= P.hi[k] - 1e-9 && P.g[k] < -1e-9)) blocking.add(k);
   }
+  // the force each goal puts on a variable: the part of the gradient that comes from its rows (a limit is "blocking" for the goals that push against it)
+  const force = (k, slot) => {
+    let a = 0;
+    for (let t = 0; t < P.ngoal; t++) if (P.tslot[t] === slot) for (let q = 0; q < TERM_ROWS[P.tk[t]]; q++) a += P.J[k * P.m + P.trow[t] + q] * P.r[P.trow[t] + q];
+    return a;
+  };
+  const pushedBy = (k, sign) => {
+    const list = [];
+    P.slots.forEach((sl, i) => { const f = sign * force(k, i); if (f > 1e-9) list.push({ goal: sl.id, force: f }); });
+    return list.sort((a, b) => b.force - a.force);
+  };
   for (const k of limits) {
     const atLo = P.x[k] <= P.lo[k] + 1e-9;
+    const by = blocking && blocking.has(k) ? pushedBy(k, atLo ? 1 : -1) : [];
     if (P.vk[k] === 0) {
       const jd = JOINTS[P.vj[k]], d = jd.dof[P.vd[k]];
-      clamped.push({ joint: jd.id, dof: d.key, value: atLo ? d.min : d.max, limit: atLo ? "min" : "max", bound: atLo ? d.min : d.max, blocking: blocking ? blocking.has(k) : false });
+      clamped.push({ joint: jd.id, dof: d.key, value: atLo ? d.min : d.max, limit: atLo ? "min" : "max", bound: atLo ? d.min : d.max, blocking: blocking ? blocking.has(k) : false, pushedBy: by });
     } else {
       const c = P.vd[k];
-      clamped.push({ joint: REGION_IDS[P.vj[k]], dof: CHAN[c], value: R2D * (P.x[k] + P.rbase[k].reduce((a, v) => a + v * D2R, 0)), limit: atLo ? "min" : "max", bound: null, region: true, blocking: blocking ? blocking.has(k) : false });
+      clamped.push({ joint: REGION_IDS[P.vj[k]], dof: CHAN[c], value: R2D * (P.x[k] + P.rbase[k].reduce((a, v) => a + v * D2R, 0)), limit: atLo ? "min" : "max", bound: null, region: true, blocking: blocking ? blocking.has(k) : false, pushedBy: by });
     }
   }
   for (const c of P.caps) { // the 180 degree cap of the combined swing, as a limit of its own
@@ -1499,8 +1658,15 @@ function finish(P, out, start, t0) {
     for (let d = 0; d < NDOF[c.ji]; d++) if (JOINTS[c.ji].dof[d].role !== "twist") s2 += (S.angArr[c.ji][d] * D2R) ** 2;
     if (Math.sqrt(s2) < PI - 1e-6) continue;
     let push = 0;
-    if (blocking) for (let q = 0; q < c.ks.length; q++) push -= (S.angArr[c.ji][P.vd[c.ks[q]]] * D2R / Math.sqrt(s2)) * P.g[c.ks[q]];
-    clamped.push({ joint: IDS[c.ji], dof: "swing", value: 180, limit: "max", bound: 180, cap: true, blocking: blocking ? push > 1e-9 : false });
+    const by = [];
+    if (blocking) {
+      for (let q = 0; q < c.ks.length; q++) push -= (S.angArr[c.ji][P.vd[c.ks[q]]] * D2R / Math.sqrt(s2)) * P.g[c.ks[q]];
+      if (push > 1e-9) {
+        P.slots.forEach((sl, i) => { let f = 0; for (let q = 0; q < c.ks.length; q++) f -= (S.angArr[c.ji][P.vd[c.ks[q]]] * D2R / Math.sqrt(s2)) * force(c.ks[q], i); if (f > 1e-9) by.push({ goal: sl.id, force: f }); });
+        by.sort((a, b) => b.force - a.force);
+      }
+    }
+    clamped.push({ joint: IDS[c.ji], dof: "swing", value: 180, limit: "max", bound: 180, cap: true, blocking: blocking ? push > 1e-9 : false, pushedBy: by });
   }
   const changed = [];
   for (const id of IDS) {
@@ -1512,7 +1678,8 @@ function finish(P, out, start, t0) {
     root, angles, pose: { root, angles }, converged: out.status !== "maxiter", iterations: out.iters, error, units, tolerance: tolerances, residual: Math.sqrt(cost), clamped, changed,
     reachable, ms: now() - t0, rootChanged,
   };
-  if (P.provablyUnreachable) res.provablyUnreachable = true;
+  if (P.provablyUnreachable) { res.provablyUnreachable = true; res.beyondReach = P.beyond; } // beyondReach: the ids of the goals that no pose can meet
+  if (P.maxMove < Infinity && !reachable && P.B >= P.maxMove - 1e-12 && atTrustBound(P)) res.limited = true; // still on its way: maxMove stopped the figure short
   return res;
 }
 
@@ -1679,6 +1846,7 @@ export function handFrameFromGrip(grip, side, options = {}) {
   const sd = sideOf(side);
   if (grip === null || typeof grip !== "object") throw new TypeError("grip must be { position, normal, axis }");
   const flat = grip.diameter === 0;
+  for (const k of ["normalWeight", "axisWeight", "weight"]) if (options[k] != null && !(isNum(options[k]) && options[k] >= 0)) throw new RangeError(`handFrameFromGrip: options.${k} must be a finite number >= 0, got ${JSON.stringify(options[k])}`);
   const landmark = options.landmark ?? (flat ? `palm_centre_${sd}` : `grip_centre_${sd}`);
   return {
     type: "frame", id: options.id ?? `hand_${sd}`, joint: `wrist_${sd}`, landmark, target: asPoint(grip.position, "grip.position"),
@@ -1730,6 +1898,8 @@ export function lookAt(solver, start, target, options = {}) {
  * Pin goals: keep landmarks where they are in pose `start` (a `pin` goal each: weight 100, tolerance a fifth of the default, so almost hard). `ids` are landmark ids.
  */
 export function pinGoals(solver, start, ids, options = {}) {
+  if (typeof ids === "string") ids = [ids];
+  if (!Array.isArray(ids)) throw new TypeError("pinGoals: ids must be an array of landmark ids (or one id)");
   return ids.map((id) => {
     const p = solver.worldPoint(start, id);
     return { type: "pin", id: `pin:${id}`, landmark: id, target: [p.x, p.y, p.z], weight: options.weight ?? 100, ...(options.tolerance != null ? { tolerance: options.tolerance } : {}) };
@@ -1789,26 +1959,71 @@ export function maxReach(solver, start, side, options = {}) {
   return { distance: best.d, point: at(best.d), origin, direction: dir, result: best.r };
 }
 
+/**
+ * Runs the hot paths of the solver a few dozen times on throw-away poses so that the JIT has compiled them (the first ~100 solves of a page take up to 25 to 40 ms
+ * each, later ones about 1 ms): call it once after createSolver, when the page is idle (it takes 100 to 250 ms; rounds = 1 is half of that and warms less). Nothing of the solver's state changes; returns the
+ * milliseconds it took.
+ */
+export function warmUp(solver, rounds = 2) {
+  const t0 = now(), start = { root: { ...solver.restRoot }, angles: {} };
+  for (let r = 0; r < rounds; r++) {
+    for (const side of SIDES) {
+      const o = solver.worldPoint(start, `grip_centre_${side}`);
+      let cur = start;
+      for (let i = 0; i < 24; i++) { // a small circle in front of the hand, as a drag
+        const a = (i / 24) * 2 * PI, q = reachHand(solver, cur, side, [o.x + 0.1 * Math.sin(a), o.y + 0.25 + 0.1 * Math.cos(a), o.z + 0.3], i === 0 ? {} : DRAG_OPTIONS);
+        cur = q.pose;
+      }
+      reachHand(solver, start, side, [o.x, o.y + 0.9, o.z + 0.2], { trunk: true }); // an unreachable one: restarts, the closest pose
+      placeFoot(solver, start, side, { position: [o.x, 0.1, o.z + 0.2], heading: 5 });
+    }
+    lookAt(solver, start, [0.5, 1.5, 2], { eyes: true });
+    movePelvis(solver, start, { dy: -0.15 });
+  }
+  return now() - t0;
+}
+
 /** Reach envelope of a hand: random in-ROM poses of the arm (and the trunk), see solver.reachEnvelope. */
 export function reachEnvelope(solver, start, side, options) {
   return solver.reachEnvelope(start, side, options);
 }
 
 /**
- * Plain-English lines for a Result: [] when every goal is met, otherwise one sentence per goal that is not ("hand_R: 120 mm short of the target"), naming
- * the joints that sit at a limit and push against it. `labels` maps goal ids to words ({ hand_R: "The right hand" }).
+ * A goal id as words: "pin:heel_sole_R" -> "Right heel sole (pinned)", "hand_R.rot" -> "Right hand orientation", "lookAt" -> "Look at".
+ * describeResult(result, goalLabel) uses it for every goal that has no label of its own.
+ */
+export function goalLabel(id) {
+  let s = String(id), tail = "", pinned = false;
+  if (s.startsWith("pin:")) { pinned = true; s = s.slice(4); }
+  if (s.endsWith(".rot")) { s = s.slice(0, -4); tail = " orientation"; } else if (s.endsWith(".frame")) { s = s.slice(0, -6); tail = " frame"; }
+  const parts = s.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().split("_").filter(Boolean), last = parts[parts.length - 1];
+  const side = parts.length > 1 && (last === "l" || last === "r") ? (parts.pop(), last === "l" ? "left" : "right") : "";
+  const words = `${side} ${parts.join(" ")}`.trim() + tail + (pinned ? " (pinned)" : "");
+  return words ? words[0].toUpperCase() + words.slice(1) : String(id);
+}
+
+/**
+ * Plain-English lines for a Result: [] when every goal is met, otherwise one sentence per goal that is not ("Right hand: 120 mm short of the target"), naming
+ * the joints that sit at a limit and push against THAT goal (Result.clamped[].pushedBy), strongest first. `labels` maps goal ids to words ({ hand_R: "The right hand" });
+ * without one the id itself is shown; a function (id) -> words, such as goalLabel, labels every goal.
  */
 export function describeResult(result, labels = {}) {
+  if (result === null || typeof result !== "object" || result.error === null || typeof result.error !== "object") throw new TypeError("describeResult: needs the Result of solve()");
   const lines = [];
-  const limits = (result.clamped ?? []).filter((c) => c.blocking);
+  const blocking = (result.clamped ?? []).filter((c) => c.blocking);
   for (const [id, err] of Object.entries(result.error ?? {})) {
     const tol = result.tolerance?.[id] ?? DEFAULT_TOL;
     if (!(err > tol)) continue;
-    const angle = result.units?.[id] === "rad", what = labels[id] ?? id;
+    // the limits that push against THIS goal, the strongest first (a Result of an older version has no pushedBy: all of them)
+    const limits = blocking.filter((c) => !c.pushedBy || c.pushedBy.some((p) => p.goal === id))
+      .sort((a, b) => (b.pushedBy?.find((p) => p.goal === id)?.force ?? 0) - (a.pushedBy?.find((p) => p.goal === id)?.force ?? 0));
+    const angle = result.units?.[id] === "rad";
+    const what = typeof labels === "function" ? labels(id) : labels !== null && typeof labels === "object" && Object.hasOwn(labels, id) ? labels[id] : id;
     const deg = err * R2D, mm = err * 1000;
     const amount = angle ? `${deg.toFixed(deg < 10 ? 1 : 0)} degrees off` : `${mm.toFixed(mm < 10 ? 1 : 0)} mm short of`;
     let why = "";
-    if (result.provablyUnreachable) why = " (farther than the limb can stretch)";
+    if (result.beyondReach ? result.beyondReach.includes(id) : result.provablyUnreachable) why = " (farther than the limb can stretch)";
+    else if (result.limited && !limits.length) why = " (still on its way: one drag step moves a joint a few degrees at most)";
     else if (limits.length) why = ` (limited by ${limits.slice(0, 4).map((c) => `${JOINT_BY_ID[c.joint]?.label ?? c.joint} ${c.dof} at its ${c.limit === "max" ? "maximum" : "minimum"}`).join(", ")})`;
     lines.push(`${what}: ${amount} the target${why}.`);
   }
