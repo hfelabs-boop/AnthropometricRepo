@@ -181,12 +181,16 @@ const K = {
                             // (foot 250.4 mm, PMC10451213): lateral malleolus tip 54.0 mm = 21.6 %, medial 60.7 mm = 24.2 %, midpoint 22.9 %; Inman (1976, quoted by a clinical text, the
                             // paper not opened): the axis passes 8 mm in front of the lateral tip = 24.8 % of that foot. 24 % is between the two. (It was 20 %: the lateral tip alone.)
   malleolusBehindAxis: 0.008, // lateral malleolus tip behind the ankle axis (m, for a 0.27 m foot, scaled by foot length): Inman (1976), same remark
-  comFromHeel: 0.40,        // whole-body centre of mass of quiet standing from the heel, fraction of foot length. Kawai et al. (National Rehabilitation Center for the Disabled, Japan; a
-                            // congress abstract, 14 to 20 healthy people): the centre of gravity at the 39.6th percentile of the base of support from its rear edge and 56 mm in front of the
-                            // lateral malleolus. Di Giulio and Baltzopoulos 2019 (Front Physiol 10:625, 13 adults): 47 mm (0.5 s after the feet are flat) to 58 mm (7.6 s) in front of the ankle
-                            // joint centre; the hip joint centre within 2 to 5 mm of the centre-of-gravity line, the knee 26 to 32 mm behind it. Hellebrandt (1940, quoted): 40 to 50 mm. The
-                            // fit puts the ankles back until the model's centre of mass is here (0.16 foot length from the ankle = 42 mm for a 265 mm foot; MODEL.md 7.1)
-  leanMax: 0.08,            // the largest set-back of the ankles from the knee (m); never reached by a body of the fitted range (26 to 56 mm over the 2,928 bodies of MODEL.md 7.1)
+  comFromHeel: 0.40,        // whole-body centre of mass of quiet standing from the heel, fraction of foot length (the TARGET of leanLegs; leanMaxDeg stops short of it for 97 % of the bodies). Kawai et al.
+                            // (National Rehabilitation Center for the Disabled, Japan; a congress abstract, 14 to 20 healthy people): the 39.6th percentile of the base of support from its rear
+                            // edge and 56 mm in front of the lateral malleolus; Di Giulio and Baltzopoulos 2019 (Front Physiol 10:625, 13 adults): 47 mm (0.5 s after the feet are flat) to 58 mm
+                            // (7.6 s) in front of the ankle joint centre, the hip joint centre within 2 to 5 mm of the centre-of-gravity line, the KNEE only 21 to 26 mm in front of the ankle
+                            // (so the whole leg leans 3 to 4 degrees); Hellebrandt (1940, quoted): 40 to 50 mm. THE MODEL CANNOT HAVE BOTH: its thigh is vertical (every posture is written against
+                            // it), so the hip and the knee are equally far in front of the ankle, and a centre of mass 42 mm ahead of the ankle (40 %) means a shank 5.9 degrees off the vertical,
+                            // twice the measured lean. leanMaxDeg stops it at 4.9 degrees (MODEL.md 4.1, 7.1)
+  leanMaxDeg: 4.9,          // the largest lean of the shank from the vertical (degrees): the measured 3 to 4 degrees of the leg + 1 for the vertical thigh, and under the 5 degrees that the checks of the tests allow.
+                            // It binds for 2,832 of the 2,928 bodies of MODEL.md 7.1 (97 %; their lean would be 4.5 to 7.3 degrees for the 40 %): the shank leans 4.9 degrees and the centre of mass
+                            // lies 25 to 47 mm (median 36) in front of the ankle, 34 to 40 % (median 37.5) of the foot from the heel
   spineBack: { lumbar: 0.095, thoracic: 0.095, cervical: 0.052 }, // vertebral body centre to the skin of the back (approx.; the lumbar value is also tuned so that the
                             // abdominal depth sitting, measured against a wall, is 20 mm more than the standing waist depth as in the surveys)
   // spine curve: angles of the vertebral centre line from the vertical, + = leaning forward going up
@@ -1099,12 +1103,15 @@ function layout(c) {
 
 /**
  * Quiet standing leans a little forward about the ankles. The whole-body centre of mass is 47 to 58 mm in front of the ankle joint centre and about 40 % of the foot length
- * from the heel (K.comFromHeel: Kawai et al.; Di Giulio and Baltzopoulos 2019), with the hip joint centre in line with it (within 2 to 5 mm) and the knee 26 to 32 mm behind it.
+ * from the heel, with the hip joint centre in line with it (within 2 to 5 mm) and the knee only 21 to 26 mm in front of the ankle: the whole leg leans 3 to 4 degrees
+ * (Kawai et al.; Di Giulio and Baltzopoulos 2019; see K.comFromHeel).
  * layout() puts the ankle under the knee and the hip under that, which leaves the centre of mass 2 mm in front of the ankle (the upper body is right: it is as far in front of the
  * hip as people's is; the legs were upright). The thigh must stay vertical, so that "hip 90" is still a horizontal thigh (ISO 7250-1 sitting, every posture of the library), and so
  * must the heights: the shank carries the lean. The ankle, the foot and the toe joint go back by `lean`, the knee, the hip and everything above stay where they are; the knee is
- * still `knee_height - ankle_height` above the ankle, so every height and every seated measure of the fit report is what it was (the bone is lean^2 / (2 L) = 2 mm longer). `lean`
- * is solved so that the neutral centre of mass lies K.comFromHeel of the foot length from the heel (a linear equation: only the feet and the shanks move).
+ * still `knee_height - ankle_height` above the ankle, so every height and every seated measure of the fit report is what it was (the bone is lean^2 / (2 L) = 1.6 mm longer). `lean`
+ * is solved so that the neutral centre of mass lies K.comFromHeel of the foot length from the heel (a linear equation: only the feet and the shanks move), but never beyond
+ * K.leanMaxDeg from the vertical. With the thigh vertical the hip is as far forward as the knee, so the 40 % of the foot (42 mm: a shank 5.9 degrees off the vertical, twice the 3 to 4
+ * degrees measured for the leg) and the measured lean cannot both hold: the cap wins for nearly every body, which leaves the centre of mass 37.5 % of the foot from the heel.
  */
 function leanLegs(c, geo) {
   const P = geo.P, m = massModel(c, geo), seg = m.segments;
@@ -1113,7 +1120,7 @@ function leanLegs(c, geo) {
   const mu = moving / m.info.total;
   const ahead = m.info.com[2] - P.ankle_L[2]; // the centre of mass in front of the ankle now
   const want = (K.comFromHeel - K.ankleFromHeel) * c.d.foot_length;
-  const lean = clamp((want - ahead) / (1 - mu), 0, K.leanMax);
+  const lean = clamp((want - ahead) / (1 - mu), 0, Math.tan(K.leanMaxDeg * D2R) * c.d.shank_length);
   for (const id of ["ankle_L", "ankle_R", "mtp_L", "mtp_R"]) P[id] = [P[id][0], P[id][1], P[id][2] - lean];
   geo.heelZ -= lean;
   geo.lean = lean;

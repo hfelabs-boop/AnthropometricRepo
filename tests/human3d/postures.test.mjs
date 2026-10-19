@@ -86,7 +86,12 @@ test("search: name, description, tags and category; case, diacritics, several wo
   const ids = (q) => search(q).map((p) => p.id);
   assert.deepEqual(ids("T-POSE"), ["t-pose"]);
   assert.ok(ids("iso 7250").includes("iso-7250-sitting") && ids("iso 7250").includes("iso-7250-standing"));
-  assert.deepEqual(ids("iso 7250 seat"), ["iso-7250-sitting"], "all words must match");
+  // all words must match: "seat" narrows "iso 7250" to the postures that also have the word. (It was exactly ["iso-7250-sitting"] while the library had only the three reference
+  // postures; sit-upright-90, "seated upright (90-90-90)" with the tags iso-7250 and seat, is a second answer now that the sitting group exists.)
+  const narrowed = ids("iso 7250 seat");
+  assert.ok(narrowed.includes("iso-7250-sitting") && !narrowed.includes("iso-7250-standing"), "all words must match");
+  assert.ok(narrowed.every((id) => ids("iso 7250").includes(id)) && narrowed.length < ids("iso 7250").length, "adding a word only narrows the result");
+  assert.deepEqual(ids("iso 7250 qwertyuiop"), [], "a word that occurs nowhere removes everything");
   assert.deepEqual(ids("ISO-7250 sitting"), ids("iso-7250 SITTING"));
   assert.ok(ids("reference").length >= 3, "the category counts");
   assert.ok(ids("calibration").includes("t-pose"), "tags count");

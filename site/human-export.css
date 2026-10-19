@@ -20,8 +20,9 @@
 .hm-ex-field .seg { max-width: 100%; }
 .hm-ex-field .seg button { padding: 5px 9px; font-size: .84rem; white-space: normal; }
 .hm-ex-field select.input { min-height: 34px; padding: 5px 8px; font-size: .86rem; }
-.hm-ex-check { display: flex; align-items: flex-start; gap: 8px; font-size: .85rem; cursor: pointer; min-width: 0; }
-.hm-ex-check input { accent-color: var(--accent); margin: 3px 0 0; flex: none; }
+/* the box itself is 24 x 24 px (WCAG 2.2 target size, 2.5.8); the whole label row is clickable too */
+.hm-ex-check { display: flex; align-items: center; gap: 10px; min-height: 28px; font-size: .85rem; cursor: pointer; min-width: 0; }
+.hm-ex-check input { accent-color: var(--accent); width: 24px; height: 24px; margin: 0; flex: none; cursor: inherit; }
 .hm-ex-check span { min-width: 0; overflow-wrap: anywhere; }
 .hm-ex-check input:disabled + span { color: var(--text-3); }
 .hm-ex-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; min-width: 0; }
@@ -40,6 +41,11 @@
 /* feedback */
 .hm-ex-busy { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text-2); font-size: .85rem; }
 .hm-ex-busy[hidden] { display: none; }
+.hm-ex-busy { flex-wrap: wrap; }
+.hm-ex-wait { color: var(--text); font-weight: 600; }
+.hm-ex-wait:empty { display: none; }
+.hm-ex-big { color: var(--warn, var(--text-2)); }
+.hm-ex-state .hm-ex-pending { color: var(--warn, var(--text-2)); }
 .hm-ex-last { margin: 0; font-size: .82rem; color: var(--text-2); overflow-wrap: anywhere; }
 .hm-ex-last:empty { display: none; }
 .hm-ex-msgs { display: grid; gap: 6px; min-width: 0; }
@@ -60,6 +66,5 @@
 @media (pointer: coarse) {
   .hm-ex .btn { min-height: 38px; }
   .hm-ex .seg button { min-height: 36px; }
-  .hm-ex-check { min-height: 32px; align-items: center; }
-  .hm-ex-check input { width: 18px; height: 18px; margin: 0; }
+  .hm-ex-check { min-height: 36px; }
 }

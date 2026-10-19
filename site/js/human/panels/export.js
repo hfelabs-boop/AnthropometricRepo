@@ -54,6 +54,13 @@ function saveOpts(o) { try { localStorage.setItem(KEY, JSON.stringify(o)); } cat
 
 // ---------------------------------------------------------------------------------------------------------------------
 // small helpers
+const BIG_FILE = 25 * 1048576; // from here on the size estimate warns: a file this big takes seconds to write and may be too large for the target tool
+/** "about 4.8 MB"; a big file also says that it is big. */
+function sizeText(el, bytes) {
+  const big = bytes >= BIG_FILE;
+  el.textContent = `about ${X.formatBytes(bytes)}${big ? ". Large file: it can take several seconds. Turn off scene objects to make it smaller." : ""}`;
+  el.classList.toggle("hm-ex-big", big);
+}
 const fmtInt = (n) => Math.round(n).toLocaleString("en-US");
 /** Let the page paint between two steps of a slow export (requestAnimationFrame stops in a hidden browser tab, so a timer backs it up). */
 const frame = () => new Promise((res) => { let done = false; const f = () => { if (!done) { done = true; res(); } }; requestAnimationFrame(f); setTimeout(f, 60); });
@@ -183,19 +190,39 @@ export default {
     let disposed = false, visible = false, busy = false, timer = 0, hasRig = false, objects = 0, sandboxRef = null, measureRef = null, summaryOpen = false;
 
     // ---- plumbing: the figure, busy state, errors -------------------------------------------------------------------------
-    const getInput = () => {
+    // The shell changes the profile at once and the rig only when the rebuild is done (seconds later), and nothing updates the posture name when a slider moves.
+    // So a file is described by what the rig it holds says: the profile the rig was built from (kept here, the shell has already forgotten it) and a posture name that
+    // still matches the pose. capture() takes all of it in one synchronous step, right before the builder reads the rig; the file name is made from the same snapshot.
+    const seen = []; // profiles the shell held, newest last
+    const remember = (p) => { if (p && typeof p === "object" && !seen.includes(p)) { seen.push(p); if (seen.length > 8) seen.shift(); } };
+    remember(ctx.getProfile());
+    let loaded = null; // { id, name, pose }: the posture this panel loaded last, with the pose it gave the figure (so that a later edit is noticed)
+    /** The profile and the posture that describe `rig` as it is now. */
+    const describe = (rig) => {
+      remember(ctx.getProfile());
+      const shell = ctx.state.posture ?? null;
+      const named = loaded && shell && loaded.id === (shell.id ?? null) && loaded.name === shell.name ? { ...shell, pose: loaded.pose } : shell;
+      return { profile: X.profileOf(rig, [ctx.getProfile(), ...seen.slice().reverse()]), posture: X.effectivePosture(named, rig) };
+    };
+    const capture = () => {
       const rig = ctx.getRig();
       if (!rig) throw new Error("There is no figure to export yet. Wait for the model to finish building.");
       const sandbox = peekSandbox(ctx), measure = peekMeasure(ctx);
       let measurements = null;
       try { measurements = measure?.exportRows?.() ?? null; } catch { measurements = null; }
-      return { rig, profile: ctx.getProfile(), posture: ctx.state.posture, sandbox, measurements };
+      return { rig, ...describe(rig), sandbox, measurements };
     };
-    const fname = (what, ext, suffix) => X.exportFileName({ profile: ctx.getProfile(), posture: ctx.state.posture, what, ext, suffix });
+    /** File name from the snapshot; `posture` = the one the builder reports, when it has re-checked it. */
+    const fname = (inp, what, ext, suffix, posture = inp.posture) => X.exportFileName({ profile: inp.profile, posture, what, ext, suffix });
+    /** A sentence for the status line when the shell moved on while the file was made: the file holds the figure it had at the click. */
+    const staleNote = (inp) => {
+      const now = ctx.getProfile();
+      return now && now.id !== inp.profile.id && !inp.rig.body?.synthetic ? ` The profile was changed meanwhile: this file holds the figure of "${inp.profile.label}".` : "";
+    };
     const stamp = () => new Date().toISOString();
 
-    const busyText = h("span", {});
-    const busyEl = h("p", { class: "hm-ex-busy", role: "status", hidden: true }, h("span", { class: "spinner", "aria-hidden": "true" }), busyText);
+    const busyText = h("span", {}), busyWait = h("span", { class: "hm-ex-wait" });
+    const busyEl = h("p", { class: "hm-ex-busy", role: "status", hidden: true }, h("span", { class: "spinner", "aria-hidden": "true" }), busyText, busyWait);
     const last = h("p", { class: "hm-ex-last", role: "status", "aria-live": "polite" });
     const msgs = h("div", { class: "hm-ex-msgs", "aria-live": "polite" });
     const stateEl = h("div", { class: "hm-ex-state" });
@@ -206,35 +233,47 @@ export default {
       msgs.replaceChildren(el);
     }
     function say(text) { last.textContent = text; ctx.toast(text.length > 90 ? `${text.slice(0, 87)}…` : text); }
-    async function run(label, task) {
+    async function run(label, task, { snap = true } = {}) {
       if (busy || disposed) return;
       busy = true;
       root.setAttribute("aria-busy", "true");
       applyEnabled();
       busyText.textContent = `${label}…`;
+      busyWait.textContent = "";
       busyEl.hidden = false;
       msgs.replaceChildren();
       last.textContent = "";
+      let inp = null;
       try {
         await frame(); // let the busy message appear before the heavy work starts
-        const done = await task(async (t) => { if (t) busyText.textContent = `${t}…`; await frame(); });
-        if (done) say(done);
+        // The figure, its profile and its posture are taken together, here, and the builders read the rig in the same synchronous step (the shell may replace the
+        // rig during the frame above, and a rig that was disposed cannot be read any more). Whatever happens later, the file is about the figure captured here.
+        inp = snap ? capture() : null;
+        const done = await task(async (t) => { if (t) busyText.textContent = `${t}…`; await frame(); }, inp);
+        if (done) say(inp ? done + staleNote(inp) : done);
       } catch (e) {
         console.warn("Digital human export failed:", e);
-        showIssues(`${label} did not finish.`, [`${message(e)}.`]);
+        showIssues(`${label} did not finish.`, [inp?.rig?._disposed ? "The figure was replaced while the file was being made (the profile or the quality changed). Click the button again to export the new figure." : `${message(e)}.`]);
       } finally {
         busy = false;
         busyEl.hidden = true;
+        busyWait.textContent = "";
         root.removeAttribute("aria-busy");
         applyEnabled();
       }
+    }
+    /** A click that arrives while an export runs does nothing; say so (in the status line, which may be scrolled out of sight, and in a toast) instead of ignoring it silently. */
+    function ignored() {
+      const text = "Another export is still running. Wait until it has finished, then click again.";
+      busyWait.textContent = ` ${text}`;
+      ctx.toast(text);
     }
     function save(name, blob) { download(name, blob, blob.type); }
     async function copy(text, what) { const ok = await copyText(text); ctx.toast(ok ? `Copied ${what} to the clipboard.` : "The browser blocked copying. Use the download button instead."); if (ok) last.textContent = `Copied ${what} (${X.formatBytes(text.length)}).`; return ok; }
 
     // ---- building blocks of the UI -----------------------------------------------------------------------------------------
     const reg = (el, when) => { buttons.push({ el, when }); return el; };
-    const button = (label, onClick, { primary = false, title, when, ariaLabel } = {}) => reg(h("button", { type: "button", class: `btn${primary ? " primary" : ""} small hm-ex-btn`, title, "aria-label": ariaLabel, onclick: () => { if (busy) return; onClick(); } }, label), when);
+    const button = (label, onClick, { primary = false, title, when, ariaLabel } = {}) => reg(h("button", { type: "button", class: `btn${primary ? " primary" : ""} small hm-ex-btn`, title, "aria-label": ariaLabel, onclick: () => { if (busy) return ignored(); onClick(); } }, label), when);
     const check = (key, label, { when } = {}) => {
       const input = h("input", { type: "checkbox", checked: opt[key] ? true : null, onchange: () => { opt[key] = input.checked; saveOpts(opt); refresh(); } });
       const text = h("span", {}, label);
@@ -253,15 +292,15 @@ export default {
 
     // ---- 1. 3D model: GLB, OBJ, STL --------------------------------------------------------------------------------------------
     const glbFigure = seg("glbFigure", "Figure", [{ value: "skin", label: "Skin and skeleton", title: "The skinned body and its 77-joint skeleton" }, { value: "skeleton", label: "Skeleton only", title: "The 77 joints and thin bone sticks, no skin" }, { value: "none", label: "None", title: "Only the scene objects" }]);
-    const glbPose = seg("glbPose", "Pose", [{ value: "baked", label: "Baked in", title: "Skeleton and skin in the current pose (it is the bind pose of the file)" }, { value: "clip", label: "Neutral and clip", title: "Neutral standing bind pose and the current pose as a one-frame animation" }]);
+    const glbPose = seg("glbPose", "Pose", [{ value: "baked", label: "Baked in", title: "Skeleton and skin in the current pose, which is the bind pose of the file: right for viewing and small changes. To retarget or animate, use Neutral and clip" }, { value: "clip", label: "Neutral and clip", title: "Neutral standing bind pose and the current pose as a one-frame animation: the right choice for retargeting and animation" }]);
     const glbScene = check("glbScene", "Scene objects");
     const glbMeas = check("glbMeas", "Measurements as extra data");
     const glbSize = sizeEl();
-    const glbBtn = button("Download GLB", () => run("Building the GLB", async (tick) => {
-      const inp = getInput(), figure = opt.glbFigure, withScene = opt.glbScene && objects > 0;
+    const glbBtn = button("Download GLB", () => run("Building the GLB", async (tick, inp) => {
+      const figure = opt.glbFigure, withScene = opt.glbScene && objects > 0;
       if (figure === "none" && !withScene) throw new Error("Nothing is selected: choose the figure or include scene objects");
       const out = await X.buildGLB(inp, { figure, pose: opt.glbPose, scene: withScene, measurements: opt.glbMeas, created: stamp(), tick });
-      const name = fname(figure === "none" ? "scene" : figure === "skeleton" ? "skeleton" : "figure", "glb", figure !== "none" && opt.glbPose === "clip" ? "clip" : "");
+      const name = fname(inp, figure === "none" ? "scene" : figure === "skeleton" ? "skeleton" : "figure", "glb", figure !== "none" && opt.glbPose === "clip" ? "clip" : "", out.posture);
       save(name, blobOf(out.data, "model/gltf-binary"));
       return `Saved ${name} (${X.formatBytes(out.bytes)}): ${out.stats.joints} joints, ${fmtInt(out.stats.vertices)} vertices${out.stats.objects ? `, ${out.stats.objects} scene object${out.stats.objects === 1 ? "" : "s"}` : ""}. Metres, +Y up, the figure faces +Z.`;
     }), { primary: true, title: "Binary glTF 2.0: skinned mesh and skeleton" });
@@ -277,15 +316,15 @@ export default {
     const objSize = sizeEl(), stlSize = sizeEl();
     const meshOptions = () => ({ unit: opt.meshUnit, axes: opt.meshAxes, skin: opt.meshSkin, scene: opt.meshScene && objects > 0, created: stamp() });
     const meshSuffix = () => `${opt.meshUnit}${opt.meshAxes === "y-up" ? "" : `-${opt.meshAxes}`}`;
-    const objBtn = button("Download OBJ", () => run("Building the OBJ", async (tick) => {
-      const out = await X.buildOBJ(getInput(), { ...meshOptions(), tick });
-      const name = fname("mesh", "obj", meshSuffix());
+    const objBtn = button("Download OBJ", () => run("Building the OBJ", async (tick, inp) => {
+      const out = await X.buildOBJ(inp, { ...meshOptions(), tick });
+      const name = fname(inp, "mesh", "obj", meshSuffix(), out.posture);
       save(name, blobOf(out.text, "text/plain;charset=utf-8"));
       return `Saved ${name} (${X.formatBytes(out.bytes)}): ${fmtInt(out.stats.vertices)} vertices, ${fmtInt(out.stats.triangles)} triangles. The unit and the axes are written in the first lines.`;
     }), { primary: true, title: "Wavefront OBJ: the posed skin as a static mesh" });
-    const stlBtn = button("Download STL", () => run("Building the STL", async (tick) => {
-      const out = await X.buildSTL(getInput(), { ...meshOptions(), tick });
-      const name = fname("mesh", "stl", meshSuffix());
+    const stlBtn = button("Download STL", () => run("Building the STL", async (tick, inp) => {
+      const out = await X.buildSTL(inp, { ...meshOptions(), tick });
+      const name = fname(inp, "mesh", "stl", meshSuffix(), out.posture);
       save(name, blobOf(out.data, "model/stl"));
       return `Saved ${name} (${X.formatBytes(out.bytes)}): ${fmtInt(out.triangles)} triangles, binary. STL has no unit field: this file is in ${opt.meshUnit === "mm" ? "millimetres" : "metres"}.`;
     }), { title: "Binary STL: triangles only" });
@@ -296,7 +335,7 @@ export default {
 
     // the meshes follow the quality of the 3D view (fit.js builds the same body; body.js samples it more finely at "high")
     const qualityText = h("span", {});
-    const qualityBtn = reg(h("button", { type: "button", class: "btn small hm-ex-btn", onclick: () => { if (!busy) ctx.setQuality("high"); } }, "Use high quality"), () => true);
+    const qualityBtn = reg(h("button", { type: "button", class: "btn small hm-ex-btn", onclick: () => { if (busy) return ignored(); ctx.setQuality("high"); } }, "Use high quality"), () => true);
     const qualityNote = h("div", { class: "hm-ex-quality", hidden: true }, qualityText, qualityBtn);
 
     // ---- 2. BVH ---------------------------------------------------------------------------------------------------------------
@@ -304,12 +343,12 @@ export default {
     const bvhNeutral = check("bvhNeutral", "Add a second frame with the neutral standing pose");
     const bvhHeader = check("bvhHeader", "Comment lines at the top (profile, posture, units, axes). Several tools refuse them");
     const bvhOpts = () => ({ unit: opt.bvhUnit, neutralFrame: opt.bvhNeutral, header: opt.bvhHeader, created: stamp() });
-    const bvhBtn = button("Download BVH", () => run("Building the BVH", async () => {
-      const out = X.buildBVH(getInput(), bvhOpts()), name = fname("skeleton", "bvh", opt.bvhUnit);
+    const bvhBtn = button("Download BVH", () => run("Building the BVH", async (tick, inp) => {
+      const out = X.buildBVH(inp, bvhOpts()), name = fname(inp, "skeleton", "bvh", opt.bvhUnit, out.posture);
       save(name, blobOf(out.text, "text/plain;charset=utf-8"));
       return `Saved ${name} (${X.formatBytes(out.bytes)}): ${out.joints} joints, ${out.frames} frame${out.frames === 1 ? "" : "s"}, ${opt.bvhUnit}, rotations Z X Y in degrees. Y up, +Z in front of the figure.`;
     }), { primary: true, title: "Biovision hierarchy: the skeleton and the posture as one frame" });
-    const bvhCopy = button("Copy", () => run("Copying the BVH", async () => { await copy(X.buildBVH(getInput(), bvhOpts()).text, "the BVH text"); }), { title: "Copy the BVH text to the clipboard" });
+    const bvhCopy = button("Copy", () => run("Copying the BVH", async (tick, inp) => { await copy(X.buildBVH(inp, bvhOpts()).text, "the BVH text"); }), { title: "Copy the BVH text to the clipboard" });
     const bvhCard = card("BVH (Biovision hierarchy)", "Motion-capture and digital-human-modelling tools",
       "The 77-joint skeleton with OFFSETs and one frame of rotations (ZXY Euler, degrees). Y up, +Z in front of the figure, +X the figure's left, right-handed.",
       h("div", { class: "hm-ex-opts" }, bvhUnit.field, bvhNeutral.el, bvhHeader.el),
@@ -332,17 +371,17 @@ export default {
       { id: "metrics", name: "Posture metrics", info: "Trunk, neck, arm and leg angles, heights, reach and balance of this posture.", what: "metrics", text: async (i, hd) => { const t = await X.metricsCSV(i, { header: hd }); if (t === null) throw new Error("Posture metrics are not available in this build"); return t; }, json: null },
     ];
     const tableRows = TABLES.map((t) => {
-      const buildText = async () => t.text(getInput(), opt.csvHeader);
+      const buildText = (inp) => t.text(inp, opt.csvHeader);
       const acts = [
-        button("Copy", () => run(`Copying ${t.name.toLowerCase()}`, async () => { await copy(await buildText(), `${t.name} (CSV)`); }), { ariaLabel: `Copy ${t.name} as CSV`, title: "Copy as CSV text" }),
-        button("CSV", () => run(`Making the ${t.name.toLowerCase()} table`, async () => {
-          const text = await buildText(), name = fname(t.what, "csv");
+        button("Copy", () => run(`Copying ${t.name.toLowerCase()}`, async (tick, inp) => { await copy(await buildText(inp), `${t.name} (CSV)`); }), { ariaLabel: `Copy ${t.name} as CSV`, title: "Copy as CSV text" }),
+        button("CSV", () => run(`Making the ${t.name.toLowerCase()} table`, async (tick, inp) => {
+          const text = await buildText(inp), name = fname(inp, t.what, "csv");
           save(name, blobOf(text, "text/csv;charset=utf-8"));
           return `Saved ${name} (${X.formatBytes(text.length)}, ${fmtInt(text.trim().split("\n").length - 1)} rows).`;
         }), { primary: true, ariaLabel: `Download ${t.name} as CSV`, title: "Download as CSV" }),
       ];
-      if (t.json) acts.push(button("JSON", () => run(`Making the ${t.name.toLowerCase()} file`, async () => {
-        const text = t.json(getInput()), name = fname(t.what, "json");
+      if (t.json) acts.push(button("JSON", () => run(`Making the ${t.name.toLowerCase()} file`, async (tick, inp) => {
+        const text = t.json(inp), name = fname(inp, t.what, "json");
         save(name, blobOf(text, "application/json"));
         return `Saved ${name} (${X.formatBytes(text.length)}).`;
       }), { ariaLabel: `Download ${t.name} as JSON`, title: "Download as JSON" }));
@@ -353,8 +392,8 @@ export default {
 
     // ---- 4. exchange JSON -----------------------------------------------------------------------------------------------------------
     const jsonSize = sizeEl();
-    const jsonBtn = button("Download JSON", () => run("Building the exchange file", async () => {
-      const inp = getInput(), text = X.exchangeText(inp, { created: stamp() }), check1 = X.validateExchange(text), name = fname("exchange", "json");
+    const jsonBtn = button("Download JSON", () => run("Building the exchange file", async (tick, inp) => {
+      const text = X.exchangeText(inp, { created: stamp() }), check1 = X.validateExchange(text), name = fname(inp, "exchange", "json");
       if (!check1.ok) throw new Error(`the file failed its own check: ${check1.errors[0]}`);
       save(name, blobOf(text, "application/json"));
       return `Saved ${name} (${X.formatBytes(text.length)}). Checked: valid human-exchange v1${check1.warnings.length ? `, ${check1.warnings.length} warning${check1.warnings.length === 1 ? "" : "s"}` : ""}.`;
@@ -382,11 +421,12 @@ export default {
         const parsed = await X.parsePostureFile(await readFile(f, X.MAX_POSTURE_TEXT, "posture"));
         if (!parsed.ok) { showIssues(`${f.name} could not be loaded as a posture.`, parsed.errors); return null; }
         const res = await X.applyPostureFile(rig, parsed, { place: opt.postPlace });
+        loaded = { id: parsed.id ?? null, name: String(parsed.name || "Custom posture"), pose: JSON.parse(JSON.stringify(rig.getPose())) }; // what ctx.setPosture stores, and the pose it names
         ctx.setPosture({ id: parsed.id, name: parsed.name });
         const notes = [...parsed.warnings, ...(res.clamped?.length && !parsed.clamped.length ? [`${res.clamped.length} angle${res.clamped.length === 1 ? " was" : "s were"} limited to the range of motion of this body.`] : [])];
         if (notes.length) showIssues(`Loaded "${parsed.name}" with notes:`, notes, "warn");
         return `Loaded the posture "${parsed.name}" from ${f.name}.`;
-      });
+      }, { snap: false });
     }
     function loadScene(f) {
       return run("Loading the scene", async () => {
@@ -397,17 +437,17 @@ export default {
         if (!r.ok) { showIssues(`${f.name} could not be loaded as a scene.`, r.errors); return null; }
         if (r.warnings.length) showIssues(`Loaded ${r.added} object${r.added === 1 ? "" : "s"} with notes:`, r.warnings, "warn");
         return `Loaded ${r.added} object${r.added === 1 ? "" : "s"} from ${f.name}${opt.sceneAdd ? " into the current scene" : ""}. Undo is in the Scene tab.`;
-      });
+      }, { snap: false });
     }
-    const postDown = button("Download posture file", () => run("Making the posture file", async () => {
-      const file = await X.buildPostureFile(getInput(), { created: stamp() }), text = JSON.stringify(file, null, 2) + "\n", name = fname("posture", "json");
+    const postDown = button("Download posture file", () => run("Making the posture file", async (tick, inp) => {
+      const file = await X.buildPostureFile(inp, { created: stamp() }), text = JSON.stringify(file, null, 2) + "\n", name = fname(inp, "posture", "json");
       save(name, blobOf(text, "application/json"));
       return `Saved ${name} (${X.formatBytes(text.length)}). It holds the joint angles${file.library_posture ? " and the library posture" : ""}; load it again with "Load posture file".`;
     }), { primary: true, title: "Joint angles and the Posture object as JSON" });
-    const postCopy = button("Copy", () => run("Copying the posture", async () => { await copy(JSON.stringify(await X.buildPostureFile(getInput()), null, 2), "the posture file"); }), { ariaLabel: "Copy the posture file as text" });
+    const postCopy = button("Copy", () => run("Copying the posture", async (tick, inp) => { await copy(JSON.stringify(await X.buildPostureFile(inp), null, 2), "the posture file"); }), { ariaLabel: "Copy the posture file as text" });
     const postLoad = button("Load posture file…", () => postFile.click(), { title: "Open a posture file saved here, a Posture object or a pose" });
-    const sceneDown = button("Download scene file", () => run("Making the scene file", async () => {
-      const text = X.sceneFileText(peekSandbox(ctx)), name = fname("scene", "json");
+    const sceneDown = button("Download scene file", () => run("Making the scene file", async (tick, inp) => {
+      const text = X.sceneFileText(peekSandbox(ctx)), name = fname(inp, "scene", "json");
       save(name, blobOf(text, "application/json"));
       return `Saved ${name} (${X.formatBytes(text.length)}): ${objects} object${objects === 1 ? "" : "s"} and the measurements.`;
     }), { primary: true, when: () => !!peekSandbox(ctx), title: "The scene file of the Scene tab: objects, settings and measurements (metres)" });
@@ -425,13 +465,13 @@ export default {
     const imgShadow = check("imgShadow", "Floor shadow");
     const imgOpts = () => ({ scale: opt.imgScale, transparent: opt.imgBackground === "transparent", grid: opt.imgGrid, shadow: opt.imgShadow });
     const imgNote = (r) => (r.limited ? " The size was reduced to what this graphics card can draw." : "");
-    const pngBtn = button("Download PNG", () => run("Drawing the image", async () => {
-      const r = await capturePNG(ctx.viewport, imgOpts()), name = fname("view", "png", opt.imgScale === 2 ? "2x" : "");
+    const pngBtn = button("Download PNG", () => run("Drawing the image", async (tick, inp) => {
+      const r = await capturePNG(ctx.viewport, imgOpts()), name = fname(inp, "view", "png", opt.imgScale === 2 ? "2x" : "");
       save(name, r.blob);
       return `Saved ${name} (${r.width} × ${r.height} px, ${X.formatBytes(r.blob.size)}${opt.imgBackground === "transparent" ? ", transparent" : ""}).${imgNote(r)}`;
     }), { primary: true, title: "The 3D view as a PNG image" });
-    const stripBtn = button("Download 4 views", () => run("Drawing the four views", async () => {
-      const inp = getInput(), r = await captureViews(ctx.viewport, frameBox(inp.rig, inp.sandbox), imgOpts()), name = fname("views", "png", opt.imgScale === 2 ? "2x" : "");
+    const stripBtn = button("Download 4 views", () => run("Drawing the four views", async (tick, inp) => {
+      const r = await captureViews(ctx.viewport, frameBox(inp.rig, inp.sandbox), imgOpts()), name = fname(inp, "views", "png", opt.imgScale === 2 ? "2x" : "");
       save(name, r.blob);
       return `Saved ${name}: front, left side, back and top, ${r.width} × ${r.height} px, ${X.formatBytes(r.blob.size)}.${imgNote(r)}`;
     }), { title: "Front, left side, back and top side by side in one PNG" });
@@ -441,8 +481,8 @@ export default {
 
     // ---- 7. summary ---------------------------------------------------------------------------------------------------------------------
     const summaryPre = h("pre", { class: "hm-ex-pre", tabindex: "0", "aria-label": "Summary text" });
-    async function summary() { const inp = getInput(); let rows = null; try { rows = await X.metricRows(inp); } catch { rows = null; } return X.summaryText(inp, rows); }
-    const sumBtn = button("Copy summary", () => run("Writing the summary", async () => { await copy(await summary(), "the summary"); }), { primary: true, title: "A short plain-text summary for a report" });
+    async function summary(inp = capture()) { let rows = null; try { rows = await X.metricRows(inp); } catch { rows = null; } return X.summaryText(inp, rows); }
+    const sumBtn = button("Copy summary", () => run("Writing the summary", async (tick, inp) => { await copy(await summary(inp), "the summary"); }), { primary: true, title: "A short plain-text summary for a report" });
     const sumDetails = h("details", {}, h("summary", {}, "Show the summary text"), summaryPre);
     sumDetails.addEventListener("toggle", async () => { summaryOpen = sumDetails.open; if (summaryOpen) await refreshSummary(); });
     async function refreshSummary() { try { summaryPre.textContent = await summary(); } catch (e) { summaryPre.textContent = message(e); } }
@@ -476,11 +516,11 @@ export default {
     function refresh() {
       timer = 0;
       if (disposed) return;
-      const rig = ctx.getRig(), profile = ctx.getProfile(), posture = ctx.state.posture;
+      const rig = ctx.getRig(), { profile, posture } = rig ? describe(rig) : {}, now = ctx.getProfile();
       hasRig = !!rig;
       let sandbox = null, est = null;
       try { sandbox = peekSandbox(ctx); objects = X.visibleObjects(sandbox).length; if (rig) est = X.estimateSizes({ rig, sandbox }); } catch { objects = 0; }
-      stateEl.replaceChildren(...(rig ? [h("b", {}, profile?.label ?? "Figure"), h("span", {}, `${posture?.name ?? "Neutral standing"} · ${objects} scene object${objects === 1 ? "" : "s"}${rig.skin ? "" : " · no skin (skeleton only)"}`)] : [h("span", {}, "Waiting for the figure to be built…")]));
+      stateEl.replaceChildren(...(rig ? [h("b", {}, profile?.label ?? "Figure"), h("span", {}, `${posture?.name ?? "Neutral standing"}${posture?.basedOn ? ` (edited from ${posture.basedOn.name ?? posture.basedOn.id ?? "a posture"})` : ""} · ${objects} scene object${objects === 1 ? "" : "s"}${rig.skin ? "" : " · no skin (skeleton only)"}`), ...(now && now.id !== profile.id && !rig.body?.synthetic ? [h("span", { class: "hm-ex-pending" }, `The model is being rebuilt for "${now.label}". Files made now hold this figure.`)] : [])] : [h("span", {}, "Waiting for the figure to be built…")]));
       const verts = est ? X.skinnedMeshes(rig).reduce((n, m) => n + m.geometry.getAttribute("position").count, 0) : 0;
       qualityNote.hidden = !(rig && rig.quality === "low");
       qualityText.textContent = `The meshes follow the quality of the 3D view: now low, ${fmtInt(verts)} vertices. High gives about 2.5 times as many.`;
@@ -491,10 +531,10 @@ export default {
       const sceneOn = opt.glbScene && objects > 0;
       if (est) {
         const glb = (opt.glbFigure === "skin" ? est.glbSkin : opt.glbFigure === "skeleton" ? est.glbSkeleton : 0) + (sceneOn ? est.glbScene : 0);
-        glbSize.textContent = `about ${X.formatBytes(glb)}`;
+        sizeText(glbSize, glb);
         const meshScenePart = opt.meshScene && objects > 0, figure = opt.meshSkin;
-        objSize.textContent = `about ${X.formatBytes((figure ? est.obj : 0) + (meshScenePart ? est.objScene : 0))}`;
-        stlSize.textContent = `about ${X.formatBytes((figure ? est.stl : 0) + (meshScenePart ? est.stlScene : 0))}`;
+        sizeText(objSize, (figure ? est.obj : 0) + (meshScenePart ? est.objScene : 0));
+        sizeText(stlSize, (figure ? est.stl : 0) + (meshScenePart ? est.stlScene : 0));
         jsonSize.textContent = `about ${X.formatBytes(est.json)}`;
       }
       applyEnabled();
@@ -502,6 +542,7 @@ export default {
     }
     const mark = () => { if (visible && !timer && !disposed) timer = setTimeout(refresh, 120); };
     for (const evt of ["rig", "profile", "posture", "pose", "scene", "measure"]) offs.push(ctx.on(evt, mark));
+    offs.push(ctx.on("profile", remember)); // the rig of the previous profile is still the one on the stage while the next is built
     refresh();
 
     return {

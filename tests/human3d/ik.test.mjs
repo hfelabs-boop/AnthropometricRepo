@@ -1060,6 +1060,17 @@ test("maxMove: no variable moves farther than that per call (joints, spine regio
   assert.ok(IK.DRAG_OPTIONS.follow === true && IK.DRAG_OPTIONS.maxMove > 0 && Object.isFrozen(IK.DRAG_OPTIONS));
 });
 
+test("a drag that starts far from the goal glides there at a modest cost per frame (the preferences are not relaxed while the region of the move is full)", () => {
+  // whole body: hand frame, look-at, six pins, every joint and the pelvis free, from the standing pose; the goal is 0.5 m away
+  const solver = MAN, start = standing(solver), sh = solver.worldPoint(start, { joint: "shoulder_R" }), free = ["all", "pelvis-xyz", "pelvis-rot"];
+  const goals = [{ type: "frame", id: "hand", joint: "wrist_R", landmark: "grip_centre_R", target: [sh.x - 0.1, sh.y + 0.25, sh.z + 0.5], axes: [{ local: "palm_normal", world: [0, 0, -1] }, { local: "hand_across", world: [0, 1, 0], line: true }] },
+    { type: "lookAt", id: "look", target: [0, 1.6, 1] }, ...IK.pinGoals(solver, start, ["heel_sole_L", "heel_sole_R", "ball_sole_medial_L", "ball_sole_lateral_L", "ball_sole_medial_R", "ball_sole_lateral_R"])];
+  let cur = start, frames = 0, iters = 0, r;
+  do { r = solver.solve(cur, goals, { ...IK.DRAG_OPTIONS, free }); assert.ok(maxAngleChange(cur, r.pose) <= IK.DRAG_OPTIONS.maxMove * R2D + 1e-9); assert.deepEqual(problemsOf(r), []); iters += r.iterations; cur = r.pose; frames++; } while (!r.reachable && frames < 60);
+  assert.ok(r.reachable, `arrived after ${frames} frames`);
+  assert.ok(iters / frames <= 11, `${(iters / frames).toFixed(1)} iterations per frame over ${frames} frames`);
+});
+
 test("closest feasible pose: a goal beyond the reach ends no farther than 10 mm from the best of 8,000 random in-ROM arm poses (the shoulder, the cap and the extension limit have local minima)", (t) => {
   const solver = MAN, start = standing(solver), env = IK.reachEnvelope(solver, start, "R", { samples: 8000, seed: 99, hull: false }), P = env.points, sh = V(env.origin);
   const rnd = rng(3);
@@ -1110,7 +1121,8 @@ test("validation: every number a caller passes is checked; nothing is a silent n
   assert.throws(() => MAN.solve(s, pos([1e308, 1e308, 1e308]), { free }), /absurdly far/);
   assert.throws(() => MAN.solve(s, [{ type: "height", landmark: "vertex", height: 1e300 }], { free }), /absurdly far/);
   assert.ok(Number.isFinite(MAN.solve(s, pos([1e6, 0, 0]), { free }).residual), "a point 1000 km away is far, not absurd");
-  for (const reference of [{ angles: { elbow_R: [NaN] } }, { angles: { bogus: [1] } }, { angles: { elbow_R: "x" } }, { root: { heading: NaN } }, { root: { bogus: 1 } }, null, "x"]) assert.throws(() => MAN.solve(s, pos(T), { free, reference }), /reference/, JSON.stringify(reference));
+  for (const reference of [{ angles: { elbow_R: [NaN] } }, { angles: { bogus: [1] } }, { angles: { elbow_R: "x" } }, { root: { heading: NaN } }, { root: { bogus: 1 } }, "x", 5]) assert.throws(() => MAN.solve(s, pos(T), { free, reference }), /reference/, JSON.stringify(reference));
+  assert.deepEqual(MAN.solve(s, pos(T), { free, reference: null }).pose, MAN.solve(s, pos(T), { free }).pose, "reference: null is no reference");
   for (const o of [{ tolerance: "1" }, { tolerance: Infinity }, { angTolerance: NaN }, { stepMax: 0 }, { stepMax: -1 }, { stepMax: NaN }, { seed: "x" }, { seed: NaN }, { seed: 1.5 }, { damping: "1" }, { angleScale: "1" }]) assert.throws(() => MAN.solve(s, pos(T), { free, ...o }), /options|must be/, JSON.stringify(o));
   assert.throws(() => MAN.solve(s, [{ ...pos(T)[0], tolerance: "1" }], { free }), /tolerance/);
   assert.throws(() => MAN.solve(s, [{ ...pos(T)[0], tolerance: Infinity }], { free }), /tolerance/);

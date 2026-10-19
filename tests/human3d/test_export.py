@@ -193,7 +193,12 @@ def test_every_format_downloads_a_real_file(s):
     p = s.page
     joint_ids = s.js("import('/js/human/skeleton.js').then((m) => m.JOINTS.map((j) => j.id))")
     assert len(joint_ids) == 77
-    s.js("window.__human.ctx.setPosture({ id: 'sit-upright-90', name: 'Seated upright (90-90-90)' })")
+    # the figure really is in the library posture (what the Posture tab does), and the shell is told
+    s.js("""async () => {
+      const { byId } = await import('/js/human/postures.js'), pose = await import('/js/human/pose.js'), { ctx } = window.__human, rig = ctx.getRig(), posture = byId('sit-upright-90'), x = pose.expandPosture(posture);
+      rig.setPose({ root: { ...pose.placePose(rig.restBody, { root: x.root, angles: x.angles }, { posture }) }, angles: x.angles }, { clamp: true });
+      ctx.emit('pose', {}); ctx.setPosture({ id: 'sit-upright-90', name: 'Seated upright (90-90-90)' });
+    }""")
     p.wait_for_timeout(300)
     assert "Seated upright" in p.locator(".hm-ex-state").inner_text()
 
@@ -262,7 +267,67 @@ def test_every_format_downloads_a_real_file(s):
     name, data = s.grab("Download posture file")
     doc = json.loads(data)
     assert name == f"{SLUG}_sit-upright-90_posture.json" and doc["app"] == "digital-human-posture" and doc["version"] == 1
-    assert doc["library_posture"] is False and doc["posture"]["id"] == "custom-sit-upright-90" and doc["shell"]["id"] == "sit-upright-90", "the figure is not in that library posture, so a custom posture is written"
+    assert doc["library_posture"] is True and doc["posture"]["id"] == "sit-upright-90" and doc["shell"]["id"] == "sit-upright-90"
+    assert s.errors() == [], s.errors()
+
+
+def test_files_name_the_posture_the_figure_is_really_in(s):
+    """Nothing tells the shell when a slider or the IK moves the figure: after an edit the files must not claim the posture the shell still names."""
+    s.open()
+    p = s.page
+    s.js("window.__human.ctx.getRig().setAngles({ knee_L: [100], knee_R: [100], hip_L: [90, 0, 0], hip_R: [90, 0, 0] }); window.__human.ctx.emit('pose', {})")
+    p.wait_for_timeout(300)
+    assert "Custom pose (edited from Neutral standing)" in p.locator(".hm-ex-state").inner_text()
+    name, data = s.grab("Download GLB")
+    assert name == f"{SLUG}_custom-pose_figure.glb", name
+    assert glb(data)[0]["asset"]["extras"]["posture"]["name"] == "Custom pose"
+    name, data = s.grab("Download OBJ")
+    assert name == f"{SLUG}_custom-pose_mesh_mm.obj" and "# Posture: Custom pose (edited from Neutral standing)" in data.decode("ascii"), name
+    name, data = s.grab("Download JSON")
+    doc = json.loads(data)
+    assert name == f"{SLUG}_custom-pose_exchange.json" and doc["posture"]["name"] == "Custom pose" and doc["posture"]["library"] is False and doc["posture"]["edited_from"]["name"] == "Neutral standing"
+    s.page.locator(".hm-ex details.hm-section").nth(6).evaluate("(d) => { d.open = true; }")
+    s.page.get_by_text("Show the summary text").click()
+    p.wait_for_function("() => /Posture: Custom pose/.test(document.querySelector('.hm-ex-pre')?.textContent || '')", timeout=20000)
+    # back to neutral: the shell's name is right again
+    s.js("window.__human.ctx.getRig().resetPose(); window.__human.ctx.emit('pose', {})")
+    p.wait_for_timeout(300)
+    name, _ = s.grab("Download JSON")
+    assert name == f"{SLUG}_neutral-standing_exchange.json", name
+    assert s.errors() == [], s.errors()
+
+
+@pytest.mark.parametrize("btn,kind", [("Download JSON", "json"), ("Download BVH", "bvh"), ("Download GLB", "glb")])
+def test_a_profile_change_during_a_download_does_not_mislabel_the_file(s, btn, kind):
+    """The shell has the new profile at once and the old rig until the rebuild is done: name and content must be the same figure (or, for the GLB, which reads the rig
+    after several breaths, a message that says the figure was replaced). The shell builds after 150 ms of quiet."""
+    s.open()
+    p = s.page
+    downloads = []
+    p.on("download", lambda d: downloads.append(d))
+    s.button(btn).click(no_wait_after=True)
+    p.wait_for_timeout(20)
+    s.js("""async () => { const a = await import('/js/human/anthro.js'); window.__human.ctx.setProfile(a.manualProfile({ sex: 'F', stature: 1500, statureUnit: 'mm', mass: 50, massUnit: 'kg' })); }""")
+    p.wait_for_function("() => !document.querySelector('.hm-ex')?.hasAttribute('aria-busy')", timeout=120000)
+    p.wait_for_function("() => !window.__human.state.busy", timeout=90000)
+    if not downloads:
+        assert kind == "glb", "only the GLB may refuse"
+        assert "The figure was replaced while the file was being made" in p.locator(".hm-ex-msgs").inner_text()
+        assert s.errors() == [], s.errors()
+        return
+    d = downloads[0]
+    data = Path(d.path()).read_bytes()
+    old = d.suggested_filename.startswith(SLUG + "_")  # the figure of the click, or (rebuilt before the file started) the new one: the content must be the one the NAME says
+    assert old or d.suggested_filename.startswith("manual-women-1500-mm_"), d.suggested_filename
+    if kind == "json":
+        doc = json.loads(data)
+        assert (1700 < doc["body"]["stature_mm"] < 1800 and doc["profile"]["label"].startswith("United States")) if old else (abs(doc["body"]["stature_mm"] - 1500) < 1 and doc["profile"]["label"] == "Manual · women · 1500 mm"), "name, profile and figure belong together"
+    elif kind == "bvh":
+        pelvis_cm = float(data.decode().split("Frame Time")[1].split("\n")[1].split()[1])
+        assert (88 < pelvis_cm < 100) if old else (74 < pelvis_cm < 84), "the first BVH frame puts the pelvis at the height of the figure the name says"
+    else:
+        extras = glb(data)[0]["asset"]["extras"]
+        assert extras["profile"]["label"].startswith("United States") if old else extras["profile"]["label"] == "Manual · women · 1500 mm"
     assert s.errors() == [], s.errors()
 
 
@@ -520,6 +585,21 @@ def test_busy_state_errors_and_keyboard(s):
     unnamed = s.js("""() => [...document.querySelectorAll('.hm-ex button, .hm-ex input:not([hidden]), .hm-ex select')].filter((e) => !(e.getAttribute('aria-label') || e.textContent.trim() || (e.labels && e.labels.length) || e.closest('.seg')?.getAttribute('aria-label'))).map((e) => e.outerHTML.slice(0, 80))""")
     assert unnamed == [], unnamed
     assert s.errors(allow=("the disk is full",)) == [], s.errors()
+
+
+def test_a_click_while_busy_says_it_was_ignored_and_checkboxes_are_24px(s):
+    s.open()
+    p = s.page
+    # a second export button pressed while the first one runs: no download, but a visible message (the status line and a toast)
+    got = s.js("""() => new Promise((res) => { const q = (t) => [...document.querySelectorAll('.hm-ex button')].find((x) => x.textContent === t);
+      q('Download BVH').click(); q('Download STL').click();
+      res({ busy: document.querySelector('.hm-ex-busy').textContent, hidden: document.querySelector('.hm-ex-busy').hidden }); })""")
+    assert not got["hidden"] and "Another export is still running" in got["busy"], got
+    s.wait_idle()
+    assert p.locator(".hm-ex-busy").is_hidden() and p.locator(".hm-ex-wait").inner_text() == ""
+    # every control that can be seen is at least 24 x 24 CSS pixels (WCAG 2.2 target size), checkboxes included
+    small = s.js("""() => [...document.querySelectorAll('.hm-ex input[type=checkbox]')].filter((e) => e.offsetParent).map((e) => e.getBoundingClientRect()).filter((r) => r.width < 24 || r.height < 24).length""")
+    assert small == 0, small
 
 
 def test_mobile_layout_and_screenshots(chromium, server):

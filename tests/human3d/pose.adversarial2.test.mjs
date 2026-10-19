@@ -542,7 +542,9 @@ test("validator rejects adversarial postures and names the problem", () => {
   chk("prone-on-seat", { support: "seat", root: { flex: 90 } }, /sink into the seat|below the floor/);
   chk("legs-through-each-other", { joints: { hip_LR: [20, -30, 0] } }, /thigh.* overlap by/);
   chk("sitting-feet-floating", { support: "seat+feet", joints: { hip_LR: [90], knee_LR: [60] } }, /contact set "feet": its lowest point is \d+ mm above the floor/);
-  chk("sitting-feet-in-the-floor", { support: "seat+feet", joints: { hip_LR: [90], knee_LR: [120] } }, /contact set "feet": its lowest point is \d+ mm below the floor/);
+  // knee 105: the soles are 16 to 22 mm below the floor on the four bodies. (Knee 120 was used while the shank of the neutral pose was vertical, 22 to 29 mm below the floor; since the stance change
+  // (MODEL.md 4.1) the shank leans 4.9 degrees and the foot of a knee at 120 swings back up to the floor, inside the 5 mm of tolerance: knee 100 to 110 is the new depth, 14 to 22 mm below.)
+  chk("sitting-feet-in-the-floor", { support: "seat+feet", joints: { hip_LR: [90], knee_LR: [105] } }, /contact set "feet": its lowest point is \d+ mm below the floor/);
   chk("kneeling-toes-floating", { support: "knees+toes", joints: { knee_LR: [120], ankle_LR: [-40] } }, /contact set "toes"/);
   chk("shoulder-over-range", { joints: { shoulder_R: [200, 0, 0] } }, /shoulder_R flex = 200° is outside the range of motion \[-60, 180\]/);
   chk("swing-cap", { joints: { shoulder_L: [150, 150, 0] } }, /limited to 180°/);

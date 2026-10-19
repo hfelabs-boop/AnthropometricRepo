@@ -423,7 +423,14 @@ test("landmark vs contacts when posed: seated 90-90-90 - the seat set sits at th
   const kn = rig.jointWorld("knee_L"), hp = rig.jointWorld("hip_L");
   assert.ok(Math.abs(kn.y - hp.y) < 0.01 && kn.z > hp.z + 0.3, "thigh horizontal, knee forward");
   const sh = rig.jointWorld("ankle_L");
-  assert.ok(sh.y < kn.y - 0.3 && Math.abs(sh.z - kn.z) < 0.03, `shank vertical ${sh.toArray()}`);
+  // STALE since the stance change (MODEL.md 4.1, 8.1): hip 90 and knee 90 turn the shank frame by 90 degrees and back, so the seated shank is the shank of the neutral pose, vertical to within the
+  // stance lean: the ankle is body.stance.ankleBehindKneeM (about 44 mm, 5.9 degrees) behind the knee, not under it (was: within 30 mm of the knee's z, i.e. vertical). The foot is not turned:
+  // the soles stay flat and level.
+  const lean = rig.body.stance.ankleBehindKneeM;
+  assert.ok(lean > 0.02 && lean < 0.07, `stance lean ${lean}`);
+  assert.ok(sh.y < kn.y - 0.3 && Math.abs((kn.z - sh.z) - lean) < 1e-4 && Math.abs(sh.x - kn.x) < 1e-6, `shank vertical to within the stance lean ${sh.toArray()} ${kn.toArray()}`);
+  const soles = rig.contactPoints("feet").map((p) => p.y);
+  assert.ok(Math.max(...soles) - Math.min(...soles) < 0.003, `the soles of a seated 90-90-90 body are level (${Math.min(...soles)}..${Math.max(...soles)})`);
   const low = rig.lowestY();
   const seatLow = Math.min(...rig.contactPoints("seat").map((p) => p.y));
   console.log("seated lowestY", low, "seat set lowest", seatLow, "heel y", rig.landmarkWorld("heel_L").y);

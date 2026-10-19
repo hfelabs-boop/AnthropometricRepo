@@ -11,6 +11,11 @@ import * as THREE from "three";
 import { JOINTS, JOINT_BY_ID, CHILDREN, GROUPS, ROOT_DOF, BONES } from "./skeleton.js";
 import { toCSV } from "../util.js";
 
+// pose.js and postures.js load with this module (top-level await; a missing one just means "cannot check"): whether the shell's posture name still describes the
+// pose is decided SYNCHRONOUSLY, in the same block that reads the pose, so a label and the angles it labels cannot come from two different moments.
+const POSE = await import("./pose.js").catch(() => null);
+const LIB = await import("./postures.js").catch(() => null);
+
 export const EXPORT_VERSION = 1;
 export const GENERATOR = `Digital human export ${EXPORT_VERSION} (Military Anthropometry site; three.js r${THREE.REVISION})`;
 export const AXES_NOTE = "right-handed; +Y up, the figure faces +Z, +X is the figure's left, floor at y = 0";
@@ -48,7 +53,7 @@ export const postureSlug = (posture) => slug(posture?.id, 40) || slug(posture?.n
  */
 export function exportFileName({ profile, posture, what = "", ext, suffix = "" } = {}) {
   const parts = [slug(profile?.label, 44) || slug(profile?.id, 44) || "figure", postureSlug(posture)];
-  const w = slug(what, 20), s = slug(suffix, 8);
+  const w = slug(what, 20), s = slug(suffix, 12); // "mm-x-front" (the longest the panel makes) fits whole
   if (w) parts.push(w);
   if (s) parts.push(s);
   return `${parts.join("_")}.${String(ext).replace(/[^a-z0-9]/gi, "").toLowerCase() || "dat"}`;
@@ -86,7 +91,47 @@ function unitOf(unit, allowed) {
 function need(input) {
   const rig = input?.rig;
   if (!rig || typeof rig.getPose !== "function" || !rig.bones) throw new Error("There is no figure to export yet. Wait for the model to finish building.");
-  return { rig, body: rig.body, profile: input.profile ?? null, posture: input.posture ?? null, sandbox: input.sandbox ?? null, measurements: Array.isArray(input.measurements) ? input.measurements : null };
+  return { rig, body: rig.body, profile: input.profile ?? null, posture: effectivePosture(input.posture ?? null, rig), sandbox: input.sandbox ?? null, measurements: Array.isArray(input.measurements) ? input.measurements : null };
+}
+/** A rig that was disposed (the shell swapped the profile or the quality) has lost its skin: say what happened instead of "no skin". */
+function assertLive(rig) {
+  if (rig._disposed) throw new Error("The figure was replaced while the file was being made (the profile or the quality changed). Click the button again to export the new figure.");
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// who the figure is and what it is doing: a label must describe the content it sits next to
+export const CUSTOM_POSE_NAME = "Custom pose";
+const POSE_LABEL_EPS = 0.01; // degrees: a slider step is far above it, float noise far below
+/** The part of a pose a posture name is about: the heading (where the figure faces) and the position are not. */
+const labelPose = (p) => ({ root: { heading: 0, flex: p.root?.flex ?? 0, lat: p.root?.lat ?? 0, rot: p.root?.rot ?? 0 }, angles: p.angles ?? {} });
+/**
+ * The posture a file can honestly claim. The shell's `state.posture` is only changed by whoever loads a posture (nothing follows slider or IK edits), so a name
+ * may describe a pose the figure has left. The name is checked against the figure when it can be: a library id (the library posture's pose), the shell's
+ * default "Neutral standing" (all angles 0), or `posture.pose` ({ root, angles }, the pose the name was given to). When the figure no longer matches, the result is
+ * { id: null, name: "Custom pose", edited: true, basedOn: { id, name } }; ids that cannot be checked (a custom posture) and a figure that still matches are returned as they are.
+ */
+export function effectivePosture(posture, rig) {
+  if (!isObj(posture) || posture.edited || !POSE || typeof rig?.getPose !== "function") return posture ?? null;
+  try {
+    let ref = null;
+    if (isObj(posture.pose)) ref = posture.pose;
+    else if (typeof posture.id === "string" && posture.id) {
+      const lib = LIB?.byId?.(posture.id);
+      if (lib) { const x = POSE.expandPosture(lib); ref = POSE.clampPose({ root: x.root, angles: x.angles }).pose; }
+    } else if (!posture.id && String(posture.name ?? "").trim().toLowerCase() === "neutral standing") ref = POSE.neutralPose();
+    if (!ref || POSE.poseEquals(labelPose(ref), labelPose(rig.getPose()), POSE_LABEL_EPS)) return posture;
+  } catch { return posture; } // a posture that cannot be expanded cannot be checked
+  return { id: null, name: CUSTOM_POSE_NAME, edited: true, basedOn: { id: posture.id ?? null, name: posture.name ?? null } };
+}
+/**
+ * The profile that belongs to this figure: the first of `candidates` whose id is the one the body was fitted from, else a description made from the body itself
+ * (label, sex; no survey measures). The profile the shell holds is the NEW one as soon as the user picks it, the rig is the old one until the rebuild is done; a
+ * file must describe the rig it holds. A generic body (the fallback when a profile cannot be fitted) is never described by the profile it replaced.
+ */
+export function profileOf(rig, candidates = []) {
+  const body = rig?.body, id = body?.profileId ?? null;
+  if (!body?.synthetic) for (const c of candidates) if (isObj(c) && (id === null || c.id === id)) return c;
+  return { id, label: body?.label ?? "Figure", sex: body?.sex ?? "both", source: null, notes: [], measures: {} };
 }
 const tickOf = (o) => (typeof o?.tick === "function" ? o.tick : async () => {});
 /** Who made the file, for what: the part every export states about itself. */
@@ -94,12 +139,14 @@ function provenance({ profile, posture }, created) {
   return {
     format_version: EXPORT_VERSION, generator: GENERATOR, ...(created ? { created: String(created) } : {}),
     profile: { id: profile?.id ?? null, label: profile?.label ?? null, sex: profile?.sex ?? null },
-    posture: { id: posture?.id ?? null, name: posture?.name ?? null },
+    posture: postureMeta(posture),
     note: MODEL_NOTE,
   };
 }
 const profileLine = (p) => p?.label || "unknown profile";
-const postureLine = (q) => (q?.name || q?.id ? `${q.name ?? q.id}${q.id && q.name && q.id !== q.name ? ` [${q.id}]` : ""}` : "custom posture");
+const postureLine = (q) => (q?.basedOn ? `${q.name} (edited from ${postureLine({ id: q.basedOn.id, name: q.basedOn.name })})` : q?.name || q?.id ? `${q.name ?? q.id}${q.id && q.name && q.id !== q.name ? ` [${q.id}]` : ""}` : "custom posture");
+/** { id, name } of a posture for metadata, plus `edited_from` when the figure has left the posture the shell names. */
+const postureMeta = (q) => ({ id: q?.id ?? null, name: q?.name ?? null, ...(q?.basedOn ? { edited_from: { id: q.basedOn.id ?? null, name: q.basedOn.name ?? null } } : {}) });
 
 // ---------------------------------------------------------------------------------------------------------------------
 // skin: the SkinnedMeshes of the rig, posed on the CPU
@@ -184,11 +231,19 @@ export function visibleObjects(sandbox) {
   for (const o of sandbox.objects.values()) if (o && o.visible !== false && o.group && o.model) out.push(o);
   return out;
 }
+/** Unit quaternion [x, y, z, w] (w >= 0) of the world rotation of a group, or null when there is none. yaw is not enough: an object attached with orient follows every rotation of its joint. */
+function worldQuaternion(group) {
+  if (!group?.updateWorldMatrix) return null;
+  group.updateWorldMatrix(true, false);
+  const q = new THREE.Quaternion();
+  group.matrixWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3());
+  return Number.isFinite(q.x + q.y + q.z + q.w) ? qxyzw(q) : null;
+}
 /** The scene as data for the exchange JSON: positions in millimetres. */
 export function sceneInfo(sandbox) {
   const objects = [...(sandbox?.objects?.values?.() ?? [])].map((o) => ({
     id: String(o.id), type: o.type, name: cleanName(o.name), params: JSON.parse(JSON.stringify(o.params ?? {})), color: o.color ?? null, locked: !!o.locked, visible: o.visible !== false,
-    position_mm: (o.position ?? [0, 0, 0]).map(mm3), yaw_deg: rnd(o.yaw ?? 0, 3), attachedTo: o.attachedTo ? JSON.parse(JSON.stringify(o.attachedTo)) : null,
+    position_mm: (o.position ?? [0, 0, 0]).map(mm3), yaw_deg: rnd(o.yaw ?? 0, 3), orientation_xyzw: worldQuaternion(o.group), attachedTo: o.attachedTo ? JSON.parse(JSON.stringify(o.attachedTo)) : null,
   }));
   return { count: objects.length, objects };
 }
@@ -371,12 +426,19 @@ function stickGeometry(at, boneIndex) {
  * Returns { data: ArrayBuffer, bytes, stats: { vertices, triangles, joints, nodes, meshes, objects, skippedObjects }, json }.
  */
 export async function buildGLB(input, options = {}) {
-  const { rig, profile, posture, sandbox, measurements } = need(input);
+  const { rig, profile, sandbox, measurements } = need(input);
   const o = { figure: "skin", pose: "baked", scene: false, measurements: false, created: null, ...options };
   if (!GLB_FIGURE.includes(o.figure)) throw new RangeError(`Unknown GLB content "${o.figure}" (use ${GLB_FIGURE.join(", ")}).`);
   if (!GLB_POSE.includes(o.pose)) throw new RangeError(`Unknown GLB pose mode "${o.pose}" (use ${GLB_POSE.join(", ")}).`);
   const tick = tickOf(o);
+  // Every await (tick) comes BEFORE the first read of the rig, and everything that reads the rig or the sandbox (bones, skin vertices, clip tracks, scene objects)
+  // runs in one synchronous block after them: the 3D view and the IK drag stay live while the page breathes, and a pose that changed in between would give a file
+  // whose skeleton is in pose A and whose mesh is in pose B (inverse bind matrices and vertices that no longer fit).
   await tick("Collecting the figure");
+  if (o.figure !== "none") await tick("Posing the skin");
+  if (o.scene && sandbox) await tick("Adding the scene objects");
+  assertLive(rig); // the shell may have replaced the figure while the page breathed: a clear message, not "no skin"
+  const posture = effectivePosture(input.posture ?? null, rig); // the label is decided in the same block as the pose it labels
   const scene = new THREE.Scene();
   scene.name = "digital-human";
   const stats = { vertices: 0, triangles: 0, joints: 0, nodes: 0, meshes: 0, objects: 0, skippedObjects: 0 };
@@ -405,7 +467,6 @@ export async function buildGLB(input, options = {}) {
     if (meshes[0]) meshes[0].skeleton.bones.forEach((b, i) => orig.set(b.name, meshes[0].skeleton.boneInverses[i]));
     const inverses = list.map((b) => (baked ? null : orig.get(b.name))?.clone() ?? b.matrixWorld.clone().invert());
     const skeleton = new THREE.Skeleton(list, inverses);
-    await tick("Posing the skin");
     const add = (name, geometry, material) => {
       const m = new THREE.SkinnedMesh(geometry, material);
       m.name = name;
@@ -447,7 +508,6 @@ export async function buildGLB(input, options = {}) {
   }
 
   if (o.scene && sandbox) {
-    await tick("Adding the scene objects");
     const nodes = objectNodes(sandbox, new Set([...JOINTS.map((j) => j.id), ...RESERVED_NODE_NAMES]));
     stats.objects = nodes.count; stats.skippedObjects = nodes.skipped;
     if (nodes.count) {
@@ -469,7 +529,7 @@ export async function buildGLB(input, options = {}) {
   json.asset = { ...json.asset, generator: GENERATOR, extras: { ...prov, units: "m", axes: { up: "+Y", front: "+Z", left: "+X", handedness: "right", note: AXES_NOTE }, pose: o.pose === "baked" ? "baked: skeleton and skin are in the current pose" : "clip: neutral bind pose + a one-frame animation clip with the current pose", figure: o.figure } };
   const data = packGLB(json, bin);
   stats.nodes = json.nodes?.length ?? 0;
-  return { data, bytes: data.byteLength, stats, json };
+  return { data, bytes: data.byteLength, stats, json, posture };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -510,8 +570,8 @@ export async function buildOBJ(input, options = {}) {
   const o = staticOptions(options), n = need(input);
   const { root, stats } = staticScene(input, o);
   if (!root.children.length) throw new Error("There is nothing to export: turn on the skin or include the scene objects.");
-  await tickOf(o)("Writing the OBJ");
-  const { OBJExporter } = await import("three/addons/exporters/OBJExporter.js");
+  const tick = tickOf(o);
+  await tick("Writing the OBJ");
   const ax = AXES[o.axes];
   const header = [
     "# Digital human OBJ export", `# Generated by: ${ascii(GENERATOR)}`, `# Profile: ${ascii(profileLine(n.profile))}`, `# Posture: ${ascii(postureLine(n.posture))}`,
@@ -519,8 +579,47 @@ export async function buildOBJ(input, options = {}) {
     `# Contents: ${[o.skin !== false ? "skin (posed)" : null, stats.objects ? `${stats.objects} scene object${stats.objects === 1 ? "" : "s"}` : null].filter(Boolean).join(", ")}`,
     ...(o.created ? [`# Created: ${ascii(o.created)}`] : []), `# ${ascii(MODEL_NOTE)}`, "",
   ].join("\n");
-  const text = header + new OBJExporter().parse(root);
-  return { text, bytes: new TextEncoder().encode(text).length, stats };
+  const body = await objChunks(root, tick);
+  const text = header + body.parts.join("");
+  return { text, bytes: new TextEncoder().encode(header).length + body.bytes, stats, posture: n.posture };
+}
+
+const OBJ_SLICE_MS = 25; // longest stretch of OBJ writing between two breaths of the page
+/**
+ * What `new OBJExporter().parse(root)` returns, written one skin mesh / one scene object at a time so that the page can breathe between them (200 catalogue objects
+ * are a 60 MB file: one call is a task of several seconds). The exporter numbers vertices from 1 on every call, so the f / l / p lines of each piece are shifted by
+ * what the pieces before it wrote; `sliceMs` = how long the writing may run before the next breath. The result is identical to a single parse (a test compares the two byte for byte). Returns { parts: string[], bytes }.
+ */
+export async function objChunks(root, tick = async () => {}, sliceMs = OBJ_SLICE_MS) {
+  const { OBJExporter } = await import("three/addons/exporters/OBJExporter.js");
+  const units = [];
+  for (const c of root.children) { if (c.name === "scene" && !c.isMesh) units.push(...c.children); else units.push(c); }
+  const parts = [], enc = new TextEncoder(), off = { v: 0, vt: 0, vn: 0 };
+  let bytes = 0, slice = Date.now();
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i], n = { v: 0, vt: 0, vn: 0 };
+    u.traverse((c) => {
+      const g = c.geometry, pos = g?.getAttribute?.("position");
+      if (!pos || !(c.isMesh || c.isLine || c.isPoints)) return;
+      n.v += pos.count;
+      if (c.isMesh) { n.vt += g.getAttribute("uv")?.count ?? 0; n.vn += g.getAttribute("normal")?.count ?? 0; }
+    });
+    let text = new OBJExporter().parse(u);
+    if (off.v || off.vt || off.vn) text = shiftObjIndices(text, off);
+    off.v += n.v; off.vt += n.vt; off.vn += n.vn;
+    parts.push(text);
+    bytes += enc.encode(text).length;
+    if (Date.now() - slice > sliceMs && i < units.length - 1) { await tick(`Writing the OBJ (${i + 1} of ${units.length} parts)`); slice = Date.now(); }
+  }
+  return { parts, bytes };
+}
+/** Add the running vertex / uv / normal counts to the indices of the f, l and p lines of an OBJ text made by a fresh OBJExporter. */
+function shiftObjIndices(text, off) {
+  return text.replace(/^([flp]) (.*)$/gm, (_, kind, rest) => `${kind} ${rest.trim().split(" ").map((tok) => {
+    if (kind !== "f") return +tok + off.v;
+    const [a, b, c] = tok.split("/");
+    return `${+a + off.v}${b === undefined ? "" : `/${b === "" ? "" : +b + off.vt}`}${c === undefined ? "" : `/${+c + off.vn}`}`;
+  }).join(" ")}`);
 }
 
 /** Binary STL (triangles only; the 80-byte header holds a short text, never starting with "solid"). Same options as buildOBJ. Returns { data: ArrayBuffer, bytes, triangles, stats }. */
@@ -537,7 +636,7 @@ export async function buildSTL(input, options = {}) {
   bytes.fill(0x20, 0, 80);
   bytes.set(new TextEncoder().encode(head.startsWith("solid") ? `_${head}`.slice(0, 79) : head), 0);
   const triangles = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(80, true);
-  return { data: bytes.slice().buffer, bytes: bytes.length, triangles, stats };
+  return { data: bytes.slice().buffer, bytes: bytes.length, triangles, stats, posture: n.posture };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -595,7 +694,7 @@ export function buildBVH(input, options = {}) {
   if (o.neutralFrame) frames.push(frame(() => [0, rig.restRootY, 0], () => id4));
   lines.push("MOTION", `Frames: ${frames.length}`, "Frame Time: 0.0333333", ...frames, "");
   const text = lines.join("\n");
-  return { text, bytes: new TextEncoder().encode(text).length, frames: frames.length, joints: order.length, unit: o.unit };
+  return { text, bytes: new TextEncoder().encode(text).length, frames: frames.length, joints: order.length, unit: o.unit, posture };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -739,7 +838,7 @@ export function buildExchange(input, options = {}) {
     note: MODEL_NOTE,
     profile: { id: profile?.id ?? body.profileId ?? null, label: profile?.label ?? body.label ?? "Figure", sex: profile?.sex ?? body.sex ?? "both", source: profile?.source ? jsonCopy(profile.source) : null, notes: Array.isArray(profile?.notes) ? profile.notes.map(String) : [], measures },
     body: { form: body.form ?? null, stature_mm: mm3(body.stature ?? 0), mass_kg: rnd(body.mass ?? 0, 3), dims, joints, landmarks, segments, centre_of_mass: com },
-    posture: { id: posture?.id ?? null, name: posture?.name ?? null, library: !!posture?.id, root: { heading_deg: rnd(root.heading, 4), flex_deg: rnd(root.flex, 4), lat_deg: rnd(root.lat, 4), rot_deg: rnd(root.rot, 4) }, angles: namedAngles(pose) },
+    posture: { ...postureMeta(posture), library: !!(posture?.id && LIB?.byId?.(posture.id)), root: { heading_deg: rnd(root.heading, 4), flex_deg: rnd(root.flex, 4), lat_deg: rnd(root.lat, 4), rot_deg: rnd(root.rot, 4) }, angles: namedAngles(pose) },
     placement: { root: { x_mm: mm3(root.x), y_mm: mm3(root.y), z_mm: mm3(root.z), note: "world position of the pelvis joint centre" } },
     scene: { version: 1, objects: scene.objects },
     measurements: measurements ? jsonCopy(measurements) : [],
@@ -827,7 +926,7 @@ export function validateExchange(doc) {
     const pr = doc.placement?.root;
     if (!isObj(pr) || !["x_mm", "y_mm", "z_mm"].every((k) => fin(pr[k]))) err("placement.root needs x_mm, y_mm and z_mm.");
     if (!isObj(doc.scene) || !Array.isArray(doc.scene.objects)) err("scene.objects must be a list.");
-    else doc.scene.objects.forEach((o, i) => { if (!isObj(o) || typeof o.type !== "string" || !Array.isArray(o.position_mm) || !o.position_mm.every(fin)) err(`scene.objects[${i}] needs a type and position_mm.`); });
+    else doc.scene.objects.forEach((o, i) => { if (!isObj(o) || typeof o.type !== "string" || !Array.isArray(o.position_mm) || !o.position_mm.every(fin)) err(`scene.objects[${i}] needs a type and position_mm.`); else if (o.orientation_xyzw != null && !(Array.isArray(o.orientation_xyzw) && o.orientation_xyzw.length === 4 && o.orientation_xyzw.every(fin) && Math.abs(Math.hypot(...o.orientation_xyzw) - 1) < 1e-5)) err(`scene.objects[${i}].orientation_xyzw must be a unit quaternion [x, y, z, w].`); });
     if (!Array.isArray(doc.measurements)) err("measurements must be a list.");
   } catch (e) { err(`The document could not be checked (${String(e?.message ?? e).slice(0, 100)}).`); }
   return finish();
@@ -837,6 +936,8 @@ export function validateExchange(doc) {
 // ---------------------------------------------------------------------------------------------------------------------
 // posture files
 const ROOT_KEYS = ["heading", "flex", "lat", "rot"];
+/** Id of a custom posture: "custom-" + the slug of the id or name, once (a loaded custom-foo is saved as custom-foo again, not custom-custom-foo). */
+const customId = (posture) => { const base = slug(posture?.id || posture?.name || "posture", 40) || "posture"; return /^custom(-|$)/.test(base) ? base : `custom-${base}`; };
 const wrapOf = (a) => nz(Math.abs(a) <= 180 ? a : ((((a + 180) % 360) + 360) % 360) - 180);
 /**
  * A Posture object (DESIGN.md 2.4) for the pose the figure is in. A library posture whose pose is exactly the figure's pose is returned as it is (a copy);
@@ -846,14 +947,12 @@ const wrapOf = (a) => nz(Math.abs(a) <= 180 ? a : ((((a + 180) % 360) + 360) % 3
 export async function posturePostureOf(input) {
   const { rig, posture } = need(input);
   const pose = rig.getPose();
-  if (posture?.id) {
+  if (posture?.id && POSE && LIB) {
     try {
-      const { byId } = await import("./postures.js");
-      const { expandPosture, clampPose, poseEquals } = await import("./pose.js");
-      const lib = byId(posture.id);
+      const lib = LIB.byId(posture.id);
       if (lib) {
-        const x = expandPosture(lib), cur = { root: Object.fromEntries(ROOT_KEYS.map((k) => [k, pose.root[k]])), angles: pose.angles };
-        if (poseEquals(clampPose({ root: x.root, angles: x.angles }).pose, cur, 1e-6)) return { posture: jsonCopy(lib), library: true };
+        const x = POSE.expandPosture(lib), cur = { root: Object.fromEntries(ROOT_KEYS.map((k) => [k, pose.root[k]])), angles: pose.angles };
+        if (POSE.poseEquals(POSE.clampPose({ root: x.root, angles: x.angles }).pose, cur, 1e-6)) return { posture: jsonCopy(lib), library: true };
       }
     } catch { /* no library: a custom posture below */ }
   }
@@ -868,7 +967,7 @@ export async function posturePostureOf(input) {
   const root = Object.fromEntries(ROOT_KEYS.map((k) => [k, rnd(pose.root[k] ?? 0, 6)]));
   const flat = Math.abs(root.flex) > 45 || Math.abs(root.lat) > 45;
   const name = cleanName(posture?.name, "Custom posture");
-  return { library: false, posture: { id: `custom-${slug(posture?.id || posture?.name || "posture", 40) || "posture"}`, name, category: "Reference", tags: ["custom", "exported"], description: "Joint angles of the figure when it was exported from the Export tab.", source: "custom (exported)", root, spine: {}, joints, support: flat ? "body" : "feet" } };
+  return { library: false, posture: { id: customId(posture), name, category: "Reference", tags: ["custom", "exported"], description: posture?.basedOn ? `Joint angles of the figure when it was exported from the Export tab; edited from ${postureLine({ id: posture.basedOn.id, name: posture.basedOn.name })}.` : "Joint angles of the figure when it was exported from the Export tab.", source: "custom (exported)", root, spine: {}, joints, support: flat ? "body" : "feet" } };
 }
 /** The posture file: { app, version, posture, pose (root orientation + every non-zero joint, degrees, DOF order), placement, profile }. */
 export async function buildPostureFile(input, { created = null } = {}) {
@@ -880,7 +979,7 @@ export async function buildPostureFile(input, { created = null } = {}) {
   return {
     app: POSTURE_APP, version: 1, generator: GENERATOR, ...(created ? { created: String(created) } : {}),
     units: { angle: "deg", length: "mm" }, axes: AXES_NOTE,
-    posture, library_posture: library, shell: { id: shellPosture?.id ?? null, name: shellPosture?.name ?? null },
+    posture, library_posture: library, shell: postureMeta(shellPosture),
     pose: { root: Object.fromEntries(ROOT_KEYS.map((k) => [k, rnd(pose.root[k] ?? 0, 6)])), angles },
     placement: { root_mm: [mm3(rig.root.x), mm3(rig.root.y), mm3(rig.root.z)], note: "where the pelvis was; informational, a posture has no position" },
     profile: { id: profile?.id ?? null, label: profile?.label ?? null },
@@ -930,7 +1029,8 @@ export async function parsePostureFile(input) {
       for (const [id, a] of Object.entries(pose.angles)) {
         const j = Object.hasOwn(JOINT_BY_ID, id) ? JOINT_BY_ID[id] : null;
         if (!j) { errors.push(`pose.angles names the unknown joint "${String(id).slice(0, 40)}".`); continue; }
-        if (!Array.isArray(a) || a.length > j.dof.length || !a.every(fin) || a.some((x) => Math.abs(x) > 3600)) { errors.push(`pose.angles.${id} must be ${j.dof.length === 1 ? "one number" : `up to ${j.dof.length} numbers`} in degrees (${j.dof.map((d) => d.key).join(", ")}).`); continue; }
+        if (!Array.isArray(a) || a.length > j.dof.length || !a.every(fin)) { errors.push(`pose.angles.${id} must be ${j.dof.length === 1 ? "one number" : `up to ${j.dof.length} numbers`} in degrees (${j.dof.map((d) => d.key).join(", ")}).`); continue; }
+        if (a.some((x) => Math.abs(x) > 3600)) { errors.push(`pose.angles.${id} has an angle of more than 3600 degrees (${a.find((x) => Math.abs(x) > 3600)}); angles are limited to -3600 .. 3600.`); continue; }
         angles[id] = j.dof.map((_, i) => nz(a[i] ?? 0));
       }
     }

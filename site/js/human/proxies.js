@@ -7,7 +7,7 @@
 // of a seated body. Tolerances are set for that. Where the exact lowest point matters (the support of a lying body) the skin sections themselves are used: lowestSkinPoint.
 // Two overlaps are not judged on capsules but on the skin sections (skinPenetrations): the upper arm against the trunk (armTorsoDepth: the shoulder joint is inside the chest
 // capsule) and a hand against the head (handHeadDepth: the head capsule is 10 mm too wide at the temples, the palm capsule twice as thick as the palm).
-// Pure: three, skeleton.js, fk.js and postures/grips.js only; no DOM. Cost on one core (Node 22, median man): proxyWorld + lowestPoint about 1 microsecond,
+// Pure: three, skeleton.js, fk.js and postures/grips.js and postures/reference.js (data) only; no DOM. Cost on one core (Node 22, median man): proxyWorld + lowestPoint about 1 microsecond,
 // + lowestSkinPoint 17, the 621 pair checks of selfPenetrations about 60 (pose.test.mjs asserts that both stay under 0.3 ms).
 //
 // A capsule here is the convex hull of two spheres (a "sphere-cone"): end points A and B, radii ra and rb. Each end is attached to
@@ -23,12 +23,13 @@
 // buttock sphere on each side (bottom on the ischial landmark, rear on the most posterior point of the buttock).
 //
 // Tolerances (pairTolerance) are the soft tissue allowed to overlap, times min(1.8, BMI / 24); in addition a pair gets the depth it has in the reference
-// postures of the library (ISO 7250-1 standing and sitting with relaxed hands, the T-pose) plus 6 mm if that is more: the fitted body itself decides what the
+// postures of the library (ISO 7250-1 standing and sitting with relaxed hands, the T-pose, and the rest of the Reference group of postures/reference.js) plus 6 mm if that is more: the fitted body itself decides what the
 // reference postures look like (a 1.31 m woman of 180 kg, BMI 105, has a neck wider than the gap to her raised arms).
 import * as THREE from "three";
 import { JOINTS } from "./skeleton.js";
 import { Kinematics } from "./fk.js";
 import { gripAngles } from "./postures/grips.js";
+import REFERENCE_GROUP from "./postures/reference.js"; // data only (no imports): the reference postures the tolerances learn from
 
 const SUB_RINGS = 3; // interpolated sections between two neighbouring rings of a tube, for the lowest point of the skin
 const JIDX = new Map(JOINTS.map((j, i) => [j.id, i]));
@@ -339,7 +340,7 @@ function build(body) {
   rings.forEach((r, i) => { if (r.tube === "palm_L") hands.L.palm.push(i); else if (r.tube === "palm_R") hands.R.palm.push(i); });
   list.forEach((c, i) => { if (c.group === "fingers") hands[c.side].caps.push(i); });
   const p = { version: 1, list, n: list.length, byId, pairs, tol, softness: soft, rings, arm, head, hands, joints: body.joints, landmarks: body.landmarks, shape: body.shape };
-  // The reference postures of the library (ISO 7250-1 standing and sitting, T-pose) must never be rejected for what the fitted body itself does in them: a P5 body whose
+  // The reference postures of the library (ISO 7250-1 standing and sitting, T-pose, and the rest of the Reference group) must never be rejected for what the fitted body itself does in them: a P5 body whose
   // thighs overlap by 61 mm in the neutral pose (ring half-breadths 99 + 99 mm, ring centres 138 mm apart), a 130 kg man whose belly lies on his thighs.
   // A pair that overlaps by more than its tolerance there gets the depth it has plus 6 mm: the tolerance describes soft tissue, and this body has more.
   const W = proxyWorld(p, kin, null);
@@ -354,8 +355,30 @@ function build(body) {
 }
 const RELAXED = { ...gripAngles("relaxed", "L"), ...gripAngles("relaxed", "R") }; // the hands of the reference postures of the library
 const OPEN = { ...gripAngles("open", "L"), ...gripAngles("open", "R") };
-// ISO 7250-1 standing / sitting and the T-pose of the library (arms 84 degrees out, open hands: the arm hangs 3 to 14 degrees abducted, so 84 puts it horizontal for most bodies)
-const REFERENCE_POSES = Object.freeze([{ ...RELAXED }, { ...RELAXED, hip_L: [90, 0, 0], hip_R: [90, 0, 0], knee_L: [90, 0], knee_R: [90, 0] }, { ...OPEN, shoulder_L: [0, 84, 0], shoulder_R: [0, 84, 0] }]);
+// ISO 7250-1 standing / sitting and the T-pose (arms 84 degrees out, open hands: the arm hangs 3 to 14 degrees abducted, so 84 puts it horizontal for most bodies): the postures that define the
+// model, listed here so that the tolerances do not depend on the library file being intact.
+const BASE_REFERENCE_POSES = [{ ...RELAXED }, { ...RELAXED, hip_L: [90, 0, 0], hip_R: [90, 0, 0], knee_L: [90, 0], knee_R: [90, 0] }, { ...OPEN, shoulder_L: [0, 84, 0], shoulder_R: [0, 84, 0] }];
+/**
+ * The joint angles of a posture of the Reference group of the library (postures/reference.js): its grips and its joints, `_LR` first and an explicit `_L` / `_R` over it. Not the spine, the root,
+ * the eyes or the hints: how deep two capsules lie in each other does not depend on where the body stands, and the eyes have no capsule. Unknown joints and grips are skipped (the validator
+ * reports them for the posture itself).
+ */
+function referencePose(p) {
+  const a = {};
+  for (const side of ["L", "R"]) {
+    const g = p?.grips?.[side];
+    if (typeof g === "string") { try { Object.assign(a, gripAngles(g, side)); } catch { /* an unknown grip */ } }
+  }
+  const put = (id, v) => { if (JIDX.has(id) && !id.startsWith("eye_") && Array.isArray(v) && v.length && v.every(Number.isFinite)) a[id] = v.slice(); };
+  const entries = Object.entries(p?.joints ?? {});
+  for (const [k, v] of entries) { const m = /^(.+)_LR$/.exec(k); if (m) { put(`${m[1]}_L`, v); put(`${m[1]}_R`, v); } else put(k, v); }
+  for (const [k, v] of entries) if (/_[LR]$/.test(k) && !/_LR$/.test(k)) put(k, v);
+  return a;
+}
+// All of them: the three above and every posture of the Reference group (A-pose, anatomical position, Vitruvian figure with the arms 25 degrees above the horizontal, the two arm-reach postures,
+// the NIOSH lift origin and destination, the RULA neutral posture). A reference posture is never rejected for the geometry of the body itself, so each of them teaches the tolerances: it was
+// the T-pose and the two ISO postures only, and the Vitruvian figure (neck against the raised arms) or the arms forward (forearm against the chest) of a body of BMI 35 to 175 failed.
+const REFERENCE_POSES = Object.freeze([...BASE_REFERENCE_POSES, ...(Array.isArray(REFERENCE_GROUP) ? REFERENCE_GROUP.map(referencePose) : [])]);
 const REFERENCE_MARGIN = 0.006;
 // The upper arm against the trunk is judged on the skin sections, not on capsules (see armTorsoDepth): 50 mm of soft tissue of the chest and the armpit that may give
 // (the arm pressed against the chest: crossed arms, a hand on the opposite shoulder), or the depth the arm has in the reference postures of THIS body plus a margin,

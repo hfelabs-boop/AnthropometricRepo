@@ -146,7 +146,7 @@ function sampleProfile() {
 }
 
 // ================================================================================================================ 2. neutral posture
-test("neutral posture: feet flat on the floor, nothing below it, legs vertical, symmetric, arms hanging, curved spine (real people of all four surveys)", () => {
+test("neutral posture: feet flat on the floor, nothing below it, thigh vertical and shank leaning forward by the stance, symmetric, arms hanging, curved spine (real people of all four surveys)", () => {
   const sample = HAVE_DB ? sampleBodies().filter((_, i) => i % 6 === 0) : [{ b: fitBody(P(1750, "M", 78)), r: { subject_key: 0 } }, { b: fitBody(P(1620, "F", 60)), r: { subject_key: 1 } }];
   assert.ok(sample.length >= 2);
   for (const { b, r } of sample) {
@@ -155,10 +155,16 @@ test("neutral posture: feet flat on the floor, nothing below it, legs vertical, 
     // floor: every contact of the feet set at y = 0, no landmark below the floor
     for (const id of b.contacts.feet) assert.ok(Math.abs(w(id).y) < 3e-6, `${tag}: ${id} y = ${w(id).y}`);
     for (const id of Object.keys(b.landmarks)) assert.ok(w(id).y > -3e-6, `${tag}: ${id} below the floor (${w(id).y})`);
-    // legs vertical, feet parallel and pointing +Z
+    // thigh vertical (hip over knee: every posture is written against it), shank leaning forward about the ankle by the quiet-standing lean (MODEL.md 4.1, 7.1),
+    // feet parallel and pointing +Z. STALE since the stance change: the whole leg used to be vertical (ankle under the knee); the ankle now sits behind the knee by
+    // stance.ankleBehindKneeM, 3.5 to 4.9 degrees (Di Giulio and Baltzopoulos 2019: knee 21-26 mm in front of the ankle, 3-4 degrees for the whole leg; the model keeps the thigh vertical and
+    // caps the shank at 4.9 degrees, K.leanMaxDeg; the sweep of 1,128 bodies has 4.5 to 4.9, MODEL.md 7.1)
     for (const s of ["L", "R"]) {
       const h = j(`hip_${s}`), k = j(`knee_${s}`), a = j(`ankle_${s}`);
-      assert.ok(Math.abs(h.x - k.x) < 1e-9 && Math.abs(h.x - a.x) < 1e-9 && Math.abs(h.z - k.z) < 1e-9 && Math.abs(h.z - a.z) < 1e-9, `${tag}: leg ${s} not vertical`);
+      assert.ok(Math.abs(h.x - k.x) < 1e-9 && Math.abs(h.x - a.x) < 1e-9 && Math.abs(h.z - k.z) < 1e-9, `${tag}: thigh ${s} not vertical / shank ${s} not in the sagittal plane of the knee`);
+      const lean = Math.atan2(k.z - a.z, k.y - a.y) * 180 / Math.PI; // + = the knee is ahead of the ankle
+      assert.ok(k.z - a.z > 0.025 && k.z - a.z < 0.045 && lean > 3.5 && lean <= 4.9 + 1e-3, `${tag}: shank ${s} leans ${lean.toFixed(2)} deg, ankle ${mm(k.z - a.z).toFixed(1)} mm behind the knee`);
+      assert.ok(Math.abs(mm(k.z - a.z) - mm(b.stance.ankleBehindKneeM)) < 0.01 && Math.abs(lean - b.stance.shankLeanDeg) < 0.05, `${tag}: body.stance does not describe the geometry`);
       assert.ok(w(`toe_tip_${s}`).z > w(`heel_${s}`).z + 0.15, `${tag}: foot ${s} does not point +Z`);
       assert.ok(Math.abs(w(`toe_tip_${s}`).x - w(`heel_${s}`).x) < 0.03, `${tag}: foot ${s} not parallel to Z`);
     }
@@ -206,6 +212,13 @@ test("neutral posture: feet flat on the floor, nothing below it, legs vertical, 
     const com = b.massInfo.com;
     assert.ok(com[1] / b.stature > 0.53 && com[1] / b.stature < 0.59, `${tag}: COM at ${com[1] / b.stature} of stature`);
     assert.ok(Math.abs(com[0]) < 1e-4 && com[2] > w("heel_L").z && com[2] < w("toe_tip_L").z, `${tag}: COM outside the feet`);
+    // quiet standing (Di Giulio and Baltzopoulos 2019: 47-58 mm; Hellebrandt 1940: 40-50 mm; Kawai et al. 1997: 39.6 % of the base of support from the rear edge): the centre
+    // of mass is 20 to 50 mm in front of the ankle joint centre and 34 to 40 % of the foot length from the heel: K.comFromHeel (40 %) is the target, the cap on the shank lean (K.leanMaxDeg,
+    // 4.9 degrees: the measured lean of the leg is 3 to 4 and the thigh is vertical, so the hip is as far forward as the knee) stops short of it for 98 % of the bodies (MODEL.md 7.1).
+    // (Was: 2 mm in front of the ankle, 21 % from the heel.)
+    const ahead = mm(com[2] - j("ankle_L").z), fromHeel = (com[2] - w("heel_L").z) / (w("toe_tip_L").z - w("heel_L").z);
+    assert.ok(ahead > 20 && ahead < 51, `${tag}: the COM is ${ahead.toFixed(1)} mm in front of the ankle`);
+    assert.ok(fromHeel > 0.33 && fromHeel < CONSTANTS.comFromHeel + 1e-3, `${tag}: the COM is ${(fromHeel * 100).toFixed(1)} % of the foot (heel to toe tip) from the heel`);
     // the hand clears the thigh: the lateral palm surface is outside the thigh edge
     const hand = b.shape.hands.L.palm[1], th = b.shape.tubes.thigh_L.rings;
     for (let i = 1; i < th.length; i++) if (hand.c[1] <= th[i - 1].c[1] && hand.c[1] >= th[i].c[1]) {
@@ -216,7 +229,7 @@ test("neutral posture: feet flat on the floor, nothing below it, legs vertical, 
   }
 });
 
-test("ISO 7250 seated posture closes: feet flat, thighs horizontal, shanks vertical, seat plane under the ischial tuberosities, sitting height exact", () => {
+test("ISO 7250 seated posture closes: feet flat, thighs horizontal, shanks vertical to within the stance lean, seat plane under the ischial tuberosities, sitting height exact", () => {
   const sample = HAVE_DB ? sampleBodies().filter((_, i) => i % 5 === 0) : [{ b: fitBody({ ...P(1750, "M", 78), measures: { ...P(1750, "M", 78).measures, sitting_height: { value: 920, unit: "mm" } } }), r: { subject_key: 0 }, prof: null }];
   for (const { b, r } of sample) {
     const tag = `person ${r.subject_key}`, ref = referencePose(b, "seat");
@@ -224,7 +237,12 @@ test("ISO 7250 seated posture closes: feet flat, thighs horizontal, shanks verti
     for (const id of b.contacts.feet) assert.ok(Math.abs(w(id).y) < 3e-6, `${tag}: seated ${id} y = ${w(id).y}`);
     for (const s of ["L", "R"]) {
       assert.ok(Math.abs(j(`hip_${s}`).y - j(`knee_${s}`).y) < 1e-9, `${tag}: thigh ${s} not horizontal`);
-      assert.ok(Math.abs(j(`knee_${s}`).x - j(`ankle_${s}`).x) < 1e-9 && Math.abs(j(`knee_${s}`).z - j(`ankle_${s}`).z) < 1e-9, `${tag}: shank ${s} not vertical`);
+      // STALE since the stance change (MODEL.md 8.1): hip 90 and knee 90 turn the shank frame by 90 degrees and back, so the seated shank is the shank of the neutral pose:
+      // vertical to within the stance lean (the heel a few cm toward the seat), in the sagittal plane, with the knee exactly shank_length above the ankle. Heights are unchanged.
+      const kn = j(`knee_${s}`), an = j(`ankle_${s}`);
+      assert.ok(Math.abs(kn.x - an.x) < 1e-9, `${tag}: shank ${s} not in the sagittal plane`);
+      assert.ok(Math.abs(kn.y - an.y - b.d.shank_length) < 1e-6, `${tag}: shank ${s} not shank_length high`);
+      assert.ok(Math.abs(an.z - (kn.z - b.stance.ankleBehindKneeM)) < 1e-6 && Math.atan2(kn.z - an.z, kn.y - an.y) * 180 / Math.PI <= 4.9 + 1e-3, `${tag}: shank ${s} leans back by more than the stance lean (4.9 degrees)`);
       assert.ok(j(`knee_${s}`).z > j(`hip_${s}`).z + 0.3, `${tag}: knee behind hip`);
     }
     const seat = b.d.knee_height - b.d.hip_to_seat;
@@ -543,7 +561,14 @@ test("MODEL.md versus code: the regression table, the relation table, the consta
   // the worked example of 2.6 and the claims of section 7 / 4.3
   const w = fitBody(P(1750, "M", 78));
   assert.ok(Math.abs(w.d.ankle_height - 0.07025) < 1e-4 && Math.abs(w.d.knee_height - 0.49328) < 1e-4 && Math.abs(w.d.femur_length - 0.41448) < 1e-4 && Math.abs(w.d.hip_height - 0.90776) < 1e-4);
-  assert.ok(Math.abs(w.massInfo.com[1] - 0.975) < 0.002 && Math.abs(w.massInfo.com[1] / w.stature - 0.557) < 0.001 && Math.abs(w.massInfo.com[2] - 0.002) < 0.001);
+  // MODEL.md 7: "0.975 m (0.557 of stature), 0.3 mm behind the hip midpoint and 36.0 mm in front of the ankle joint centre, 37.4 % of the foot length from the heel". STALE since the stance
+  // change: the old text said 2.4 mm ahead of the hip midpoint and of the ankle (world z 0.002, because the ankle stood under the hip). Height unchanged; the ankles went back instead.
+  const comAhead = w.massInfo.com[2] - w.positions.ankle_L[2], comFromHeel = (w.massInfo.com[2] - (w.positions.ankle_L[2] + w.landmarks.heel_L.offset[2])) / w.d.foot_length;
+  assert.ok(Math.abs(w.massInfo.com[1] - 0.975) < 0.002 && Math.abs(w.massInfo.com[1] / w.stature - 0.557) < 0.001 && Math.abs(w.massInfo.com[2] + 0.00025) < 0.001, "COM height / behind the hip midpoint");
+  assert.ok(Math.abs(mm(comAhead) - 36.0) < 0.5 && Math.abs(comFromHeel - 0.3743) < 0.001, `COM in front of the ankle ${mm(comAhead)} mm, ${comFromHeel} of the foot from the heel`);
+  assert.ok(Math.abs(w.stance.shankLeanDeg - 4.9) < 1e-5, "shank lean of the worked example: at the cap of 4.9 degrees (the 40 % of the foot would need 5.9)");
+  // quiet standing literature: Hellebrandt 40-50 mm, Di Giulio 47-58 mm in front of the ankle; the model is a little BELOW them on purpose (MODEL.md 7.1: a vertical thigh and a 5.9 degree shank otherwise)
+  assert.ok(comAhead > 0.020 && comAhead < 0.050, "20 to 50 mm");
   assert.ok(Math.abs(w.spine.balanceRotationDeg + 4) < 0.2 && Math.abs(w.spine.t1SlopeDeg - 20) < 0.2);
 });
 

@@ -180,10 +180,12 @@ test("slug and file names: safe, lower case, bounded, never empty", () => {
   assert.equal(X.exportFileName({ profile: { label: "United States · Army · men · P50" }, posture: { id: "sit-upright-90", name: "Seated" }, what: "figure", ext: "glb" }), "united-states-army-men-p50_sit-upright-90_figure.glb");
   assert.equal(X.exportFileName({ profile: null, posture: null, ext: "csv" }), "figure_pose.csv");
   assert.equal(X.exportFileName({ profile: { label: "日本語" }, posture: { name: "Neutral standing" }, what: "joints", ext: "CSV" }), "figure_neutral-standing_joints.csv");
+  // the suffix the panel makes for unit + axes ("mm-x-front") is kept whole, not cut to "mm-x-fro"
+  for (const suffix of ["mm", "m-z-up", "mm-z-up", "mm-x-front", "m-x-front"]) assert.equal(X.exportFileName({ profile: { label: "P" }, posture: { id: "q" }, what: "mesh", ext: "obj", suffix }), `p_q_mesh_${suffix}.obj`);
   for (const evil of ["../../x", "a/b\\c", "con", "nul.txt", "x\u0000y", "  ", "CON:", "a".repeat(400), "<script>"]) {
-    const f = X.exportFileName({ profile: { label: evil }, posture: { id: evil }, what: evil, ext: "bvh", suffix: evil });
-    assert.match(f, /^[a-z0-9_-]+\.bvh$/, f);
-    assert.ok(f.length < 130, `${f.length} characters`);
+    const f = X.exportFileName({ profile: { label: evil }, posture: { id: evil }, what: evil, ext: "json", suffix: evil });
+    assert.match(f, /^[a-z0-9_-]+\.json$/, f);
+    assert.ok(f.length < 125, `${f.length} characters`);
   }
 });
 
@@ -835,4 +837,190 @@ test("the tick callback is awaited between the steps of a GLB", async () => {
   const r = RIGS[1] ?? RIGS[0], input = setup(r, POSTURE_DEFS[0]), steps = [];
   await X.buildGLB(input, { tick: async (t) => { steps.push(t); await new Promise((res) => setTimeout(res, 1)); } });
   assert.ok(steps.length >= 3 && steps.every((s) => typeof s === "string" && s.length > 3), steps.join(", "));
+});
+
+// ============================================================================================================================ regressions of the verifier
+test("GLB: the pose changes while the page breathes (every tick): the file still holds ONE pose, baked and as a clip", { timeout: 120000 }, async () => {
+  const r = RIGS[1] ?? RIGS[0], input = setup(r, POSTURE_DEFS[0]), defs = [POSTURE_DEFS[2], POSTURE_DEFS[3], POSTURE_DEFS[4], POSTURE_DEFS[1]];
+  for (const mode of ["baked", "clip"]) {
+    setup(r, POSTURE_DEFS[0]);
+    let n = 0, atWrite = null;
+    const out = await X.buildGLB(input, { pose: mode, tick: async (t) => {
+      if (t === "Writing the GLB") atWrite = new Map(X.skinnedMeshes(r.rig).map((m) => [m.name, rigVertices(r.rig, m)])); // what the live rig draws when the last tick starts
+      await Promise.resolve();
+      setup(r, defs[n++ % defs.length]); // a drag in the 3D view: the pose differs after every tick
+    } });
+    assert.ok(n >= 3, `${n} ticks`);
+    const g = readGLB(out.data), idx = glbChecks(g, input, mode), override = new Map();
+    if (mode === "clip") {
+      const anim = g.json.animations[0];
+      for (const ch of anim.channels) {
+        const v = readAccessor(g, anim.samplers[ch.sampler].output).data, o = override.get(ch.target.node) ?? {};
+        if (ch.target.path === "rotation") o.r = new THREE.Quaternion(...v); else o.t = new THREE.Vector3(...v);
+        override.set(ch.target.node, o);
+      }
+    }
+    for (const mi of g.json.nodes.map((nd, i) => (nd.mesh !== undefined ? i : -1)).filter((i) => i >= 0)) {
+      const name = g.json.nodes[mi].name, d = maxDiff(skinFromGLB(g, mi, override), atWrite.get(name));
+      assert.ok(d < 2e-6, `${mode} ${name}: the mesh and the pose of the nodes disagree by ${d} m`);
+    }
+    if (mode === "baked") { // skeleton nodes = the pose the mesh has, and the inverse bind matrices fit them
+      const w = worldMatrices(g.json);
+      const sk = g.json.skins[0], ibm = readAccessor(g, sk.inverseBindMatrices).data;
+      for (let k = 0; k < 77; k++) { const m = w.get(sk.joints[k]).clone().multiply(new THREE.Matrix4().fromArray(ibm, 16 * k)).elements; for (let c = 0; c < 16; c++) near(m[c], c % 5 === 0 ? 1 : 0, 1e-5, "baked bind pose"); }
+    }
+  }
+});
+
+test("GLB: scene objects that move while the page breathes are written where they are after the last tick", async () => {
+  const r = RIGS[1] ?? RIGS[0], input = setup(r, POSTURE_DEFS[0]), { sandbox } = sceneFixture(r.rig, [["crate", { position: [0, 0, 1] }]]);
+  const obj = [...sandbox.objects.values()][0];
+  const out = await X.buildGLB({ ...input, sandbox }, { scene: true, tick: async (t) => { await Promise.resolve(); if (t === "Adding the scene objects") { obj.group.position.set(1, 0, 2); obj.group.updateMatrixWorld(true); } } });
+  const g = readGLB(out.data), node = g.json.nodes.find((nd) => nd.extras?.digitalHuman?.type === "crate");
+  assert.deepEqual(node.translation.map((v) => Math.round(v * 1e4) / 1e4), [1, 0, 2]);
+  sandbox.dispose();
+});
+
+test("OBJ: written in pieces (the page breathes between them) it is byte for byte what one OBJExporter call writes", { timeout: 120000 }, async () => {
+  const r = RIGS[1] ?? RIGS[0], input = setup(r, POSTURE_DEFS[1]);
+  const types = ["crate", "monitor", "stool", "pallet", "ladder", "rifle", "desk", "steering_wheel"];
+  const { sandbox } = sceneFixture(r.rig, Array.from({ length: 60 }, (_, i) => [types[i % types.length], { position: [(i % 10) * 1.5 - 7, 0, Math.floor(i / 10) * 1.5 + 2] }]));
+  const root = new THREE.Group(), scene = new THREE.Group();
+  scene.name = "scene";
+  for (const s of X.bakeSkin(r.rig)) { const m = new THREE.Mesh(s.geometry, new THREE.MeshBasicMaterial({ name: s.name })); m.name = s.name; root.add(m); }
+  for (const o of X.visibleObjects(sandbox)) { const node = new THREE.Group(); node.name = o.name; o.group.updateWorldMatrix(true, true); o.group.matrixWorld.decompose(node.position, node.quaternion, node.scale); const c = o.model.clone(true); c.traverse((x) => { if (x.isMesh) x.name = `${o.name} (mesh)`; }); node.add(c); scene.add(node); }
+  // a line object and an object with texture coordinates exercise the l lines and the vt indices
+  const withUv = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial()); withUv.name = "plane";
+  const line = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(1, 0, 0), new THREE.Vector3(1, 1, 0), new THREE.Vector3(0, 1, 0)]), new THREE.LineBasicMaterial()); line.name = "segs";
+  const g2 = new THREE.Group(); g2.add(withUv, line); scene.add(g2);
+  root.add(scene);
+  root.updateMatrixWorld(true);
+  const { OBJExporter } = await import("three/addons/exporters/OBJExporter.js"), whole = new OBJExporter().parse(root);
+  let breaths = 0;
+  const pieces = await X.objChunks(root, async () => { breaths++; await new Promise((res) => setTimeout(res, 0)); }, -1);
+  assert.ok(breaths >= 60, `${breaths} breaths`); // one after every piece but the last
+  assert.equal(pieces.parts.join(""), whole);
+  assert.equal(pieces.bytes, new TextEncoder().encode(whole).length);
+  assert.ok(whole.length > 2e6, "a real scene");
+  // the same through buildOBJ with a tick: it breathes more than once for a big scene, and its faces are valid for the file's own vertex and normal counts
+  const ticks = [], out = await X.buildOBJ({ ...input, sandbox }, { scene: true, tick: async (t) => { ticks.push(t); } }), o = readOBJ(out.text);
+  assert.ok(ticks.length >= 1 && ticks[0] === "Writing the OBJ", ticks.join(" | "));
+  assert.equal(o.v.length, out.stats.vertices);
+  assert.ok(o.faces.every((f) => f.every(([a, , c]) => a >= 1 && a <= o.v.length && c >= 1 && c <= o.vn.length)));
+  assert.equal(out.bytes, new TextEncoder().encode(out.text).length);
+  sandbox.dispose();
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------- labels must describe the content (round 6)
+test("posture label: a figure that has left the posture the shell names is called a custom pose, in every file", async () => {
+  const r = RIGS[1] ?? RIGS[0];
+  const neutral = { id: null, name: "Neutral standing" };
+  r.rig.resetPose();
+  // still neutral: the shell's name is kept (and a turned figure is still standing neutrally)
+  assert.deepEqual(X.effectivePosture(neutral, r.rig), neutral);
+  r.rig.setPose({ root: { x: 0, y: r.rig.root.y, z: 0, heading: 40, flex: 0, lat: 0, rot: 0 }, angles: {} }, { clamp: true });
+  assert.equal(X.effectivePosture(neutral, r.rig).edited, undefined, "heading is not part of a posture name");
+  r.rig.resetPose();
+  // seated pose, shell never told
+  const seated = setup(r, POSTURE_DEFS[1], { posture: neutral });
+  const eff = X.effectivePosture(seated.posture, r.rig);
+  assert.deepEqual(eff, { id: null, name: "Custom pose", edited: true, basedOn: { id: null, name: "Neutral standing" } });
+  assert.equal(X.exportFileName({ profile: r.profile, posture: eff, what: "figure", ext: "glb" }).includes("neutral"), false);
+  assert.match(X.exportFileName({ profile: r.profile, posture: eff, what: "figure", ext: "glb" }), /_custom-pose_figure\.glb$/);
+  const sum = X.summaryText(seated);
+  assert.match(sum, /Posture: Custom pose \(edited from Neutral standing\)/); assert.doesNotMatch(sum, /Posture: Neutral standing/);
+  const ex = X.buildExchange(seated);
+  assert.equal(ex.posture.name, "Custom pose"); assert.equal(ex.posture.library, false); assert.deepEqual(ex.posture.edited_from, { id: null, name: "Neutral standing" });
+  assert.equal(X.validateExchange(ex).ok, true);
+  assert.match((await X.buildOBJ(seated)).text, /# Posture: Custom pose \(edited from Neutral standing\)/);
+  const stl = new TextDecoder().decode(new Uint8Array((await X.buildSTL(seated)).data, 0, 80)); assert.match(stl, /Custom pose/); assert.doesNotMatch(stl, /Neutral/);
+  assert.match(X.buildBVH(seated, { header: true }).text, /# Posture: Custom pose \(edited from Neutral standing\)/);
+  assert.match(X.anglesCSV(seated, { header: true }), /# Posture: Custom pose/);
+  const glb = await X.buildGLB(seated), extras = readGLB(glb.data).json.asset.extras;
+  assert.equal(extras.posture.name, "Custom pose"); assert.deepEqual(extras.posture.edited_from, { id: null, name: "Neutral standing" }); assert.equal(glb.posture.name, "Custom pose");
+  const pf = await X.buildPostureFile(seated);
+  assert.equal(pf.library_posture, false); assert.equal(pf.posture.id, "custom-pose"); assert.deepEqual(pf.shell.edited_from, { id: null, name: "Neutral standing" });
+  // a library posture the figure is still in keeps its name; one edited since does not; an unknown id (cannot be checked) is trusted
+  const lib = await import("../../site/js/human/postures.js"), posture = lib.byId("iso-7250-sitting") ?? lib.POSTURES[0], x = expandPosture(posture);
+  r.rig.setPose({ root: { ...placePose(r.rig.restBody, { root: x.root, angles: x.angles }, { posture }) }, angles: x.angles }, { clamp: true });
+  const named = { id: posture.id, name: posture.name };
+  assert.deepEqual(X.effectivePosture(named, r.rig), named);
+  assert.equal((await X.buildExchange({ rig: r.rig, profile: r.profile, posture: named })).posture.library, true);
+  r.rig.setAngles({ elbow_L: [30] });
+  assert.equal(X.effectivePosture(named, r.rig).edited, true);
+  assert.deepEqual(X.effectivePosture({ id: "t-whatever", name: "Whatever" }, r.rig), { id: "t-whatever", name: "Whatever" });
+  // posture.pose: the pose the name was given to
+  const was = JSON.parse(JSON.stringify(r.rig.getPose()));
+  assert.equal(X.effectivePosture({ id: "custom-x", name: "X", pose: was }, r.rig).edited, undefined);
+  r.rig.setAngles({ elbow_R: [20] });
+  assert.equal(X.effectivePosture({ id: "custom-x", name: "X", pose: was }, r.rig).edited, true);
+  r.rig.resetPose();
+});
+
+test("exchange posture.library is true only for ids of the library; a custom posture keeps its id when saved again", async () => {
+  const r = RIGS[1] ?? RIGS[0], input = setup(r, POSTURE_DEFS[0]);
+  assert.equal(X.buildExchange({ ...input, posture: { id: "custom-foo", name: "Foo" } }).posture.library, false);
+  assert.equal(X.buildExchange({ ...input, posture: { id: "nonsense", name: "?" } }).posture.library, false);
+  let posture = { id: "custom-foo", name: "Foo" };
+  for (let i = 0; i < 3; i++) { // save, load, save ...
+    const file = await X.buildPostureFile({ ...input, posture }), parsed = await X.parsePostureFile(JSON.stringify(file));
+    assert.equal(file.posture.id, "custom-foo", `cycle ${i}`); assert.equal(parsed.ok, true);
+    posture = { id: parsed.id, name: parsed.name };
+  }
+  assert.equal((await X.buildPostureFile({ ...input, posture: { id: null, name: "Reach to the left" } })).posture.id, "custom-reach-to-the-left");
+  assert.equal((await X.buildPostureFile({ ...input, posture: { id: "custom", name: "x" } })).posture.id, "custom");
+});
+
+test("the profile of a file is the one the rig was built from, not the one the shell holds now", () => {
+  const r = RIGS[1] ?? RIGS[0], other = { ...RIGS[0].profile, id: "other:1", label: "Somebody else" }, id = r.rig.body.profileId;
+  assert.equal(id, r.profile.id);
+  assert.equal(X.profileOf(r.rig, [other, r.profile]), r.profile, "found by id among the candidates");
+  assert.equal(X.profileOf(r.rig, [r.profile, other]), r.profile);
+  const d = X.profileOf(r.rig, [other]);
+  assert.equal(d.id, id); assert.equal(d.label, r.rig.body.label); assert.deepEqual(d.measures, {}); assert.equal(d.source, null);
+  assert.equal(X.profileOf(r.rig).label, r.rig.body.label);
+  const gen = { ...r.rig, body: { ...r.rig.body, synthetic: true, profileId: "generic:male:1750", label: "Generic male body, 1750 mm" } };
+  assert.equal(X.profileOf(gen, [{ id: "generic:male:1750", label: "x" }]).label, "Generic male body, 1750 mm", "a generic body is described by itself");
+  // the exchange file of a rig with the wrong profile object next to it says what the rig is
+  const doc = X.buildExchange({ rig: r.rig, profile: X.profileOf(r.rig, [other]), posture: { id: null, name: "Neutral standing" } });
+  assert.equal(doc.profile.label, r.rig.body.label); assert.equal(doc.profile.id, id); assert.equal(X.validateExchange(doc).ok, true);
+});
+
+test("GLB: a figure replaced while the page breathed gives a message that says so (OBJ and STL read the rig before their first breath)", async () => {
+  const r = RIGS[0], fresh = () => { const rig = buildRig(fitBody(r.profile, {}), { skinBuilder: buildSkin }); return { rig, input: { rig, profile: r.profile, posture: { id: null, name: "Neutral standing" } } }; };
+  const g = fresh();
+  await assert.rejects(() => X.buildGLB(g.input, { tick: async () => { g.rig.dispose(); } }), (e) => /replaced while the file was being made/.test(e.message) && !/no skin/.test(e.message));
+  const o = fresh(), obj = await X.buildOBJ(o.input, { tick: async () => { o.rig.dispose(); } });
+  const s = fresh(), stl = await X.buildSTL(s.input, { tick: async () => { s.rig.dispose(); } });
+  assert.ok(obj.stats.vertices > 5000 && stl.triangles > 5000, "the pose was read before the rig was gone: one consistent file");
+});
+
+test("exchange scene objects carry their world orientation (an attached object with orient follows pitch and roll of its joint)", async () => {
+  const r = RIGS[1] ?? RIGS[0], input = setup(r, POSTURE_DEFS[3]), { sandbox, ctx } = sceneFixture(r.rig);
+  const a = sandbox.add("box", { position: [0.5, 1, 0.5], yaw: 30 }), b = sandbox.add("crate", { position: [0, 0.5, 1], yaw: 10 });
+  sandbox.attach(a.id, { kind: "joint", id: "wrist_R" }, [0, 0, 0.05], { local: true, orient: true });
+  ctx.emit("pose", { rig: r.rig });
+  await new Promise((res) => setTimeout(res, 30));
+  const doc = X.buildExchange({ ...input, sandbox }), qOf = (o) => { const q = new THREE.Quaternion(); o.group.updateWorldMatrix(true, false); o.group.matrixWorld.decompose(new THREE.Vector3(), q, new THREE.Vector3()); return q; };
+  for (const o of sandbox.objects.values()) {
+    const d = doc.scene.objects.find((x) => x.id === String(o.id)), q = qOf(o), e = new THREE.Quaternion(...d.orientation_xyzw);
+    assert.ok(Math.abs(q.dot(e)) > 1 - 1e-6, `${o.type}: orientation_xyzw is the world rotation`);
+    assert.ok(d.orientation_xyzw[3] >= 0 && Math.abs(Math.hypot(...d.orientation_xyzw) - 1) < 1e-6);
+  }
+  const att = doc.scene.objects.find((x) => x.id === String(a.id)), plain = doc.scene.objects.find((x) => x.id === String(b.id));
+  const flat = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(...att.orientation_xyzw), "YXZ");
+  assert.ok(Math.abs(flat.x) > 0.05 || Math.abs(flat.z) > 0.05, "pitch or roll survives; yaw_deg alone could not say it");
+  assert.ok(Math.abs(new THREE.Euler().setFromQuaternion(new THREE.Quaternion(...plain.orientation_xyzw), "YXZ").y * 180 / Math.PI - plain.yaw_deg) < 0.01, "an unattached object: the quaternion is its yaw");
+  assert.equal(X.validateExchange(doc).ok, true);
+  const bad = JSON.parse(JSON.stringify(doc)); bad.scene.objects[0].orientation_xyzw = [0, 0, 0, 2];
+  assert.match(X.validateExchange(bad).errors.join(" "), /orientation_xyzw/);
+  sandbox.dispose();
+});
+
+test("posture file: an angle beyond 3600 degrees is named as such, not as a wrong count", async () => {
+  const p = await X.parsePostureFile({ app: "digital-human-posture", version: 1, pose: { angles: { knee_L: [9999] } } });
+  assert.equal(p.ok, false);
+  assert.match(p.errors[0], /knee_L.*more than 3600 degrees.*9999/); assert.doesNotMatch(p.errors[0], /up to 2 numbers/);
+  const q = await X.parsePostureFile({ app: "digital-human-posture", version: 1, pose: { angles: { knee_L: [10, 20, 30] } } });
+  assert.match(q.errors[0], /one number|up to/);
 });

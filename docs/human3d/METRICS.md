@@ -15,7 +15,7 @@ import { placePose } from "./pose.js";
 
 const pose = { root: { heading: 0, flex: 0, lat: 0, rot: 0 }, angles: { hip_L: [90, 0, 0], hip_R: [90, 0, 0], knee_L: [90, 0], knee_R: [90, 0] } };
 const root = placePose(body, pose, { posture });           // or rig.root: the full root with x, y, z
-const m = postureMetrics(body, pose, root);                // { trunkInclination: -0.5, hipAngle_L: 90.5, kneeAngle_L: 84.3, seatHeight: 0.43, ... }
+const m = postureMetrics(body, pose, root);                // { trunkInclination: -0.5, hipAngle_L: 90.5, kneeAngle_L: 85.1, seatHeight: 0.43, ... }
 const flags = ergonomicFlags(m, { trunkSupport: true });   // [{ id: "trunk-inclination", label, value, severity: "ok", note }, ...]
 const reba = rebaInputs(m);                                // { trunk: { angle, bandIndex, ... }, neck, legs, upperArm: { L, R }, lowerArm, wrist }  (no scores)
 ```
@@ -108,9 +108,9 @@ Generated from `METRIC_DEFS` in `metrics.js`; the test fails when this table is 
 | **Leg** | | | |
 | `hipAngle_L` / `_R` | degrees | Included angle at the hip between the trunk line (mid-hip toward C7) and the thigh (hip joint centre toward the knee joint centre): 180 = standing straight, 90 = sitting upright with the thigh horizontal, less = more flexed. | Hip angle of the ISO 7250-1 seated posture (90 degrees); REBA 'legs' when sitting. |
 | `thighInclination_L` / `_R` | degrees | Elevation angle of the thigh (hip joint centre toward knee joint centre) above the horizontal: -90 = hanging straight down (standing), 0 = horizontal (ISO seated), positive = the knee is higher than the hip (low seat). | ISO 7250-1 seated posture: thighs horizontal. |
-| `kneeAngle_L` / `_R` | degrees | Included angle at the knee between the thigh and the shank (knee joint centre toward the hip and ankle joint centres): 180 = straight, 90 = bent at a right angle. Knee flexion is 180 minus this angle. | REBA legs: knee flexion 30 to 60 (+1) and over 60 (+2); ISO 7250-1 seated knee 90. |
+| `kneeAngle_L` / `_R` | degrees | Included angle at the knee between the thigh and the shank (knee joint centre toward the hip and ankle joint centres): 180 = straight, 90 = bent at a right angle. Knee flexion is 180 minus this angle. The model's neutral shank leans forward about the ankle (MODEL.md 4.1), so the neutral pose reads about 175 degrees, not 180: a flexion of 5 degrees, under every REBA band. | REBA legs: knee flexion 30 to 60 (+1) and over 60 (+2); ISO 7250-1 seated knee 90. |
 | `shankInclination_L` / `_R` | degrees | Forward part of the inclination from the downward vertical of the shank (knee joint centre toward ankle joint centre), in the heading frame: 0 = vertical, positive = the foot is ahead of the knee, negative = the foot is behind it (kneeling on the heels = -90). The model's neutral shank leans forward about the ankle (the knee is ahead of the ankle, MODEL.md 4.1), about -5.7 degrees. | ISO 7250-1 seated posture: lower leg vertical. |
-| `ankleAngle_L` / `_R` | degrees | Included angle between the shank (ankle joint centre toward the knee) and the sole line (from the heel sole point `heel_sole` toward the middle of the two ball-of-foot sole points): 90 = the foot at right angles to the shank in the neutral pose, over 90 = plantar flexion (toes down), under 90 = dorsiflexion. The sole line, not the ankle-to-toe line, because the neutral foot is flat on the floor. | ISO 7250-1 seated posture: ankle 90; ISO 11226 extreme positions: plantar flexion over 20 / dorsiflexion over 50 (secondary source). |
+| `ankleAngle_L` / `_R` | degrees | Included angle between the shank (ankle joint centre toward the knee) and the sole line (from the heel sole point `heel_sole` toward the middle of the two ball-of-foot sole points): 90 = the sole at right angles to the shank, over 90 = plantar flexion (toes down), under 90 = dorsiflexion. The neutral pose reads about 85 degrees, not 90: the shank leans forward about the ankle by the stance lean (MODEL.md 4.1) while the foot is flat. The sole line, not the ankle-to-toe line, because the neutral foot is flat on the floor. | ISO 7250-1 seated posture: ankle 90; ISO 11226 extreme positions: plantar flexion over 20 / dorsiflexion over 50 (secondary source). |
 | `kneeHeight_L` / `_R` | metres | Height above the floor (y = 0) of the top of the knee (landmark `knee_top`, the ISO 7250-1 'knee height' point). | Knee clearance under a desk or console. |
 | **Whole body** | | | |
 | `hipHeight` | metres | Mean height above the floor of the two greater trochanters (landmark `trochanterion`). | Anthropometric trochanteric height (ISO 7250-1). |
@@ -130,11 +130,11 @@ Generated from `METRIC_DEFS` in `metrics.js`; the test fails when this table is 
 ### Values in the neutral and the ISO seated pose
 
 The median US Army man (P50, `united-states/army/M.json`). The neutral pose is relaxed quiet standing (`DESIGN.md` 1.1): **the feet are flat, but the shank leans forward about
-the ankle** (since the neutral layout puts the centre of mass 40 % of the foot length from the heel, `fit.js` `leanLegs`, `MODEL.md` 4.1), the spine has its natural curvature
-and the arms hang abducted by 3 to 14 degrees. So the neutral values are not the "textbook" zeros: the knee reads 174 degrees, the ankle 84, the shank -6, the pelvis is tilted
-17 degrees forward, the upper arm is 6 degrees off the vertical, and the ISO 7250-1 seated posture (hips 90, knees 90, ankles 0 as DOF) has an included knee angle of 84 degrees
-and a hip angle of 90.5 degrees. A test that wants "knee 90" must allow about 6 degrees. Over the 176 population medians the neutral trunk inclination is -0.55 to -0.45 degrees,
-the knee 173.7 to 174.8, the ankle 83.7 to 84.8, the pelvic tilt 15 to 22. The table is generated by the test and checked to 3 degrees / 3 cm.
+the ankle** (since the neutral layout puts the centre of mass 37.5 % of the foot length from the heel with the shank lean capped at 4.9 degrees, `fit.js` `leanLegs`, `MODEL.md` 4.1), the spine has its natural curvature
+and the arms hang abducted by 3 to 14 degrees. So the neutral values are not the "textbook" zeros: the knee reads 175 degrees, the ankle 85, the shank -5, the pelvis is tilted
+17 degrees forward, the upper arm is 6 degrees off the vertical, and the ISO 7250-1 seated posture (hips 90, knees 90, ankles 0 as DOF) has an included knee angle of 85 degrees
+and a hip angle of 90.5 degrees. A test that wants "knee 90" must allow about 5 degrees. Over the 176 population medians the neutral trunk inclination is -0.55 to -0.45 degrees,
+the knee 175.1 and the ankle 85.1 (the same for every one: the shank lean is at its cap of 4.9 degrees, `MODEL.md` 4.1), the pelvic tilt 15 to 22. The table is generated by the test and checked to 3 degrees / 3 cm.
 
 <!-- neutral-values:begin -->
 | Key | Unit | Standing (ISO 7250-1) | Seated (ISO 7250-1) |
@@ -151,9 +151,9 @@ the knee 173.7 to 174.8, the ankle 83.7 to 84.8, the pelvic tilt 15 to 22. The t
 | `elbowAngle_L` | deg | 180.0 | 180.0 |
 | `hipAngle_L` | deg | 179.5 | 90.5 |
 | `thighInclination_L` | deg | -90.0 | 0.0 |
-| `kneeAngle_L` | deg | 174.3 | 84.3 |
-| `shankInclination_L` | deg | -5.7 | -5.7 |
-| `ankleAngle_L` | deg | 84.3 | 84.3 |
+| `kneeAngle_L` | deg | 175.1 | 85.1 |
+| `shankInclination_L` | deg | -4.9 | -4.9 |
+| `ankleAngle_L` | deg | 85.1 | 85.1 |
 | `pelvisHeight` | m | 0.903 | 0.494 |
 | `hipHeight` | m | 0.908 | 0.474 |
 | `kneeHeight_L` | m | 0.524 | 0.547 |
@@ -161,11 +161,11 @@ the knee 173.7 to 174.8, the ankle 83.7 to 84.8, the pelvic tilt 15 to 22. The t
 | `eyeHeight` | m | 1.629 | 1.220 |
 | `shoulderHeight_L` | m | 1.403 | 0.994 |
 | `handHeightAboveFloor_L` | m | 0.778 | 0.369 |
-| `reachFromAnkles_L` | m | 0.210 | 0.394 |
+| `reachFromAnkles_L` | m | 0.209 | 0.399 |
 | `stanceWidth` | m | 0.244 | 0.244 |
 | `stanceLength` | m | 0.214 | 0.214 |
 | `comHeight` | m | 0.973 | 0.658 |
-| `comOverBase` | m | 0.078 | -0.237 |
+| `comOverBase` | m | 0.072 | -0.242 |
 <!-- neutral-values:end -->
 
 ## 4. Relation to the standards
@@ -242,7 +242,7 @@ quantities with the palm centre as the hands' point (from memory of the equation
 
 1. **The trunk line is a chord.** `trunkInclination` runs from the mid-hip to C7/T1; a spine bent by X degrees uniformly turns that chord by about X/2 (lumbar 30: 20 degrees; thoracic 30: 9; lumbar 60 plus
    thoracic 45: 56) because the lower part of the spine stays with the pelvis. For the additive quantity use `thoraxInclination` (= `root.flex` + lumbar + thoracic totals for sagittal movements) or the pieces.
-2. **Neutral pose is not "textbook straight"** (section 3): knee 174, ankle 84, shank -6 at rest; the trunk line -0.5; `pelvisTilt` 17; upper arm 6. Compare with the neutral values of the same body, or allow 6 degrees.
+2. **Neutral pose is not "textbook straight"** (section 3): knee 175, ankle 85, shank -5 at rest; the trunk line -0.5; `pelvisTilt` 17; upper arm 6. Compare with the neutral values of the same body, or allow 5 degrees.
 3. **Projected components are not DOF values.** `shoulderFlexion` / `shoulderAbduction` are parts of the arm elevation in the trunk frame (the same construction as the exponential-map swing of the
    shoulder joint, so equal to the `flex` / `abd` DOF only for an arm moved in one plane from a hanging arm that is not abducted: the model's rest abduction of 3 to 14 degrees shows up).
 4. **`headInclination`** is the orientation of the head frame (Frankfurt plane horizontal in the neutral pose within a few degrees: tragion to ectocanthus rises 9 degrees in the model), not an angle between landmarks.

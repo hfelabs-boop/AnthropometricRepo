@@ -27,7 +27,10 @@ cockpits, weapons stations, stores and workshops would reach for.
    shoulders (the validator checks capsule overlap with a tolerance; arms resting on the thighs/torso are allowed to touch).
 6. **Balance**: a posture whose support is the feet must have its centre of mass projected inside (or within 40 mm of) the
    support polygon unless `hints.dynamic: true` (running, jumping, leaning on something: then declare what carries the
-   weight with `hints.externalSupport`).
+   weight with `hints.externalSupport`). The model stands with its centre of mass 25 to 47 mm (median 36) in front of the ankle and 37.5 % of the
+   foot length from the heel, near quiet standing (MODEL.md 7.1): the edge of the soles is then about 4.6 degrees of lean about
+   the ankles backward and 8.6 forward, and the 40 mm are the allowance for what the model does not know (POSE.md, "Balance and
+   the stance", has the margins of tiptoe, leaning, squatting and bending with a load). A held weight goes in `hints.load`.
 7. **Symmetry**: write symmetric postures with `_LR`; asymmetric ones state both sides explicitly.
 8. **Names** are short and plain: "Seated upright (90-90-90)", "Squat lift: start", "Prone firing position". `description`
    says in one or two sentences what the posture is and what it is used for. `tags` are lower-case words

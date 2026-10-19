@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as THREE from "three";
-import { fitBody, referencePose } from "../../site/js/human/fit.js";
+import { fitBody, referencePose, CONSTANTS } from "../../site/js/human/fit.js";
 import { percentileProfile } from "../../site/js/human/anthro.js";
 import { JOINTS, JOINT_BY_ID, REGIONS, clampAngles, jointQuaternion } from "../../site/js/human/skeleton.js";
 import { Kinematics } from "../../site/js/human/fk.js";
@@ -527,7 +527,10 @@ test("balance: inside and outside against a hand-computed polygon", () => {
   // landmark ids: a person standing is balanced over the soles
   const root = P.placePose(MAN, pose);
   b = P.balance(MAN, pose, root, MAN.contacts.feet);
-  assert.equal(b.inside, true); assert.ok(b.margin > 0.01 && b.margin < 0.06, `margin ${b.margin}`);
+  // The margin of quiet standing is the distance from the centre of mass to the heel edge of the support: with the centre of mass 37.5 % of the foot length from the heel (fit.js leanLegs,
+  // MODEL.md 7.1) it is 60 to 80 mm over the bodies of the sweep (was 23 to 31 mm while the centre of mass stood 2 mm in front of the ankle and 21 % of the foot from the heel: the old band
+  // 10 to 60 mm).
+  assert.equal(b.inside, true); assert.ok(b.margin > 0.05 && b.margin < 0.09, `margin ${b.margin}`);
   assert.throws(() => P.balance(MAN, pose, root, ["no_such_landmark"]), /unknown landmark/);
   // {x, y, z} points work too
   assert.equal(P.balance(MAN, pose, root, MAN.contacts.feet.map((id) => P.landmarkPosition(MAN, pose, root, id))).inside, true);
@@ -666,12 +669,23 @@ test("validatePosture: balance (rule 6), hints.dynamic and hints.externalSupport
 });
 
 test("validatePosture: hints.load adds a held weight to the balance check", () => {
-  const lean = { joints: { shoulder_LR: [90, 0, 0], hip_LR: [-10, 0, 0] }, spine: { lumbar: [-35, 0, 0], thoracic: [-20, 0, 0] } };
-  const without = P.validatePosture(MAN, base(lean));
-  assert.ok(without.errors.some((e) => /centre of mass/.test(e)) && without.metrics.balanceMargin < -0.04, `without the load: ${without.metrics.balanceMargin}`);
-  const withLoad = P.validatePosture(MAN, base({ ...lean, hints: { load: { mass: 20 } } }));
-  assert.equal(withLoad.ok, true, withLoad.errors.join("; "));
-  assert.ok(withLoad.metrics.balanceMargin > 0 && withLoad.metrics.com[2] > without.metrics.com[2]);
+  // Leaning back with the arms stretched forward: the held weight at the hands is the counterweight. The posture is a family, not one tuned input: the body leaned back about the ankles by
+  // `back` degrees (root flex -back; ankles -back keep the soles flat) on top of the extended spine and hips; the centre of mass of quiet standing (MODEL.md 7.1) is 60 to 80 mm from the heel
+  // edge and each degree of lean moves it by about 16 mm, so at 5 degrees back this posture is 40 mm or more outside without the load (it needs it) and the load brings it back inside.
+  // For every lean of the family, whatever the margin without the load, 25 kg held at the grip centres move the centre of mass forward and raise the margin by 40 to 120 mm.
+  const lean = (back) => ({ root: { flex: -back }, joints: { shoulder_LR: [90, 0, 0], hip_LR: [-10, 0, 0], ankle_LR: [-back] }, spine: { lumbar: [-35, 0, 0], thoracic: [-20, 0, 0] } });
+  for (const back of [2, 3, 4, 5, 6]) {
+    const without = P.validatePosture(MAN, base(lean(back))), withLoad = P.validatePosture(MAN, base({ ...lean(back), hints: { load: { mass: 25 } } }));
+    const gain = withLoad.metrics.balanceMargin - without.metrics.balanceMargin;
+    assert.ok(gain > 0.04 && gain < 0.12 && withLoad.metrics.com[2] > without.metrics.com[2], `back ${back}: the 25 kg held change the margin by ${gain}`);
+    if (back === 5) { // the case the rule is about: falls without the weight, stands with it
+      assert.ok(without.errors.some((e) => /centre of mass/.test(e)) && without.metrics.balanceMargin < -0.04, `without the load: ${without.metrics.balanceMargin}`);
+      assert.equal(withLoad.ok, true, withLoad.errors.join("; "));
+      assert.ok(withLoad.metrics.balanceMargin > -0.04, `with the load: ${withLoad.metrics.balanceMargin}`);
+    }
+  }
+  const heavier = (m) => P.validatePosture(MAN, base({ ...lean(5), hints: { load: { mass: m } } })).metrics.balanceMargin;
+  assert.ok(heavier(10) < heavier(25) && heavier(25) < heavier(40), "a heavier load pulls the centre of mass further forward, monotonically");
   assert.ok(P.validatePosture(MAN, base({ hints: { load: { mass: -1 } } })).errors.some((e) => /hints.load/.test(e)));
   assert.ok(P.validatePosture(MAN, base({ hints: { load: { mass: 5, landmarks: ["nowhere"] } } })).errors.some((e) => /hints.load.landmarks/.test(e)));
   // centerOfMass: the weighted mean of the body and the load at the mean of the grip centres
@@ -1324,10 +1338,65 @@ test("defect: the reference postures are accepted for bodies far beyond the data
   }
 });
 
-test("standing centre of mass lies in front of the ankle (quiet standing: 20 to 50 mm)", { todo: "OPEN fit.js (mass and landmark placement, not pose.js): for the 528 bodies (176 populations x P5/P50/P95) the neutral centre of mass is -2 to +7 mm (median 2) in front of the ankle joint centre, about 11 % of the foot length from the heel; the literature has it 20 to 50 mm in front. It makes the balance rule too generous backwards and too strict forwards, on tiptoe and in a deep squat. Fix in fit.js (the de Leva centres, the ankle and foot placement), then this test passes and the balance limits can be revisited" }, () => {
+test("defect: every posture of the Reference group is accepted for the 99th-percentile New Zealand navy woman and the 1.31 m, 300 kg man (the tolerances learn from the whole group, not from three postures)", () => {
+  // The Vitruvian figure (arms 108 degrees out) put the neck 54 mm into her upper arms against a tolerance of 51 mm while only ISO standing, ISO sitting and the T-pose taught the tolerances
+  // (pose.adversarial2: 6,336 validations); the arms forward put the forearms 92 mm into the chest of the heavy man against 90.
+  const nz = JSON.parse(fs.readFileSync(path.join(ROOT, "public/api/v1/populations/new-zealand/navy/F.json")));
+  const bodies = [["NZ navy F p99", fitBody(percentileProfile(nz, { percentile: 99 }))], ["NZ navy F p99, mean stature", fitBody(percentileProfile(nz, { percentile: 99, meanStature: true }))],
+    ["M 1310 mm 300 kg", fitBody({ sex: "M", measures: { stature: { value: 1310, unit: "mm" }, mass: { value: 300, unit: "kg" } } })]];
+  assert.ok(REFERENCE.length >= 10 && REFERENCE.some((p) => p.id === "ref-vitruvian") && REFERENCE.some((p) => p.id === "ref-forward-reach"), "the group the test is about");
+  for (const [name, body] of bodies) for (const posture of REFERENCE) { const r = P.validatePosture(body, posture, { library: REFERENCE }); assert.ok(r.ok, `${name}, ${posture.id}: ${r.errors.join("; ")}`); }
+});
+
+test("standing centre of mass lies in front of the ankle (20 to 50 mm; quiet standing has 40 to 58 mm) and 34 to 40 % of the foot length from the heel (quiet standing: 40 %)", () => {
+  // Was an open todo (fit.js had the centre of mass 2 mm in front of the ankle, 11 to 21 % of the foot from the heel); fixed by the lean of the shank in fit.js leanLegs (MODEL.md 4.1, 7.1).
+  // Hellebrandt (1940) 40 to 50 mm, Di Giulio and Baltzopoulos (2019) 47 to 58 mm in front of the ankle joint centre, Kawai et al. (1997) 39.6 % of the base of support from its rear edge;
+  // the model has 26 to 46 mm (median 35) and 36 to 40 %: with its vertical thigh the 40 % would need a shank leaning 5.9 degrees, twice the 3 to 4 measured, so the lean stops at 4.9 (K.leanMaxDeg).
+  for (const body of [MAN, army("F", 50), WOMAN5, army("M", 95), TALL]) {
+    const root = { y: body.joints.pelvis.offset[1] }, com = P.centerOfMass(body, P.neutralPose(), root).point, kin = P.solvePose(body, P.neutralPose(), root), ankle = kin.position("ankle_L");
+    assert.ok(com.z - ankle.z > 0.025 && com.z - ankle.z < 0.05, `COM is ${((com.z - ankle.z) * 1000).toFixed(1)} mm in front of the ankle`);
+    const heel = lmWorld(body, kin, "heel_L"), toe = lmWorld(body, kin, "toe_tip_L"), f = (com.z - heel.z) / (toe.z - heel.z);
+    assert.ok(f > 0.33 && f < CONSTANTS.comFromHeel + 1e-3, `COM is ${(f * 100).toFixed(1)} % of the foot (heel to toe tip) from the heel`);
+    assert.ok(body.stance.shankLeanDeg > 3.5 && body.stance.shankLeanDeg <= CONSTANTS.leanMaxDeg + 1e-3, `the shank leans ${body.stance.shankLeanDeg} degrees`);
+  }
+});
+
+test("balance rule with the centre of mass of quiet standing: tiptoe is balanced, the edge of the support is about 4.5 degrees back and 8.5 forward, the 40 mm tolerance is 3 degrees more", () => {
+  // The rule (POSTURES.md 6, pose.js validatePosture): the centre of mass is within 40 mm of the hull of the soles. With the centre of mass 37.5 % of the foot from the heel (MODEL.md 7.1) the
+  // margin of the neutral pose is 62 to 79 mm (it was 23 to 31 mm) and each degree of lean about the ankles moves it by about 16 mm (0.97 m x pi / 180) toward the heel or the toes. Margins in mm
+  // of the four bodies below, for the whole body tilted about the ankles with the soles flat (root flex tilts it about the pelvis, the ankles take the tilt back):
+  //   back 3: 20..28, back 5: -9..-6, back 8: -57..-49, back 15: -174..-145 | forward 5: 46..69, 8: 4..18, 10: -23..-15, 15: -97..-86
+  // (the old geometry: back 3: -21..-18, back 5: -54..-45; forward 10: 15..33)
+  // so the rule (limit -40 mm) accepts about 7.5 degrees back and 11.5 forward. The edge of the support (4.6 back, 8.6 forward) is where the limits of stability of a healthy adult are: 8 degrees
+  // forward and 4.5 backward (12.5 degrees of anteroposterior sway in all), Tsang and Hui-Chan 2003, 2004, as quoted by the Interacoustics overview of the limits-of-stability test (found by a
+  // web search; the papers themselves not opened, and a model with another assumption gives 6.25 and 4.45). The 40 mm are the uncertainty of the model's centre of mass (it is 5 to 15 mm nearer the
+  // heel than the measured 40 % of the foot, de Leva's centres are good to 10 to 20 mm) and the sway of a person (10 to 20 mm).
+  const tilt = (deg) => base({ root: { flex: deg }, joints: { ankle_LR: [deg] } });
+  const comError = (r) => r.errors.some((e) => /centre of mass is \d+ mm outside the support polygon/.test(e));
   for (const body of [MAN, army("F", 50), WOMAN5, army("M", 95)]) {
-    const root = { y: body.joints.pelvis.offset[1] }, com = P.centerOfMass(body, P.neutralPose(), root).point, ankle = P.solvePose(body, P.neutralPose(), root).position("ankle_L");
-    assert.ok(com.z - ankle.z > 0.02 && com.z - ankle.z < 0.05, `COM is ${((com.z - ankle.z) * 1000).toFixed(1)} mm in front of the ankle`);
+    const v = (p) => P.validatePosture(body, p), m = (p) => v(p).metrics.balanceMargin;
+    const quiet = m(base({}));
+    assert.ok(quiet > 0.05 && quiet < 0.09, `quiet standing ${quiet}`);
+    // lean back: 3 degrees is inside (nearer the heel), 5 degrees is just outside the heel edge but inside the tolerance, 8 and more fall
+    assert.ok(m(tilt(-3)) > 0.01 && m(tilt(-3)) < quiet - 0.03, `3 degrees back ${m(tilt(-3))}`);
+    assert.ok(m(tilt(-5)) < 0 && m(tilt(-5)) > -0.02, `5 degrees back ${m(tilt(-5))}`);
+    assert.ok(!comError(v(tilt(-5))) && comError(v(tilt(-8))) && comError(v(tilt(-15))), "back: 5 degrees stands, 8 and 15 degrees fall");
+    assert.ok(m(tilt(-15)) < -0.1, `15 degrees back ${m(tilt(-15))}`);
+    // lean forward: the centre of mass moves toward the middle of the foot (the margin grows) and then toward the toes: 5 degrees inside, 8 inside, 10 just outside but inside the tolerance, 15 falls
+    assert.ok(m(tilt(5)) > 0.03 && m(tilt(5)) > m(tilt(8)) + 0.03, `5 degrees forward ${m(tilt(5))}`);
+    assert.ok(m(tilt(8)) > 0 && m(tilt(8)) < 0.03, `8 degrees forward ${m(tilt(8))}`);
+    assert.ok(m(tilt(10)) < 0 && m(tilt(10)) > -0.03 && !comError(v(tilt(10))) && comError(v(tilt(15))), "forward: 10 degrees is on the edge, inside the tolerance, 15 falls");
+    // tiptoe (ankles 45 plantar-flexed, toes 45 dorsiflexed: the support is the ball and the toes): the upright model, with the centre of mass over the ankle, was 31 to 49 mm behind the
+    // ball line and fell backward; now it is up to 7 mm behind it, or 5 mm in front (a person on tiptoe moves the body forward over the ball, the rigid model does not), inside the tolerance
+    const tiptoe = v(base({ joints: { ankle_LR: [-45], mtp_LR: [45] } }));
+    assert.ok(tiptoe.metrics.balanceMargin > -0.015 && !comError(tiptoe), `tiptoe ${tiptoe.metrics.balanceMargin}`);
+    // a flat-footed deep squat with an upright trunk and the arms down is outside the support (a real squat reaches forward or leans the trunk), by 28 to 60 mm
+    const squat = m(base({ joints: { hip_LR: [120], knee_LR: [145], ankle_LR: [30] } }));
+    assert.ok(squat < -0.02 && squat > -0.08, `deep squat ${squat}`);
+    // a forward bend of the trunk of 45 degrees at the hips (legs vertical, arms forward) is inside the tolerance, and falls with 10 kg in the hands: the load is why a lifter puts the hips back
+    const bend = { root: { flex: 45 }, joints: { hip_LR: [45], shoulder_LR: [60] } };
+    assert.ok(!comError(v(base(bend))) && comError(v(base({ ...bend, hints: { load: { mass: 10 } } }))), "bend 45 without and with 10 kg");
+    assert.ok(m(base({ ...bend, hints: { load: { mass: 10 } } })) < m(base(bend)) - 0.03, "the load moves the centre of mass forward");
   }
 });
 
@@ -1346,7 +1415,8 @@ test("the worked example of POSE.md (section 6) is valid on six bodies; its two 
     near(r.metrics.gaps.feet, 0, 0.015); assert.ok(r.metrics.balanceMargin > 0.07 && r.metrics.balanceMargin < 0.1, `balance margin ${r.metrics.balanceMargin}`);
   }
   const floats = P.validatePosture(MAN, { ...ex, joints: { ...ex.joints, knee_LR: [60, 0] } });
-  assert.match(floats.errors[0], /^contact set "feet": its lowest point is 54 mm above the floor \(the posture is placed by its seat on a seat plane of 428 mm; support "seat\+feet" needs the feet to touch within 15 mm\)$/);
+  // 31 mm since the stance change (was 54): the shank of the neutral pose leans forward by 4.9 degrees and a knee at 60 instead of 90 swings the foot about it (MODEL.md 4.1)
+  assert.match(floats.errors[0], /^contact set "feet": its lowest point is 31 mm above the floor \(the posture is placed by its seat on a seat plane of 428 mm; support "seat\+feet" needs the feet to touch within 15 mm\)$/);
   assert.deepEqual(P.validatePosture(MAN, { ...ex, joints: { ...ex.joints, shoulder_R: [200, 0, 0] } }).errors, ["shoulder_R flex = 200\u00b0 is outside the range of motion [-60, 180] (clamps to 180\u00b0)"]);
 });
 
@@ -1542,7 +1612,7 @@ test("defect: the grips 'spherical' and 'cup' open to their descriptions (a 60 m
 
 test("defect: options.contactTolerance and options.seatHeight are validated like their hints, and the messages never echo 'undefined'", () => {
   const floating = base({ support: "seat+feet", joints: { hip_LR: [90], knee_LR: [60] } });
-  assert.match(P.validatePosture(MAN, floating).errors[0], /^contact set "feet": its lowest point is 54 mm above the floor/);
+  assert.match(P.validatePosture(MAN, floating).errors[0], /^contact set "feet": its lowest point is 31 mm above the floor/); // was 54 mm before the stance change (MODEL.md 4.1)
   for (const bad of [NaN, Infinity, -Infinity, "5", "0.01", 5, -0.001, 0.2, {}, [], true]) {
     const r = P.validatePosture(MAN, floating, { contactTolerance: bad });
     assert.equal(r.ok, false);
