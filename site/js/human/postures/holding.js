@@ -1,13 +1,19 @@
 // Posture group "Holding" (ids hold-*): the hands carry or aim something: a box at chest, waist or overhead, a bag at the side, a hammer, a drill, a tray,
-// a phone or radio handset, binoculars, a tablet, a clipboard, a cup, a pistol (Isosceles and Weaver), a rifle (low ready, high ready, port arms, sling carry,
-// shouldered aim), a shield, a joystick, a lever, a grab handle, an overhead bar, a flashlight, a screwdriver.
+// a phone or radio handset, binoculars, a tablet, a clipboard, a cup, a pistol (Isosceles, Weaver, one hand, low ready), a rifle (low ready, high ready, sling carry,
+// shouldered aim), a shield, a wheel, a joystick, a lever, a grab handle, an overhead bar, a handrail, a flashlight, a screwdriver, a shovel.
 // Each posture names the object (hints.prop: catalog type, parameters, role, and the grip ids of that catalog type: the sandbox can close the hands on them with
-// the inverse kinematics of ik.js) and says in the note where the object is for the median man. The arm and hand angles were solved with ik.js on the median man (US Army
-// men, 50th percentile) for the real grips of catalog.js and rounded to whole degrees; the stance (legs, ankles) was tuned so that both soles lie flat on the floor of the
-// 5th-percentile woman, the median man and the 95th-percentile man at once. A held mass goes in hints.load (the balance rule of the validator counts it).
-// Not here: lifting and carrying (lifting.js), the rifle firing positions (military.js), hand tools at a workstation (work.js).
+// the inverse kinematics of ik.js) and says in the note where the object is for the median man. How the numbers were made: the trunk, legs and head were written by hand;
+// the arms and hands were solved with ik.js on the median man (US Army men, 50th percentile) for the real grips and anchors of catalog.js, with a soft goal that keeps the
+// elbows out of the trunk, and rounded to whole degrees; the stance (ankles) was tuned so that both soles lie flat on the floor of the 5th-percentile woman, the median man
+// and the 95th-percentile man at once. The arms are then checked on six bodies, a 134.6 kg man of 1.81 m included: for him an upper arm at the side of the chest needs some
+// abduction before it clears the trunk (postures.test.mjs), which is why elbows are out in the pistol, rifle, drill and shield postures. The objects are placed for the median
+// man; for another body the hands stay where the angles put them (the object is then off by the difference of the proportions) until the sandbox closes them on it with IK.
+// A held mass goes in hints.load (the balance rule of the validator counts it).
+// Known limits: no rope and no hanging from a bar (a rope held with both hands at the head makes the heavy body's upper arm pass through its trunk, and a dead hang has no floor contact); the sandbox holds no shield or tray or cup type (a partition, a box and a cylinder stand in: said in the note); the Weaver support elbow is not pulled down; port arms
+// was tried and dropped (the arms cross the abdomen of the heavy body); the rifle eye relief is about 0.1 m because the catalog rifle is 0.33 m from the butt to its rear sight.
+// Not here: lifting and carrying (lifting.js), the rifle firing positions on the ground (military.js), hand tools at a workstation (work.js).
 // Each entry is a Posture (typedef in ../pose.js, DESIGN.md 2.4); ../postures.js collects the 13 groups. Rules and checklist for authors: docs/human3d/POSTURES.md and POSE.md.
-// Support is "feet"; `contacts` lists the sole landmarks that must be on the floor.
+// Support is "feet"; `contacts` lists the sole landmarks that must be on the floor (the raised foot of a step posture is not listed).
 const FEET = ["heel_sole_L", "heel_sole_R", "ball_sole_medial_L", "ball_sole_medial_R", "ball_sole_lateral_L", "ball_sole_lateral_R"];
 export default [
   {
@@ -33,7 +39,7 @@ export default [
     source: "illustrative; NIOSH (Waters et al. 1993): vertical hand location 75 cm and horizontal distance 25 cm are the reference values of the lifting equation",
     support: "feet",
     spine: { lumbar: [-4, 0, 0] },
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [-2], clavicle_LR: [-10, 3], shoulder_LR: [-6, 17, 5], elbow_LR: [74], forearm_LR: [-7], wrist_LR: [1, 20] },
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [-2], clavicle_LR: [-6, 17], shoulder_LR: [-17, 13, -5], elbow_LR: [82], forearm_LR: [-9], wrist_LR: [-4, 20] },
     grips: { L: "flat", R: "flat" },
     contacts: FEET,
     hints: { load: { mass: 10 }, prop: { type: "crate", params: { width: 0.4, depth: 0.3, height: 0.25, mass: 10 }, role: "held", grips: { L: "side_left", R: "side_right" }, note: "box 0.4 x 0.3 x 0.25 m, 10 kg, its centre 0.99 m above the floor and 0.21 m in front of the abdomen of the median man" } },
@@ -89,7 +95,7 @@ export default [
     source: "illustrative",
     support: "feet",
     spine: { thoracic: [2, 0, 0] },
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [2], shoulder_R: [11, 3, 35], shoulder_L: [2, 6, 0], elbow_L: [10], clavicle_R: [14, -6], elbow_R: [95], forearm_R: [-13], wrist_R: [-10, 12] },
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [2], shoulder_R: [13, 9, 33], shoulder_L: [2, 6, 0], elbow_L: [10], clavicle_R: [8, -3], elbow_R: [96], forearm_R: [-13], wrist_R: [-10, 10] },
     grips: { L: "relaxed", R: "trigger" },
     contacts: FEET,
     hints: { load: { mass: 1.5 }, prop: { type: "drill", params: { length: 0.25 }, role: "held", grips: { R: "pistol_grip" }, note: "cordless drill 0.245 m long, its axis horizontal 1.3 m above the floor, the pistol grip 0.075 m to the right of the mid-line and 0.4 m in front of the right shoulder, pointing straight ahead" } },
@@ -103,7 +109,7 @@ export default [
     source: "illustrative",
     support: "feet",
     spine: {},
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0], shoulder_R: [-13, 13, 29], shoulder_L: [1, 15, 9], clavicle_L: [-10, 25], clavicle_R: [6, 10], elbow_L: [43], elbow_R: [77], forearm_L: [-90], forearm_R: [76], wrist_L: [-8, -30], wrist_R: [14, 4] },
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0], shoulder_R: [-14, 16, 29], shoulder_L: [0, 16, 10], clavicle_L: [-10, 25], clavicle_R: [4, 10], elbow_L: [43], elbow_R: [78], forearm_L: [-90], forearm_R: [75], wrist_L: [-9, -30], wrist_R: [10, 3] },
     grips: { L: "power", R: "power" },
     contacts: FEET,
     hints: { load: { mass: 2.5 }, prop: { type: "shovel", params: { length: 1.15 }, role: "held", grips: { R: "d_handle", L: "shaft" }, note: "shovel 1.15 m long, the D handle 1.0 m above the floor and 0.18 m in front of the abdomen, the blade 35 degrees below the horizontal" } },
@@ -159,7 +165,7 @@ export default [
     source: "illustrative",
     support: "feet",
     spine: { lumbar: [-2, 0, 0] },
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [3], clavicle_LR: [5, 11], shoulder_LR: [0, -7], elbow_LR: [58], forearm_LR: [-90], wrist_LR: [36, 17] },
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [3], clavicle_LR: [2, 24], shoulder_LR: [-16, 1, -4], elbow_LR: [78], forearm_LR: [-90], wrist_LR: [31, 20] },
     grips: { L: "flat", R: "flat" },
     contacts: FEET,
     hints: { load: { mass: 3 }, prop: { type: "box", params: { width: 0.45, depth: 0.3, height: 0.03 }, role: "held", note: "tray 0.45 x 0.3 m, 30 mm thick, its top surface 1.03 m above the floor and 0.24 m in front of the abdomen of the median man (a box stands in for the tray), the palms underneath" } },
@@ -172,7 +178,7 @@ export default [
     description: "Standing with a phone or radio handset held to the right ear in the right hand, the elbow bent about 140 degrees and held in front of the chest, the head upright and the left arm hanging. Telephoning or listening on a radio; the upper arm is raised about 90 degrees from the trunk to bring the hand to the ear.",
     source: "illustrative",
     support: "feet",
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0, 2, 0], shoulder_L: [2, 6, 0], elbow_L: [10], shoulder_R: [73, 48, 14], elbow_R: [144], forearm_R: [-56], wrist_R: [2, 5] },
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0, 2, 0], shoulder_L: [2, 6, 0], elbow_L: [10], clavicle_R: [-10, -25], shoulder_R: [26, 39, 21], elbow_R: [150], forearm_R: [-56], wrist_R: [16, 20] },
     grips: { L: "relaxed", R: "power" },
     contacts: FEET,
     hints: { prop: { type: "radio_handset", params: { length: 0.2 }, role: "held", grips: { R: "handle" }, note: "handset 0.2 m long with its ear cup on the right ear and its mouthpiece in front of the mouth; a phone is held the same way" } },
@@ -199,7 +205,7 @@ export default [
     source: "illustrative",
     support: "feet",
     spine: { cervical: [-2, 0, 0] },
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0], clavicle_LR: [1, -1], shoulder_LR: [73, 20, 27], elbow_LR: [118], forearm_LR: [-1], wrist_LR: [-4, -1] },
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0], clavicle_LR: [1, -1], shoulder_LR: [72, 19, 27], elbow_LR: [116], forearm_LR: [-1], wrist_LR: [-4, 1] },
     grips: { L: "relaxed", R: "relaxed" },
     contacts: FEET,
     hints: { prop: { type: "binoculars", params: { length: 0.15 }, role: "held", grips: { L: "barrel_left", R: "barrel_right" }, note: "binoculars 0.15 m long, the eyepieces 0.03 m in front of the pupils, objectives pointing forward" } },
@@ -350,9 +356,9 @@ export default [
     description: "Standing with the left foot forward and the body turned about forty-five degrees away from the target, the trunk inclined about 15 degrees forward, the stock of the rifle in the right shoulder pocket and the cheek on the stock, the right eye about 0.1 m behind the rear sight, the right hand on the pistol grip and the left hand under the handguard. The standing firing position with a carbine; right-handed.",
     source: "illustrative; the standing position of US Army FM 3-22.9 / TC 3-22.9 (feet about shoulder width, body at an angle to the target, weight forward, cheek on the stock, butt in the pocket of the shoulder); from memory, not checked against the manual",
     support: "feet",
-    root: { heading: -45, flex: 14 },
-    spine: { thoracic: [6, 0, 6], cervical: [20, 0, 30] },
-    joints: { head: [-22, 0, 8], hip_L: [19, 0.9], hip_R: [4.8, 0.9], ankle_L: [-11.2, 0.6], ankle_R: [1.9, 0.6, -0.1], clavicle_L: [23, 25], clavicle_R: [5, -2], shoulder_L: [22, 66, -33], shoulder_R: [68, 13, 53], elbow_L: [90], elbow_R: [121], forearm_L: [10], forearm_R: [-73], wrist_L: [-70, 20], wrist_R: [9, -30], knee_LR: [-4.9] },
+    root: { heading: -45, flex: 16 },
+    spine: { thoracic: [7, 0, 6], cervical: [12, 0, 30] },
+    joints: { head: [-14, 0, 8], hip_L: [21, 0.9], hip_R: [6.8, 0.9], ankle_L: [-11.2, 0.6], ankle_R: [1.9, 0.6, -0.1], clavicle_L: [24, 25], clavicle_R: [5, -2], shoulder_L: [22, 67, -36], shoulder_R: [70, 14, 53], elbow_L: [91], elbow_R: [121], forearm_L: [10], forearm_R: [-73], wrist_L: [-70, 20], wrist_R: [9, -30], knee_LR: [-4.9] },
     grips: { L: "cup", R: "trigger" },
     contacts: FEET,
     hints: { load: { mass: 3.4 }, prop: { type: "rifle", params: { length: 0.84 }, role: "held", grips: { R: "pistol_grip", L: "handguard" }, note: "carbine 0.84 m long, level and pointing at the target 45 degrees to the left of the pelvis' facing direction, the butt in the right shoulder pocket, the rear sight about 0.07 m in front of the right eye, the handguard in the left hand" } },
@@ -366,7 +372,7 @@ export default [
     source: "illustrative; the 'low ready' of rifle training (US Army FM 3-22.9); from memory",
     support: "feet",
     spine: { thoracic: [2, 0, 0] },
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [-2], clavicle_L: [-10, 25], clavicle_R: [-7, 25], shoulder_L: [7, 37, 17], shoulder_R: [-24, 46, 34], elbow_L: [65], elbow_R: [116], forearm_L: [27], forearm_R: [-63], wrist_L: [-14, 20], wrist_R: [35, -30] },
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [-2], clavicle_L: [-10, 25], clavicle_R: [18, 25], shoulder_L: [7, 32, 12], shoulder_R: [-12, 11, 36], elbow_L: [64], elbow_R: [95], forearm_L: [31], forearm_R: [-63], wrist_L: [-14, 20], wrist_R: [67, -30] },
     grips: { L: "cup", R: "trigger" },
     contacts: FEET,
     hints: { load: { mass: 3.4 }, prop: { type: "rifle", params: { length: 0.84 }, role: "held", grips: { R: "pistol_grip", L: "handguard" }, note: "carbine 0.84 m long, the butt against the right chest 0.27 m below the acromion, the muzzle 38 degrees below the horizontal and 32 degrees to the left, pointing at the ground in front of the left foot" } },
@@ -393,7 +399,7 @@ export default [
     description: "Standing with the rifle hanging from its sling in front of the body, muzzle down and to the left at about sixty-five degrees, the right hand resting on the pistol grip and the left arm hanging free. The usual carry on patrol or on guard when the weapon must be ready but the hands are not needed; the sling carries the weight.",
     source: "illustrative; the sling carry of infantry practice",
     support: "feet",
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0], shoulder_L: [2, 6, 0], elbow_L: [10], clavicle_R: [13, 3], shoulder_R: [8, 15, 60], elbow_R: [51], forearm_R: [-75], wrist_R: [50, -30] },
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0], shoulder_L: [2, 6, 0], elbow_L: [10], clavicle_R: [3, 25], shoulder_R: [-15, 26, 32], elbow_R: [68], forearm_R: [-68], wrist_R: [42, -30] },
     grips: { L: "relaxed", R: "trigger" },
     contacts: FEET,
     hints: { externalSupport: "sling", load: { mass: 3.4, landmarks: ["grip_centre_R"] }, prop: { type: "rifle", params: { length: 0.84 }, role: "held", grips: { R: "pistol_grip" }, note: "carbine 0.84 m long hanging on its sling in front of the body, the pistol grip 0.95 m above the floor, the muzzle 65 degrees below the horizontal and 20 degrees to the left" } },
@@ -407,7 +413,7 @@ export default [
     source: "illustrative",
     support: "feet",
     spine: { thoracic: [2, 0, 0] },
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0], clavicle_LR: [14, -3], shoulder_LR: [-2, -3, 28], elbow_LR: [90], forearm_LR: [84], wrist_LR: [-14, -19] },
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0], clavicle_LR: [7, -6], shoulder_LR: [6, 10, 36], elbow_LR: [97], forearm_LR: [65], wrist_LR: [27, -27] },
     grips: { L: "power", R: "power" },
     contacts: FEET,
     hints: { load: { mass: 8 }, prop: { type: "partition", params: { width: 0.5, height: 0.9, thickness: 0.05 }, role: "held", note: "shield 0.5 m wide, 0.9 m high and 0.05 m thick (a partition stands in for it), its lower edge 0.62 m above the floor and its face 0.3 m in front of the chest; the hands hold two handles on its back, 0.26 m apart at 1.12 m" } },
@@ -435,7 +441,7 @@ export default [
     description: "Standing beside a handrail with the right hand on top of it at hip height, the arm slightly out from the body and the left arm hanging. Waiting on a stair, a ramp or a gangway, the position taken when moving along a rail; the rail takes part of the weight if the surface is unsteady.",
     source: "illustrative; rail height 0.9 m and diameter 38 mm as in common stair and ramp codes (rails of 30 to 50 mm at 0.86 to 0.96 m; from memory)",
     support: "feet",
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0], shoulder_L: [2, 6, 0], elbow_L: [10], clavicle_R: [17, -2], shoulder_R: [-11, 3, 21], elbow_R: [44], forearm_R: [-36], wrist_R: [44, -28] },
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], head: [0], shoulder_L: [2, 6, 0], elbow_L: [10], clavicle_R: [-10, 20], shoulder_R: [-30, 33, 15], elbow_R: [48], forearm_R: [-66], wrist_R: [80, -27] },
     grips: { L: "relaxed", R: "hook" },
     contacts: FEET,
     hints: { externalSupport: "handrail", prop: { type: "handrail", params: { length: 1.5, height: 0.9, diameter: 0.04 }, role: "support", grips: { R: "rail_2" }, note: "handrail 1.5 m long and 0.9 m high running along the walking direction, 0.12 m to the right of the right shoulder joint (0.24 m from the mid-line of the median man)" } },

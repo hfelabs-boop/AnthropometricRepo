@@ -1,9 +1,12 @@
-// Posture group "Leaning" (ids lean-*). Leaning postures rest partly on something outside the body: a wall, a desk, a rail, a door frame, a chair back,
-// a shovel. Each says what carries the rest of the weight (hints.externalSupport: the validator then does not apply the balance rule) and names the object
-// (hints.prop: catalog type, parameters, role "support", and in the note where the contact is for the median man, in metres from the heels). The hands and the
-// contact points were placed with the inverse kinematics of ik.js on the median man (US Army men, 50th percentile) and rounded to whole degrees; the legs and ankles
-// were tuned so that both soles lie flat on the floor of the 5th-percentile woman, the median man and the 95th-percentile man at once.
-// Not here: sitting on an edge (sitting.js), leaning on the arms of a seat (sit-*), holding a rifle on a rest (military.js).
+// Posture group "Leaning" (ids lean-*). Leaning postures rest partly on something outside the body: a wall, a desk, a counter, a rail, a bench, a door frame, a chair back.
+// Each says what carries the rest of the weight (hints.externalSupport: the validator then does not apply the balance rule) and names the object (hints.prop: catalog type,
+// parameters, role "support", and in the note where the contact is, in metres from the heel midpoint, for the 5th-percentile woman, the median man and the 95th-percentile man
+// where the three differ). The hands and the contact points were placed with the inverse kinematics of ik.js on the median man (US Army men, 50th percentile) and rounded to whole
+// degrees; the legs and ankles were tuned so that both soles lie flat on the floor of the three bodies at once, and the arms were checked on six bodies (a 134.6 kg man of 1.81 m
+// included: his upper arm needs some abduction to clear the trunk, so the elbows are out in the forearm postures). The support is placed for the median man: for another body
+// the contact moves with the landmarks (a wall behind the figure is 0.31 m behind the heels of the small woman and 0.39 m behind those of the large man) and the sandbox places it.
+// Known limits: the contact planes are exact for the median man only (the notes give the numbers of the others); a leaning back posture touches a wall with the buttocks first on a
+// woman and with the shoulder blades first on a man; "leaning on a shovel" and "foot on a step, elbow on the knee" were tried and dropped.
 // Each entry is a Posture (typedef in ../pose.js, DESIGN.md 2.4); ../postures.js collects the 13 groups. Rules and checklist for authors: docs/human3d/POSTURES.md and POSE.md.
 // Support is "feet" (the other contact, the wall or the table, is outside the model). `contacts` lists the sole landmarks that must be on the floor.
 const FEET = ["heel_sole_L", "heel_sole_R", "ball_sole_medial_L", "ball_sole_medial_R", "ball_sole_lateral_L", "ball_sole_lateral_R"];
@@ -28,14 +31,14 @@ export default [
     id: "lean-hip-desk",
     name: "Leaning on a desk edge with the hips",
     category: "Leaning",
-    tags: ["lean", "desk", "hips", "static", "asymmetric", "arms-crossed", "waiting"],
-    description: "Standing with the buttocks resting against the edge of a high desk or counter, the legs forward and nearly straight, the arms folded across the chest. A relaxed waiting or talking posture; the desk edge takes part of the weight so the pelvis is tilted back and the feet are a foot or more in front of the hips.",
+    tags: ["lean", "desk", "hips", "static", "symmetric", "hands", "waiting"],
+    description: "Standing with the buttocks resting against the edge of a high desk or counter, the legs forward and nearly straight, both hands flat on the desk top beside the hips. A relaxed waiting or talking posture; the desk edge and the hands take part of the weight so the pelvis is tilted back and the feet are a foot or more in front of the hips.",
     source: "illustrative",
     support: "feet",
     root: { flex: -6 },
     spine: { lumbar: [4, 0, 0], thoracic: [6, 0, 0] },
-    joints: { hip_LR: [18, 3, -5], knee_LR: [6], shoulder_L: [58, 31, 62], elbow_L: [113], forearm_L: [45], wrist_L: [12, -7], shoulder_R: [77, 23, 59], elbow_R: [110], forearm_R: [-7], wrist_R: [9, -10], clavicle_LR: [12, 24], head: [-2], ankle_LR: [-18, 1] },
-    grips: RELAXED,
+    joints: { hip_LR: [18, 3, -5], knee_LR: [6], head: [-2], ankle_LR: [-18, 1], clavicle_LR: [-10, -21], shoulder_LR: [-21, 40, 47], elbow_LR: [52], forearm_LR: [69], wrist_LR: [-70, -4] },
+    grips: { L: "flat", R: "flat" },
     contacts: FEET,
     hints: { externalSupport: "desk", prop: { type: "desk", params: { height: 0.82, depth: 0.7 }, role: "support", note: "desk or counter 0.82 m high whose front edge touches the buttocks: 0.28 m, 0.35 m and 0.39 m behind the heel midpoint (5th-percentile woman, median man, 95th-percentile man); for the woman the edge should be 0.75 m high" } },
   },
@@ -64,7 +67,7 @@ export default [
     support: "feet",
     root: { flex: 20 },
     spine: { lumbar: [2, 0, 0], thoracic: [4, 0, 0], cervical: [-10, 0, 0] },
-    joints: { hip_LR: [20, 0, 0], head: [-5], clavicle_LR: [13, -4], shoulder_LR: [43, 3, 24], elbow_LR: [75], forearm_LR: [66], wrist_LR: [1, -18] },
+    joints: { hip_LR: [20, 0, 0], head: [-5], clavicle_LR: [5, -5], shoulder_LR: [43, 14, 28], elbow_LR: [79], forearm_LR: [62], wrist_LR: [1, -20] },
     grips: { L: "relaxed", R: "relaxed" },
     contacts: FEET,
     hints: { externalSupport: "rail", prop: { type: "handrail", params: { length: 1.5, height: 1.1, diameter: 0.04 }, role: "support", note: "rail 1.1 m high (the olecranons of the median man are 1.1 m high and 0.41 m in front of the heels), running across in front of the figure under the forearms; set the height to the elbow height of the user" } },
@@ -108,7 +111,7 @@ export default [
     source: "illustrative; lateral trunk bend of 20 deg (ISO 11226 Table 1 asks for a symmetrical trunk posture, so this is an asymmetrical one)",
     support: "feet",
     spine: { lumbar: [0, 10, 0], thoracic: [0, 10, 0], cervical: [0, 6, 0] },
-    joints: { hip_LR: [0, 3, 0], head: [0, 2, 0], clavicle_L: [1, -2], clavicle_R: [1, 1], shoulder_L: [-3, 87, -71], shoulder_R: [-38, 44, 65], elbow_L: [61], elbow_R: [96], forearm_L: [86], forearm_R: [-55], wrist_L: [-43, -13], wrist_R: [-14, -5], ankle_LR: [0, 1] },
+    joints: { hip_LR: [0, 3, 0], head: [0, 2, 0], clavicle_L: [1, -2], clavicle_R: [1, 1], shoulder_L: [-3, 87, -71], shoulder_R: [-38, 45, 63], elbow_L: [61], elbow_R: [94], forearm_L: [86], forearm_R: [-56], wrist_L: [-43, -13], wrist_R: [-11, -5], ankle_LR: [0, 1] },
     grips: { L: "flat", R: "relaxed" },
     contacts: FEET,
     hints: { externalSupport: "wall", prop: { type: "wall", params: { width: 3, height: 2.5 }, role: "support", note: "wall on the figure's left, its face 0.60 m, 0.71 m and 0.75 m to the left of the heel midpoint (5th-percentile woman, median man, 95th-percentile man), touching the left palm at head height (1.5 m for the median man)" } },
@@ -219,12 +222,12 @@ export default [
     id: "lean-door-frame",
     name: "Leaning on a door frame, arms folded",
     category: "Leaning",
-    tags: ["lean", "door", "shoulder", "static", "asymmetric", "arms-crossed", "waiting"],
-    description: "Standing in a doorway with the right shoulder against the frame, the trunk bent sideways about fifteen degrees toward it, the arms folded across the chest and the left foot crossed in front of the right. The posture of a person watching or talking from a doorway; mirrorPose gives the left shoulder.",
+    tags: ["lean", "door", "shoulder", "static", "asymmetric", "hands-on-hips", "waiting"],
+    description: "Standing in a doorway with the right shoulder against the frame, the trunk bent sideways about fifteen degrees toward it, both hands on the hips and the left foot crossed in front of the right. The posture of a person watching or talking from a doorway; mirrorPose gives the left shoulder.",
     source: "illustrative",
     support: "feet",
     spine: { lumbar: [0, -9, 0], thoracic: [0, -7, 0], cervical: [0, 10, 0] },
-    joints: { shoulder_L: [58, 31, 62], elbow_L: [113], forearm_L: [45], wrist_L: [12, -7], shoulder_R: [77, 23, 59], elbow_R: [110], forearm_R: [-7], wrist_R: [9, -10], clavicle_LR: [12, 24], head: [0, 3, 0], hip_L: [6.4, -4.9, 5.1], hip_R: [-3.1, 3.7], knee_L: [-4.8, 3.4], knee_R: [-4.9], ankle_L: [-12.7, -2.1, 3.3], ankle_R: [-2, 3.4, -0.1] },
+    joints: { head: [0, 3, 0], shoulder_L: [-39, 48, 65], shoulder_R: [-52, 69, 65], elbow_L: [99], elbow_R: [125], forearm_L: [-55], forearm_R: [-47], wrist_L: [-17, -5], wrist_R: [-44, -11], hip_L: [6.4, -4.9, 5.1], hip_R: [-3.1, 3.7], knee_L: [-4.9, 3.2], knee_R: [-4.9], ankle_L: [-12.7, -2.1, 3.4], ankle_R: [-2, 3.4, -0.1], clavicle_LR: [1, 1] },
     grips: RELAXED,
     contacts: FEET,
     hints: { externalSupport: "door frame", prop: { type: "doorway", params: { width: 0.9, height: 2 }, role: "support", note: "doorway whose right jamb touches the right shoulder: the jamb is 0.14 m, 0.17 m and 0.17 m to the right of the heel midpoint (5th-percentile woman, median man, 95th-percentile man), the opening 0.9 m wide to the left of it" } },
