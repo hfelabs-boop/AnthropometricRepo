@@ -36,12 +36,13 @@ const SIDE_LEFT = {
   source: "illustrative; angles solved so that the left shoulder, hip, knee and ankle lie within 60 mm of the floor on five bodies (a rigid body cannot lie flat on its side: the shoulders are wider than the hips)",
   support: "body",
   root: { lat: 86 },
-  spine: { lumbar: [0, -9, 0], thoracic: [0, 15, 0], cervical: [0, 35, 0] },
+  // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database): hand edit of cervical 29 / head 3 -8 / shoulder_L 171 39 / elbow_L 85 (were 35 / 0 -5 / 165 45 / 91); the head was in the forearm on 7 of them (also lie-side-right, its mirror), now none
+  spine: { lumbar: [0, -9, 0], thoracic: [0, 15, 0], cervical: [0, 29, 0] },
   joints: {
-    head: [0, -5, 0],
+    head: [3, -8, 0],
     hip_L: [32, 0, 0], knee_L: [17, 0], ankle_LR: [-12, 0, 0],
     hip_R: [60, 0, 0], knee_R: [45, 0],
-    shoulder_L: [165, 45, 0], elbow_L: [91],
+    shoulder_L: [171, 39, 0], elbow_L: [85],
     shoulder_R: [-10, 0, 0], elbow_R: [32], forearm_R: [36], wrist_R: [30, 0],
   },
   grips: { L: "relaxed", R: "relaxed" },
@@ -112,11 +113,12 @@ export default [
     support: "body",
     root: { flex: -94 },
     spine: { lumbar: [7, 0, 0], thoracic: [-12, 0, 0], cervical: [-4, 0, 0] },
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database): hand edit of the shoulder (was 18 103 -62): fingers in the head on 4 of them, now none
     joints: {
       head: [-2, 0, 0],
       clavicle_LR: [0, -2],
       hip_LR: [-4, 3, -10], ankle_LR: [-12, 0, 0],
-      shoulder_LR: [18, 103, -62], elbow_LR: [131], forearm_LR: [17], wrist_LR: [-35, -16],
+      shoulder_LR: [21, 100, -62], elbow_LR: [131], forearm_LR: [17], wrist_LR: [-35, -16],
     },
     grips: { L: "relaxed", R: "relaxed" },
   },
@@ -167,11 +169,12 @@ export default [
     support: "body",
     root: { flex: -94 },
     spine: { lumbar: [7, 0, 0], thoracic: [-12, 0, 0], cervical: [-4, 0, 0] },
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database), the palm kept within the limits of the semantic test: hand edit of the shoulder (was 2 35 61): the palms overlapped on 94 of them, now 2
     joints: {
       head: [-2, 0, 0],
       clavicle_LR: [0, -9],
       hip_LR: [-4, 3, -10], ankle_LR: [-12, 0, 0],
-      shoulder_LR: [2, 35, 61], elbow_LR: [128], forearm_LR: [-30], wrist_LR: [12, -17],
+      shoulder_LR: [-1, 38, 58], elbow_LR: [128], forearm_LR: [-30], wrist_LR: [12, -17],
     },
     grips: { L: "relaxed", R: "relaxed" },
   },
@@ -258,10 +261,11 @@ export default [
     support: "body",
     root: { lat: 90 },
     spine: { lumbar: [32, 0, 0], thoracic: [35, 12, 0], cervical: [42, 0, 0] },
+    // shoulder rotation 22 (was 25): hand edit by a coordinate search on 510 bodies, the palms kept within 0.32 m of the chest and the lowest landmark under 55 mm; the hands were in the head or the thigh on 10 of them, now 7
     joints: {
       head: [20, 0, 0],
       hip_L: [95, 10, 0], knee_L: [125, 0], hip_R: [100, 0, 0], knee_R: [128, 0], ankle_LR: [-40, 0, 0],
-      shoulder_LR: [55, 20, 25], elbow_LR: [120],
+      shoulder_LR: [55, 20, 22], elbow_LR: [120],
     },
     grips: { L: "relaxed", R: "relaxed" },
   },
@@ -273,7 +277,7 @@ export default [
     description: "The first-aid recovery position on the left side: the lower arm out in front with the elbow bent and the hand beside the head, the upper hand under the cheek, the upper leg bent at hip and knee to a right angle in front, the head tilted back to keep the airway open. For an unconscious casualty who is breathing; the posture stabilises the body on its side so that it cannot roll and the mouth drains.",
     source: "NHS and St John Ambulance first-aid guidance, and the European Resuscitation Council (recovery position: arm nearest the rescuer at a right angle with the elbow bent, the other hand against the cheek, the far knee bent to a right angle, head tilted back, chin lifted); angles illustrative",
     support: "body",
-    root: { lat: 89 },
+    root: { lat: 88 }, // lat 88 (was 89): hand edit; with 89 the trochanter of the 95th-percentile man lay 101 mm above the floor, the test asks for under 100
     spine: { lumbar: [0, -17, 0], thoracic: [0, 20, 0], cervical: [-8, 35, 5] },
     joints: {
       head: [-3, 10, 8],

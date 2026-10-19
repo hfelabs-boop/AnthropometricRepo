@@ -39,7 +39,8 @@ export default [
     source: "illustrative; stance width = biacromial breadth, the 'feet shoulder-width' rule of lifting guidance (e.g. NIOSH 1994 'Applications Manual for the Revised Lifting Equation')",
     support: "feet",
     contacts: FEET,
-    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], shoulder_LR: [2, 2, 0], elbow_LR: [8] },
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database): hand edit of the shoulder abduction (was 2): the hands were in the thighs on 4 of them, now none
+    joints: { hip_LR: [0, 7, -5], ankle_LR: [-1, 7, 0], shoulder_LR: [2, 4, 0], elbow_LR: [8] },
     grips: { L: "relaxed", R: "relaxed" },
   },
   {
@@ -99,10 +100,11 @@ export default [
     contacts: FEET,
     root: { flex: -5 },
     spine: { lumbar: [14, 0, 0], thoracic: [22, 0, 0], cervical: [10, 0, 0] },
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database): hand edit of the shoulder (was 8 8 8: the fingers sank into the thighs of bodies with wide thighs)
     joints: {
       hip_LR: [8, 0, -6], knee_LR: [18, 0], ankle_LR: [5, 0, 0],
       head: [-25, 0, 0],
-      clavicle_LR: [-4, 12], shoulder_LR: [8, 8, 8], elbow_LR: [20],
+      clavicle_LR: [-4, 12], shoulder_LR: [5, 11, 8], elbow_LR: [20],
     },
     grips: { L: "relaxed", R: "relaxed" },
   },
@@ -143,7 +145,8 @@ export default [
     source: "illustrative; shoulder abduction 50 deg with 60 deg internal rotation, 40 deg extension and elbow flexion 110 deg tuned so that the palms rest on the iliac crests of six bodies",
     support: "feet",
     contacts: FEET,
-    joints: { shoulder_LR: [-40, 50, 60], elbow_LR: [110], forearm_LR: [49], wrist_LR: [-20, -20] },
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database), the palm kept within the limits of the semantic test: hand edit of the arm angles (were -40 50 60 / 110 / 49 / -20 -20); 77 failures, now 0
+    joints: { shoulder_LR: [-46, 56, 60], elbow_LR: [113], forearm_LR: [40], wrist_LR: [-29, -23] },
     grips: { L: "relaxed", R: "relaxed" },
   },
   {
@@ -155,10 +158,11 @@ export default [
     source: "illustrative; the left arm in front, mirrorPose gives the right arm in front; shoulder internal rotation of about 60 deg and a shrugged, protracted shoulder girdle carry the forearms across (tuned on six bodies, the heavy one included)",
     support: "feet",
     contacts: FEET,
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database): hand edit of the arm angles (were L 58 31 62, R 77 23 59 / 110 / -7, clavicle 12); 95 failures, now 1
     joints: {
-      shoulder_L: [58, 31, 62], elbow_L: [113], forearm_L: [45], wrist_L: [12, -7],
-      shoulder_R: [77, 23, 59], elbow_R: [110], forearm_R: [-7], wrist_R: [9, -10],
-      clavicle_LR: [12, 24],
+      shoulder_L: [55, 28, 65], elbow_L: [113], forearm_L: [45], wrist_L: [12, -7],
+      shoulder_R: [80, 20, 56], elbow_R: [107], forearm_R: [-4], wrist_R: [9, -10],
+      clavicle_LR: [9, 24],
     },
     grips: { L: "relaxed", R: "relaxed" },
   },
@@ -171,7 +175,8 @@ export default [
     source: "illustrative; shoulder extension 45 deg with 52 deg internal rotation and elbow flexion 64 deg tuned so that the hands meet at the sacrum on six bodies",
     support: "feet",
     contacts: FEET,
-    joints: { shoulder_LR: [-45, 14, 52], elbow_LR: [64], forearm_LR: [-23], wrist_LR: [40, -30] },
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database): hand edit of the arm angles (were -45 14 52 / 64 / -23 / 40 -30); palms inside the pelvis on 113 of them, now on none
+    joints: { shoulder_LR: [-51, 20, 58], elbow_LR: [61], forearm_LR: [-20], wrist_LR: [43, -30] },
     grips: { L: "relaxed", R: "relaxed" },
   },
   {
@@ -183,7 +188,8 @@ export default [
     source: "illustrative; palms on the front of the thighs at pocket height, tuned on six bodies",
     support: "feet",
     contacts: FEET,
-    joints: { shoulder_LR: [-21, 3, 17], elbow_LR: [52], forearm_LR: [20], wrist_LR: [-15, 0] },
+    // shoulder abduction 6 (was 3): hand edit; the forearms were inside the thighs on 126 of 510 bodies (176 population medians, P5/P95 of the others, persons of the database), now none
+    joints: { shoulder_LR: [-21, 6, 17], elbow_LR: [52], forearm_LR: [20], wrist_LR: [-15, 0] },
     grips: { L: "relaxed", R: "relaxed" },
   },
   {
@@ -207,7 +213,8 @@ export default [
     source: "illustrative; shoulder abduction 125 deg with 68 deg external rotation and elbow flexion 131 deg tuned so that the palms touch the back of the head on six bodies",
     support: "feet",
     contacts: FEET,
-    joints: { shoulder_LR: [23, 125, -68], elbow_LR: [131], forearm_LR: [17], wrist_LR: [-40, -15] },
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database): hand edit of the arm angles (were 23 125 -68 / 131 / 17 / -40 -15); 75 failures, now 0
+    joints: { shoulder_LR: [29, 119, -74], elbow_LR: [128], forearm_LR: [14], wrist_LR: [-43, -18] },
     grips: { L: "relaxed", R: "relaxed" },
   },
   {
@@ -252,11 +259,12 @@ export default [
     root: { flex: 3 },
     spine: { lumbar: [20, 0, 0] },
     hints: { externalSupport: "step", prop: { type: "step", params: { rise: 0.2 }, role: "support", note: "the right foot (heel and ball) rests flat on the tread, about 0.2 m above the floor for the median man: set the rise to the height of the right sole" } },
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database), the palm kept within the limits of the semantic test: hand edit of shoulder_R flexion (was 11); the hand was in the thigh on 13 of them, now 1
     joints: {
       hip_L: [0, -2, 0],
       hip_R: [59, 7, 0], knee_R: [70, 0], ankle_R: [17, 10, 0],
       shoulder_L: [4, 4, 0], elbow_L: [12],
-      shoulder_R: [11, 14, 39], elbow_R: [58], forearm_R: [-15], wrist_R: [22, 20],
+      shoulder_R: [14, 14, 39], elbow_R: [58], forearm_R: [-15], wrist_R: [22, 20],
     },
     grips: { L: "relaxed", R: "relaxed" },
   },
@@ -327,7 +335,8 @@ export default [
     support: "feet",
     contacts: FEET,
     spine: { lumbar: [0, 0, 10], thoracic: [0, 0, 35], cervical: [0, 0, 15] },
-    joints: { head: [0, 0, 8], shoulder_LR: [2, 11, 0], elbow_LR: [10] },
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database): hand edit of the shoulder abduction (was 11): the upper arm was in the trunk on 4 of them, now none
+    joints: { head: [0, 0, 8], shoulder_LR: [2, 13, 0], elbow_LR: [10] },
     grips: { L: "relaxed", R: "relaxed" },
   },
   {
@@ -340,7 +349,8 @@ export default [
     support: "feet",
     contacts: FEET,
     spine: { lumbar: [0, 17, 0], thoracic: [0, 10, 0], cervical: [0, 4, 0] },
-    joints: { hip_LR: [0, 3, 0], ankle_LR: [0, 3, 0], shoulder_L: [3, 15, 0], elbow_L: [12], shoulder_R: [12, 70, 0], elbow_R: [15], head: [0, 2, 0] },
+    // retuned by a coordinate search on 510 bodies (176 population medians, the P5/P95 of the others and persons of the database): hand edit of the left shoulder (was 3 15 0); the hand was in the thigh on 11 of them, now none
+    joints: { hip_LR: [0, 3, 0], ankle_LR: [0, 3, 0], shoulder_L: [6, 18, 0], elbow_L: [12], shoulder_R: [12, 70, 0], elbow_R: [15], head: [0, 2, 0] },
     grips: { L: "relaxed", R: "relaxed" },
   },
 ];

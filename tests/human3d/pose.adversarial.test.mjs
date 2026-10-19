@@ -959,19 +959,23 @@ function libraryFailures() { // every (population median, posture) pair that doe
   for (const b of MEDIANS) for (const p of LIB.POSTURES) { const r = val(b, p, { library: LIB.POSTURES }); if (!r.ok) _libFails.push({ id: p.id, error: r.errors[0] }); }
   return _libFails;
 }
-// HARD part of the library-wide guarantee, so that the open item above cannot grow silently (a ratchet): the failures are at most 560 (528 on 19 October 2026, of 17,424), and every one of them is
+// RATCHET RESET (19 October 2026): the library has grown from 99 to 316 postures, so 176 x 316 = 55,616 validations. With the 217 new postures the failures were 409 (528 on the 99 before: the new
+// groups were tuned on six bodies like the old ones, and the old ones were retuned meanwhile); the posture authors then retuned the worst of them on the medians and on 334 other bodies (the arm angles of
+// stand-hands-*, stand-arms-crossed, lie-*, mil-fire-prone, mil-fire-kneeling: see the comments in postures/*.js), which leaves 143 (0.26 %, against 3.0 % before). The bound below is 160 of 55,616: it was
+// 560 of 17,424 (3.2 %) and would have let the library grow to 1,800 failures; it ratchets the NEW level.
+// HARD part of the library-wide guarantee, so that the open item above cannot grow silently (a ratchet): the failures are at most 160 (143 on 19 October 2026, of 55,616), and every one of them is
 // one of the three kinds that tuning the angles of a posture on six bodies leaves on others: two proxies of the hands / thighs / head overlapping, a foot contact 1 to 28 mm off the floor, a buttock
 // sinking into the seat. No unbalanced posture, no unreachable pose, no unknown joint, no structural error, no overlap deeper than 80 mm and no contact more than 40 mm from the floor.
-test("library: the failures on the medians of the 176 populations stay what they were: at most 560 of 17,424, all of three kinds (proxy overlap, foot contact off the floor, buttock into the seat)", () => {
+test("library: the failures on the medians of the 176 populations stay what they were: at most 160 of 55,616, all of three kinds (proxy overlap, foot contact off the floor, buttock into the seat)", () => {
   const f = libraryFailures();
-  assert.ok(f.length <= 560, `${f.length} failures (528 on 19 October 2026)`);
+  assert.ok(f.length <= 160, `${f.length} failures (143 on 19 October 2026, of ${MEDIANS.length * LIB.POSTURES.length})`);
   const kind = (e) => (/ overlap by [0-9.]+ mm/.test(e) ? "overlap" : /(above|below) the floor/.test(e) ? "floor" : /sink into the seat/.test(e) ? "seat" : null);
   const odd = f.filter((x) => kind(x.error) === null);
   assert.equal(odd.length, 0, `${odd.length} failures of another kind, e.g. ${odd.slice(0, 3).map((x) => `${x.id}: ${x.error}`).join(" | ")}`);
   for (const x of f) { const m = /([0-9.]+) mm (?:above|below) the floor/.exec(x.error) ?? /below the floor: .*? by ([0-9.]+) mm/.exec(x.error); if (kind(x.error) === "floor") assert.ok(m && Number(m[1]) <= 40, `${x.id}: ${x.error}`); }
   assert.ok(!f.some((x) => x.id === "t-pose" || LIB.byId(x.id)?.category === "Reference"), "the reference postures validate on all 176");
 });
-test("library: every posture validates on the medians of all 176 populations", { todo: "OPEN (posture authors, postures/*.js): about 3 % of the 17,424 validations fail on bodies other than the six the postures are tuned on; see the comment above the tests" }, () => {
+test("library: every posture validates on the medians of all 176 populations", { todo: "OPEN (posture authors, postures/*.js): about 0.3 % of the 55,616 validations fail on bodies other than the six the postures are tuned on; see the comment above the tests" }, () => {
   const f = libraryFailures();
   assert.equal(f.length, 0, `${f.length} of ${MEDIANS.length * LIB.POSTURES.length} validations fail, e.g. ${f.slice(0, 3).map((x) => `${x.id}: ${x.error}`).join(" | ")}`);
 });

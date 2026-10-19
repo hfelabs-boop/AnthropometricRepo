@@ -77,7 +77,7 @@ test("mixed scene: mirrored, scaled, rotated objects; OBJ/STL/GLB triangle count
     const g = await load(glb.data); g.scene.updateMatrixWorld(true);
     const sceneNode = g.scene.getObjectByName("scene");
     for (const node of sceneNode?.children ?? []) {
-      const b = new THREE.Box3().setFromObject(node);
+      const b = new THREE.Box3().setFromObject(node, true); // precise: the box of the rotated local box overestimates a round object (stool, 40 degrees of yaw: 16 mm)
       const objName = `${node.name} (mesh`;
       const parts = p.objects.filter((o) => o.name.startsWith(objName));
       if (!parts.length) { console.log("no OBJ object for node", node.name, p.objects.map((o) => o.name).slice(0, 6)); continue; }

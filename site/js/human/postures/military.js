@@ -133,7 +133,8 @@ export default [
     support: "knees",
     root: { heading: -50, flex: 10.4 },
     spine: { lumbar: [4.7, 0, 0.1], thoracic: [2.5, 3.6, 2.1], cervical: [2.6, 0, 30] },
-    joints: { hip_L: [107.5, 0.8, -3], hip_R: [10.9, 6.4, -16], knee_L: [74.4], knee_R: [124.6], ankle_L: [-23.8, 0.8, 0], ankle_R: [-53.7, 0, 0], clavicle_L: [0, -3], clavicle_R: [13, -9], shoulder_L: [82, 5, 0], shoulder_R: [80, 24, 56], elbow_L: [99], elbow_R: [127], forearm_L: [-43], forearm_R: [90], wrist_L: [-69, 20], wrist_R: [-29, 20], head: [-12, 0, 8] },
+    // hip_L 112 / knee_L 70 (were 107.5 / 74.4): hand edit of the numerically optimised angles; the left foot (flat, ahead of the knee) sank up to 44 mm on 5 of the 176 population medians, now 0
+    joints: { hip_L: [112, 0.8, -3], hip_R: [10.9, 6.4, -16], knee_L: [70], knee_R: [124.6], ankle_L: [-23.8, 0.8, 0], ankle_R: [-53.7, 0, 0], clavicle_L: [0, -3], clavicle_R: [13, -9], shoulder_L: [82, 5, 0], shoulder_R: [80, 24, 56], elbow_L: [99], elbow_R: [127], forearm_L: [-43], forearm_R: [90], wrist_L: [-69, 20], wrist_R: [-29, 20], head: [-12, 0, 8] },
     grips: { L: "cup", R: "trigger" },
     hints: {
       externalSupport: "left elbow on the left knee",
@@ -171,7 +172,8 @@ export default [
     support: "body",
     root: { heading: 14, flex: 100 },
     spine: { lumbar: [-8, 0, 5], thoracic: [-23.4, 0, 8], cervical: [-38.2, 0, -25.7] },
-    joints: { hip_L: [25, 25, -7], hip_R: [1.8, 3, 0], knee_L: [30], knee_R: [8.6], ankle_L: [-50, 0, 0], ankle_R: [-1.8, 0, 0], clavicle_L: [45, 25], clavicle_R: [-10, 25], shoulder_L: [131, 33, -28], shoulder_R: [57, 99, -24], elbow_L: [58], elbow_R: [132], forearm_L: [-86], forearm_R: [90], wrist_L: [-35, 5], wrist_R: [42, 12], head: [-11.2, 0, -0.3] },
+    // wrist_R [30, 0] (was [42, 12]): hand edit; the right index finger was inside the left forearm on 89 of the 176 population medians (up to 49 mm), now on none
+    joints: { hip_L: [25, 25, -7], hip_R: [1.8, 3, 0], knee_L: [30], knee_R: [8.6], ankle_L: [-50, 0, 0], ankle_R: [-1.8, 0, 0], clavicle_L: [45, 25], clavicle_R: [-10, 25], shoulder_L: [131, 33, -28], shoulder_R: [57, 99, -24], elbow_L: [58], elbow_R: [132], forearm_L: [-86], forearm_R: [90], wrist_L: [-35, 5], wrist_R: [30, 0], head: [-11.2, 0, -0.3] },
     grips: { L: "cup", R: "trigger" },
     hints: {
       load: { mass: 3.4 },

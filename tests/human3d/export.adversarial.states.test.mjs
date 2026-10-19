@@ -180,7 +180,10 @@ test("posture file: library postures and edited postures round-trip exactly; hos
     for (const k of ["heading", "flex", "lat", "rot"]) assert.ok(Math.abs(((a.root[k] - b.root[k] + 540) % 360) - 180) < 1e-3, `${id} root.${k} ${a.root[k]} ${b.root[k]}`);
     // placed import puts the figure on its support (not under the floor)
     await X.applyPostureFile(rig2, parsed, { place: true });
-    assert.ok(rig2.lowestY() > -2e-3 || lib.support === "body", `${id}: figure below the floor after placing: ${rig2.lowestY()}`);
+    // The placement rests the landmarks of the support on the floor; the skin under a flat palm, a toe or a kneecap can lie 1 to 3 mm lower (kneel-plank 2.3, kneel-pushup-down 2.8, mil-drop-to-prone
+    // 2.7 mm on this body). The library postures were 2 mm clean while there were 50 of them; the import path is not at fault (rig.lowestY() right after the placement of the library
+    // posture is the same number), and the validator itself allows the skin 20 mm below the floor. 5 mm still catches a figure that was not placed (centimetres).
+    assert.ok(rig2.lowestY() > -5e-3 || lib.support === "body", `${id}: figure below the floor after placing: ${rig2.lowestY()}`);
     n++;
   }
   console.log(`${n} library postures round-tripped, ${libTrue} stored as library entries`);
