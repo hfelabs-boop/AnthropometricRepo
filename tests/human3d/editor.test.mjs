@@ -952,6 +952,23 @@ test("IK drag of the pelvis: the feet stay within 0.5 mm (bend), the figure slid
   assert.throws(() => ed.setOption("pelvisMode", "fly"), /pelvisMode/);
 });
 
+test("IK drag of the pelvis from straight legs: down and sideways or forward still squats (the knee is not pushed into its stop), the feet stay pinned", () => {
+  for (const [dx, dz] of [[0.067, 0.095], [-0.1, 0.1], [0.1, -0.1], [0, 0.1], [0.07, 0]]) {
+    const { rig, ed } = setup();
+    ed.apply("iso-7250-standing", { animate: false });
+    const ids = ["heel_sole_L", "ball_sole_medial_L", "heel_sole_R", "ball_sole_medial_R"], base = ids.map((id) => v3(rig, id));
+    const d = ed.createDrag("pelvis", { immediate: true }), q0 = ed.handlePoint("pelvis");
+    d.begin(q0);
+    for (let i = 1; i <= 24; i++) d.move(q0.clone().add(P(dx * i / 24, -0.15 * i / 24, dz * i / 24)));
+    const st = d.end();
+    const tag = `shift ${dx}, ${dz}`;
+    assert.equal(st.state, "ok", `${tag}: ${st.message}`);
+    assert.ok(rig.angles.knee_L[0] > 30 && rig.angles.knee_R[0] > 30, `${tag}: the knees bent (${rig.angles.knee_L[0].toFixed(0)}, ${rig.angles.knee_R[0].toFixed(0)})`);
+    approx(rig.root.y, q0.y - 0.15, 0.004, `${tag}: the pelvis went down`);
+    ids.forEach((id, k) => assert.ok(v3(rig, id).distanceTo(base[k]) < 0.002, `${tag}: ${id} moved ${(v3(rig, id).distanceTo(base[k]) * 1000).toFixed(2)} mm`));
+  }
+});
+
 test("IK drag of a foot (the ball or the heel), pole handles (elbow, knee), the chest and the look-at target", () => {
   const { rig, ed } = setup();
   ed.apply("iso-7250-standing", { animate: false });

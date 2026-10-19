@@ -49,9 +49,9 @@ const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 const all = (id) => Object.fromEntries(Object.entries(BODIES).map(([label, body]) => [label, measure(body, get(id)).m]));
 
 // ---- structure -----------------------------------------------------------------------------------------------------------------------------------------------
-test("the two groups hold at least 44 postures between them, with the sit- and veh- prefixes, unique ids and the right category", () => {
+test("the two groups hold at least 44 postures between them (68 now), with the sit- and veh- prefixes, unique ids and the right category", () => {
   assert.ok(ALL.length >= 44, `${ALL.length} postures`);
-  assert.ok(sitting.length >= 24 && vehicle.length >= 20, `${sitting.length} sitting, ${vehicle.length} vehicle`);
+  assert.ok(sitting.length >= 34 && vehicle.length >= 34, `${sitting.length} sitting, ${vehicle.length} vehicle`);
   const ids = ALL.map((p) => p.id);
   assert.equal(new Set(ids).size, ids.length, "duplicate ids: " + ids.filter((x, i) => ids.indexOf(x) !== i).join(", "));
   for (const p of sitting) { assert.match(p.id, /^sit-[a-z0-9]+(-[a-z0-9]+)*$/, p.id); assert.equal(p.category, "Sitting", p.id); }
@@ -74,36 +74,24 @@ test("every posture has a plain name, a description of what it is and what it is
   for (const p of vehicle) assert.ok(p.tags.includes("vehicle"), `${p.id}: tag "vehicle"`);
 });
 
-// OPEN ITEM (posture authors, 19 October 2026): the neutral stance leans the shank by at most 4.9 degrees (fit.js leanMax; MODEL.md 7.1); sit-seiza (toes 7.1 / 7.7 mm below the floor on the P50 / P95 man,
-// limit 5 mm) and the heels of sit-legs-extended, veh-pedal-brake, veh-pedal-brake-hard, veh-pedal-clutch and veh-gear-shift (15.4 to 21 mm above the floor on some bodies, limit 15 mm) were tuned
-// against the uncapped 5.9 degrees and now miss a floor contact by 1 to 8 mm. The cure (angles for more bodies, or hints.contactTolerance) belongs to sitting.js / vehicle.js. Hence a HARD test
-// (no warning, and no error other than those floor-contact misses of those postures, none larger than 10 mm over its limit) and a todo test with the full demand.
-const KNOWN_OPEN = new Set(["sit-seiza", "sit-legs-extended", "veh-pedal-brake", "veh-pedal-brake-hard", "veh-pedal-clutch", "veh-gear-shift"]);
-function floorMissMm(e) {
-  let m = /is ([0-9.]+) mm above the floor \(it must be within ([0-9.]+) mm\)/.exec(e); if (m) return Number(m[1]) - Number(m[2]);
-  m = /below the floor: .*? by ([0-9.]+) mm/.exec(e); if (m) return Number(m[1]) - 5;
-  return null;
-}
+// History: after the shank lean of the neutral stance was capped at 4.9 degrees (fit.js leanMax, MODEL.md 7.1) six postures missed a floor contact by 1 to 8 mm on some of the six
+// test bodies (sit-seiza, sit-legs-extended, veh-pedal-brake, veh-pedal-brake-hard, veh-pedal-clutch, veh-gear-shift). They were retuned (hip 50 for the seiza, knee 40 and hip 70 for
+// the extended legs; the working foot of the pedal postures is no longer a floor contact, the resting heel is, and the extended leg takes its hip angle from the other one), and this
+// test has no allowance for them any more: nothing is tolerated, no error and no warning, on three bodies (the six of postures.test.mjs are run by that file).
 function problemsOnThreeBodies() {
   const out = [];
   for (const [label, body] of Object.entries(BODIES)) {
     for (const p of ALL) {
       const r = validatePosture(body, p, { library: ALL });
-      for (const e of r.errors) out.push({ id: p.id, e, kind: "error", text: `${label} | ${p.id} | ${e}` });
-      for (const w of r.warnings) out.push({ id: p.id, e: w, kind: "warning", text: `${label} | ${p.id} | warning: ${w}` });
+      for (const e of r.errors) out.push(`${label} | ${p.id} | ${e}`);
+      for (const w of r.warnings) out.push(`${label} | ${p.id} | warning: ${w}`);
     }
   }
   return out;
 }
-test("every posture passes validatePosture on the three bodies, without warnings and without errors beyond the known open floor-contact misses (HARD: nothing new, nothing over 10 mm)", () => {
+test("every posture passes validatePosture on the three bodies, without errors and without warnings (no allowance for floor contacts)", () => {
   const all = problemsOnThreeBodies();
-  const unexpected = all.filter((q) => { if (q.kind !== "error") return true; const mm = floorMissMm(q.e); return !(KNOWN_OPEN.has(q.id) && mm !== null && mm <= 10); });
-  assert.equal(unexpected.length, 0, unexpected.slice(0, 40).map((q) => q.text).join("\n  "));
-  assert.ok(all.length <= 6, `${all.length} known-open floor misses (2 on 19 October 2026: P50 and P95 man, sit-seiza)`);
-});
-test("OPEN (posture authors): every posture passes validatePosture on the three bodies, without errors or warnings", { todo: "sit-seiza misses the floor by 7 mm on the P50 and P95 man since the shank lean is capped at 4.9 degrees; retune the angles or declare hints.contactTolerance (POSE.md 'Balance and the stance')" }, () => {
-  const all = problemsOnThreeBodies();
-  assert.equal(all.length, 0, all.slice(0, 40).map((q) => q.text).join("\n  "));
+  assert.equal(all.length, 0, all.slice(0, 40).join("\n  "));
 });
 
 test("an object a posture names (hints.prop, hints.props) exists in the catalog with its params in range, its grip ids on the right hand and its foot anchors", () => {
@@ -134,9 +122,10 @@ test("an object a posture names (hints.prop, hints.props) exists in the catalog 
       if (o.anchors) for (const id of Object.values(o.anchors)) assert.ok(Object.hasOwn(t.anchors(o.params ?? {}), id), `${p.id}: ${o.type} has no anchor ${id}`);
     }
   }
-  assert.ok(withProp >= 30, `${withProp} postures name their main object`);
+  assert.ok(withProp >= 60, `${withProp} postures name their main object`);
   for (const p of vehicle) assert.ok(p.hints?.prop, `${p.id}: a vehicle posture names the object it is for`);
-  for (const p of ALL) if (/desk|table|footrest|grab handle|door frame|turret|handlebar|armrest/.test(String(p.hints?.externalSupport ?? ""))) assert.ok(p.hints.prop || p.hints.props, `${p.id}: external support "${p.hints.externalSupport}" names no object`);
+  for (const p of ALL) if (p.hints?.externalSupport) assert.ok(p.hints.prop || p.hints.props, `${p.id}: external support "${p.hints.externalSupport}" names no object`);
+  for (const p of ALL) if (/seat/.test(p.support)) assert.ok(p.hints?.prop, `${p.id}: a seated posture names the seat or the object it is for`);
 });
 
 test("the seat height is a number for stools and mats, otherwise the body's popliteal height, and the hints the validator reads are consistent with the support", () => {
@@ -150,7 +139,7 @@ test("the seat height is a number for stools and mats, otherwise the body's popl
 });
 
 test("symmetric postures are symmetric, asymmetric ones are not (the tags tell the truth)", () => {
-  const pairs = ["elbowAngle", "shoulderElevation", "kneeAngle", "hipAngle", "handHeightAboveFloor", "thighInclination", "wristFlexion"];
+  const pairs = ["elbowAngle", "shoulderElevation", "kneeAngle", "hipAngle", "handHeightAboveFloor", "thighInclination", "wristFlexion", "ankleAngle"];
   for (const p of ALL) {
     const sym = p.tags.includes("symmetric"), asym = p.tags.includes("asymmetric");
     assert.ok(!(sym && asym), `${p.id} is tagged both symmetric and asymmetric`);
@@ -264,7 +253,8 @@ test("sit-edge-of-seat, sit-high-stool, sit-legs-extended, sit-feet-up: the leg 
   each("sit-high-stool", (m, r, w) => {
     near(m.seatHeight, 0.65, 0.04, `${w}: stool height (the sit bones are 0.65 m above the floor plus the 20 mm of thigh slope)`);
     within(m.thighInclination_L, -25, -3, `${w}: thighs slope down from the high seat`);
-    within(m.kneeAngle_L, 110, 140, `${w}: knees open, the feet on the foot ring`);
+    within(m.kneeAngle_L, 90, 115, `${w}: knees at about 100 deg, the shanks vertical, the feet on the foot ring under the knees`);
+    within(m.shankInclination_L, -12, 12, `${w}: the shanks are vertical`);
     assert.equal(m.legSupport, "none", `${w}: the feet are on the ring, not the floor`);
   });
   each("sit-legs-extended", (m, r, w) => {
@@ -422,20 +412,27 @@ test("veh-driver-9-and-3 and 10-and-2: the car driver posture (torso about 23 de
   assert.ok(p.hints.props.some((o) => o.type === "pedals" && o.anchors?.R === "accel_pad"), "the pedals are named with the foot anchor");
 });
 
-test("veh-pedal-brake, brake-hard, clutch, gear-shift: the legs differ from the accelerator posture in the way their names say", () => {
+test("veh-pedal-brake, brake-hard, clutch, gear-shift: the feet differ from the accelerator posture in the way their names say", () => {
   const base = all("veh-driver-9-and-3"), brake = all("veh-pedal-brake"), hard = all("veh-pedal-brake-hard"), clutch = all("veh-pedal-clutch"), gear = all("veh-gear-shift");
   for (const label of Object.keys(BODIES)) {
-    above(brake[label].kneeAngle_R, base[label].kneeAngle_R + 5, `${label}: the right leg is more extended on the brake pedal (it is farther away)`);
-    below(brake[label].footSeparationMediolateral, base[label].footSeparationMediolateral - 0.08, `${label}: the right foot has moved toward the left foot (brake 0.13 m to the left of the accelerator)`);
+    below(brake[label].footSeparationMediolateral, base[label].footSeparationMediolateral - 0.08, `${label}: the right foot has swung toward the left foot (the brake is 0.13 m to the left of the accelerator)`);
+    near(brake[label].kneeAngle_R, base[label].kneeAngle_R, 3, `${label}: the knee does not change much between the accelerator and the brake (the pedals are about the same distance away)`);
+    above(brake[label].ankleAngle_R, base[label].ankleAngle_R + 4, `${label}: the foot presses the pad, the ankle is a little more plantar-flexed than at rest`);
+    assert.notEqual(brake[label].legSupport, "none", `${label}: the heels are on the floor mat`);
     above(hard[label].kneeAngle_R, 128, `${label}: emergency braking pushes the right leg almost straight`);
+    above(hard[label].kneeAngle_R, brake[label].kneeAngle_R + 8, `${label}: and straighter than on the ordinary brake`);
     above(hard[label].ankleAngle_R, base[label].ankleAngle_R + 8, `${label}: ankle plantar-flexed on the pedal`);
     above(hard[label].elbowAngle_L, 120, `${label}: arms braced on the wheel`);
     above(clutch[label].kneeAngle_L, clutch[label].kneeAngle_R + 8, `${label}: the left leg pushes the clutch, more extended than the right`);
     above(clutch[label].ankleAngle_L, base[label].ankleAngle_L + 8, `${label}: left ankle plantar-flexed`);
     above(gear[label].kneeAngle_L, gear[label].kneeAngle_R + 8, `${label}: gear change with the clutch down`);
     above(gear[label].handHeightAboveFloor_L, gear[label].handHeightAboveFloor_R + 0.1, `${label}: the right hand is down at the gear lever, the left on the wheel`);
-    assert.notEqual(gear[label].legSupport, "none", `${label}: the feet are on the floor mat`);
+    // the resting foot is on the mat, the working foot may be off it (the floor contact is declared for the resting heel only)
+    assert.equal(hard[label].legSupport, "left", `${label}: emergency braking: the left foot on the mat, the working right foot on the pedal`);
+    assert.equal(clutch[label].legSupport, "right", `${label}: clutch: the right foot on the mat`);
   }
+  const heels = (id) => get(id).contacts;
+  assert.deepEqual(heels("veh-pedal-brake-hard"), ["heel_sole_L"]); assert.deepEqual(heels("veh-pedal-clutch"), ["heel_sole_R"]); assert.deepEqual(heels("veh-gear-shift"), ["heel_sole_R"]);
   assert.equal(get("veh-gear-shift").hints.prop.type, "lever");
 });
 
@@ -558,6 +555,239 @@ test("veh-turret-gunner-standing, veh-standing-passenger-grab, veh-rear-bench-pa
     assert.equal(m.legSupport, "none", `${w}: the feet are on the pegs, not the floor`);
     below(m.neckFlexion, 0, `${w}: the neck is extended so that the rider looks ahead`);
   });
+});
+
+// ---- sitting: the added postures ----------------------------------------------------------------------------------------------------------------------
+test("sit-high-stool-bench-work: on a 0.68 m stool, thighs sloping down, trunk about 15 degrees forward, hands flat on a bench at about elbow height, feet off the floor on a ring", () => {
+  each("sit-high-stool-bench-work", (m, r, w) => {
+    within(m.seatHeight, 0.69, 0.76, `${w}: the sit bones are 0.02 to 0.06 m above the 0.68 m seat plane (soft tissue under the sit bones and the tilted pelvis)`);
+    within(m.trunkInclination, 8, 22, `${w}: trunk about 15 deg forward (ISO 11226: 0 to 20 deg needs no support)`);
+    within(m.thighInclination_L, -25, -8, `${w}: the thighs slope down from the high seat`);
+    within(m.kneeAngle_L, 85, 110, `${w}: knees`);
+    assert.equal(m.legSupport, "none", `${w}: the feet are on the ring, not on the floor`);
+    within(m.elbowAngle_L, 70, 105, `${w}: elbows (the hands were placed on the bench by IK)`);
+    within(m.wristFlexion_L, -12, 15, `${w}: wrists nearly straight`);
+    within(m.handHeightAboveFloor_L - m.seatHeight, 0.2, 0.32, `${w}: the bench top is about 0.26 m above the sit bones`);
+    above(m.handToShoulderForward_L, 0.25, `${w}: the hands are well ahead of the shoulders`);
+    near(m.handHeightAboveFloor_L, m.handHeightAboveFloor_R, 0.01, `${w}: both hands on the same bench`);
+  });
+  assert.equal(get("sit-high-stool-bench-work").hints.seat.height, 0.68);
+  assert.equal(get("sit-high-stool-bench-work").hints.props[0].type, "workbench");
+});
+
+test("sit-rise-seat-off: a moment of standing up: thighs level, trunk bent about 40 degrees, feet under the knees, arms swung forward, the sit bones just above the seat plane", () => {
+  each("sit-rise-seat-off", (m, r, w) => {
+    within(m.trunkInclination, 28, 48, `${w}: trunk flexion of the seat-off phase (about 40 to 50 deg, Schenkman et al., approx.)`);
+    within(m.thighInclination_L, -9, 4, `${w}: thighs nearly level (they slope down 6 deg here)`);
+    within(m.shankInclination_L, -14, 6, `${w}: the shanks are about vertical or leaning back: the feet are under or behind the knees`);
+    assert.equal(m.legSupport, "both", `${w}: both feet carry the weight`);
+    above(m.elbowAngle_L, 150, `${w}: arms nearly straight`);
+    above(m.shoulderElevation_L, 85, `${w}: and swung forward to about the horizontal`);
+    above(m.handToShoulderForward_L, 0.4, `${w}: the hands are far ahead of the shoulders`);
+    within(m.seatHeight - seatHeightFor(r.body), 0.02, 0.12, `${w}: the sit bones are 20 to 120 mm above the popliteal seat plane: the buttocks have just left it`);
+    below(m.neckFlexion, 0, `${w}: the neck is extended to keep the eyes ahead while the trunk is bent`);
+  });
+  const p = get("sit-rise-seat-off");
+  assert.equal(p.support, "feet"); assert.equal(p.hints.dynamic, true, "a moment of a movement: the balance rule is waived");
+});
+
+test("sit-smartphone: about 55 degrees of neck flexion, the phone held low in front of the chest, elbows well bent (ISO 11226 neck band exceeded)", () => {
+  each("sit-smartphone", (m, r, w) => {
+    within(m.neckFlexion, 48, 62, `${w}: neck flexion of handheld phone use (Hansraj: 45 to 60 deg)`);
+    within(m.headInclination, 50, 66, `${w}: head inclination`);
+    within(m.elbowAngle_L, 60, 90, `${w}: elbows bent to about 75 deg, the phone is held close to the chest`);
+    within(m.eyeHeight - m.handHeightAboveFloor_L, 0.18, 0.35, `${w}: the hands are 0.2 to 0.3 m below the eyes`);
+    within(m.handToShoulderForward_L, 0.2, 0.45, `${w}: the phone is in front of the chest`);
+    within(m.gazeElevation, -70, -45, `${w}: the eyes look down at the phone, about 55 deg below the horizontal`);
+    within(Math.hypot(r.lm("eye_mid").y - r.lm("palm_centre_L").y, r.lm("eye_mid").z - r.lm("palm_centre_L").z), 0.25, 0.42, `${w}: the phone is about 0.3 m from the eyes`);
+    near(dist(r.lm("palm_centre_L"), r.lm("palm_centre_R")), 0.11, 0.08, `${w}: the hands are together, thumbs on the same screen`);
+    below(r.lm("palm_centre_L").y, r.lm("eye_mid").y - 0.18, `${w}: the screen is below the eye level`);
+    within(m.trunkInclination, -3, 10, `${w}: trunk upright to slightly forward`);
+  });
+});
+
+test("sit-laptop-on-lap: keyboard on the thighs, hands low, neck about 40 degrees flexed, wrists nearly straight, trunk against the back rest", () => {
+  each("sit-laptop-on-lap", (m, r, w) => {
+    within(m.neckFlexion, 32, 48, `${w}: neck flexion of a screen on the lap (ISO 11226: 25 deg accepted)`);
+    within(m.handHeightAboveFloor_L - m.seatHeight, 0.15, 0.30, `${w}: the keys are about 0.2 m above the sit bones, on the thighs`);
+    below(m.handHeightAboveFloor_L - m.seatHeight, 0.30, `${w}: and lower than the desk keyboard of sit-typing (0.3 m and more)`);
+    within(m.wristFlexion_L, -12, 12, `${w}: wrists nearly straight`);
+    within(m.elbowAngle_L, 70, 105, `${w}: elbows`);
+    within(m.trunkInclination, -10, 4, `${w}: trunk at or behind the vertical`);
+    near(m.handHeightAboveFloor_L, m.handHeightAboveFloor_R, 0.01, `${w}: both hands on the keyboard`);
+    assert.equal(m.legSupport, "both");
+  });
+  const keys = all("sit-typing"), lap = all("sit-laptop-on-lap");
+  for (const label of Object.keys(BODIES)) {
+    below(lap[label].handHeightAboveFloor_L, keys[label].handHeightAboveFloor_L - 0.05, `${label}: lower hands than at the desk`);
+    above(lap[label].neckFlexion, keys[label].neckFlexion + 10, `${label}: and a more bent neck than at a desk`);
+  }
+});
+
+test("sit-floor-lean-back: on the floor, legs forward, trunk leaning back on the arms, palms flat on the floor behind the hips", () => {
+  each("sit-floor-lean-back", (m, r, w) => {
+    near(m.seatHeight, 0.07, 0.04, `${w}: the sit bones are on a 0.07 m mat`);
+    within(m.trunkInclination, -30, -12, `${w}: trunk leaning back (the upper trunk more: ${f1(m.thoraxInclination)})`);
+    below(m.thoraxInclination, -25, `${w}: upper trunk well behind the vertical`);
+    above(m.kneeAngle_L, 160, `${w}: legs straight`);
+    below(m.handHeightAboveFloor_L, 0.12, `${w}: the palms are on the floor (mat top at 0.07 m)`);
+    below(m.wristFlexion_L, -55, `${w}: wrists extended to carry the weight (palm down)`);
+    above(m.elbowAngle_L, 110, `${w}: arms nearly straight`);
+    const pL = r.lm("palm_centre_L"), ischial = r.lm("ischial_L");
+    below(pL.z, ischial.z + 0.05, `${w}: the hands are at or behind the sit bones`);
+    above(pL.x, 0.15, `${w}: and to the side of the hips`);
+    below(m.pelvisTilt, 14, `${w}: the pelvis is tilted back relative to standing`);
+  });
+});
+
+test("sit-arms-crossed: forearms folded across the chest, the left in front of the right, each hand on the opposite arm", () => {
+  each("sit-arms-crossed", (m, r, w) => {
+    const pL = r.lm("palm_centre_L"), pR = r.lm("palm_centre_R");
+    below(pL.x, 0.12, `${w}: the left hand has crossed toward the midline or beyond`);
+    above(pR.x, -0.12, `${w}: and the right hand as well`);
+    within(m.handHeightAboveFloor_L - m.seatHeight, 0.3, 0.7, `${w}: the hands are at chest height`);
+    above(m.handToShoulderForward_L, 0.1, `${w}: in front of the chest`);
+    above(m.shoulderElevation_L, 55, `${w}: the upper arms are raised to hold the forearms across the chest`);
+    within(m.elbowAngle_L, 50, 95, `${w}: elbows folded`);
+    above(r.lm("olecranon_L").z - r.lm("acromion_L").z, 0.1, `${w}: the elbows project forward of the shoulders`);
+  });
+  const p = get("sit-arms-crossed");
+  const a = measure(BODIES["P50 man"], p), e = expandPosture(p), mir = mirrorPose({ root: e.root, angles: e.angles });
+  const root = placePose(BODIES["P50 man"], mir, { posture: p }), b = postureMetrics(BODIES["P50 man"], mir, root);
+  near(b.handHeightAboveFloor_R, a.m.handHeightAboveFloor_L, 0.01, "mirrored: the right hand is where the left was");
+});
+
+// ---- vehicle: the added postures --------------------------------------------------------------------------------------------------------------------------
+test("veh-driver-head-check: the head turned about 70 degrees to the left from the pelvis, both hands still on the wheel, torso as in the driving posture", () => {
+  const base = all("veh-driver-9-and-3");
+  each("veh-driver-head-check", (m, r, w) => {
+    const label = w.split(" on the ")[1];
+    above(m.trunkTwist + m.neckTwist, 60, `${w}: trunk and neck together turn the head more than 60 deg to the left`);
+    above(m.neckTwist, 45, `${w}: most of it by the neck`);
+    within(m.trunkTwist, 3, 20, `${w}: the trunk turns a little`);
+    near(m.thoraxInclination, base[label].thoraxInclination, 2, `${w}: the torso angle does not change (Reed et al.)`);
+    near(m.handHeightAboveFloor_L, base[label].handHeightAboveFloor_L, 0.04, `${w}: the left hand stays on the wheel at 9 o'clock`);
+    near(m.handHeightAboveFloor_R, base[label].handHeightAboveFloor_R, 0.04, `${w}: and the right hand at 3`);
+    assert.equal(m.legSupport, "both", `${w}: both feet on the mat`);
+  });
+  const body = BODIES["P50 man"], c = measure(body, get("veh-driver-head-check"));
+  near(dist(c.lm("grip_centre_L"), c.lm("grip_centre_R")), 0.38, 0.06, "hand spacing on a 0.38 m wheel");
+  assert.equal(get("veh-driver-head-check").hints.prop.type, "steering_wheel");
+  // the neck rotation range: cervical + head joint rotation stays inside the range of motion (the validator checks) and below the 70 deg of the cervical spine
+  below(Math.abs(expandPosture(get("veh-driver-head-check")).angles.head[2]), 10.1, "the head joint turns at most 10 deg, the rest is the cervical spine");
+});
+
+test("veh-driver-glovebox-reach and veh-driver-seat-adjust-reach: one hand leaves the wheel for a place on the passenger side and below the seat", () => {
+  const base = all("veh-driver-9-and-3");
+  each("veh-driver-glovebox-reach", (m, r, w) => {
+    const label = w.split(" on the ")[1];
+    below(m.trunkLateralFlexion, -10, `${w}: the trunk bends to the right (negative)`);
+    above(m.elbowAngle_R, 165, `${w}: the right arm is stretched out`);
+    above(m.handToShoulderForward_R, 0.3, `${w}: far ahead of the shoulder`);
+    const pR = r.lm("palm_centre_R"), ischial = r.lm("ischial_R");
+    below(pR.x - ischial.x, -0.1, `${w}: the hand is out to the right of the right hip`);
+    below(m.handHeightAboveFloor_R, m.seatHeight + 0.15, `${w}: at about seat level, the glovebox`);
+    near(m.handHeightAboveFloor_L, base[label].handHeightAboveFloor_L, 0.04, `${w}: the left hand stays on the wheel`);
+    below(m.headTilt, -8, `${w}: the head tilts with the trunk`);
+  });
+  each("veh-driver-seat-adjust-reach", (m, r, w) => {
+    const label = w.split(" on the ")[1];
+    above(m.thoraxInclination, 15, `${w}: the upper trunk is bent forward past the vertical (it is 22 deg back in the driving posture)`);
+    above(m.thoraxInclination, base[label].thoraxInclination + 35, `${w}: by more than 35 deg`);
+    above(m.trunkLateralFlexion, 6, `${w}: and to the left`);
+    below(m.handHeightAboveFloor_L, m.seatHeight + 0.05, `${w}: the left hand is down at the seat cushion, level with the sit bones or lower`);
+    above(m.handToShoulderLateral_L, 0.04, `${w}: out to the left`);
+    within(m.handHeightAboveFloor_R - m.seatHeight, 0.05, 0.35, `${w}: the right hand rests on the thigh`);
+    above(m.neckFlexion, 20, `${w}: the head is turned down to look`);
+  });
+  for (const id of ["veh-driver-glovebox-reach", "veh-driver-seat-adjust-reach"]) assert.ok(get(id).hints.prop, id);
+});
+
+test("veh-flight-deck-sidestick and veh-flight-deck-overhead-reach: the upright pilot seat, the stick on the left console and the levers on the pedestal, an arm raised to the overhead panel", () => {
+  const heli = all("veh-helicopter-pilot"), car = all("veh-driver-9-and-3");
+  for (const label of Object.keys(BODIES)) {
+    const side = all("veh-flight-deck-sidestick")[label];
+    above(side.thoraxInclination, car[label].thoraxInclination + 6, `${label}: more upright than the car driver`);
+    above(side.handToShoulderLateral_L, 0.12, `${label}: the stick hand is out to the left`);
+    below(side.handToShoulderLateral_R, -0.1, `${label}: the lever hand is out to the right`);
+    above(side.handToShoulderForward_R, 0.3, `${label}: the levers are ahead`);
+    within(side.elbowAngle_L, 75, 110, `${label}: stick elbow (the forearm is along the arm rest)`);
+    assert.equal(side.legSupport, "both", `${label}: feet on the pedals`);
+    near(side.kneeAngle_L, heli[label].kneeAngle_L, 1, `${label}: the legs of the helicopter pilot (upright aircrew seat)`);
+  }
+  each("veh-flight-deck-overhead-reach", (m, r, w) => {
+    above(m.handToShoulderUp_R, 0.2, `${w}: the right hand is well above the shoulder`);
+    assert.ok(m.handAboveShoulder_R && !m.handAboveShoulder_L, `${w}: one hand above the shoulder`);
+    above(m.shoulderElevation_R, 80, `${w}: the upper arm is raised to the horizontal or more`);
+    above(r.lm("index_tip_R").y, r.lm("eye_mid").y + 0.1, `${w}: the fingertip is above the eye level (the panel is overhead)`);
+    below(m.neckFlexion, -10, `${w}: the neck is extended, the head tilted back`);
+    above(m.gazeElevation, 30, `${w}: the eyes look up at the panel`);
+    below(m.handHeightAboveFloor_L - m.seatHeight, 0.3, `${w}: the left hand rests low`);
+  });
+  const p = get("veh-flight-deck-sidestick");
+  assert.equal(p.hints.prop.type, "joystick"); assert.equal(p.hints.props.find((o) => o.type === "throttle").grips.R, "knob");
+  assert.equal(get("veh-flight-deck-overhead-reach").hints.prop.type, "instrument_panel");
+});
+
+test("veh-gunner-seated: upright seat, both hands on the controller in front of the chest at the same height, head forward at the sight", () => {
+  each("veh-gunner-seated", (m, r, w) => {
+    near(m.handHeightAboveFloor_L, m.handHeightAboveFloor_R, 0.01, `${w}: hands at the same height`);
+    within(m.handHeightAboveFloor_L - m.seatHeight, 0.25, 0.42, `${w}: grips about 0.3 m above the sit bones`);
+    within(dist(r.lm("grip_centre_L"), r.lm("grip_centre_R")), 0.2, 0.45, `${w}: grips about 0.32 m apart`);
+    above(m.handToShoulderForward_L, 0.2, `${w}: ahead of the chest`);
+    within(m.headInclination, 5, 20, `${w}: the head is inclined toward the sight`);
+    above(m.thoraxInclination, -14, `${w}: upright seat`);
+    assert.equal(m.legSupport, "both");
+  });
+  assert.equal(get("veh-gunner-seated").hints.prop.type, "joystick");
+});
+
+test("veh-airliner-passenger and veh-passenger-sleeping: the economy seat at 105 degrees with forearms on the arm rests, and the 125 degree seat with the head resting on its side", () => {
+  each("veh-airliner-passenger", (m, r, w) => {
+    within(m.thoraxInclination, -20, -8, `${w}: upper trunk about 12 deg back on a 105 deg seat`);
+    within(m.kneeAngle_L, 85, 100, `${w}: knees at about 90 deg`);
+    within(m.handHeightAboveFloor_L - m.seatHeight, 0.1, 0.28, `${w}: forearms on the arm rests, 0.2 m above the sit bones`);
+    above(Math.abs(r.lm("palm_centre_L").x), 0.18, `${w}: the hands are beside the hips`);
+    within(m.neckFlexion, 0, 15, `${w}: the head rests on the head rest`);
+    assert.equal(m.legSupport, "both");
+  });
+  const r125 = all("sit-recline-125");
+  each("veh-passenger-sleeping", (m, r, w) => {
+    const label = w.split(" on the ")[1];
+    below(m.headTilt, -12, `${w}: the head leans to the right, toward the window`);
+    below(m.neckSideBend, -12, `${w}: by lateral flexion of the neck`);
+    within(m.thoraxInclination, -40, -28, `${w}: reclined 125 deg`);
+    near(m.thoraxInclination, r125[label].thoraxInclination, 4, `${w}: the same seat back as sit-recline-125`);
+    above(Math.abs(m.neckTwist), 5, `${w}: and turned a little`);
+    below(m.handHeightAboveFloor_L - m.seatHeight, 0.45, `${w}: the hands are in the lap`);
+  });
+  assert.equal(get("veh-passenger-sleeping").hints.prop.params.recline, 125);
+});
+
+test("veh-brace-position: bent forward over the thighs about 65 degrees, head down, arms down by the lower legs, feet flat (the FAA research position)", () => {
+  each("veh-brace-position", (m, r, w) => {
+    above(m.thoraxInclination, 55, `${w}: the upper trunk is bent far forward`);
+    above(m.trunkInclination, 35, `${w}: and so is the hip to C7 chord`);
+    above(m.neckFlexion, 45, `${w}: the chin is down`);
+    below(m.handHeightAboveFloor_L, m.kneeHeight_L, `${w}: the hands are lower than the knees: at the lower legs`);
+    below(dist(r.lm("palm_centre_L"), r.lm("shin_L")), 0.25, `${w}: the left hand is on the shin`);
+    assert.equal(m.legSupport, "both", `${w}: feet flat on the floor`);
+    within(m.thighInclination_L, -9, 5, `${w}: the thighs are about level`);
+  });
+  const p = get("veh-brace-position");
+  assert.match(p.source, /FAA/); assert.equal(p.hints.props[0].role, "target", "the seat in front is named");
+});
+
+test("the added postures flag what they claim (metrics.js ergonomicFlags): neck flexion of the phone and the lap, the arm above the head, the brace", async () => {
+  const { ergonomicFlags } = await import("../../site/js/human/metrics.js");
+  const flag = (id, label, support, key) => ergonomicFlags(measure(BODIES[label], get(id)).m, support).find((f) => f.id === key);
+  for (const label of Object.keys(BODIES)) {
+    assert.equal(flag("sit-smartphone", label, { trunkSupport: true }, "neck-flexion").severity, "high", `${label}: phone: neck flexion 55 deg is beyond the conditional band`);
+    assert.notEqual(flag("sit-laptop-on-lap", label, { trunkSupport: true }, "neck-flexion").severity, "ok", `${label}: laptop on the lap`);
+    assert.equal(flag("veh-flight-deck-overhead-reach", label, {}, "upper-arm-elevation-R").severity, "high", `${label}: the raised arm is in the top band`);
+    assert.equal(flag("veh-brace-position", label, {}, "neck-flexion").severity, "high", `${label}: brace`);
+  }
+  assert.equal(flag("sit-high-stool-bench-work", "P50 man", { trunkSupport: true }, "trunk-inclination").severity, "ok", "bench work: 15 deg is inside the 0 to 20 band");
 });
 
 test("the ergonomic flags agree with what the postures claim (metrics.js ergonomicFlags / ISO 11226 trunk, neck, arm bands)", async () => {

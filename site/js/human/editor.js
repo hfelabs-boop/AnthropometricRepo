@@ -244,7 +244,22 @@ export function customIdFor(name, taken = new Set(), reserved = new Set()) {
 // Handles
 const FOOT_PINS = (s) => [`heel_sole_${s}`, `ball_sole_medial_${s}`, `ball_sole_lateral_${s}`];
 // A drag that is stuck in a corner of the ranges looks for a pose that reaches the point and glides to it (see createDrag).
+// The pelvis has no "follow" mode: its root is the pointer, so the legs must meet their pins at once on every event (a follow step of 2 degrees cannot, the pinned feet slide and sink).
+const PELVIS_SOLVE = Object.freeze({ follow: false, maxMove: Infinity, maxIterations: 40 });
 const RESCUE_MS = 120, RESCUE_MOVE = 0.03, RESCUE_RESTARTS = 6, GLIDE_DEG = 8;
+// A drag follows the previous frame, so the redundant joints (the twist of the forearm against the shoulder, the rotation of the knee) keep whatever the path left in them: a hand
+// taken out and back ends with the arm twisted 50 degrees. The pose a solve from the drag-start pose gives for the same point is the relaxed one; it is taken when it is
+// nearer the start pose by RELAX_GAIN (square degrees summed over the joints), in the drag when the pointer rests and always at the end.
+const RELAX_GAIN = 40, RELAX_IDLE = 240;
+/** Sum over all joints of the squared difference of the angles of two poses (degrees squared): how far the redundant joints have wandered. */
+function poseSpread(a, b) {
+  let t = 0;
+  for (const id of new Set([...Object.keys(a.angles), ...Object.keys(b.angles)])) {
+    const x = a.angles[id] ?? [], y = b.angles[id] ?? [];
+    for (let i = 0; i < Math.max(x.length, y.length); i++) { const e = (x[i] ?? 0) - (y[i] ?? 0); t += e * e; }
+  }
+  return t;
+}
 /** The largest change of any angle (degrees; a root translation counts 1 degree per centimetre) between two poses. */
 function poseGap(a, b) {
   let m = 0;
@@ -1123,7 +1138,7 @@ export function createEditor(options = {}) {
     return lookActive();
   }
 
-  const R2D = 180 / Math.PI;
+  const R2D = 180 / Math.PI, KNEE_SEED = 8;
   function statusOf(res, h, extra = {}) {
     const IKm = IK, gid = HANDLE_GOAL[h.id];
     const errors = {};
@@ -1170,7 +1185,25 @@ export function createEditor(options = {}) {
       case "pelvis": {
         if (S.opts.pelvisMode === "move") return (t) => ({ direct: { dx: t.x - d.P0.x, dy: t.y - d.P0.y, dz: t.z - d.P0.z } });
         const pins = [...pinFeet("L"), ...pinFeet("R"), ...(S.pins.hands ? [...pinHand("L"), ...pinHand("R")] : [])];
-        return (t, cur) => ({ start: { root: { ...cur.root, x: t.x, y: t.y, z: t.z }, angles: cur.angles }, goals: pins, free: ["legs", ...(S.pins.hands ? ["arms", "clavicles"] : [])] });
+        // A straight leg is a singularity: lowering the hip a little shortens the leg only to second order in the knee angle, so the solver may as well choose to push the knee
+        // back (into its stop) as to bend it, and a pelvis dragged down and a little sideways ended with straight legs and the feet 28 cm off. Seed a small bend of the knee
+        // that the target needs (law of cosines on the hip-to-pinned-ankle distance) so that the solver starts on the right side of it.
+        const legs = S.pins.feet ? ["L", "R"].map((sd) => {
+          const hip = d.r.jointWorld(`hip_${sd}`), knee = d.r.jointWorld(`knee_${sd}`), ankle = d.r.jointWorld(`ankle_${sd}`);
+          return { id: `knee_${sd}`, hip, ankle, L1: hip.distanceTo(knee), L2: knee.distanceTo(ankle) };
+        }) : [];
+        return (t, cur) => {
+          let angles = cur.angles;
+          const shift = t.clone().sub(d.P0);
+          for (const lg of legs) {
+            const k = cur.angles[lg.id];
+            if (!k || k[0] >= KNEE_SEED) continue;
+            const dist = lg.hip.clone().add(shift).distanceTo(lg.ankle), c = (dist * dist - lg.L1 * lg.L1 - lg.L2 * lg.L2) / (2 * lg.L1 * lg.L2);
+            const need = Math.acos(Math.min(1, Math.max(-1, c))) * R2D;
+            if (need > k[0] + 0.25) { if (angles === cur.angles) angles = { ...angles }; angles[lg.id] = [Math.min(need, KNEE_SEED), ...k.slice(1)]; }
+          }
+          return { start: { root: { ...cur.root, x: t.x, y: t.y, z: t.z }, angles }, goals: pins, free: ["legs", ...(S.pins.hands ? ["arms", "clavicles"] : [])], options: PELVIS_SOLVE };
+        };
       }
       case "chest": {
         const pins = S.pins.hands ? [...pinHand("L"), ...pinHand("R")] : [];
@@ -1232,6 +1265,7 @@ export function createEditor(options = {}) {
       move(point) {
         if (!st) return;
         st.target = vec(point).add(st.off);
+        st.idle = 0;
         if (h.kind === "gaze") { S.look = st.target.toArray(); emit("look", { target: S.look }); }
         if (immediate) solveNow(); else if (!st.pending) { st.pending = true; st.raf = sched.raf(solveNow); }
       },
@@ -1243,6 +1277,8 @@ export function createEditor(options = {}) {
         if (d.moved || d.target.distanceToSquared(d.P0) > 1e-12) {
           solveNow();
           for (let i = 0; i < 80 && (d.glide || (d.res?.limited && d.res.changed?.length !== 0)); i++) solveNow(); // the figure is still on its way: let it arrive
+          polish(d);
+          relax(d);
         }
         st = null;
         S.drag = null;
@@ -1263,6 +1299,66 @@ export function createEditor(options = {}) {
         emit("change", { reason: "drag-cancel" });
       },
     };
+    /** The drag solver steps a few degrees a frame and stops a millimetre or two short; once the pointer is up, one ordinary local solve from where it stopped closes that. */
+    function polish(d) {
+      if (!d.res || d.res.provablyUnreachable || h.kind === "gaze" || h.kind === "pelvis") return;
+      const plan = d.plan(d.target, d.cur);
+      if (plan.direct) return;
+      const res = d.sv.solve(plan.start ?? d.cur, plan.goals, { free: plan.free, reference: d.start, restarts: 0, maxIterations: 120, ...(plan.options ?? {}) });
+      const before = statusOf(d.res, h), after = statusOf(res, h);
+      if (d.res.reachable ? res.reachable : res.reachable || (after.amount ?? Infinity) < (before.amount ?? Infinity)) {
+        d.res = res;
+        d.cur = res.pose;
+        writePose(d.cur, false);
+        d.status = { ...after, target: d.target.toArray() };
+      }
+    }
+    /** The solve for the same point from the drag-start pose (the figure relaxed as the posture has it): { res, plan }. The pelvis asks for where its root really is. */
+    function fromStart(d, extra) {
+      const q = h.kind === "pelvis" && d.ok ? d.ok.t : d.target, plan = d.plan(q, d.start);
+      return { plan, res: plan.direct ? null : d.sv.solve(plan.start ?? d.start, plan.goals, { free: plan.free, reference: d.start, ...extra, ...(plan.options ?? {}) }) };
+    }
+    /** The relaxed pose (see RELAX_GAIN), or null when the figure is as near the start pose as that, or the start pose cannot reach the point. */
+    function relaxedPose(d, extra) {
+      if (!d.res || d.res.provablyUnreachable || (!d.res.reachable && h.kind !== "pelvis") || (h.kind === "pelvis" && !d.ok)) return null;
+      const { res } = fromStart(d, extra);
+      return res?.reachable && poseSpread(res.pose, d.start) + RELAX_GAIN < poseSpread(d.cur, d.start) ? res : null;
+    }
+    function relax(d) {
+      const res = relaxedPose(d, { restarts: 0, maxIterations: 120 });
+      if (!res) return;
+      d.glide = null;
+      d.res = res;
+      d.cur = res.pose;
+      writePose(d.cur, false);
+      d.status = { ...statusOf(res, h), target: d.target.toArray() };
+    }
+    /**
+     * The pelvis is the pointer: the root goes where the pointer is and the legs must meet their pins at once on every event (a follow step of a few degrees cannot: the pinned
+     * feet would slide and sink until the release). Where the legs cannot (the ankles or knees at a stop), the root stays at the last place they could, found by bisection
+     * between it and the pointer, the feet stay where they are and the handle says how far short of the pointer the pelvis is.
+     */
+    function solvePelvis(d, plan) {
+      const at = (q, p = d.plan(q, d.cur)) => { const res = d.sv.solve(p.start, p.goals, { free: p.free, reference: d.start, ...p.options }); return { res, t: q.clone() }; };
+      d.ok ??= { t: d.P0.clone(), res: null, pose: d.start };
+      let hit = at(d.target, plan), ok = hit.res.reachable;
+      if (ok) d.ok = { t: hit.t, res: hit.res, pose: hit.res.pose };
+      else {
+        const from = d.ok.t.clone();
+        let lo = 0, hi = 1;
+        for (let i = 0; i < 4; i++) {
+          const m = (lo + hi) / 2, mid = at(from.clone().lerp(d.target, m));
+          if (mid.res.reachable) { lo = m; d.ok = { t: mid.t, res: mid.res, pose: mid.res.pose }; } else hi = m;
+        }
+        hit = d.ok.res ? { res: d.ok.res, t: d.ok.t } : hit;
+      }
+      d.res = hit.res;
+      d.cur = ok ? hit.res.pose : d.ok.pose;
+      writePose(d.cur, false);
+      if (ok) { d.status = statusOf(hit.res, h); return; }
+      const mm = d.ok.t.distanceTo(d.target) * 1000;
+      d.status = { ...statusOf(hit.res, h), reachable: false, state: "short", limited: false, amount: mm, unit: "mm", short: `${mm.toFixed(mm < 10 ? 1 : 0)} mm short`, message: "The pelvis cannot go further with the feet where they are: the legs have reached a limit of motion. Switch off \"Keep the feet in place\" to go on." };
+    }
     function solveNow() {
       const d = st;
       if (!d) return;
@@ -1276,6 +1372,8 @@ export function createEditor(options = {}) {
         writePose(d.cur, false);
         if (!free) ground({ vertical: true });
         d.status = { handle: h.id, label: h.label, reachable: true, state: "ok", limited: false, amount: 0, unit: null, short: "", message: "", errors: {} };
+      } else if (h.kind === "pelvis") {
+        solvePelvis(d, plan);
       } else {
         const run = (from, extra) => d.sv.solve(from, plan.goals, { free: plan.free, reference: d.start, ...extra });
         const follow = (from) => run(from, { ...IK.DRAG_OPTIONS, ...(plan.options ?? {}) });

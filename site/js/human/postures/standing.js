@@ -1,6 +1,7 @@
-// Posture group "Standing" (ids stand-*). Everyday and working stances on the feet: relaxed, feet at shoulder width and wide, weight on one leg,
-// one foot forward, slouched, looking up or down, hands on the hips, arms crossed, hands behind the back, in the pockets, clasped in front and
-// behind the head, trunk turned or bent sideways, on the toes, on one leg, one foot on a step, the athletic ready position.
+// Posture group "Standing" (ids stand-*). Everyday and working stances on the feet: relaxed, feet together, at shoulder width and wide, weight on one
+// leg, one foot forward, slouched, looking up, down or to the side, hands on the hips, arms crossed, hands behind the back, in the pockets, clasped in
+// front and behind the head, forearms forward at elbow height, trunk turned or bent sideways, on the toes, on one leg, one foot on a step, the athletic
+// ready position.
 // Not here: attention, at ease and parade rest (military.js: mil-*), A-pose, T-pose, Vitruvian and the anatomical position (reference.js).
 // Each entry is a Posture (typedef in ../pose.js, DESIGN.md 2.4); ../postures.js collects the 13 groups. Rules and checklist for authors:
 // docs/human3d/POSTURES.md and POSE.md. Support is "feet". `contacts` lists the sole landmarks that must be on the floor (the validator checks them within
@@ -115,6 +116,7 @@ export default [
     support: "feet",
     contacts: FEET,
     spine: { thoracic: [-3, 0, 0], cervical: [-22, 0, 0] },
+    hints: { prop: { type: "wall_display", params: { diagonal: 55, centreHeight: 2.2 }, role: "target", note: "a high display, sign or shelf label: its centre goes on the line of sight, about 0.55 m above the eye point and 0.6 m in front of it for the median man (40 to 45 degrees up)" } },
     joints: { head: [-12, 0, 0], eye_LR: [6, 0], shoulder_LR: [3, 3, 0], elbow_LR: [10] },
     grips: { L: "relaxed", R: "relaxed" },
   },
@@ -123,10 +125,11 @@ export default [
     name: "Standing, looking down",
     category: "Standing",
     tags: ["standing", "static", "symmetric", "gaze", "neck", "display", "handheld"],
-    description: "Standing erect with the head and neck bent forward and the eyes lowered, so that the line of sight is about 35 degrees below the horizontal. Looking at a phone or tablet held at the waist, a low display or work on a bench; the neck flexion is the thing to check against ISO 11226.",
-    source: "illustrative; head forward about 35 deg is the usual posture for reading a handheld screen (the relaxed line of sight is already 10 to 15 deg below the horizontal)",
+    description: "Standing erect with the head and neck bent forward and the eyes lowered, so that the line of sight is about 35 degrees below the horizontal, arms hanging. The head posture of reading a low display, an instrument or a floor-level control, or of watching one's own work on a bench; the neck flexion is the thing to check against ISO 11226. A handheld device is the Holding group's business: here the hands are free.",
+    source: "illustrative; head forward about 35 deg of line of sight is the usual posture for reading a screen below eye level (the relaxed line of sight is already 10 to 15 deg below the horizontal)",
     support: "feet",
     contacts: FEET,
+    hints: { prop: { type: "instrument_panel", params: { centreHeight: 0.95, tilt: 15 }, role: "target", note: "a low console or instrument panel: its centre goes on the line of sight, about 0.7 m below the eye point and 1.0 m in front of it for the median man (35 degrees down)" } },
     spine: { thoracic: [3, 0, 0], cervical: [18, 0, 0] },
     joints: { head: [10, 0, 0], eye_LR: [-6, 0], shoulder_LR: [3, 3, 0], elbow_LR: [10] },
     grips: { L: "relaxed", R: "relaxed" },
@@ -273,6 +276,45 @@ export default [
       head: [-12, 0, 0],
       shoulder_LR: [35, 12, 0], elbow_LR: [90],
     },
+    grips: { L: "open", R: "open" },
+  },
+  {
+    id: "stand-head-turned",
+    name: "Standing, looking to the left",
+    category: "Standing",
+    tags: ["standing", "static", "asymmetric", "gaze", "neck", "rotation", "display"],
+    description: "Standing erect with the head turned about 50 degrees to the left on the neck and the eyes a little further, trunk and feet facing forward. Reading a side display, watching traffic or a colleague at the side; the neck rotation is the thing to check when a display or a control is placed to one side. mirrorPose looks to the right.",
+    source: "illustrative; 40 deg of cervical rotation plus 8 deg at the head joint is about 60 % of the active range (goniometric normal values of young adults: about 70 deg each side)",
+    support: "feet",
+    contacts: FEET,
+    spine: { cervical: [0, 0, 40] },
+    hints: { prop: { type: "wall_display", params: { diagonal: 32, centreHeight: 1.5 }, role: "target", note: "a display or sign at the figure's left, its centre on the line of sight about 60 degrees to the left of straight ahead" } },
+    joints: { head: [0, 0, 8], eye_LR: [0, 12], shoulder_LR: [2, 3, 0], elbow_LR: [10] },
+    grips: { L: "relaxed", R: "relaxed" },
+  },
+  {
+    id: "stand-feet-together",
+    name: "Standing, feet together",
+    category: "Standing",
+    tags: ["standing", "static", "symmetric", "stance", "narrow"],
+    description: "Feet parallel with the inner edges touching, legs straight, arms hanging. The narrowest stable stance: the footprint of a person on a small platform, a ladder rung or in a narrow aisle, and the lower end of the stance-width family (feet together, ISO standing, shoulder width, wide).",
+    source: "illustrative; the feet-together stance of the Romberg balance test; 2 deg of hip adduction per leg brings the inner edges of the feet together",
+    support: "feet",
+    contacts: FEET,
+    joints: { hip_LR: [0, -2, 0], ankle_LR: [0, -2, 0], shoulder_LR: [2, 3, 0], elbow_LR: [8] },
+    grips: { L: "relaxed", R: "relaxed" },
+  },
+  {
+    id: "stand-elbows-90",
+    name: "Standing, forearms forward (elbows at 90 degrees)",
+    category: "Standing",
+    tags: ["standing", "static", "symmetric", "arms", "elbows-90", "workstation", "two-hand", "rula"],
+    description: "Standing erect with the upper arms along the trunk and the forearms held forward at the horizontal, hands open in front of the abdomen, palms facing each other. The ready posture of light manual work and the reference for working heights: the hands are at elbow height, and a bench or a control panel for light work goes 50 to 100 mm below them.",
+    source: "RULA lower arm band 60 to 100 deg of flexion (McAtamney and Corlett 1993); working height from elbow height (the usual workstation rule, quoted from Grandjean in ergonomics texts: light assembly work 50 to 100 mm below the elbows); angles illustrative",
+    support: "feet",
+    contacts: FEET,
+    hints: { prop: { type: "workbench", params: { height: 1.0 }, role: "target", note: "the work surface goes about 75 mm below the hands (hand height minus 0.075 m, 1.0 m for the median man) and 0.1 to 0.3 m in front of the fingertips" } },
+    joints: { shoulder_LR: [-5, 8, 0], elbow_LR: [90], forearm_LR: [10], wrist_LR: [0, 0] },
     grips: { L: "open", R: "open" },
   },
   {

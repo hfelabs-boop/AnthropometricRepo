@@ -1,17 +1,19 @@
-// Posture group "Sitting": 28 postures on a seat (chair, stool, bench, floor mat) or kneeling on the heels. Covers the POSTURES.md category "Sitting":
+// Posture group "Sitting": 34 postures on a seat (chair, stool, bench, floor mat) or kneeling on the heels. Covers the POSTURES.md category "Sitting":
 // seated upright 90-90-90 (ISO 7250), relaxed office, lumbar-supported (back rest 100 deg), reclined 105 / 115 / 125 / 135 deg, slumped, leaning forward
-// to a desk (forearms on the desk), on the edge of the seat, perched on a high stool, legs crossed at the knee and at the ankle, legs extended forward,
-// long-sitting on the floor, kneeling-sitting on the heels (seiza), elbows on knees, bench with arms along the back rest, typing, mouse use, writing,
-// eating, reading a tablet, reaching forward to a control panel, twisting to a side surface, leaning on an armrest, hands behind the head, feet up.
+// to a desk (forearms on the desk), on the edge of the seat, perched on a high stool and working at a bench, legs crossed at the knee and at the ankle, legs
+// extended forward, long-sitting on the floor and leaning back on the hands, kneeling-sitting on the heels (seiza), elbows on knees, bench with arms along
+// the back rest, arms crossed, hands behind the head, typing, mouse use, writing, eating, reading a tablet, looking at a smartphone, laptop on the lap,
+// reaching forward to a control panel, twisting to a side surface, leaning on an armrest, feet up, and the seat-off moment of standing up.
 // Driving, cockpit and crew seats are in vehicle.js. Each entry is a Posture (typedef in ../pose.js, DESIGN.md 2.4); ../postures.js collects the
 // 13 groups; rules and checklist for authors: docs/human3d/POSTURES.md and POSE.md.
 //
 // How the angles are written.
 // * Hip flexion is relative to the PELVIS. The pelvis rolls back with the trunk in a reclined posture (root.flex < 0 tilts the whole body back about the
-//   hips and swings the thighs forward by the same angle), so level thighs need hip flexion = 90 + root.flex (a seat at 115 degrees: root -8, hip 82).
+//   hips and swings the thighs forward by the same angle), so level thighs need hip flexion = 90 + root.flex (a seat at 115 degrees: root -6, hip 84).
 // * The back rest angle of a seat (seat pan to back rest: 90 upright, 100 to 105 office chair, 115 car seat, 135 lounge) leans the trunk back by
-//   (angle - 90) degrees. The pelvis takes at most 8 degrees of that: a larger posterior tilt sinks the buttock landmark of a heavy body into the seat
-//   plane (validatePosture, "would sink into the seat", the real 134 kg man fails from about 9 degrees), so the rest of the lean is lumbar and thoracic
+//   (angle - 90) degrees. The pelvis takes at most 6 degrees of that: a larger posterior tilt sinks the buttock landmark of a heavy body into the seat
+//   plane (validatePosture, "would sink into the seat": the real 134 kg man fails from about 9 degrees, the median of the Australian aircrew from 7: the
+//   cap was 8 degrees until the postures were run on the medians of all 176 populations), so the rest of the lean is lumbar and thoracic
 //   extension. The upper trunk (thoraxInclination) follows the back rest; the chord from hip to C7 (trunkInclination) is about 40 to 70 % of it.
 // * Seat height: "popliteal" (the body's own seat plane at which hips 90, knees 90 put the feet on the floor) for chairs; a number for stools. The floor
 //   mat of the floor postures is 0.07 m thick: with the pelvis on a plane at 0 the crotch landmark of the 5th-percentile woman and the heavy man ends
@@ -21,15 +23,19 @@
 //   hands on the real object with IK (hints.prop.grips).
 // * hints.prop = { type: catalog type, params, role: "held" | "support" | "target", grips?: { L, R } grip ids, note } names the object the posture is
 //   for; hints.props lists further objects (a desk next to a chair, ...). hints.externalSupport says what else carries weight (back rest, desk, ...).
-// Not here, and why: cross-legged and side-sitting on the floor and the figure-four crossing of the legs need hip external rotation of about 90 degrees
-// (the shin lies horizontal across the other leg or the floor); skeleton.js stops at 60, which leaves the foot 0.1 to 0.2 m below the floor plane.
+// Not here, and why (measured, on the 5th-percentile woman and the median man): cross-legged and side-sitting on the floor, the butterfly (soles together) and
+// the figure-four crossing of the legs need the shin to lie horizontal across the other leg or the floor, which takes hip external rotation of about 90
+// degrees at 45 to 60 degrees of flexion; skeleton.js stops at 60, and a search over the whole range of hip flexion (30 to 120), abduction (0 to 60), rotation
+// (-60 to 30), knee flexion (90 to 160), pelvic tilt (-10 to 30) and ankle left the toes 36 to 65 mm below the floor at best, never above it. Knees drawn up
+// with the feet flat on the floor (hugging the knees) needs 140 degrees of net hip flexion for a leg of the median man (the heel 0.3 to 0.5 m ahead of the sit
+// bones) against 135 of range, so the feet end 0.1 to 0.2 m below the mat. Both are not in the library rather than faked with a floating foot.
 // Sources are named in each entry; "illustrative" means the angles are the author's own. Everything is an indication on a simplified kinematic model.
 const REL = { L: "relaxed", R: "relaxed" };
 
 // Seat back angle family (sit-recline-105 to 135): the trunk leans back by (angle - 90) degrees, see the notes above. The arms rest on the thighs; the
 // head is held near level by flexing the neck (cervical 70 %, head 30 % of 0.8 x the lean), as a driver does. The feet stay on the floor (contacts).
 function reclined(angle, name, description, tags) {
-  const lean = angle - 90, root = -Math.min(8, Math.round(0.4 * lean)), neck = Math.round(0.8 * lean);
+  const lean = angle - 90, root = -Math.min(6, Math.round(0.4 * lean)), neck = Math.round(0.8 * lean);
   const rest = Math.max(0, lean - 3 + root), lumExt = Math.round(0.4 * rest), thoExt = rest - lumExt;
   return {
     id: `sit-recline-${angle}`,
@@ -37,7 +43,7 @@ function reclined(angle, name, description, tags) {
     category: "Sitting",
     tags: ["seat", "recline", "back-rest", "static", "symmetric", "feet-on-floor", ...tags],
     description,
-    source: `illustrative: seat back angle ${angle} deg, the upper trunk (T1 axis) leans back ${lean - 3} deg (the back rest angle less 3 deg of contact offset), the hip to C7 chord less because the pelvis is capped at 8 deg; back rest ranges after Grandjean (1980) and the lumbar disc pressure studies of Andersson, Ortengren and Nachemson (1974-75), approx.`,
+    source: `illustrative: seat back angle ${angle} deg, the upper trunk (T1 axis) leans back ${lean - 3} deg (the back rest angle less 3 deg of contact offset), the hip to C7 chord less because the pelvis is capped at 6 deg; back rest ranges after Grandjean (1980) and the lumbar disc pressure studies of Andersson, Ortengren and Nachemson (1974-75), approx.`,
     support: "seat+feet",
     root: { flex: root },
     spine: { lumbar: [-lumExt, 0, 0], thoracic: [-thoExt, 0, 0], cervical: [Math.round(0.7 * neck), 0, 0] },
@@ -56,10 +62,10 @@ export default [
     tags: ["seat", "iso-7250", "upright", "static", "feet-on-floor", "symmetric"],
     description: "Sitting erect on a seat at popliteal height, hips, knees and ankles at about 90 degrees, head level, hands resting on the thighs. The neutral working posture for seat height, knee clearance and seat depth checks.",
     source: "ISO 7250-1 seated measurement posture (90-90-90) with the hands on the thighs; illustrative arm position",
-    joints: { hip_LR: [90], knee_LR: [90], shoulder_LR: [-10, 8, 20], elbow_LR: [75], forearm_LR: [10], wrist_LR: [0, 10] },
+    joints: { hip_LR: [90], knee_LR: [90], shoulder_LR: [-6, 8, 20], elbow_LR: [75], forearm_LR: [10], wrist_LR: [-2, 12] },
     grips: { L: "flat", R: "flat" },
     support: "seat+feet",
-    hints: { seat: { height: "popliteal" } },
+    hints: { seat: { height: "popliteal" }, prop: { type: "stool", params: { height: 0.43 }, role: "support", note: "Flat seat at the sitter's popliteal height (about 0.43 m for the median man), no back rest: the ISO 7250-1 posture is measured on a flat seat." } },
   },
   {
     id: "sit-relaxed-office",
@@ -68,9 +74,9 @@ export default [
     tags: ["seat", "office", "relaxed", "static", "back-rest", "feet-on-floor", "symmetric"],
     description: "Leaning back against an office chair set at about 100 degrees, the lower back rounded a little, forearms on the arm rests, feet a little forward of the knees. The posture people settle into during long desk work.",
     source: "illustrative; back rest about 100 deg and arm rests at elbow height after office-chair practice (ISO 9241-5, ANSI/HFES 100), lumbar and neck flexion within the range of observed relaxed sitting",
-    root: { flex: -8 },
-    spine: { lumbar: [3, 0, 0], thoracic: [3, 0, 0], cervical: [6, 0, 0] },
-    joints: { hip_LR: [83], knee_LR: [82], head: [3], shoulder_LR: [-10, 12], elbow_LR: [85], forearm_LR: [10], wrist_LR: [10] },
+    root: { flex: -6 },
+    spine: { lumbar: [2, 0, 0], thoracic: [2, 0, 0], cervical: [6, 0, 0] },
+    joints: { hip_LR: [85], knee_LR: [82], head: [3], shoulder_LR: [-10, 12], elbow_LR: [85], forearm_LR: [10], wrist_LR: [10] },
     grips: { L: "relaxed", R: "relaxed" },
     support: "seat+feet",
     contacts: ["heel_sole_L", "heel_sole_R"],
@@ -89,7 +95,7 @@ export default [
     source: "illustrative; back rest 100 to 110 deg with a lumbar support after Andersson, Ortengren and Nachemson 1974-75 (lowest lumbar disc pressure) and ISO 9241-5; angles approx.",
     root: { flex: -6 },
     spine: { lumbar: [-7, 0, 0], cervical: [10, 0, 0] },
-    joints: { hip_LR: [84], knee_LR: [88], head: [4], shoulder_LR: [-10, 8, 20], elbow_LR: [75], forearm_LR: [10], wrist_LR: [15, -10] },
+    joints: { hip_LR: [84], knee_LR: [88], head: [4], shoulder_LR: [-6, 8, 20], elbow_LR: [75], forearm_LR: [10], wrist_LR: [15, -8] },
     grips: { L: "flat", R: "flat" },
     support: "seat+feet",
     contacts: ["heel_sole_L", "heel_sole_R"],
@@ -110,13 +116,13 @@ export default [
     tags: ["seat", "slumped", "slouch", "static", "rula-high", "feet-on-floor", "symmetric"],
     description: "The collapsed posture of long sitting: pelvis rolled back, lower and upper back rounded, shoulders forward, head poked out to look ahead, arms hanging. Shows what a seat does when it lets the sitter slide, and is the bad reference for lumbar and neck angles.",
     source: "illustrative; flexed lumbar and thoracic spine of slumped sitting after Pynt, Higgs and Mackey 2001 and Dolan and Adams, approx.; ISO 11226 neck flexion over 25 deg",
-    root: { flex: -8 },
-    spine: { lumbar: [24, 0, 0], thoracic: [26, 0, 0] },
-    joints: { hip_LR: [83], knee_LR: [84], head: [-22], clavicle_LR: [0, 10], shoulder_LR: [6, 4], elbow_LR: [12], forearm_LR: [10] },
+    root: { flex: -6 },
+    spine: { lumbar: [23, 0, 0], thoracic: [25, 0, 0] },
+    joints: { hip_LR: [85], knee_LR: [84], head: [-22], clavicle_LR: [0, 10], shoulder_LR: [6, 4], elbow_LR: [12], forearm_LR: [10] },
     grips: { L: "relaxed", R: "relaxed" },
     support: "seat+feet",
     contacts: ["heel_sole_L", "heel_sole_R"],
-    hints: { seat: { height: "popliteal" }, externalSupport: "back rest" },
+    hints: { seat: { height: "popliteal" }, externalSupport: "back rest", prop: { type: "office_chair", params: { recline: 5, armrests: false }, role: "support", note: "Soft seat with a low back rest about 95 degrees to the pan: the sitter has slid forward and the pelvis rests on the back rest." } },
   },
   {
     id: "sit-lean-forward-desk",
@@ -146,21 +152,21 @@ export default [
     source: "illustrative; knee about 100 deg, ankle dorsiflexed, trunk 8 deg forward",
     root: { flex: 5 },
     spine: { lumbar: [4, 0, 0], thoracic: [3, 0, 0] },
-    joints: { hip_LR: [101], knee_LR: [105], ankle_LR: [-8], head: [-2], shoulder_LR: [0, 8, 20], elbow_LR: [90], forearm_LR: [30], wrist_LR: [15] },
+    joints: { hip_LR: [101], knee_LR: [105], ankle_LR: [-8], head: [-2], shoulder_LR: [4, 8, 20], elbow_LR: [95], forearm_LR: [30], wrist_LR: [10] },
     grips: { L: "flat", R: "flat" },
     support: "seat+feet",
-    hints: { seat: { height: "popliteal" } },
+    hints: { seat: { height: "popliteal" }, prop: { type: "stool", params: { height: 0.43 }, role: "support", note: "Flat seat at popliteal height; the sitter uses only the front half of it and does not touch a back rest." } },
   },
   {
     id: "sit-high-stool",
     name: "Perched on a high stool",
     category: "Sitting",
     tags: ["seat", "stool", "high-seat", "foot-ring", "static", "symmetric"],
-    description: "Sitting on a stool 0.65 m high with the thighs sloping down, the feet on the foot ring, trunk upright and a little forward, hands on the thighs. The posture at a counter, a laboratory bench or a drafting table; the seat height is a number, not the popliteal height.",
-    source: "illustrative; stool height 0.60 to 0.80 m (typical bar and counter stools), thigh 10 deg below horizontal, knee included angle 125 deg",
+    description: "Sitting on a stool 0.65 m high with the thighs sloping down about 10 degrees, the shanks vertical and the feet on the foot ring, trunk upright and a little forward, hands on the thighs. The posture at a counter, a laboratory bench or a drafting table; the seat height is a number, not the popliteal height.",
+    source: "illustrative; stool height 0.60 to 0.80 m (typical bar and counter stools), thigh 10 deg below horizontal, knee included angle 100 deg (the foot ring is under the knees)",
     root: { flex: 4 },
     spine: { lumbar: [4, 0, 0], thoracic: [4, 0, 0] },
-    joints: { hip_LR: [84], knee_LR: [50], ankle_LR: [-5], head: [-2], shoulder_LR: [-10, 8, 20], elbow_LR: [90], forearm_LR: [50], wrist_LR: [15, -10] },
+    joints: { hip_LR: [84], knee_LR: [80], ankle_LR: [-5], head: [-2], shoulder_LR: [-6, 8, 20], elbow_LR: [90], forearm_LR: [50], wrist_LR: [15, -8] },
     grips: { L: "flat", R: "flat" },
     support: "seat",
     hints: {
@@ -174,11 +180,11 @@ export default [
     name: "Seated, legs extended forward",
     category: "Sitting",
     tags: ["seat", "legs-forward", "relaxed", "static", "back-rest", "symmetric"],
-    description: "Leaning back in a chair with the legs stretched out in front, heels on the floor, knees only slightly bent and the feet slightly apart, hands on the thighs. A rest posture that shows how far the feet reach (leg room, foot clearance) and how the legs slope when the seat is low.",
-    source: "illustrative; knee flexion about 30 deg, thigh sloping 25 deg below horizontal so that the heels reach the floor from a seat at popliteal height",
-    root: { flex: -8 },
-    spine: { lumbar: [-5, 0, 0], thoracic: [-3, 0, 0], cervical: [4, 0, 0] },
-    joints: { hip_LR: [66, 6], knee_LR: [30], ankle_LR: [-12], head: [2], shoulder_LR: [-10, 8, 20], elbow_LR: [60], forearm_LR: [30], wrist_LR: [15, 10] },
+    description: "Leaning back in a chair with the legs stretched out in front, heels on the floor, knees only slightly bent and the feet slightly apart, hands on the thighs. A rest posture that shows how far the feet reach (leg room, foot clearance) and how steeply the legs slope from the seat.",
+    source: "illustrative; knee flexion about 40 deg, thigh sloping about 28 deg below horizontal (hip 72 deg less the 6 deg of pelvic tilt back) so that the heels reach the floor from a seat at popliteal height; a straight leg is a long lever (a degree of hip angle moves the heel 14 mm), so the heels are within 15 mm of the floor on the six test bodies and on 166 of the 176 population medians",
+    root: { flex: -6 },
+    spine: { lumbar: [-6, 0, 0], thoracic: [-4, 0, 0], cervical: [4, 0, 0] },
+    joints: { hip_LR: [72, 6], knee_LR: [40], ankle_LR: [-12], head: [2], shoulder_LR: [-8, 8, 20], elbow_LR: [60], forearm_LR: [30], wrist_LR: [15, 10] },
     grips: { L: "flat", R: "flat" },
     support: "seat+feet",
     contacts: ["heel_sole_L", "heel_sole_R"],
@@ -201,7 +207,7 @@ export default [
     grips: { L: "flat", R: "flat" },
     support: "seat+feet",
     contacts: ["heel_sole_L"],
-    hints: { seat: { height: "popliteal" }, externalSupport: "back rest" },
+    hints: { seat: { height: "popliteal" }, externalSupport: "back rest", prop: { type: "office_chair", params: { recline: 8, armrests: false }, role: "support", note: "Back rest about 98 degrees to the pan; the crossed knee needs about 0.25 m more width than the seat and no arm rests." } },
   },
   {
     id: "sit-legs-crossed-ankle",
@@ -212,11 +218,11 @@ export default [
     source: "illustrative; knees flexed about 55 deg, hips adducted about 6 deg",
     root: { flex: -6 },
     spine: { lumbar: [2, 0, 0], thoracic: [0, 0, 0], cervical: [4, 0, 0] },
-    joints: { hip_LR: [79, -4], knee_LR: [55], ankle_LR: [-6], head: [2], shoulder_LR: [6, 6, 10], elbow_LR: [75], forearm_LR: [35], hip_R: [94, -9, -4], knee_R: [66], ankle_R: [-2, -3] },
+    joints: { hip_LR: [79, -4], knee_LR: [55], ankle_LR: [-6], head: [2], shoulder_LR: [6, 6, 10], elbow_LR: [75], forearm_LR: [35], hip_R: [94, -9, -4], knee_R: [62], ankle_R: [-2, -3] },
     grips: { L: "flat", R: "flat" },
     support: "seat+feet",
     contacts: ["heel_sole_L"],
-    hints: { seat: { height: "popliteal" }, externalSupport: "back rest" },
+    hints: { seat: { height: "popliteal" }, externalSupport: "back rest", prop: { type: "office_chair", params: { recline: 15, armrests: false }, role: "support", note: "Back rest about 105 degrees to the pan; the legs reach about 0.9 m ahead of the seat front." } },
   },
   {
     id: "sit-feet-up",
@@ -225,9 +231,9 @@ export default [
     tags: ["seat", "recline", "legs-raised", "footrest", "relaxed", "static", "back-rest", "symmetric"],
     description: "Reclined in an armchair with the legs stretched out and the heels resting on a footstool, hands in the lap. The posture of a recliner or lounge chair; shows the clearance needed in front of the seat and the height of the footrest.",
     source: "illustrative; back rest about 115 deg, knees almost straight, legs about level with the thighs",
-    root: { flex: -8 },
-    spine: { lumbar: [-6, 0, 0], thoracic: [-8, 0, 0], cervical: [8, 0, 0] },
-    joints: { hip_LR: [80, 4], knee_LR: [20], ankle_LR: [-10], head: [4], shoulder_LR: [-15, 7, 15], elbow_LR: [65], forearm_LR: [10], wrist_LR: [14, 8] },
+    root: { flex: -6 },
+    spine: { lumbar: [-7, 0, 0], thoracic: [-9, 0, 0], cervical: [8, 0, 0] },
+    joints: { hip_LR: [82, 4], knee_LR: [20], ankle_LR: [-10], head: [4], shoulder_LR: [-11, 7, 15], elbow_LR: [65], forearm_LR: [10], wrist_LR: [14, 10] },
     grips: { L: "flat", R: "flat" },
     support: "seat",
     hints: {
@@ -264,11 +270,11 @@ export default [
     source: "illustrative; trunk about 40 deg forward (ISO 11226: 20 to 60 deg needs full trunk support, here through the arms)",
     root: { flex: 18 },
     spine: { lumbar: [16, 0, 0], thoracic: [14, 0, 0], cervical: [-8, 0, 0] },
-    joints: { hip_LR: [109], knee_LR: [90], head: [-10], shoulder_LR: [38, 12, 26], elbow_LR: [129], forearm_LR: [29], wrist_LR: [19, 14] },
+    joints: { hip_LR: [109], knee_LR: [90], head: [-10], shoulder_LR: [38, 12, 26], elbow_LR: [129], forearm_LR: [29], wrist_LR: [19, 13] },
     grips: { L: "relaxed", R: "relaxed" },
     support: "seat+feet",
     contacts: ["heel_sole_L", "heel_sole_R"],
-    hints: { seat: { height: "popliteal" }, externalSupport: "knees" },
+    hints: { seat: { height: "popliteal" }, externalSupport: "knees", prop: { type: "stool", params: { height: 0.43 }, role: "support", note: "Flat seat at popliteal height, a bench or a chair without a used back rest; the forearms rest on the knees." } },
   },
   {
     id: "sit-armrest-lean",
@@ -279,7 +285,7 @@ export default [
     source: "illustrative; lateral trunk flexion about 12 deg (ISO 11226 symmetric trunk posture: lateral flexion not recommended when held), armrest about 0.22 m above the seat plane",
     root: { flex: -4 },
     spine: { lumbar: [2, 8, 0], thoracic: [2, 6, 0], cervical: [4, -6, 0] },
-    joints: { hip_LR: [86, 4], knee_LR: [88], head: [2, -6], shoulder_L: [-17, 31, 5], elbow_L: [103], forearm_L: [2], wrist_L: [15, 10], shoulder_R: [-11, 7, 22], elbow_R: [76], forearm_R: [10], wrist_R: [7, 10] },
+    joints: { hip_LR: [86, 4], knee_LR: [88], head: [2, -6], shoulder_L: [-17, 31, 5], elbow_L: [103], forearm_L: [2], wrist_L: [15, 10], shoulder_R: [-11, 7, 22], elbow_R: [76], forearm_R: [10], wrist_R: [3, 12] },
     grips: { L: "relaxed", R: "flat" },
     support: "seat+feet",
     contacts: ["heel_sole_L", "heel_sole_R"],
@@ -296,13 +302,13 @@ export default [
     tags: ["seat", "relaxed", "stretch", "arms-raised", "two-hand", "static", "back-rest", "symmetric"],
     description: "Leaning back with the fingers interlaced behind the head and the elbows out to the sides, chest open. A rest and stretching posture; it needs back rest and head clearance behind the sitter and shows the elbow span.",
     source: "illustrative; shoulders abducted about 90 deg and externally rotated, elbows flexed about 120 deg",
-    root: { flex: -8 },
-    spine: { lumbar: [-6, 0, 0], thoracic: [-8, 0, 0], cervical: [-4, 0, 0] },
-    joints: { hip_LR: [82], knee_LR: [88], head: [-4], shoulder_LR: [18, 125, -80], elbow_LR: [141], forearm_LR: [-5], wrist_LR: [-30, 10] },
+    root: { flex: -6 },
+    spine: { lumbar: [-7, 0, 0], thoracic: [-9, 0, 0], cervical: [-4, 0, 0] },
+    joints: { hip_LR: [84], knee_LR: [88], head: [-4], shoulder_LR: [23, 124, -81], elbow_LR: [141], forearm_LR: [-4], wrist_LR: [-39, 12] },
     grips: { L: "relaxed", R: "relaxed" },
     support: "seat+feet",
     contacts: ["heel_sole_L", "heel_sole_R"],
-    hints: { seat: { height: "popliteal" }, externalSupport: "back rest" },
+    hints: { seat: { height: "popliteal" }, externalSupport: "back rest", prop: { type: "office_chair", params: { recline: 15, armrests: false }, role: "support", note: "Back rest about 105 degrees with room behind the head: the elbows reach about 0.35 m either side of the midline." } },
   },
   {
     id: "sit-typing",
@@ -409,7 +415,7 @@ export default [
     source: "illustrative; seated forward reach after Pheasant and Haslegrave (Bodyspace): the thumb-tip reach of the median man is about 0.7 m from the shoulder, here the palm is about 0.6 m ahead of the acromion; trunk 15 deg forward",
     root: { flex: 8 },
     spine: { lumbar: [4, 0, 0], thoracic: [6, 0, 0] },
-    joints: { hip_LR: [99], knee_LR: [90], head: [-6], shoulder_R: [101, 0, 14], elbow_R: [12], forearm_R: [0], wrist_R: [-5, -6], shoulder_L: [6, 21, 30], elbow_L: [89], forearm_L: [13], wrist_L: [15, 10] },
+    joints: { hip_LR: [99], knee_LR: [90], head: [-6], shoulder_R: [101, -1, 14], elbow_R: [12], forearm_R: [0], wrist_R: [-1, -6], shoulder_L: [10, 27, 30], elbow_L: [89], forearm_L: [6], wrist_L: [11, 12] },
     grips: { L: "flat", R: "point" },
     support: "seat+feet",
     hints: { seat: { height: "popliteal" }, prop: { type: "instrument_panel", params: { centreHeight: 1 }, role: "target", note: "Panel about 0.6 m ahead of the shoulder at shoulder height; the control to press is at the arm's reach." } },
@@ -440,9 +446,9 @@ export default [
     tags: ["floor", "legs-forward", "long-sitting", "static", "symmetric"],
     description: "Sitting on the floor with both legs stretched straight out in front, trunk upright, hands resting on the thighs. The reference for floor space needed in front of the seat and for hamstring length; the pelvis is tilted back and the lower back is rounded a little.",
     source: "illustrative; knees nearly straight, hips flexed about 90 deg with the pelvis tilted back, lumbar flexion about 12 deg",
-    root: { flex: -8 },
-    spine: { lumbar: [12, 0, 0], thoracic: [6, 0, 0] },
-    joints: { hip_LR: [85, 6], knee_LR: [4], ankle_LR: [-10], head: [-2], shoulder_LR: [-15, 7, 13], elbow_LR: [95], forearm_LR: [10], wrist_LR: [6, 10] },
+    root: { flex: -6 },
+    spine: { lumbar: [11, 0, 0], thoracic: [5, 0, 0] },
+    joints: { hip_LR: [87, 6], knee_LR: [4], ankle_LR: [-10], head: [-2], shoulder_LR: [-11, 7, 13], elbow_LR: [95], forearm_LR: [10], wrist_LR: [6, 12] },
     grips: { L: "flat", R: "flat" },
     support: "seat",
     hints: { seat: { height: 0.07 }, prop: { type: "floor_tile", params: { size: 1, thickness: 0.07 }, role: "support", note: "Sitting on a mat or cushion 0.07 m thick; sitting directly on the floor is the same posture with 0.07 m less seat height." } },
@@ -453,10 +459,124 @@ export default [
     category: "Sitting",
     tags: ["floor", "kneeling", "seiza", "on-heels", "static", "symmetric"],
     description: "Kneeling with the buttocks resting on the heels and the insteps flat on the floor, trunk upright, hands on the thighs. The traditional Japanese formal sitting posture, also used for prayer and floor-level work; it needs full knee and ankle flexion.",
-    source: "illustrative; hips flexed 52 deg (the thighs slope 38 deg below the horizontal), knees flexed 138 deg, ankles plantar-flexed 60 deg (the limit of the model); deep kneeling needs about 140 to 160 deg of knee flexion (Hemmerich et al. 2006, from memory, approx.)",
-    joints: { hip_LR: [52], knee_LR: [138], ankle_LR: [-60], head: [0], shoulder_LR: [4, 13, 30], elbow_LR: [33], forearm_LR: [0], wrist_LR: [5] },
+    source: "illustrative; hips flexed 50 deg (the thighs slope 40 deg below the horizontal), knees flexed 138 deg so that the shanks lie flat on the floor, ankles plantar-flexed 60 deg (the limit of the model: the toe tips rest on the floor for all six test bodies, a degree less of hip flexion and the toes sink into it); deep kneeling needs about 140 to 160 deg of knee flexion (Hemmerich et al. 2006, from memory, approx.)",
+    joints: { hip_LR: [50], knee_LR: [138], ankle_LR: [-60], head: [0], shoulder_LR: [4, 13, 30], elbow_LR: [33], forearm_LR: [0], wrist_LR: [5] },
     grips: { L: "flat", R: "flat" },
     support: "knees",
-    hints: { externalSupport: "heels" },
+    hints: { externalSupport: "heels", prop: { type: "floor_tile", params: { size: 1, thickness: 0.02 }, role: "support", note: "A thin mat under the knees and insteps; the buttocks rest on the heels, not on the floor." } },
+  },
+  {
+    id: "sit-high-stool-bench-work",
+    name: "On a high stool, working at a bench",
+    category: "Sitting",
+    tags: ["seat", "stool", "bench", "work", "two-hand", "forward", "foot-ring", "static", "symmetric"],
+    description: "Perched on a stool 0.68 m high with the thighs 16 degrees below the horizontal, the trunk inclined about 15 degrees and both hands resting flat on a bench top about 0.29 m above the seat, the feet on the foot ring. The posture of assembly, laboratory and counter work; it sets bench height against stool height and the reach to the work.",
+    source: "illustrative; trunk inclination about 15 deg (hip to C7; the ISO 11226 band that needs no support is 0 to 20 deg), the work surface a little above elbow height of the seated worker as in Pheasant and Haslegrave (Bodyspace, approx.); the hands are placed on the bench by IK on the median man (elbow about 85 deg); the knee is 85 deg flexed and the foot ring about 0.2 m above the floor",
+    root: { flex: 10 },
+    spine: { lumbar: [6, 0, 0], thoracic: [6, 0, 0], cervical: [4, 0, 0] },
+    joints: { hip_LR: [84, 6], knee_LR: [80], ankle_LR: [0], head: [8], shoulder_LR: [22, 20, 18], elbow_LR: [96], forearm_LR: [71], wrist_LR: [6, -2] },
+    grips: { L: "flat", R: "flat" },
+    support: "seat",
+    hints: {
+      seat: { height: 0.68 },
+      externalSupport: "bench top and foot ring",
+      prop: { type: "bar_stool", params: { height: 0.68 }, role: "support", note: "Stool seat 0.68 m high, the feet rest on the foot ring about 0.2 m above the floor." },
+      props: [{ type: "workbench", params: { height: 0.96, depth: 0.7 }, role: "target", note: "Bench top 0.96 m high (0.28 m above the seat plane), its edge about 0.35 m ahead of the hip point; the hands lie flat on it 0.55 m ahead of the hips, about 0.34 m apart." }],
+    },
+  },
+  {
+    id: "sit-rise-seat-off",
+    name: "Rising from a chair, seat off",
+    category: "Sitting",
+    tags: ["seat", "stand-up", "sit-to-stand", "transition", "dynamic", "symmetric"],
+    description: "The moment the buttocks leave the seat on standing up: the trunk bent forward about 40 degrees, the thighs nearly level, the feet drawn back under the knees and the arms swung forward for momentum. A transient posture; it shows the foot space needed under the seat edge, the seat height and the room in front of the knees.",
+    source: "illustrative; the seat-off phase of the sit-to-stand movement with the trunk flexed forward about 40 to 50 deg and the arms swung forward (Schenkman et al. 1990, Phys Ther 70:638-648, from memory, approx.); a moment of a movement, so the balance rule is waived (hints.dynamic)",
+    root: { flex: 28 },
+    spine: { lumbar: [10, 0, 0], thoracic: [8, 0, 0], cervical: [-12, 0, 0] },
+    joints: { hip_LR: [112, 4], knee_LR: [88], ankle_LR: [12], head: [-8], shoulder_LR: [109, 6, 0], elbow_LR: [15] },
+    grips: { L: "relaxed", R: "relaxed" },
+    support: "feet",
+    hints: {
+      dynamic: true,
+      prop: { type: "office_chair", params: { seatHeight: 0.42, armrests: false }, role: "support", note: "Seat plane 0.04 to 0.08 m below the sit bones: the buttocks have just left it. With arm rests the hands push on them instead of swinging." },
+    },
+  },
+  {
+    id: "sit-smartphone",
+    name: "Seated, looking at a smartphone",
+    category: "Sitting",
+    tags: ["seat", "phone", "handheld", "two-hand", "neck", "slouched", "static", "back-rest", "feet-on-floor", "symmetric"],
+    description: "Sitting back with both hands holding a phone low in front of the chest, thumbs on the screen, and the head bent far forward to look at it from about 0.32 m. The posture of texting and browsing; it shows the large neck flexion of handheld use (about 55 degrees) and how low the screen is held.",
+    source: "illustrative; head and neck flexion of 50 to 60 deg in phone use, a band in which Hansraj 2014 (Surg Technol Int 25:277-279) models loads on the cervical spine of about 12, 18, 22 and 27 kg for 15, 30, 45 and 60 deg of forward head tilt (an upright head weighs 4.5 to 5.4 kg); ISO 11226 accepts neck flexion up to 25 deg",
+    root: { flex: -6 },
+    spine: { lumbar: [11, 0, 0], thoracic: [9, 0, 0], cervical: [26, 0, 0] },
+    joints: { hip_LR: [85, 2], knee_LR: [82], head: [18], eye_LR: [-5, 0], shoulder_LR: [23, 17, 31], elbow_LR: [106], forearm_LR: [1], wrist_LR: [3, -4] },
+    grips: { L: "precision", R: "precision" },
+    support: "seat+feet",
+    contacts: ["heel_sole_L", "heel_sole_R"],
+    hints: {
+      seat: { height: "popliteal" },
+      externalSupport: "back rest",
+      load: { mass: 0.2 },
+      prop: { type: "tablet", params: { diagonal: 7, tilt: 50 }, role: "held", grips: { L: "edge_left", R: "edge_right" }, note: "A 7 inch tablet stands in for a phone (the smallest display of the catalog), held about 0.32 m from the eyes (0.26 m below them and 0.19 m ahead), tilted toward the face." },
+    },
+  },
+  {
+    id: "sit-laptop-on-lap",
+    name: "Seated, laptop on the lap",
+    category: "Sitting",
+    tags: ["seat", "laptop", "computer", "sofa", "keyboard", "two-hand", "neck", "static", "back-rest", "feet-on-floor", "symmetric"],
+    description: "Leaning back into a sofa or soft seat with a laptop on the thighs, both hands on the keyboard low in front of the hips and the head bent about 40 degrees to the screen. A casual computing posture; it shows how low the keyboard sits and how far the neck must bend to read a screen on the lap.",
+    source: "illustrative; keyboard on the thighs about 0.2 m above the seat plane, neck flexion about 40 deg (ISO 11226 accepts up to 25 deg, more only for limited times); palms down with the fingers pointing slightly inward to keep the wrists nearly straight; hands placed by IK on the median man",
+    root: { flex: -6 },
+    spine: { lumbar: [5, 0, 0], thoracic: [5, 0, 0], cervical: [22, 0, 0] },
+    joints: { hip_LR: [85, 2], knee_LR: [82], head: [12], shoulder_LR: [-7, 14, 34], elbow_LR: [96], forearm_LR: [83], wrist_LR: [-4, -13] },
+    grips: { L: "typing", R: "typing" },
+    support: "seat+feet",
+    contacts: ["heel_sole_L", "heel_sole_R"],
+    hints: {
+      seat: { height: "popliteal" },
+      externalSupport: "back rest and thighs",
+      load: { mass: 2 },
+      prop: { type: "laptop", params: { diagonal: 14, lid: 110 }, role: "held", grips: { L: "rest_left", R: "rest_right" }, note: "Laptop of about 2 kg on the thighs, keyboard about 0.2 m above the seat plane and 0.3 m ahead of the hips, the screen tilted toward the face." },
+      props: [{ type: "bench", params: { backrest: true, depth: 0.5 }, role: "support", note: "Stands in for a sofa: seat at popliteal height with a back rest the sitter leans into." }],
+    },
+  },
+  {
+    id: "sit-floor-lean-back",
+    name: "Floor sitting, leaning back on the hands",
+    category: "Sitting",
+    tags: ["floor", "legs-forward", "arms-supported", "relaxed", "wrists", "static", "symmetric"],
+    description: "Sitting on the floor with the legs stretched forward and the trunk leaning back about 20 degrees on the arms, the palms flat on the floor behind the hips. A relaxed rest at ground level; it shows the floor space needed behind and beside the sitter and the load that this posture puts on the wrists.",
+    source: "illustrative; the wrists at the end of their extension range (about 70 deg of palm-down extension, the usual active range is 60 to 70 deg, Kapandji, approx.), trunk about 20 deg back with the pelvis tilted back only 6 deg (more presses the buttocks into the mat for the heavy body)",
+    root: { flex: -6 },
+    spine: { lumbar: [-13, 0, 0], thoracic: [-15, 0, 0] },
+    joints: { hip_LR: [87, 8], knee_LR: [6], ankle_LR: [-10], head: [0], shoulder_LR: [-52, 37, 29], elbow_LR: [43], forearm_LR: [78], wrist_LR: [-70, 6], clavicle_LR: [-8, -17] },
+    grips: { L: "flat", R: "flat" },
+    support: "seat",
+    hints: {
+      seat: { height: 0.07 },
+      externalSupport: "hands on the floor",
+      prop: { type: "floor_tile", params: { size: 1, thickness: 0.07 }, role: "support", note: "Sitting on a mat or cushion 0.07 m thick, the palms 0.25 m either side of the midline and 0.12 m behind the hips; directly on the floor is the same posture with 0.07 m less seat height." },
+    },
+  },
+  {
+    id: "sit-arms-crossed",
+    name: "Seated, arms crossed",
+    category: "Sitting",
+    tags: ["seat", "arms", "crossed", "listening", "waiting", "static", "back-rest", "feet-on-floor", "asymmetric"],
+    description: "Sitting back with the forearms folded across the chest, the left forearm in front of the right, and the legs together: the closed posture of listening, waiting and meetings. The arms are held in front of the body, so the elbows project about 0.2 m ahead of the chest.",
+    source: "illustrative; the arm angles of the library's standing arms-crossed posture (stand-arms-crossed, tuned on six bodies), pelvis tilted back 6 deg against a back rest, the upper trunk nearly upright; the arm angles were then adjusted by a search over the 176 population medians (the crossed forearms overlap the opposite arm by a few millimetres more or less); mirrorPose gives the right arm in front",
+    root: { flex: -6 },
+    spine: { lumbar: [2, 0, 0], thoracic: [2, 0, 0], cervical: [6, 0, 0] },
+    joints: { hip_LR: [85, 2], knee_LR: [82], head: [3], shoulder_L: [58, 34, 70], elbow_L: [117], forearm_L: [52], wrist_L: [8, -9], shoulder_R: [79, 23, 59], elbow_R: [111], forearm_R: [2], wrist_R: [-2, -10], clavicle_LR: [9, 24] },
+    grips: { L: "relaxed", R: "relaxed" },
+    support: "seat+feet",
+    contacts: ["heel_sole_L", "heel_sole_R"],
+    hints: {
+      seat: { height: "popliteal" },
+      externalSupport: "back rest",
+      prop: { type: "office_chair", params: { recline: 10, armrests: false }, role: "support", note: "Back rest about 100 degrees to the seat pan; no arm rests, so that the forearms are free in front of the chest." },
+    },
   },
 ];

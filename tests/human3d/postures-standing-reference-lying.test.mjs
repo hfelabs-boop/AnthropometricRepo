@@ -19,7 +19,7 @@ import { POSTURES, byId } from "../../site/js/human/postures.js";
 import standing from "../../site/js/human/postures/standing.js";
 import reference from "../../site/js/human/postures/reference.js";
 import lying from "../../site/js/human/postures/lying.js";
-import { byType } from "../../site/js/human/catalog.js";
+import { byType, normalizeParams } from "../../site/js/human/catalog.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const army = (sex, percentile) => fitBody(percentileProfile(JSON.parse(fs.readFileSync(path.join(ROOT, "public/api/v1/populations/united-states/army", `${sex}.json`))), { percentile }));
@@ -29,19 +29,26 @@ const GROUP = [...standing, ...reference, ...lying];
 // ---- helpers -----------------------------------------------------------------------------------------------------------------------------------
 const cache = new Map();
 /** The posture placed on its support: { p, pose, root, m (metrics), lm(id) -> THREE.Vector3 (copy), joint(id), floor(id) (landmark height, m) }. */
+function viewOf(body, pose, root, p) {
+  const m = postureMetrics(body, pose, root, { support: p.support });
+  const lm = (l) => landmarkPosition(body, pose, root, l, new THREE.Vector3());
+  const joint = (j) => { const kin = solvePose(body, pose, root); return kin.position(j); };
+  return { p, pose, root, m, lm, joint, floor: (l) => lm(l).y };
+}
 function put(id, body) {
   const key = `${id}|${BODIES.findIndex(([, b]) => b === body)}`;
   if (cache.has(key)) return cache.get(key);
   const p = byId(id);
   assert.ok(p, `posture ${id} is in the library`);
   const pose = clampPose(expandPosture(p)).pose;
-  const root = placePose(body, pose, { posture: p });
-  const m = postureMetrics(body, pose, root, { support: p.support });
-  const lm = (l) => landmarkPosition(body, pose, root, l, new THREE.Vector3());
-  const joint = (j) => { const kin = solvePose(body, pose, root); return kin.position(j); };
-  const r = { p, pose, root, m, lm, joint, floor: (l) => lm(l).y };
+  const r = viewOf(body, pose, placePose(body, pose, { posture: p }), p);
   cache.set(key, r);
   return r;
+}
+/** The mirror image of a placed posture, placed again on the same support. */
+function mirrored(r, body) {
+  const e = expandPosture(r.p), mp = mirrorPose({ root: e.root, angles: e.angles });
+  return viewOf(body, mp, placePose(body, mp, { support: r.p.support }), r.p);
 }
 const each = (fn) => { for (const [label, body] of BODIES) fn(label, body); };
 const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, `${what}: ${a.toFixed(3)} is not within ${tol} of ${b}`);
@@ -88,6 +95,9 @@ test("everything POSTURES.md asks for in these groups exists (the floor of the p
     // Lying
     "lie-supine", "lie-prone", "lie-side-left", "lie-side-right", "lie-fetal", "lie-supine-knees-up", "lie-prone-on-elbows", "lie-creeper-reaching-up", "lie-supine-arms-overhead",
     "lie-prone-arms-forward", "lie-semi-reclined-legs-raised",
+    // added by the second pass (designers of tables, bunks, workshops, rescue tasks)
+    "stand-head-turned", "stand-feet-together", "stand-elbows-90", "ref-seated-forward-reach", "lie-supine-arms-abducted", "lie-supine-hands-behind-head",
+    "lie-prone-one-arm-forward", "lie-creeper-both-arms-up",
   ];
   for (const id of need) assert.ok(byId(id), id);
 });
@@ -109,7 +119,17 @@ test("a prop hint names a catalogue type, a role, parameters and grips that exis
       assert.ok(["both", hand].includes(t.grips(h.params ?? {}).find((x) => x.id === g).hand), `${p.id}: grip ${g} is not for the ${hand} hand`);
     }
   }
-  assert.ok(n >= 8, `${n} postures carry a prop hint`);
+  assert.ok(n >= 14, `${n} postures carry a prop hint`);
+  // the parameters are inside the ranges of the catalogue (normalizeParams would clamp them), a held prop has grips for the hands that carry it, a support prop has a surface
+  for (const p of GROUP) {
+    const h = p.hints?.prop;
+    if (!h) continue;
+    const t = byType(h.type), full = normalizeParams(h.type, h.params ?? {});
+    for (const [k, v] of Object.entries(h.params ?? {})) assert.equal(full[k], v, `${p.id}: ${h.type}.${k} = ${v} is outside the range of the catalogue (it would be ${full[k]})`);
+    if (h.role === "held") assert.ok(h.grips && Object.keys(h.grips).length >= 1, `${p.id}: a held prop names the grips of its hands`);
+    if (h.role === "support") assert.ok(t.supports && t.supports(full, t.dims ? t.dims(full) : undefined).length >= 1, `${p.id}: a support prop (${h.type}) has a surface`);
+    for (const k of Object.keys(p.hints)) assert.ok(["seat", "dynamic", "externalSupport", "contactTolerance", "load", "prop"].includes(k), `${p.id}: unknown hint ${k}`);
+  }
   for (const id of ["ref-niosh-origin", "ref-niosh-destination"]) assert.equal(byId(id).hints.prop.type, "crate");
   assert.equal(byId("stand-foot-on-step").hints.prop.type, "step");
   assert.equal(byId("ref-niosh-origin").hints.load.mass, 23, "the NIOSH load constant");
@@ -582,4 +602,158 @@ test("semi-reclined with the legs raised and propped up in bed: the trunk backwa
     assert.ok(a.m.hipAngle_L < 150 && f.m.hipAngle_L < 150 && a.m.hipAngle_L > 100, `${label}: hip angles ${a.m.hipAngle_L.toFixed(0)}, ${f.m.hipAngle_L.toFixed(0)}`);
     assert.equal(a.p.hints.prop.type, "cabin_seat");
   });
+});
+
+// ---- second pass: postures added for tables, bunks, workshops, rescue tasks and side displays --------------------------------------------------------
+/** The azimuth (degrees, + = toward the figure's left) of the mean gaze direction in the world, for a figure that faces +Z. */
+function gazeAzimuth(r, body) {
+  const kin = solvePose(body, r.pose, r.root), d = new THREE.Vector3();
+  for (const e of ["eye_L", "eye_R"]) d.add(new THREE.Vector3(0, 0, 1).applyQuaternion(kin.quaternion(e)));
+  return (Math.atan2(d.x, d.z) * 180) / Math.PI;
+}
+
+test("looking to the left: the neck is turned 35 to 60 degrees, the line of sight 50 to 80 degrees to the left, the trunk and the feet face forward; mirrorPose looks to the right", () => {
+  each((label, body) => {
+    const r = put("stand-head-turned", body), m = r.m, iso = put("iso-7250-standing", body);
+    within(m.neckTwist, 35, 60, `${label} neck rotation`);
+    within(gazeAzimuth(r, body), 50, 80, `${label} gaze azimuth`);
+    near(gazeAzimuth(iso, body), 0, 1, `${label}: the ISO posture looks straight ahead`);
+    assert.ok(Math.abs(m.trunkTwist) < 3 && Math.abs(m.bodyHeading) < 1 && Math.abs(m.trunkInclination) < 3, `${label}: trunk twist ${m.trunkTwist.toFixed(1)}`);
+    assert.ok(Math.abs(m.headTilt) < 4 && Math.abs(m.neckFlexion) < 6, `${label}: the head stays level (tilt ${m.headTilt.toFixed(1)}, flexion ${m.neckFlexion.toFixed(1)})`);
+    near(gazeAzimuth(mirrored(r, body), body), -gazeAzimuth(r, body), 1, `${label}: mirrored gaze`);
+  });
+});
+
+test("feet together: the narrowest stance (feet together < ISO standing < shoulder width < wide stance), both feet flat, the inner edges of the feet touching or nearly", () => {
+  each((label, body) => {
+    const ids = ["stand-feet-together", "iso-7250-standing", "stand-feet-shoulder-width", "stand-wide-stance"], w = ids.map((id) => put(id, body).m.stanceWidth);
+    assert.ok(w[0] < w[1] - 0.03 && w[1] < w[2] && w[2] < w[3], `${label}: stance widths ${w.map((x) => x.toFixed(3)).join(", ")}`);
+    const r = put("stand-feet-together", body);
+    // the gap between the inner edges of the soles: the left foot's most medial sole point against the right foot's
+    const gap = Math.min(...["heel_sole", "ball_sole_medial", "toe_sole"].map((l) => r.lm(`${l}_L`).x)) - Math.max(...["heel_sole", "ball_sole_medial", "toe_sole"].map((l) => r.lm(`${l}_R`).x));
+    assert.ok(gap < 0.06 && gap > -0.03, `${label}: the soles are ${(gap * 1000).toFixed(0)} mm apart`);
+    for (const s of ["L", "R"]) for (const l of ["heel_sole", "ball_sole_medial", "ball_sole_lateral"]) assert.ok(r.floor(`${l}_${s}`) < 0.016, `${label}: ${l}_${s} floats ${(r.floor(`${l}_${s}`) * 1000).toFixed(0)} mm`);
+    assert.ok(r.m.comOverBase > 0.02, `${label}: the centre of mass is over the small base (${r.m.comOverBase.toFixed(3)})`);
+  });
+});
+
+test("forearms forward at elbow height: elbows at 90 degrees (RULA lower arm band), forearms horizontal, upper arms along the trunk, wrists straight, the hands in front of the abdomen", () => {
+  each((label, body) => {
+    const r = put("stand-elbows-90", body), m = r.m;
+    for (const s of ["L", "R"]) {
+      within(m[`elbowAngle_${s}`], 80, 100, `${label} elbow ${s} (included angle)`);
+      near(r.lm(`palm_centre_${s}`).y, r.lm(`olecranon_${s}`).y, 0.05, `${label}: the forearm ${s} is horizontal`);
+      assert.ok(m[`shoulderElevation_${s}`] < 22, `${label}: the upper arm ${s} is ${m[`shoulderElevation_${s}`].toFixed(0)} deg from the trunk`);
+      assert.ok(m[`handToShoulderForward_${s}`] > 0.2 && r.lm(`palm_centre_${s}`).z > r.lm("abdomen_front").z + 0.05, `${label}: the hand ${s} is in front of the abdomen`);
+      assert.ok(Math.abs(m[`wristFlexion_${s}`]) < 3 && Math.abs(m[`wristDeviation_${s}`]) < 3, `${label}: the wrist is straight`);
+    }
+    assert.ok(Math.abs(m.trunkInclination) < 4 && m.kneeAngle_L > 165, `${label}: erect with straight knees`);
+    // the working height: the hands are at elbow height, about 0.6 to 0.72 of the stature (the elbow height of the ANSUR bodies is 0.62 to 0.66)
+    within(m.handHeightAboveFloor_L / r.lm("vertex").y, 0.52, 0.68, `${label} hand height over stature`);
+    assert.equal(r.p.hints.prop.type, "workbench");
+    within(r.p.hints.prop.params.height, m.handHeightAboveFloor_L - 0.2, m.handHeightAboveFloor_L + 0.05, `${label}: the bench of the prop hint is a little below the hands`);
+  });
+});
+
+test("seated forward grip reach: the ISO seated posture with both arms horizontal ahead (the same arms as the standing forward reach), trunk upright, a seat hint", () => {
+  each((label, body) => {
+    const r = put("ref-seated-forward-reach", body), seated = put("iso-7250-sitting", body), st = put("ref-forward-reach", body);
+    within(r.m.upperArmInclinationSagittal_L, 85, 95, `${label} arm elevation`);
+    near(r.m.upperArmInclinationSagittal_L, st.m.upperArmInclinationSagittal_L, 1, `${label}: the same arm as standing`);
+    assert.ok(Math.abs(r.m.handToShoulderUp_L) < 0.05 && r.m.handToShoulderForward_L > 0.5, `${label}: the hand is level with the shoulder and ${r.m.handToShoulderForward_L.toFixed(2)} m ahead of it`);
+    assert.ok(Math.abs(r.m.trunkInclination) < 4 && r.m.hipAngle_L > 85 && r.m.hipAngle_L < 95, `${label}: trunk ${r.m.trunkInclination.toFixed(1)}, hip ${r.m.hipAngle_L.toFixed(0)}`);
+    near(r.m.seatHeight, seated.m.seatHeight, 1e-6, `${label}: the same seat plane as the ISO seated posture`);
+    assert.equal(r.p.hints.seat.height, "popliteal");
+    assert.ok(r.floor("heel_sole_L") < 0.016 && r.floor("ball_sole_medial_L") < 0.016, `${label}: the feet are flat on the floor`);
+  });
+});
+
+test("supine, arms out to the sides: the arms 70 to 90 degrees from the trunk (ASA: abduction of 90 degrees or less), low and straight, the hands about two arm lengths apart, palms up", () => {
+  each((label, body) => {
+    const r = put("lie-supine-arms-abducted", body), flat = put("lie-supine", body);
+    near(r.m.trunkInclination, -90, 6, `${label} trunk`);
+    for (const s of ["L", "R"]) {
+      within(r.m[`shoulderElevation_${s}`], 68, 90, `${label} arm ${s} from the trunk`);
+      assert.ok(r.m[`elbowAngle_${s}`] > 160, `${label}: elbow ${s} ${r.m[`elbowAngle_${s}`].toFixed(0)}`);
+      assert.ok(r.floor(`olecranon_${s}`) < 0.1 && r.floor(`palm_centre_${s}`) < 0.12, `${label}: the arm ${s} rests low (elbow ${(r.floor(`olecranon_${s}`) * 1000).toFixed(0)} mm, hand ${(r.floor(`palm_centre_${s}`) * 1000).toFixed(0)} mm)`);
+      assert.ok(r.m[`forearmPronation_${s}`] < -60, `${label}: palms up`);
+    }
+    const span = r.lm("palm_centre_L").distanceTo(r.lm("palm_centre_R")), narrow = flat.lm("palm_centre_L").distanceTo(flat.lm("palm_centre_R"));
+    assert.ok(span > 1.15 && span > narrow + 0.5, `${label}: the hands are ${span.toFixed(2)} m apart (${narrow.toFixed(2)} with the arms at the sides)`);
+    // the arm family on the floor is monotonic: at the sides < out to the sides < overhead
+    const over = put("lie-supine-arms-overhead", body);
+    assert.ok(flat.m.shoulderElevation_L + 40 < r.m.shoulderElevation_L && r.m.shoulderElevation_L + 40 < over.m.shoulderElevation_L, `${label}: arm elevation from the trunk ${flat.m.shoulderElevation_L.toFixed(0)}, ${r.m.shoulderElevation_L.toFixed(0)}, ${over.m.shoulderElevation_L.toFixed(0)}`);
+  });
+});
+
+test("supine, hands behind the head: the palms beside and behind the head, the elbows out to the sides and low, the head resting on the floor", () => {
+  each((label, body) => {
+    const r = put("lie-supine-hands-behind-head", body);
+    for (const s of ["L", "R"]) {
+      assert.ok(dist(r.lm(`palm_centre_${s}`), r.lm("opisthocranion")) < 0.22, `${label}: palm ${s} is ${(dist(r.lm(`palm_centre_${s}`), r.lm("opisthocranion")) * 1000).toFixed(0)} mm from the back of the head`);
+      assert.ok(Math.abs(r.lm(`olecranon_${s}`).x) > Math.abs(r.lm("euryon_L").x) + 0.1, `${label}: the elbow ${s} is out`);
+      assert.ok(r.floor(`olecranon_${s}`) < 0.2 && r.m[`elbowAngle_${s}`] < 70, `${label}: elbow ${s} at ${(r.floor(`olecranon_${s}`) * 1000).toFixed(0)} mm, included angle ${r.m[`elbowAngle_${s}`].toFixed(0)}`);
+    }
+    assert.ok(r.floor("opisthocranion") < 0.04, `${label}: the head rests on the floor (${(r.floor("opisthocranion") * 1000).toFixed(0)} mm)`);
+    near(r.m.trunkInclination, -90, 6, `${label} trunk`);
+    // the figure is wider than the plain supine one by the elbows
+    const width = (q) => Math.abs(q.lm("olecranon_L").x - q.lm("olecranon_R").x);
+    assert.ok(width(r) > width(put("lie-supine", body)) + 0.2, `${label}: the elbows add width (${width(r).toFixed(2)} m)`);
+  });
+});
+
+test("prone, reaching forward with the right arm: the right hand beyond the head and low, the left forearm folded beside the head, the trunk on the floor and not held up by the arm", () => {
+  each((label, body) => {
+    const r = put("lie-prone-one-arm-forward", body), m = r.m;
+    near(m.trunkInclination, 90, 8, `${label} trunk`);
+    assert.ok(beyondHead(r, r.lm("palm_centre_R")) > 0.12 && m.elbowAngle_R > 150, `${label}: right hand ${(beyondHead(r, r.lm("palm_centre_R")) * 1000).toFixed(0)} mm beyond the head, elbow ${m.elbowAngle_R.toFixed(0)}`);
+    assert.ok(r.floor("palm_centre_R") < 0.12, `${label}: the right hand is low (${(r.floor("palm_centre_R") * 1000).toFixed(0)} mm)`);
+    assert.ok(beyondHead(r, r.lm("palm_centre_L")) < 0.15 && dist(r.lm("palm_centre_L"), r.lm("vertex")) < 0.5 && m.elbowAngle_L < 90, `${label}: the left hand is folded beside the head (${(dist(r.lm("palm_centre_L"), r.lm("vertex")) * 1000).toFixed(0)} mm from the vertex)`);
+    assert.ok(r.floor("chest_front") < 0.07 && r.floor("knee_front_L") < 0.07, `${label}: chest ${(r.floor("chest_front") * 1000).toFixed(0)} mm, knee ${(r.floor("knee_front_L") * 1000).toFixed(0)} mm: lying on the floor, not propped on the left arm`);
+    assert.ok(m.neckTwist < -25, `${label}: the head is turned toward the reaching arm (${m.neckTwist.toFixed(0)} deg)`);
+    // mirrorPose reaches with the left arm
+    const mr = mirrored(r, body);
+    assert.ok(beyondHead(mr, mr.lm("palm_centre_L")) > 0.12, `${label}: mirrored, the left hand reaches`);
+  });
+});
+
+test("creeper, both hands overhead: both hands 0.25 to 0.6 m above the shoulders, symmetric, the head lifted, elbows bent, the same board as the one-arm creeper posture", () => {
+  each((label, body) => {
+    const r = put("lie-creeper-both-arms-up", body), one = put("lie-creeper-reaching-up", body), m = r.m;
+    near(m.trunkInclination, -90, 6, `${label} trunk`);
+    for (const s of ["L", "R"]) {
+      within(m[`handToShoulderUp_${s}`], 0.25, 0.6, `${label} hand ${s} above the shoulder`);
+      within(m[`elbowAngle_${s}`], 100, 160, `${label} elbow ${s}`);
+    }
+    near(m.handToShoulderUp_L, m.handToShoulderUp_R, 1e-6, `${label}: symmetric`);
+    assert.ok(m.neckFlexion > 8, `${label}: neck flexion ${m.neckFlexion.toFixed(0)}`);
+    assert.ok(m.handToShoulderUp_L >= one.m.handToShoulderUp_L, `${label}: the left hand works at least as high as the folded left hand of the one-arm posture (${m.handToShoulderUp_L.toFixed(2)} against ${one.m.handToShoulderUp_L.toFixed(2)} m)`);
+    assert.deepEqual(r.p.hints.prop, one.p.hints.prop);
+  });
+});
+
+// ---- the population sweep ------------------------------------------------------------------------------------------------------------------------
+test("every posture of the three groups passes the validator on the medians, the 5th and the 95th percentile of every other population of the API (264 bodies), and on real people when the database is there", async () => {
+  const dir = path.join(ROOT, "public/api/v1/populations"), files = [];
+  for (const c of fs.readdirSync(dir)) for (const r of fs.readdirSync(path.join(dir, c))) for (const f of fs.readdirSync(path.join(dir, c, r))) if (f.endsWith(".json") && !f.includes("latest")) files.push(path.join(dir, c, r, f));
+  files.sort();
+  const bodies = [];
+  for (const [i, f] of files.entries()) {
+    if (i % 2) continue;
+    const data = JSON.parse(fs.readFileSync(f));
+    for (const pc of [50, 5, 95]) { try { bodies.push([`${path.relative(dir, f)} P${pc}`, fitBody(percentileProfile(data, { percentile: pc, meanStature: pc === 50 }))]); } catch { /* a percentile this population cannot give */ } }
+  }
+  assert.ok(bodies.length >= 200, `${bodies.length} bodies`);
+  try {
+    const { DatabaseSync } = await import("node:sqlite");
+    const { subjectProfile } = await import("../../site/js/human/anthro.js");
+    const db = new DatabaseSync(path.join(ROOT, "database", "anthro.sqlite"), { readOnly: true });
+    const keys = db.prepare("SELECT subject_key FROM subjects WHERE stature IS NOT NULL AND mass IS NOT NULL ORDER BY subject_key").all().map((r) => r.subject_key), step = Math.max(1, Math.floor(keys.length / 60));
+    for (let i = 0; i < keys.length && bodies.length < 264 + 60; i += step) { const row = db.prepare("SELECT * FROM subjects WHERE subject_key = ?").get(keys[i]); try { bodies.push([`person #${keys[i]} (${row.stature} mm, ${row.mass} kg)`, fitBody(subjectProfile(row))]); } catch { /* skip */ } }
+    for (const row of db.prepare("SELECT * FROM subjects WHERE stature IS NOT NULL AND mass IS NOT NULL ORDER BY mass DESC LIMIT 10").all()) { try { bodies.push([`heavy person #${row.subject_key} (${row.stature} mm, ${row.mass} kg)`, fitBody(subjectProfile(row))]); } catch { /* skip */ } }
+    db.close();
+  } catch { /* no database: the population bodies are enough */ }
+  const problems = [];
+  for (const [label, body] of bodies) for (const g of GROUP) { const r = validatePosture(body, byId(g.id), { library: POSTURES }); for (const e of r.errors) problems.push(`${label} | ${g.id} | ${e}`); }
+  assert.deepEqual(problems.slice(0, 25), [], `${problems.length} problems on ${bodies.length} bodies x ${GROUP.length} postures`);
 });

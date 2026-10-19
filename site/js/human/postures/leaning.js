@@ -1,8 +1,83 @@
-// Posture group "Leaning". Covers the POSTURES.md category "Leaning": leaning forward with hands on a table, leaning back against a wall,
-// hip against a desk, on one forearm at a counter, both forearms on a rail, stooped with hands on knees, one hand on a wall, over a
-// workbench (45 deg), pushing a wall, leaning sideways (left / right), standing against a chair back, leaning on a door frame, arched back.
-// Declare what carries the rest of the weight with hints.externalSupport.
-// Each entry is a Posture (typedef in ../pose.js, DESIGN.md 2.4); ../postures.js collects the 13 groups. Rules and checklist for authors:
-// docs/human3d/POSTURES.md and POSE.md. Their `category` must be "Leaning"; the usual support here is "feet".
-// Empty for now: later engineers fill this array; tests/human3d/postures.test.mjs validates every entry on six bodies.
-export default [];
+// Posture group "Leaning" (ids lean-*). Leaning postures rest partly on something outside the body: a wall, a desk, a rail, a door frame, a chair back.
+// Each says what carries the rest of the weight (hints.externalSupport) and names the object (hints.prop: catalog type, parameters, role "support", and
+// where the contact is for the median man, in metres from the feet).
+const FEET = ["heel_sole_L", "heel_sole_R", "ball_sole_medial_L", "ball_sole_medial_R"];
+const RELAXED = { L: "relaxed", R: "relaxed" };
+
+export default [
+  {
+    id: "lean-back-wall",
+    name: "Leaning back against a wall",
+    category: "Leaning",
+    tags: ["lean", "wall", "back", "relaxed", "static", "symmetric", "waiting"],
+    description: "Standing with the shoulder blades and the buttocks against a wall, the feet a foot or more in front of it, knees soft, arms hanging. The posture of waiting; the wall takes part of the weight so the legs lean forward and the pelvis tilts back.",
+    source: "illustrative",
+    support: "feet",
+    root: { flex: -6 },
+    spine: { lumbar: [4, 0, 0], thoracic: [6, 0, 0] },
+    joints: { hip_LR: [18, 3, -5], knee_LR: [6], ankle_LR: [-18, 3, 0], head: [-2], shoulder_LR: [-4, 6, 0], elbow_LR: [10] },
+    grips: RELAXED,
+    contacts: FEET,
+    hints: { externalSupport: "wall", prop: { type: "wall", params: { width: 3, height: 2.5 }, role: "support", note: "wall behind the figure" } },
+  },
+  {
+    id: "lean-shoulder-wall-left",
+    name: "Leaning on a wall with the left shoulder",
+    category: "Leaning",
+    tags: ["lean", "wall", "side", "relaxed", "static", "asymmetric", "waiting"],
+    description: "Standing side-on to a wall and leaning on it with the left shoulder and upper arm, the body inclined sideways about ten degrees, the head upright, the right hand in a pocket. The pose of someone waiting beside a wall or a door; mirrorPose gives the right shoulder.",
+    source: "illustrative",
+    support: "feet",
+    root: { lat: 10 },
+    spine: { cervical: [0, -8, 0] },
+    joints: { ankle_L: [0, -10, 0], ankle_R: [0, 10, 0], shoulder_L: [0, 4, 0], elbow_L: [12], shoulder_R: [-21, 3, 17], elbow_R: [52], forearm_R: [20], wrist_R: [-15, 0], head: [0, -2, 0] },
+    grips: RELAXED,
+    contacts: FEET,
+    hints: { externalSupport: "wall", prop: { type: "wall", params: { width: 3, height: 2.5 }, role: "support", note: "wall on the figure's left" } },
+  },
+  {
+    id: "lean-forward-hands-table",
+    name: "Leaning forward, hands flat on a table",
+    category: "Leaning",
+    tags: ["lean", "table", "desk", "two-hand", "forward", "static", "symmetric", "reading"],
+    description: "Standing with the legs straight and the trunk bent forward about forty degrees at the hips, both hands flat on a table with the arms nearly straight and the head forward to look at it. Reading a map or a drawing, signing a form, bracing at a counter: the arms carry part of the weight of the trunk.",
+    source: "illustrative; trunk inclination 40 deg (ISO 11226: 20 to 60 deg is acceptable only with the trunk supported through the arms)",
+    support: "feet",
+    root: { flex: 32 },
+    spine: { lumbar: [10, 0, 0], thoracic: [6, 0, 0], cervical: [8, 0, 0] },
+    joints: { hip_LR: [32, 0, 0], head: [5, 0, 0], clavicle_LR: [4, 14], shoulder_LR: [62, 23, 33], elbow_LR: [14], forearm_LR: [41], wrist_LR: [-55, -1] },
+    grips: { L: "flat", R: "flat" },
+    contacts: FEET,
+    hints: { externalSupport: "table", prop: { type: "desk", params: { height: 0.74 }, role: "support", note: "table" } },
+  },
+  {
+    id: "lean-push-wall",
+    name: "Leaning on a wall with both hands (pushing)",
+    category: "Leaning",
+    tags: ["lean", "wall", "push", "two-hand", "forward", "static", "stagger", "bracing"],
+    description: "Facing a wall with both hands on it at shoulder height, the arms bent about forty degrees, the body inclined about twenty degrees forward in one line from the rear heel to the head, the left foot forward with a bent knee. Bracing against a wall or a vehicle, pushing, a calf stretch; the wall takes much of the weight; mirrorPose gives the right foot forward.",
+    source: "illustrative; whole-body inclination about 22 deg (the 'wall push' stance)",
+    support: "feet",
+    root: { flex: 22 },
+    spine: { cervical: [-6, 0, 0] },
+    joints: { hip_L: [40, 0, 0], knee_L: [43, 0], ankle_L: [24.8, 0, 0], hip_R: [0, 0, 0], knee_R: [0, 0], ankle_R: [22, 0, 0], head: [-6, 0, 0], clavicle_LR: [1, 12], shoulder_LR: [75, 35, 7], elbow_LR: [47], forearm_LR: [72], wrist_LR: [-70, -15] },
+    grips: { L: "flat", R: "flat" },
+    contacts: FEET,
+    hints: { externalSupport: "wall", prop: { type: "wall", params: { width: 3, height: 2.5 }, role: "support", note: "wall" } },
+  },
+  {
+    id: "lean-one-hand-wall",
+    name: "Leaning on a wall with one hand",
+    category: "Leaning",
+    tags: ["lean", "wall", "one-hand", "forward", "static", "support"],
+    description: "Facing a wall with the right hand flat on it a little above shoulder height and the body inclined ten degrees toward it, the left arm hanging. Steadying oneself, reading a notice, waiting at a door or tying a shoe; the hand carries only a small part of the weight.",
+    source: "illustrative",
+    support: "feet",
+    root: { flex: 10 },
+    spine: { cervical: [-4, 0, 0] },
+    joints: { hip_LR: [0, 3, -5], ankle_LR: [9.7, 3.8, 0], head: [-4, 0, 0], shoulder_L: [2, 6, 0], elbow_L: [10], clavicle_R: [3, 4], shoulder_R: [80, 19, 23], elbow_R: [50], forearm_R: [72], wrist_R: [-56, -22] },
+    grips: { L: "relaxed", R: "flat" },
+    contacts: FEET,
+    hints: { externalSupport: "wall", prop: { type: "wall", params: { width: 3, height: 2.5 }, role: "support", note: "wall" } },
+  },
+];

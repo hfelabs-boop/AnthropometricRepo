@@ -785,7 +785,6 @@ function editView(env, layer, prefs) {
     const add = (v) => { parts.push(v); return v; };
     if (t.root) add(rootEditor(env));
     for (const r of t.regions ?? []) add(regionEditor(env, r));
-    if (t.id === "head") { /* the neck total first, then the head and the eyes */ }
     if (t.grips) add(handEditor(env, t.side));
     for (const j of t.joints) add(jointEditor(env, j));
     let extra = null;

@@ -1,7 +1,8 @@
 // Posture group "Reference" (ids ref-*, plus the three entries that define the style of a posture: iso-7250-standing, iso-7250-sitting, t-pose).
 // Measurement and calibration postures: ISO 7250-1 standing and sitting, A-pose, T-pose, Vitruvian, the anatomical position, the two arm-reach
-// postures of the fit report (forward grip reach, overhead reach), NIOSH lift origin and destination (with a crate in the hands) and the RULA neutral
-// posture (seated at a desk). Each entry is a Posture (typedef in ../pose.js, DESIGN.md 2.4); ../postures.js collects the 13 groups. Rules and checklist
+// postures of the fit report (forward grip reach, overhead reach), the seated forward reach, NIOSH lift origin and destination (with a crate in the
+// hands) and the RULA neutral posture (seated at a desk). proxies.js learns the allowed overlaps of the collision proxies from every entry of this
+// group (a body is never rejected for what it does in a reference posture), so an entry added here must be clean on every body: tests check it. Each entry is a Posture (typedef in ../pose.js, DESIGN.md 2.4); ../postures.js collects the 13 groups. Rules and checklist
 // for authors: docs/human3d/POSTURES.md and POSE.md. Typical support: "feet" (or "seat+feet").
 export default [
   {
@@ -13,6 +14,7 @@ export default [
     source: "ISO 7250-1 (standing posture); the neutral pose of skeleton.js / fit.js",
     support: "feet",
     grips: { L: "relaxed", R: "relaxed" },
+    hints: { prop: { type: "measuring_pole", params: { headboard: 1.75 }, role: "target", note: "the stadiometer: the figure stands with the back against the pole and the head board on the vertex; set the head board to the stature of the figure" } },
   },
   {
     id: "iso-7250-sitting",
@@ -24,7 +26,7 @@ export default [
     support: "seat+feet",
     joints: { hip_LR: [90, 0, 0], knee_LR: [90, 0] },
     grips: { L: "relaxed", R: "relaxed" },
-    hints: { seat: { height: "popliteal" } },
+    hints: { seat: { height: "popliteal" }, prop: { type: "stool", params: { height: 0.43 }, role: "support", note: "a flat seat without a back at popliteal height (0.43 m for the median man): set the height to the seat plane of the body" } },
   },
   {
     id: "t-pose",
@@ -98,6 +100,19 @@ export default [
     grips: { L: "open", R: "open" },
   },
   {
+    id: "ref-seated-forward-reach",
+    name: "Seated, arms forward (grip reach)",
+    category: "Reference",
+    tags: ["reference", "seat", "static", "symmetric", "reach", "two-hand", "iso-7250"],
+    description: "The seated measurement posture (hips and knees at 90 degrees, feet flat) with both arms raised straight forward to the horizontal, hands open, palms facing each other, trunk upright. The seated forward grip reach: the reach from a seat that a control panel, a keyboard or a steering wheel has to respect without the sitter leaning forward.",
+    source: "ISO 7250-1 style measurement posture (forward grip reach is also taken seated); shoulder flexion 90 deg as in ref-forward-reach on the seat of iso-7250-sitting",
+    support: "seat+feet",
+    contacts: ["heel_sole_L", "heel_sole_R", "ball_sole_medial_L", "ball_sole_medial_R"],
+    joints: { hip_LR: [90, 0, 0], knee_LR: [90, 0], shoulder_LR: [90, 0, 0] },
+    grips: { L: "open", R: "open" },
+    hints: { seat: { height: "popliteal" }, prop: { type: "stool", params: { height: 0.43 }, role: "support", note: "a flat seat without a back at popliteal height; the reach is measured from the back of the buttocks, so a back rest would only mark the line the sitter's back touches" } },
+  },
+  {
     id: "ref-niosh-origin",
     name: "NIOSH lift origin (crate at knuckle height)",
     category: "Reference",
@@ -110,7 +125,7 @@ export default [
     grips: { L: "power", R: "power" },
     hints: {
       load: { mass: 23 },
-      prop: { type: "crate", params: { width: 0.5, depth: 0.3, height: 0.3, mass: 23 }, role: "held", grips: { L: "side_left", R: "side_right" }, note: "23 kg is the NIOSH load constant; the crate hangs between the hands at the origin of the lift, its handles at knuckle height" },
+      prop: { type: "crate", params: { width: 0.5, depth: 0.25, height: 0.3, mass: 23 }, role: "held", grips: { L: "side_left", R: "side_right" }, note: "23 kg is the NIOSH load constant; the crate hangs between the hands at the origin of the lift, its end handles at the grip points (0.52 to 0.64 m apart over the four bodies tried); its rear face is 0.1 to 0.18 m in front of the ankles, so it touches the abdomen of the median man and presses 10 to 50 mm into that of a large one (the load rests against the belly in real lifting too); keep the depth at 0.25 m or less" },
     },
   },
   {
@@ -126,7 +141,7 @@ export default [
     grips: { L: "power", R: "power" },
     hints: {
       load: { mass: 23 },
-      prop: { type: "crate", params: { width: 0.5, depth: 0.3, height: 0.3, mass: 23 }, role: "held", grips: { L: "side_left", R: "side_right" }, note: "the same crate as at the origin, 0.25 m higher; the sandbox may put it on a shelf top (the destination) instead" },
+      prop: { type: "crate", params: { width: 0.5, depth: 0.25, height: 0.3, mass: 23 }, role: "held", grips: { L: "side_left", R: "side_right" }, note: "the same crate as at the origin, 0.25 m higher; the sandbox may put it on a shelf top (the destination) instead" },
     },
   },
   {

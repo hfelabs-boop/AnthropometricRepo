@@ -1431,3 +1431,164 @@ test("free joints that no goal depends on are not variables: the same pose and t
   assert.deepEqual(problemsOf(r), []);
   assert.ok(performance.now() - t0 < 1500);
 });
+
+// ---- 13. the defects an independent verifier found (third round) ------------------------------------------------------------------
+const population = (name, percentile = 50) => fitBody(percentileProfile(JSON.parse(fs.readFileSync(path.join(ROOT, "public/api/v1/populations", `${name.replace(/\/([MF]|both)$/, "/$1")}.json`))), { percentile }));
+const popSolver = (name) => IK.createSolver(population(name));
+
+test("a goal 1 to 2 cm from the hand, default options (and follow: true), is a small move of the pose: the avoidance of the ends of the ranges resists going deeper into a corner, it does not pull a posture out of one", (t) => {
+  const rnd = rng(3), turn = [], turnFollow = [];
+  const dirIn = () => V([rnd() - 0.5, rnd() - 0.5, rnd() - 0.5]).normalize();
+  for (const { start } of libraryStarts()) {
+    for (const sd of ["R", "L"]) {
+      const A = MAN.worldPoint(start, `grip_centre_${sd}`), B = A.clone().addScaledVector(dirIn(), 0.01), at = [B.x, B.y, B.z];
+      const a = IK.reachHand(MAN, start, sd, at), f = IK.reachHand(MAN, start, sd, at, { follow: true });
+      if (a.reachable) turn.push(turnDeg(start, a.pose));
+      if (f.reachable) turnFollow.push(turnDeg(start, f.pose));
+    }
+  }
+  // from poses that the solver itself made (a start with the joints inside their ranges and away from the ends): 1 to 2 cm in a random direction
+  const fromSolved = [];
+  for (let i = 0; i < 240; i++) {
+    const sd = i % 2 ? "L" : "R", sh = MAN.worldPoint(standing(MAN), { joint: `shoulder_${sd}` });
+    const p = sh.clone().add(V([(rnd() - 0.5) * 1.0, (rnd() - 0.2) * 0.9, rnd() * 0.7]).setLength(0.25 + 0.3 * rnd())), s = IK.reachHand(MAN, standing(MAN), sd, [p.x, p.y, p.z]);
+    if (!s.reachable) continue;
+    const q = p.clone().addScaledVector(dirIn(), 0.01 + 0.01 * rnd()), r = IK.reachHand(MAN, s.pose, sd, [q.x, q.y, q.z]);
+    if (r.reachable) fromSolved.push(turnDeg(s.pose, r.pose));
+  }
+  const pc = (a, q) => [...a].sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(q * a.length))];
+  t.diagnostic(`library postures, 1 cm: ${turn.length} moves, ${turn.filter((x) => x > 10).length} turn a joint more than 10 degrees, max ${Math.max(...turn).toFixed(0)} (before: 114 of 243, 22 over 40); from solved poses, 1 to 2 cm: p90 ${pc(fromSolved, 0.9).toFixed(1)}, p99 ${pc(fromSolved, 0.99).toFixed(1)}, max ${Math.max(...fromSolved).toFixed(1)} degrees (before: p90 39, p99 86, max 177)`);
+  assert.ok(turn.length > 150 && fromSolved.length > 150);
+  assert.ok(turn.filter((x) => x > 10).length / turn.length < 0.06 && Math.max(...turn) < 25, `library: ${turn.filter((x) => x > 10).length} of ${turn.length}, max ${Math.max(...turn)}`);
+  assert.ok(turnFollow.filter((x) => x > 10).length / turnFollow.length < 0.06 && Math.max(...turnFollow) < 25, "follow: true alone is the same");
+  assert.ok(pc(fromSolved, 0.9) < 10 && pc(fromSolved, 0.99) < 25 && Math.max(...fromSolved) < 40, `from solved poses: p90 ${pc(fromSolved, 0.9)}, max ${Math.max(...fromSolved)}`);
+});
+
+test("the avoidance of the ends of the ranges never pulls a joint that sits in a zone out of it: a goal that is met, or a null-space motion, leaves a posture in a corner alone; going deeper is resisted", () => {
+  // the shoulder at 150 degrees of flexion (in the zone of its end), the goal 2 mm from the hand: the pose may not slide away from its start by more than the 2 mm need
+  const start = { root: { ...MAN.restRoot }, angles: { shoulder_R: [150, 20, 0], elbow_R: [30], clavicle_R: [20, 0] } };
+  const h = MAN.worldPoint(start, "grip_centre_R"), r = IK.reachHand(MAN, start, "R", [h.x, h.y + 0.002, h.z], { follow: true });
+  assert.ok(r.reachable);
+  assert.ok(turnDeg(start, r.pose) < 5, `${turnDeg(start, r.pose)} degrees for 2 mm`);
+  // the same goal held for 60 frames with DRAG_OPTIONS settles
+  let cur = start, last = null, prev = null;
+  for (let i = 0; i < 60; i++) { prev = cur; last = IK.reachHand(MAN, cur, "R", [h.x, h.y + 0.002, h.z], IK.DRAG_OPTIONS); cur = last.pose; }
+  assert.ok(turnDeg(prev, cur) < 0.01 && turnDeg(start, cur) < 5);
+});
+
+test("a handle held still beyond the reach (or in a corner) with DRAG_OPTIONS settles: no frame-to-frame cycle, no creeping in the null space of the arm, `limited` only while the figure is on its way", (t) => {
+  let tot = 0, moving = 0, cyc = 0, limitedStill = 0;
+  for (const name of ["united-states/army/M", "japan/air-force/F", "brazil/army/M"]) {
+    const solver = popSolver(name), rnd = rng(11 + name.length);
+    for (const sd of ["R", "L"]) {
+      const sh = solver.worldPoint(standing(solver), { joint: `shoulder_${sd}` });
+      for (let k = 0; k < 8; k++) {
+        const dir = V([(rnd() - 0.5) * 2, rnd() * 1.4 - 0.4, rnd() * 1.4 - 0.4]).normalize(), T = sh.clone().addScaledVector(dir, 0.65 * (1.05 + 0.75 * rnd()));
+        let cur = standing(solver), prev = null, prev2 = null, last = null;
+        for (let i = 0; i < 260; i++) { prev2 = prev; prev = cur; last = IK.reachHand(solver, cur, sd, [T.x, T.y, T.z], IK.DRAG_OPTIONS); cur = last.pose; }
+        tot++;
+        const step = turnDeg(prev, cur);
+        if (step > 0.1) { moving++; if (prev2 && turnDeg(prev2, cur) < 0.01) cyc++; }
+        else if (last.limited) limitedStill++; // not moving and still "on its way"?
+      }
+    }
+  }
+  t.diagnostic(`${tot} held goals beyond the reach: ${moving} still move after 260 frames, ${cyc} in a two-frame cycle, ${limitedStill} stand still but report limited (before, 150 frames: 56 % moving, 130 of 300 limited and moving)`);
+  assert.equal(cyc, 0);
+  assert.ok(moving / tot < 0.05, `${moving} of ${tot} still moving`);
+  assert.equal(limitedStill, 0);
+});
+
+test("a drag that cannot get to a reachable goal stands still and does not say `limited` (so that the editor's full solve takes over); `limited` is true only while the figure is still making progress", (t) => {
+  const solver = popSolver("united-states/army/M"), rnd = rng(900);
+  let stuck = 0, cycling = 0, stuckLimited = 0, n = 0;
+  for (let k = 0; k < 40; k++) {
+    const sd = k % 2 ? "L" : "R", angles = Object.fromEntries(ARM_R.map((id) => [id.replace("_R", `_${sd}`), randomAngles(id, rnd)]));
+    const T = solver.worldPoint({ root: { ...solver.restRoot }, angles }, `grip_centre_${sd}`);
+    let cur = standing(solver), prev = null, prev2 = null, last = null;
+    for (let i = 0; i < 300; i++) { prev2 = prev; prev = cur; last = IK.reachHand(solver, cur, sd, [T.x, T.y, T.z], IK.DRAG_OPTIONS); cur = last.pose; }
+    n++;
+    if (last.error[`hand_${sd}`] > 1e-3) {
+      stuck++;
+      if (turnDeg(prev, cur) > 0.1 && turnDeg(prev2, cur) < 0.01) cycling++;
+      if (last.limited && turnDeg(prev, cur) < 0.01) stuckLimited++;
+    }
+  }
+  t.diagnostic(`${n} reachable far goals from a hanging arm, 300 frames: ${stuck} not reached (a local minimum of a drag), ${cycling} in a cycle, ${stuckLimited} standing still with limited true (before: 111 of 720 not reached, 57 in an exact 2.3 degree cycle with limited true)`);
+  assert.equal(cycling, 0);
+  assert.equal(stuckLimited, 0);
+});
+
+test("options.stiffness: every documented key is accepted and does what it says (joint ids, joint.dof of sided joints and vertebrae, both sides, groups, regions, the pelvis); a typo is an error", () => {
+  const start = standing(MAN), sh = MAN.worldPoint(start, { joint: "shoulder_R" });
+  const goal = [{ type: "position", id: "g", landmark: "grip_centre_R", target: [sh.x - 0.05, sh.y - 0.1, sh.z + 0.5] }];
+  const flex = (stiffness, free = ["arm_R", "clavicle_R"]) => MAN.solve(start, goal, { free, stiffness });
+  const base = flex({}), keys = ["shoulder_R.flex", "knee_L.flex", "L3.flex", "eye_L.azim", "shoulder.flex", "shoulder_R", "shoulder", "clavicle", "clavicle_R.prot", "lumbar", "lumbar.flex", "hand", "vertebra", "index_mcp_R.flex", "index_mcp.abd", "T12.rot", "pelvis", "pelvis.y", "pelvis.tilt", "pelvis.heading", "ankle_L.rot", "mtp_R.dorsi", "jaw.open", "wrist_R.dev", "head.lat", "cervical.rot"];
+  for (const k of keys) assert.doesNotThrow(() => MAN.solve(start, goal, { stiffness: { [k]: 0.01 } }), k);
+  for (const k of ["elbow.flx", "foo.bar", "shoulder_R.flx", "shoulder_X.flex", "Shoulder_R", "tx", "constructor", "toString", "__proto__", "pelvis.q", "lumbar.up", "", "elbow_R.flex.x", " elbow"]) assert.throws(() => MAN.solve(start, goal, { stiffness: Object.fromEntries([[k, 0.01]]) }), /unknown key/, JSON.stringify(k));
+  // effect: a very stiff shoulder flexion leaves the shoulder flexion alone and the elbow and the clavicle take the reach
+  const stiffShoulder = flex({ "shoulder_R.flex": 5 }), sameBoth = flex({ "shoulder.flex": 5 });
+  assert.ok(base.reachable && Math.abs(stiffShoulder.angles.shoulder_R[0]) < Math.abs(base.angles.shoulder_R[0]) - 5, `shoulder_R.flex stiff: ${stiffShoulder.angles.shoulder_R[0]} against ${base.angles.shoulder_R[0]}`);
+  assert.deepEqual(sameBoth.angles.shoulder_R, stiffShoulder.angles.shoulder_R);
+  // the other side's key does not touch this arm
+  assert.deepEqual(flex({ "shoulder_L.flex": 5 }).angles.shoulder_R, base.angles.shoulder_R);
+  // a vertebra: with the individual vertebra L3 free, a stiff L3.flex moves the other lumbar vertebrae more
+  const lean = [{ type: "position", id: "g", landmark: "grip_centre_R", target: [sh.x - 0.1, sh.y - 0.1, sh.z + 0.85] }], vert = (stiffness) => MAN.solve(start, lean, { free: ["arm_R", "clavicle_R", "L3", "L4"], stiffness });
+  const cheapL3 = vert({ "L3.flex": 0.0005, "L4.flex": 5 }), cheapL4 = vert({ "L3.flex": 5, "L4.flex": 0.0005 });
+  assert.ok(Math.abs(cheapL3.angles.L3[0]) > Math.abs(cheapL4.angles.L3[0]) + 1e-3 && Math.abs(cheapL4.angles.L4[0]) > Math.abs(cheapL3.angles.L4[0]) + 1e-3, "per-vertebra keys");
+  // the pelvis: a cheap "pelvis" steps farther than a dear one
+  const far = [{ type: "position", id: "g", landmark: "grip_centre_R", target: [sh.x, sh.y, sh.z + 0.9] }];
+  const cheapP = MAN.solve(start, far, { free: ["arm_R", "clavicle_R", "pelvis-xz"], stiffness: { pelvis: 0.0005 } }), dearP = MAN.solve(start, far, { free: ["arm_R", "clavicle_R", "pelvis-xz"], stiffness: { pelvis: 5 } });
+  assert.ok(Math.abs(cheapP.root.z - start.root.z) > Math.abs(dearP.root.z - start.root.z) + 0.01, `pelvis ${cheapP.root.z} vs ${dearP.root.z}`);
+  // the fingers: "hand" is the group of the lot (a stiff hand keeps a free finger where it is when a reference pulls it)
+  assert.doesNotThrow(() => MAN.solve(start, goal, { free: ["arm_R", "hand_R"], stiffness: { hand: 1 }, reference: { angles: { index_mcp_R: [60, 0] } } }));
+});
+
+test("reachable-by-construction arm targets that every start and every analytic pose falls short of (a corner: the shoulder swing at its cap, the clavicle at its end) are solved by more random restarts; `restarts` is the most, not more", () => {
+  const cases = [
+    ["united-states/aircrew/M", "R", { clavicle_R: [43.66859619272873, -24.419059045612812], shoulder_R: [-21.85524020344019, 124.38401856692508, -72.01910154428333], elbow_R: [-1.6285856405738741], forearm_R: [-63.78631217870861], wrist_R: [3.9718064316548407, 4.971246565692127] }, 0.097],
+    ["ukraine/cadets/M", "L", { clavicle_L: [28.097030484350398, -24.82909446116537], shoulder_L: [-47.160893976688385, 123.55476500466466, -7.4999788496643305], elbow_L: [7.544249378843233], forearm_L: [-1.854579895734787], wrist_L: [-39.638682913500816, -13.008163457270712] }, 0.064],
+  ];
+  for (const [name, sd, angles, was] of cases) {
+    const solver = popSolver(name), T = solver.worldPoint({ root: { ...solver.restRoot }, angles }, `grip_centre_${sd}`), t = [T.x, T.y, T.z];
+    const r = IK.reachHand(solver, standing(solver), sd, t);
+    assert.ok(r.error[`hand_${sd}`] < 0.005, `${name}: ${(r.error[`hand_${sd}`] * 1000).toFixed(1)} mm short (it was ${was * 1000} mm)`);
+    assert.deepEqual(problemsOf(r), []);
+    const none = IK.reachHand(solver, standing(solver), sd, t, { restarts: 0 }), few = IK.reachHand(solver, standing(solver), sd, t, { restarts: 2 });
+    assert.ok(none.iterations < few.iterations && few.iterations < r.iterations, `${none.iterations} < ${few.iterations} < ${r.iterations}: restarts is the most, 0 is none`);
+    assert.ok(none.error[`hand_${sd}`] > 0.005 || none.reachable);
+    // a start at the true pose is still returned untouched; a goal no pose can meet spends no extra restarts
+    assert.equal(IK.reachHand(solver, { root: { ...solver.restRoot }, angles }, sd, t).iterations, 0);
+  }
+  // an unreachable target within the straight chain but outside the ranges (behind the head, hand low): the extra restarts are bounded, the answer is the closest pose and says so
+  const far = MAN.solve(standing(MAN), [{ type: "position", id: "g", landmark: "grip_centre_R", target: [-0.2, 1.0, -0.62] }], { free: ["arm_R", "clavicle_R"] });
+  assert.ok(far.ms < 400 && !far.reachable === (far.error.g > 5e-4));
+});
+
+test("maxReach: a backward direction is not underestimated (the probes use the automatic restarts)", () => {
+  let n = 0;
+  for (const name of ["israel/army/M", "lithuania/recruits-trainees/M", "serbia/cadets/M"]) {
+    const solver = popSolver(name);
+    for (const sd of ["R", "L"]) {
+      const mr = IK.maxReach(solver, standing(solver), sd, { direction: [0, 0.3, -1] });
+      const beyond = IK.reachHand(solver, standing(solver), sd, mr.origin.map((o, i) => o + mr.direction[i] * (mr.distance + 0.03)), { restarts: 30 });
+      assert.ok(!beyond.reachable, `${name} ${sd}: ${mr.distance.toFixed(3)} m but 3 cm farther is reachable`);
+      n++;
+    }
+  }
+  assert.equal(n, 6);
+});
+
+test("the Result owns its pose: result.pose.root and result.pose.angles are copies of result.root and result.angles, not the same objects", () => {
+  const r = MAN.solve({ root: { ...MAN.restRoot }, angles: { elbow_R: [20] } }, [{ type: "position", landmark: "grip_centre_R", target: [-0.2, 1.2, 0.4] }], { free: ["arm_R"] });
+  assert.notEqual(r.pose.root, r.root);
+  assert.notEqual(r.pose.angles, r.angles);
+  for (const id of Object.keys(r.angles)) assert.notEqual(r.pose.angles[id], r.angles[id], id);
+  assert.deepEqual(r.pose.root, r.root);
+  assert.deepEqual(r.pose.angles, r.angles);
+  const keep = JSON.stringify(r.pose);
+  r.root.x = 99; r.angles.elbow_R[0] = 1234;
+  assert.equal(JSON.stringify(r.pose), keep, "editing result.root / result.angles must not change result.pose");
+  r.pose.root.y = -5; r.pose.angles.shoulder_R[0] = -77;
+  assert.notEqual(r.root.y, -5); assert.notEqual(r.angles.shoulder_R[0], -77);
+});

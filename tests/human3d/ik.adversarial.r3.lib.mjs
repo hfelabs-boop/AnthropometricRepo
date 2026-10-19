@@ -107,3 +107,26 @@ export function poseStep(a, b, only = null) {
   }
   return { deg: worst, joint: wj };
 }
+
+/** Catmull-Rom through control points, resampled to n points uniformly in arc length (a smooth hand path of known speed) */
+export function spline(ctrl, n = 200) {
+  const dense = [], seg = ctrl.length - 1;
+  const P = (i) => ctrl[Math.max(0, Math.min(ctrl.length - 1, i))];
+  for (let s = 0; s < seg; s++) for (let k = 0; k < 60; k++) {
+    const t = k / 60, p0 = P(s - 1), p1 = P(s), p2 = P(s + 1), p3 = P(s + 2);
+    dense.push([0, 1, 2].map((c) => 0.5 * ((2 * p1[c]) + (-p0[c] + p2[c]) * t + (2 * p0[c] - 5 * p1[c] + 4 * p2[c] - p3[c]) * t * t + (-p0[c] + 3 * p1[c] - 3 * p2[c] + p3[c]) * t ** 3)));
+  }
+  dense.push(P(seg));
+  const cum = [0];
+  for (let i = 1; i < dense.length; i++) cum.push(cum[i - 1] + Math.hypot(...[0, 1, 2].map((c) => dense[i][c] - dense[i - 1][c])));
+  const total = cum[cum.length - 1], pts = [];
+  for (let i = 0; i < n; i++) {
+    const d = (total * i) / (n - 1);
+    let j = 1;
+    while (j < cum.length - 1 && cum[j] < d) j++;
+    const f = (d - cum[j - 1]) / ((cum[j] - cum[j - 1]) || 1);
+    pts.push([0, 1, 2].map((c) => dense[j - 1][c] + f * (dense[j][c] - dense[j - 1][c])));
+  }
+  return { pts, length: total };
+}
+export const cpuMs = () => { const u = process.cpuUsage(); return (u.user + u.system) / 1000; };
