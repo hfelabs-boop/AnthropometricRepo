@@ -20,17 +20,22 @@
 // * the soft preferences (stiffness, reference pull, pole) are scaled by mu. When the penalised problem is stationary and a goal is still out of
 //   tolerance, mu is divided by 10 (up to three times) and the iteration goes on: the posture stays as close to the start as the goals allow, and the
 //   goals are met to the tolerance when they can be met at all;
-// * a start that fails (a local minimum at the joint limits, an arm that has to go over the head) is retried: the analytic two-bone solution
-//   (shoulder-elbow-wrist, hip-knee-ankle, elbow / knee toward a pole direction, swivel sampled inside the range of motion), then random poses ranked by
-//   cost, deterministically (seeded). The runs from the start and from the analytic poses can all fall into the same corner of the ranges, so the search
-//   stops early only when random poses have agreed too. A reach bound (a straight chain of the free joints) tells goals that no pose can reach: for those
+// * the first run starts from the pose as given (the analytic two-bone pose instead from 20 cm of error, or with options.analyticStart: a straight limb that has to
+//   bend is a singular point). A run that fails (a local minimum at the joint limits, an arm that has to go over the head) is retried: the analytic two-bone solution
+//   (shoulder-elbow-wrist, hip-knee-ankle, elbow / knee toward a pole direction, swivel sampled inside the range of motion), the other sign of the line goals, then
+//   random poses ranked by cost, deterministically (seeded). The runs from the start and from the analytic poses can all fall into the same corner of the ranges, so
+//   the search stops early only when random poses have agreed too. A reach bound (a straight chain of the free joints) tells goals that no pose can reach: for those
 //   the closest pose is searched for (the distance has local minima as well), unless the first run is already as close as the straight chain allows;
-// * FOLLOWING a pose (the start is within 5 cm of the goals, or options.follow: a drag): the pose is the previous frame, so it is never replaced by an
-//   analytic or random pose; the variables stay in a trust region around it (0.03 rad + 4 rad per metre of starting error, widened only when the soft
-//   preferences are out of the way and a variable sits on the border), and options.maxMove bounds the move of every variable per call (DRAG_OPTIONS: 0.04 rad).
-//   The soft preferences that are absolute (the pole of the elbow, the avoidance of the ends of the ranges) would otherwise carry the pose to wherever they
-//   are minimal in one call, and a minimum that appears or disappears with the goal makes the pose jump; the avoidance keeps a tracked hand out of the corners
-//   of the ranges (a joint at its limit, the clavicle at both of its limits, the shoulder at the 180 degree cap) where the figure would stop following.
+// * the winner is SETTLED (settle()): the first iterate within tolerance is on the way to the goals, not where the soft preferences put the redundancy, so the
+//   iteration goes on, almost undamped, on the penalised problem, as long as every goal stays within a quarter of its tolerance (or where it was);
+// * free DOF that no goal depends on (the fingers, the other leg, ... of a big free set) are not variables: they keep their value (idle, see compile());
+// * FOLLOWING a pose (the start is near the goals, or options.follow: a drag): the pose is the previous frame, so the variables stay in a trust region around it
+//   (0.03 rad + 4 rad per metre of starting error, widened when the goals push a variable against the border, or when the soft preferences are out of the way and
+//   a variable sits on it), and options.maxMove bounds the move of every variable per call (DRAG_OPTIONS: 0.04 rad). The soft preferences that are absolute
+//   (the pole of the elbow, the avoidance of the ends of the ranges) would otherwise carry the pose to wherever they are minimal in one call, and a minimum
+//   that appears or disappears with the goal makes the pose jump: the pole is the side the limb is on in the start (or in options.reference) for a near
+//   goal and the default one for a far goal, and the avoidance (which keeps a tracked hand out of the corners of the ranges where the figure would stop
+//   following) fades out between 2 and 5 cm of error, so the pose is a continuous function of the goal where the automatic follow switches on.
 //   A call that is bound by maxMove, whose region is full and whose goals are still 100 tolerances off ends there (the figure is on its way) instead of relaxing
 //   the preferences, which cannot help while the region is the limit.
 // Everything in solve() is deterministic. The iteration loop works on preallocated typed arrays (under 0.3 KB of garbage per iteration, measured); the
@@ -129,10 +134,10 @@ const COST = {
 const LIMIT_COST = 0.05, LIMIT_ZONE = 0.5;
 // The trust region of a solve that follows a previous pose: the variables stay within TRUST_MIN + TRUST_GAIN * (worst starting goal error in metres) radians of
 // their start (a translation counts TRANS_PER_RAD metres per radian), widened by TRUST_GROW when the soft preferences are exhausted and a variable sits on the border of the region.
-const TRUST_MIN = 0.03, TRUST_GAIN = 4, TRUST_GROW = 4, TRUST_OPEN = 6, FOLLOW_BELOW = 0.05;
+const TRUST_MIN = 0.03, TRUST_GAIN = 4, TRUST_GROW = 4, TRUST_OPEN = 6, FOLLOW_BELOW = 0.05, LIMIT_FULL = 0.02, POLE_START_NEAR = 0.05, POLE_START_FAR = 0.2, STRAIGHT_BELOW = 10; // STRAIGHT_BELOW: degrees of elbow or knee flexion below which a limb has no side
 const CLOSEST_RESTARTS = 10; // restarts for a goal beyond the reach: the closest pose is searched for, not a pose that meets it
 const TRANS_PER_RAD = 0.5; // metres of pelvis translation that count as one radian in the trust region
-const DOF_FACTOR = { "shoulder.rot": 1.5, "hip.rot": 1.5, "knee.rot": 2, "ankle.inv": 2, "ankle.rot": 2, "wrist.dev": 1.2, "hip.abd": 1.2 };
+const DOF_FACTOR = { "shoulder.rot": 1.5, "hip.rot": 4, "knee.rot": 5, "ankle.inv": 3, "ankle.rot": 5, "wrist.dev": 1.2, "hip.abd": 2 };
 function costOf(jd, d) {
   const b = baseName(jd.id);
   const base = isFinger(jd) ? COST.hand : REGION_OF[INDEX.get(jd.id)] >= 0 ? COST.vertebra : COST[b] ?? 0.02;
@@ -302,14 +307,20 @@ function sideOf(side) {
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Pose input
+const ROOT_FIELDS = ["x", "y", "z", "heading", "flex", "lat", "rot"];
+/** A finite number can still be absurd: its square, or the sine of an angle that large, would leave no meaning in the sums of the solver. */
+function checkMagnitude(obj, keys, what) {
+  for (const k of keys) { const v = obj[k]; if (v !== undefined && Math.abs(v) > FAR) throw new RangeError(`${what}${k} is absurdly large (more than ${FAR} ${["x", "y", "z"].includes(k) ? "m" : "degrees"}): ${v}`); }
+}
 function loadStart(S, start) {
   if (start === null || typeof start !== "object") throw new TypeError("start must be a pose { root, angles } (what rig.getPose() returns)");
   const root = S.root;
   const r = start.root ?? null;
   if (r === null) { Object.assign(root, { x: 0, y: S.restRootY, z: 0, heading: 0, flex: 0, lat: 0, rot: 0 }); } else {
     if (typeof r !== "object") throw new TypeError("start.root must be an object { x, y, z, heading, flex, lat, rot }");
-    for (const k of Object.keys(r)) if (!["x", "y", "z", "heading", "flex", "lat", "rot"].includes(k)) throw new Error(`start.root: unknown field "${k}"`);
+    for (const k of Object.keys(r)) if (!ROOT_FIELDS.includes(k)) throw new Error(`start.root: unknown field "${k}"`);
     checkRoot(r);
+    checkMagnitude(r, ROOT_FIELDS, "start.root.");
     root.x = r.x ?? 0; root.y = r.y ?? 0; root.z = r.z ?? 0; root.heading = r.heading ?? 0; root.flex = r.flex ?? 0; root.lat = r.lat ?? 0; root.rot = r.rot ?? 0;
   }
   for (let i = 0; i < N; i++) S.angArr[i].fill(0);
@@ -322,6 +333,7 @@ function loadStart(S, start) {
     const v = a[id];
     if (v === null || typeof v !== "object" || typeof v.length !== "number") throw new TypeError(`start.angles.${id} must be an array in DOF order (${JOINTS[i].dof.map((d) => d.key).join(", ")})`);
     const c = checkedAngles(JOINTS[i], v, scratch);
+    for (let k = 0; k < NDOF[i] && k < c.length; k++) if (Math.abs(c[k]) > FAR) throw new RangeError(`start.angles.${id}: angle ${k} is absurdly large (more than ${FAR} degrees): ${c[k]}`);
     for (let k = 0; k < NDOF[i]; k++) S.angArr[i][k] = k < c.length ? c[k] : 0;
   }
 }
@@ -477,8 +489,12 @@ function frameAxes(g, what) {
   if (Array.isArray(g.axes)) return g.axes.map((a, i) => { if (a == null || typeof a !== "object") throw new TypeError(`${what}.axes[${i}] must be { local, world }`); return a; });
   const q = g.quaternion;
   if (q != null) {
-    const Q = Array.isArray(q) || ArrayBuffer.isView(q) ? new THREE.Quaternion(q[0], q[1], q[2], q[3]) : new THREE.Quaternion(q.x, q.y, q.z, q.w);
-    if (![Q.x, Q.y, Q.z, Q.w].every(isNum) || Q.lengthSq() < 1e-12) throw new RangeError(`${what}.quaternion must be four finite numbers, not all zero`);
+    // [x, y, z, w] or { x, y, z, w } (a THREE.Quaternion): every part must be there as a number (the THREE constructor would turn a missing one into 0 or 1)
+    const a = Array.isArray(q) || ArrayBuffer.isView(q) ? (q.length === 4 ? [q[0], q[1], q[2], q[3]] : null) : typeof q === "object" ? [q.x, q.y, q.z, q.w] : null;
+    if (!a) throw new TypeError(`${what}.quaternion must be [x, y, z, w] or { x, y, z, w }`);
+    if (!a.every(isNum)) throw new RangeError(`${what}.quaternion must be four finite numbers, got ${JSON.stringify(a)}`);
+    const Q = new THREE.Quaternion(a[0], a[1], a[2], a[3]);
+    if (Q.lengthSq() < 1e-12) throw new RangeError(`${what}.quaternion must not be all zero`);
     Q.normalize();
     return [[1, 0, 0], [0, 1, 0], [0, 0, 1]].map((l) => ({ local: l, world: new THREE.Vector3(...l).applyQuaternion(Q).toArray() }));
   }
@@ -535,8 +551,8 @@ function checkReference(ref) {
   const root = ref.root ?? null, angles = ref.angles ?? null;
   if (root !== null) {
     if (typeof root !== "object") throw new TypeError("options.reference.root must be an object { x, y, z, heading, flex, lat, rot }");
-    for (const k of Object.keys(root)) if (!["x", "y", "z", "heading", "flex", "lat", "rot"].includes(k)) throw new Error(`options.reference.root: unknown field "${k}"`);
-    try { checkRoot(root); } catch (e) { e.message = `options.reference: ${e.message}`; throw e; }
+    for (const k of Object.keys(root)) if (!ROOT_FIELDS.includes(k)) throw new Error(`options.reference.root: unknown field "${k}"`);
+    try { checkRoot(root); checkMagnitude(root, ROOT_FIELDS, "root."); } catch (e) { e.message = `options.reference: ${e.message}`; throw e; }
   }
   if (angles !== null) {
     if (typeof angles !== "object") throw new TypeError("options.reference.angles must be an object { jointId: [degrees] }");
@@ -569,17 +585,12 @@ function referencePoles(P, ref) {
   for (const pe of P.poles) {
     if (pe.user) continue;
     const u = 3 * pe.ju, m = 3 * pe.jm, e = 3 * pe.je;
-    let vx = Pk[m] - Pk[u], vy = Pk[m + 1] - Pk[u + 1], vz = Pk[m + 2] - Pk[u + 2];
-    let ax = Pk[e] - Pk[u], ay = Pk[e + 1] - Pk[u + 1], az = Pk[e + 2] - Pk[u + 2];
-    const D = Math.hypot(ax, ay, az), v = Math.hypot(vx, vy, vz);
-    if (!(D > 1e-6 && v > 1e-6)) continue;
-    ax /= D; ay /= D; az /= D;
-    const va = vx * ax + vy * ay + vz * az, perp = Math.hypot(vx - va * ax, vy - va * ay, vz - va * az);
-    if (perp < 0.02 * (pe.L1 + pe.L2)) continue; // straight: no side to keep
+    const vx = Pk[m] - Pk[u], vy = Pk[m + 1] - Pk[u + 1], vz = Pk[m + 2] - Pk[u + 2], v = Math.hypot(vx, vy, vz);
+    if (!(v > 1e-6) || Math.abs(S.angRef[IDS[pe.jm]][0]) < STRAIGHT_BELOW) continue; // a (nearly) straight limb has no side to keep
     pe.ref = [vx / v, vy / v, vz / v];
   }
 }
-const OPTION_KEYS = ["free", "lock", "maxIterations", "tolerance", "angTolerance", "damping", "stiffness", "reference", "referenceWeight", "pole", "poleWeight", "angleScale", "stepMax", "rootRange", "restarts", "seed", "warmStart", "follow", "maxMove", "limitStiffness"];
+const OPTION_KEYS = ["free", "lock", "maxIterations", "tolerance", "angTolerance", "damping", "stiffness", "reference", "referenceWeight", "pole", "poleWeight", "angleScale", "stepMax", "rootRange", "restarts", "seed", "warmStart", "analyticStart", "follow", "maxMove", "limitStiffness"];
 function compile(S, start, goals, options) {
   if (options === null || typeof options !== "object") throw new TypeError("options must be an object");
   for (const k of Object.keys(options)) if (!OPTION_KEYS.includes(k)) throw new Error(`unknown option "${k}" (known: ${OPTION_KEYS.join(", ")})`);
@@ -598,9 +609,28 @@ function compile(S, start, goals, options) {
     if (!Array.isArray(lock)) throw new TypeError("options.lock must be an array of joint ids");
     applyNames(S, flags, lock, 0, "options.lock", goalJoints);
   }
+  // A free DOF that no goal depends on (a finger, an eye, the other leg, while the goals are on one hand) cannot help any goal and costs time (the normal matrix grows with the
+  // square of the variables, the Cholesky factor with the cube): it keeps the value it has. Not with a reference (that pulls every free variable toward the chosen posture),
+  // and not when the start is outside the ranges (a free joint is repaired). The joint still appears in the result, as before.
+  P.idle = new Set();
+  if (options.reference == null) {
+    const dep = new Uint8Array(N); // joints that a goal point or direction hangs on, and their ancestors
+    for (const t of terms) for (let a = t.ji; a >= 0; a = PARENT[a]) dep[a] = 1;
+    const inRange = (i, d) => S.angArr[i][d] >= JOINTS[i].dof[d].min && S.angArr[i][d] <= JOINTS[i].dof[d].max;
+    const swingOk = (i) => !CAP_JOINTS.includes(i) || Math.hypot(...JOINTS[i].dof.map((dd, d) => (dd.role === "twist" ? 0 : S.angArr[i][d] * D2R))) <= PI;
+    for (let i = 1; i < N; i++) {
+      if (dep[i] || !swingOk(i)) continue;
+      for (let d = 0; d < NDOF[i]; d++) if (flags.dof[i * 3 + d] && inRange(i, d)) { flags.dof[i * 3 + d] = 0; P.idle.add(i); }
+    }
+    for (let r = 0; r < 3; r++) {
+      if (REGION[r].ji.some((j) => dep[j])) continue;
+      for (let c = 0; c < 3; c++) if (flags.reg[r * 3 + c] && REGION[r].ji.every((j) => inRange(j, c))) { flags.reg[r * 3 + c] = 0; for (const j of REGION[r].ji) P.idle.add(j); }
+    }
+  }
   // a vertebra named in `free` while its region is free is part of the region
   const vk = [], vj = [], vd = [], lo = [], hi = [], x0 = [], x0deg = [], cost = [], names = [], rbase = [], rA = [], rB = [];
   const stiff = options.stiffness ?? {};
+  if (typeof stiff !== "object" || Array.isArray(stiff)) throw new TypeError("options.stiffness must be an object { key: cost length in metres per radian }");
   const costFor = (key, dflt) => { const v = stiff[key]; if (v === undefined) return dflt; if (!(isNum(v) && v >= 0)) throw new RangeError(`options.stiffness.${key} must be a cost length >= 0 (metres per radian)`); return v; };
   for (const k of Object.keys(stiff)) if (!(Object.hasOwn(COST, k) || INDEX.has(k) || REGION_IDS.includes(k) || /^[a-z_]+\.[a-z0-9_]+$/.test(k))) throw new Error(`options.stiffness: unknown key "${k}"`);
   for (let r = 0; r < 3; r++) {
@@ -677,6 +707,7 @@ function compile(S, start, goals, options) {
   for (const c of P.caps) if (c.ks.length > 1) for (const k of c.ks) P.boxScale[k] = Math.SQRT1_2;
   // ---- reference pose (null-space pull)
   P.refW = 0;
+  if (options.referenceWeight !== undefined && !(isNum(options.referenceWeight) && options.referenceWeight >= 0)) throw new RangeError("options.referenceWeight must be a number >= 0");
   if (options.reference != null) {
     const ref = options.reference;
     if (ref === null || typeof ref !== "object") throw new TypeError("options.reference must be a pose { root, angles }");
@@ -714,9 +745,11 @@ function compile(S, start, goals, options) {
     P.tsw[i] = P.tbase[i];
     P.tline[i] = t.line ? 1 : 0;
   });
+  const mGoals = m; // rows of the goal terms; the pole terms come after them
   // ---- poles (elbow / knee swivel): soft terms that put the middle joint in the half-plane of the pole direction, see evalTerms
   P.poles = [];
   const poleOpt = options.pole ?? {};
+  if (typeof poleOpt !== "object" || Array.isArray(poleOpt)) throw new TypeError("options.pole must be an object { elbow_R: [x, y, z] | false, ... }");
   const poleW = options.poleWeight ?? 0.003;
   if (!(isNum(poleW) && poleW >= 0)) throw new RangeError("options.poleWeight must be a number >= 0");
   for (const k of Object.keys(poleOpt)) if (!S.limbs.some((L) => L.name === k)) throw new Error(`options.pole: unknown key "${k}" (known: ${S.limbs.map((L) => L.name).join(", ")})`);
@@ -739,8 +772,9 @@ function compile(S, start, goals, options) {
       pe.t = i;
     });
   }
-  P.m = m; P.ngoal = nt; P.nt = nt + P.poles.length; // terms [0, ngoal) are goals, [ngoal, nt) are pole terms
-  P.r = new Float64Array(m); P.J = new Float64Array(m * n); P.g = new Float64Array(n);
+  P.m = m; P.mg = mGoals; P.ngoal = nt; P.nt = nt + P.poles.length; // terms [0, ngoal) are goals, [ngoal, nt) are pole terms
+  P.sbound = new Float64Array(P.slots.length);
+  P.r = new Float64Array(m); P.J = new Float64Array(m * n); P.g = new Float64Array(n); P.gg = new Float64Array(n); // g: gradient of F, gg: of the goal terms alone
   P.om = new Float64Array(N * 9); P.omStamp = new Int32Array(N); P.stamp = 0;
   P.mu = 1; P.rho = P.refW;
   // scratch for the step
@@ -763,6 +797,9 @@ function compile(S, start, goals, options) {
   P.seed = options.seed ?? 20240607;
   if (!Number.isInteger(P.seed)) throw new RangeError("options.seed must be an integer");
   P.useWarm = options.warmStart !== false;
+  if (options.analyticStart !== undefined && typeof options.analyticStart !== "boolean") throw new TypeError("options.analyticStart must be true or false");
+  P.analyticStart = options.analyticStart === true;
+  P.startPole = 0;
   P.poleDir = new Float64Array(3 * P.poles.length); P.pf = new Float64Array(11 * P.poles.length);
   return P;
 }
@@ -961,6 +998,8 @@ function setPoleDirs(P, S) {
     else {
       const b = POLE_BODY[L.kind](L.side);
       v = [b[0] * c + b[2] * sn, b[1], -b[0] * sn + b[2] * c]; // rotation about +Y by the heading
+      // near the goal the side the limb is on in the start is the one to keep: the default is mixed in as the goal gets farther (see optimise)
+      if (pe.start && P.startPole > 0) { const w = P.startPole, l0 = Math.hypot(v[0], v[1], v[2]) || 1; v = [0, 1, 2].map((k) => (1 - w) * v[k] / l0 + w * pe.start[k]); }
     }
     const l = Math.hypot(v[0], v[1], v[2]) || 1;
     P.poleDir[3 * i] = v[0] / l; P.poleDir[3 * i + 1] = v[1] / l; P.poleDir[3 * i + 2] = v[2] / l;
@@ -1163,7 +1202,9 @@ function prepareStep(P, x) {
   for (let k = 0; k < n; k++) {
     let a = 0;
     const o = k * m;
-    for (let i = 0; i < m; i++) a += J[o + i] * r[i];
+    for (let i = 0; i < P.mg; i++) a += J[o + i] * r[i];
+    P.gg[k] = a;
+    for (let i = P.mg; i < m; i++) a += J[o + i] * r[i];
     a += P.mu * s[k] * (x[k] - x0[k]);
     if (lb[k] > 0) { if (x[k] < zl[k]) a -= P.mu * lb[k] * (zl[k] - x[k]); else if (x[k] > zh[k]) a += P.mu * lb[k] * (x[k] - zh[k]); }
     if (P.rho > 0) a += P.mu * P.rho * s[k] * (x[k] - xr[k]);
@@ -1266,6 +1307,7 @@ function computeStep(P, x, lam) {
 }
 
 const MU_STEPS = 4; // mu = 1, 0.1, 0.01, 0.001
+const SETTLE_LAMBDA = 1e-8, SETTLE_ITER = 12, SETTLE_STEP = 1e-4, SETTLE_GAIN = 1e-2; // settle(): initial damping, most iterations, the step (rad) and the relative gain of F (one step is enough) below which the pose has settled
 
 /**
  * The trust region of a solve that follows a previous pose: no variable leaves [x0 - B, x0 + B] (radians; a translation counts TRANS_PER_RAD metres per radian) nor its range of
@@ -1284,6 +1326,14 @@ function atTrustBound(P) {
   for (let k = 0; k < P.n; k++) if ((P.thi[k] < P.hi[k] && P.x[k] >= P.thi[k] - 1e-9) || (P.tlo[k] > P.lo[k] && P.x[k] <= P.tlo[k] + 1e-9)) return true;
   return false;
 }
+/** Does a variable sit on the border of the trust region with the goals alone pushing outward? Then the region, not a preference, is what keeps a goal from being met. */
+function goalsPushOutOfTrust(P) {
+  for (let k = 0; k < P.n; k++) {
+    if (P.thi[k] < P.hi[k] && P.x[k] >= P.thi[k] - 1e-9 && P.gg[k] < -1e-7) return true;
+    if (P.tlo[k] > P.lo[k] && P.x[k] <= P.tlo[k] + 1e-9 && P.gg[k] > 1e-7) return true;
+  }
+  return false;
+}
 const FAR_OFF = 100; // a goal this many tolerances off (5 cm, 11 degrees) is "on its way", not "almost there"
 function worstRatio(P) {
   let w = 0;
@@ -1295,13 +1345,13 @@ function worstRatio(P) {
  * preferences are relaxed (mu / 10) at a stationary point only while the worst goal error is below `polishBelow` (the first run always does).
  * x is updated in place; on return the FK / term state corresponds to x.
  */
-function lm(P, maxIter, polishBelow = Infinity) {
+function lm(P, maxIter, polishBelow = Infinity, settle = false) {
   const { x, xt, n } = P;
-  setMu(P, 1);
-  let F = evaluate(P, x), lam = P.lambda0, nu = 2, iters = 0, mulevel = 0, small = 0, slow = 0, prevW = Infinity;
+  if (!settle) setMu(P, 1);
+  let F = evaluate(P, x), lam = settle ? SETTLE_LAMBDA : P.lambda0, nu = 2, iters = 0, mulevel = 0, small = 0, slow = 0, prevW = Infinity;
   if (!(F < Infinity)) return { iters, status: "stalled" };
   while (true) {
-    if (P.ok) return { iters, status: "ok" };
+    if (P.ok && !settle) return { iters, status: "ok" };
     if (iters >= maxIter) return { iters, status: "maxiter" };
     iters++;
     buildJac(P);
@@ -1313,7 +1363,7 @@ function lm(P, maxIter, polishBelow = Infinity) {
       for (let k = 0; k < n; k++) { const a = Math.abs(P.dl[k]); if (a > big) big = a; }
       const sc = big > P.stepMax ? P.stepMax / big : 1; // a trust region: no variable moves more than stepMax per iteration
       for (let k = 0; k < n; k++) { xt[k] = Math.min(P.thi[k], Math.max(P.tlo[k], x[k] + sc * P.dl[k])); const a = Math.abs(xt[k] - x[k]); if (a > mx) mx = a; }
-      if (mx < 1e-11) { tiny = true; break; }
+      if (mx < (settle ? SETTLE_STEP : 1e-11)) { tiny = true; break; }
       // reduction the quadratic model predicts for this step (before the cap projection)
       const { na, act, g, H0 } = P;
       let gd = 0, dHd = 0;
@@ -1328,11 +1378,11 @@ function lm(P, maxIter, polishBelow = Infinity) {
       capSwing(P, xt);
       const Fn = evaluate(P, xt);
       const rho = pred > 0 ? (F - Fn) / pred : F - Fn > 0 ? 1 : -1;
-      if (Fn < F && rho > 1e-4) {
+      if (Fn < F && rho > 1e-4 && (!settle || settleOk(P))) { // a settling step may not make a goal worse than it is, or than a quarter of its tolerance
         const gain = F - Fn;
         x.set(xt);
         lam = Math.max(lam * Math.max(1 / 3, 1 - (2 * rho - 1) ** 3), 1e-9); nu = 2; // Nielsen's rule
-        small = gain < 1e-12 * (F + 1e-12) ? small + 1 : 0;
+        small = gain < (settle ? SETTLE_GAIN : 1e-12) * (F + 1e-12) ? small + 1 : 0;
         let w = 0; // the worst goal error: when it stops improving the penalised problem is solved and the soft preferences must give way
         for (let t = 0; t < P.ngoal; t++) if (P.te[t] > w) w = P.te[t];
         slow = prevW - w < Math.max(1e-3 * prevW, 1e-9) ? slow + 1 : 0; prevW = w;
@@ -1342,7 +1392,7 @@ function lm(P, maxIter, polishBelow = Infinity) {
       lam = Math.min(lam * nu, 1e9); nu *= 2;
     }
     if (!accepted) evaluate(P, x); // the FK state must match x again
-    if (accepted && !tiny && small < 2 && slow < 2) continue;
+    if (accepted && !tiny && small < (settle ? 1 : 2) && (settle || slow < 2)) continue;
     // stationary: tighten the soft preferences and go on, or give up
     if (P.ok) return { iters, status: "ok" };
     let w1 = 0;
@@ -1350,7 +1400,10 @@ function lm(P, maxIter, polishBelow = Infinity) {
     // bound to a small move per call and a variable sits on the border of its box: the figure is on its way, the next call goes on (relaxing the preferences
     // would only spend iterations on a region that is already full)
     if (P.B >= P.maxMove && P.B < Infinity && atTrustBound(P) && worstRatio(P) > FAR_OFF) return { iters, status: "stalled" };
-    const relax = mulevel + 1 < MU_STEPS && w1 < polishBelow;
+    // the goals themselves push a variable against the border of the region (a squat from straight legs: the knee has to bend farther than a few centimetres of error
+    // suggest, since a straight leg shortens only with the square of the bend): relaxing the preferences cannot help, the region has to grow first
+    const regionBinds = P.B < Infinity && P.B < P.maxMove && goalsPushOutOfTrust(P);
+    const relax = !regionBinds && mulevel + 1 < MU_STEPS && w1 < polishBelow;
     if (!relax && P.B < Infinity && P.B < P.maxMove && atTrustBound(P)) { // the preferences are out of the way and the region is what stops the goal: widen it (up to maxMove)
       const wide = P.B * TRUST_GROW;
       setBox(P, wide > P.maxMove ? P.maxMove : wide > TRUST_OPEN ? Infinity : wide);
@@ -1495,8 +1548,31 @@ function reachBound(P, t) {
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The solve
-function snapshot(P) { return { x: Float64Array.from(P.x), fix: Int8Array.from(P.tfix) }; }
+function snapshot(P) { return { x: Float64Array.from(P.x), fix: Int8Array.from(P.tfix), mu: P.mu, B: P.B }; }
 function restore(P, s) { P.x.set(s.x); P.tfix.set(s.fix); }
+
+const SETTLE_KEEP = 0.25; // a settling step may take a goal up to this part of its tolerance (or keep the error it has, if that is more)
+function settleOk(P) {
+  if (!P.ok) return false;
+  for (let t = 0; t < P.ngoal; t++) if (P.te[t] > P.sbound[P.tslot[t]]) return false;
+  return true;
+}
+/**
+ * A run stops at the first iterate within tolerance. That iterate is on the way to the goals, not at the pose the soft preferences ask for: the redundancy
+ * (axial twist of a squatting leg, the swivel of an elbow) keeps whatever the first large steps left in it, which depends on the path of the iteration, so
+ * 2 mm apart two goals could end in two different poses, and the next call from the result started from a pose that sat up to the tolerance off the goals.
+ * So the winner is settled: the iteration goes on, with an almost undamped Gauss-Newton step, on the penalised problem (the preferences as strong as in the run that met the goals) in the trust region of the run, and a step is taken only if it lowers F and keeps every goal within its tolerance. It ends in the pose the preferences
+ * select among those that meet the goals, the same one for every path to it, and the goals end much closer than the tolerance.
+ */
+function settle(P, snap, maxIter) {
+  restore(P, snap);
+  setBox(P, snap.B);
+  evaluate(P, P.x);
+  P.sbound.fill(0);
+  for (let t = 0; t < P.ngoal; t++) { const sl = P.tslot[t]; P.sbound[sl] = Math.max(P.sbound[sl], P.te[t], SETTLE_KEEP * P.slots[sl].tol); }
+  setMu(P, snap.mu); // not stronger than the run needed to meet the goals: a stronger preference would settle the pose where a goal is off by its tolerance
+  return lm(P, maxIter, Infinity, true).iters;
+}
 
 /**
  * Is any goal beyond what a straight chain of its free joints could reach? Then no pose meets it. P.gcLower receives the least goal cost any pose can have
@@ -1528,13 +1604,38 @@ function optimise(P) {
     else if (P.vk[k] === 1) for (const j of REGION[P.vj[k]].ji) P.freeJoint[j] = 1;
   }
   let F0 = evaluate(P, P.x);
+  if (capSwing(P, P.x)) F0 = evaluate(P, P.x); // a free shoulder that starts beyond the 180 degree cap is repaired, also when the goals are met
   if (P.ok) return { iters: 0, status: "ok" }; // already there: the pose is returned untouched
   if (P.n === 0) return { iters: 0, status: "stalled" }; // nothing is free: there is nothing to solve
   // restarts: by default 8, but only 1 when the start is already close to the goals (a drag follows a path: the previous pose is the right basin)
   let w0 = 0, e0 = 0; // worst start error (metres or radians) and in metres (an angle counts angleScale metres per radian)
   for (let t = 0; t < P.ngoal; t++) { const e = P.te[t], m = P.tk[t] === T_DIR || P.tk[t] === T_AIM ? e * P.angleScale : e; if (e > w0) w0 = e; if (m > e0) e0 = m; }
   P.follow = P.followOpt ?? w0 < FOLLOW_BELOW;
-  if (!P.follow && P.limitOpt === undefined) { P.lb.fill(0); F0 = evaluate(P, P.x); } // the order of the stiffness (the arm first, then the clavicle, then the trunk) decides a reach
+  // The default side of an elbow or a knee (down and out, forward) would carry the limb of a posture somebody set toward it, the more completely the longer the iteration runs.
+  // Near the goal the limb keeps the side it is on (the pole of the start); the default takes over between POLE_START_NEAR and POLE_START_FAR of error, so that the pose
+  // does not jump where the limb stops being "near". follow: true keeps the side of the start, follow: false takes the default.
+  if (P.poles.length) {
+    const Pk = P.kin.positions;
+    for (const pe of P.poles) {
+      pe.start = null;
+      const u = 3 * pe.ju, m = 3 * pe.jm, e = 3 * pe.je;
+      const vx = Pk[m] - Pk[u], vy = Pk[m + 1] - Pk[u + 1], vz = Pk[m + 2] - Pk[u + 2], D = Math.hypot(Pk[e] - Pk[u], Pk[e + 1] - Pk[u + 1], Pk[e + 2] - Pk[u + 2]), v = Math.hypot(vx, vy, vz);
+      if (!(D > 1e-6 && v > 1e-6)) continue;
+      if (Math.abs(P.angArr[pe.jm][0]) < STRAIGHT_BELOW) continue; // (nearly) straight: no side to keep
+      pe.start = [vx / v, vy / v, vz / v];
+    }
+    P.startPole = P.followOpt === true ? 1 : P.followOpt === false ? 0 : Math.min(1, Math.max(0, (POLE_START_FAR - w0) / (POLE_START_FAR - POLE_START_NEAR)));
+    setPoleDirs(P, P.S);
+    F0 = evaluate(P, P.x);
+  }
+  // The avoidance of the ends of the ranges is for a pose that is followed (a drag): it moves joints out of the zones of their ends, which is not what a reach from a posture
+  // somebody set should do. Given follow: true it is on; automatically it fades out between LIMIT_FULL and FOLLOW_BELOW of error, so that the pose is a continuous
+  // function of the goal where follow switches on by itself (4.9 cm and 5.1 cm gave postures 14 degrees apart, the median joint, when it was all or nothing).
+  if (P.limitOpt === undefined && P.followOpt !== true) {
+    const fade = P.followOpt === false ? 0 : Math.min(1, Math.max(0, (FOLLOW_BELOW - w0) / (FOLLOW_BELOW - LIMIT_FULL)));
+    for (let k = 0; k < P.n; k++) P.lb[k] *= fade * fade;
+    F0 = evaluate(P, P.x);
+  } // the order of the stiffness (the arm first, then the clavicle, then the trunk) decides a reach
   if (P.restarts < 0) P.restarts = P.follow ? 1 : 8;
   if (P.maxMove < Infinity) { P.restarts = 0; setBox(P, Math.min(P.maxMove, TRUST_MIN + TRUST_GAIN * e0)); } // a restart starts anywhere: it cannot keep the move small
   else setBox(P, TRUST_MIN + TRUST_GAIN * e0); // the first run stays near the pose it was given, as far as the goals allow: continuous in the distance
@@ -1549,14 +1650,19 @@ function optimise(P) {
     return x;
   };
   const warm = P.useWarm && P.poles.length ? analytic(undefined) : null;
-  const first = plain; // always the pose as given first: a start that solves keeps its posture, the analytic and random poses are for a start that does not
+  // The pose as given first when the goals are not far from it: a start that solves keeps its posture (the analytic pose, taken from 8 cm away, turned the shoulder of a
+  // raised arm by 133 degrees). From POLE_START_FAR of error there is no posture to keep and the analytic pose is the better start (elbows on the pole side, and a run of
+  // 4 iterations where the hanging arm needs 12); it is also taken when asked (analyticStart): a straight limb that has to bend (a squat) is a singular point, the first
+  // steps from it leave the plane of the limb and the run ends in a pose with twisted legs. Not while the move per call is bounded (a drag): its own basin.
+  const first = warm && (P.analyticStart || (P.followOpt !== true && w0 >= POLE_START_FAR)) && P.maxMove === Infinity && evaluate(P, warm) < F0 ? warm : plain;
+  if (first === warm) setBox(P, Infinity); // the analytic pose is far from the pose as given, and so may be outside its trust region
   P.x.set(first);
   evaluate(P, P.x);
   let totalIters = 0;
   const res = lm(P, P.maxIter);
   totalIters += res.iters;
+  let best = { snap: snapshot(P), ok: P.ok, gc: P.gc, status: res.status }; // with the trust region of this run: settle() stays inside it
   if (P.maxMove === Infinity) setBox(P, Infinity); // the restarts start anywhere
-  let best = { snap: snapshot(P), ok: P.ok, gc: P.gc, status: res.status };
   // when to stop restarting: three restarts ended where the best run ended, two of them from random poses (that is the closest the pose gets: the runs from the
   // start and from the analytic poses can all fall into the same corner of the ranges), or the best is already within 3 cm and three restarts in a row did not
   // improve on it (a goal just beyond what the limits allow)
@@ -1603,10 +1709,11 @@ function optimise(P) {
       const analyticRun = (sec) => () => { const x = analytic(sec); if (x) run(x, false); };
       const sampleRun = (i) => () => { const x = sampled(i); if (x) { sampleRuns++; run(x, false); } };
       // a bar axis has no sign: a run takes the sign that is nearer to the direction it is at, so a wrong first choice is mostly repaired on the way, but a run that
-      // ends in a corner of the wrist's ranges because it started on the wrong side needs the other sign from the start: that restart comes first and is exempt from the early stop
+      // ends in a corner of the wrist's ranges because it started on the wrong side may need the other sign from the start: that restart follows the analytic one, before
+      // the early stop can apply (it needs two runs from random poses)
       const lines = P.tline.some((v, t) => v && t < P.ngoal);
       if (closest) queue.push(sampleRun(0), sampleRun(1)); // the random poses are the most productive restarts for a goal beyond the reach
-      if (warm) queue.push(() => run(warm, false));
+      if (warm) queue.push(() => run(first === warm ? plain : warm, false));
       if (lines) queue.push(() => run(plain, true));
       if (P.poles.length) queue.push(analyticRun(1), analyticRun(2));
       if (!closest) queue.push(sampleRun(0), sampleRun(1));
@@ -1616,7 +1723,8 @@ function optimise(P) {
       for (let q = 0; q < queue.length && q < most && !best.ok && (closest || (!(agree >= 3 && sampleRuns >= 2) && !(best.err < 0.03 && still >= 3))); q++) queue[q]();
     }
   }
-  restore(P, best.snap);
+  if (best.ok) totalIters += settle(P, best.snap, Math.min(SETTLE_ITER, P.maxIter));
+  else restore(P, best.snap);
   setMu(P, Math.pow(0.1, MU_STEPS - 1)); // the soft preferences hardly count in the gradient that finish() reads to tell which limits push against the goals
   evaluate(P, P.x);
   return { iters: totalIters, status: best.status };
@@ -1650,7 +1758,7 @@ function finish(P, out, start, t0) {
   const angles = {};
   const src = start.angles ?? {};
   for (const id of Object.keys(src)) { const i = INDEX.get(id); angles[id] = Array.from({ length: NDOF[i] }, (_, d) => S.angArr[i][d]); }
-  const touched = new Set();
+  const touched = new Set(P.idle);
   for (let k = 0; k < P.n; k++) {
     if (P.vk[k] === 0) touched.add(P.vj[k]);
     else if (P.vk[k] === 1) for (const j of REGION[P.vj[k]].ji) touched.add(j);
@@ -1804,11 +1912,13 @@ export function convexHull(points) {
 }
 
 function envelopeImpl(S, start, side, options = {}) {
+  if (options === null || typeof options !== "object") throw new TypeError("reachEnvelope: options must be an object { samples, seed, trunk, clavicle, rangeFraction, landmark }");
   const t0 = now();
   const sd = sideOf(side);
   const { samples = 2000, seed = 1, trunk = false, clavicle = true, rangeFraction = 1, hull = true } = options;
   const landmark = options.landmark ?? "grip_centre";
   if (!(Number.isInteger(samples) && samples >= 1 && samples <= 200000)) throw new RangeError("samples must be an integer from 1 to 200000");
+  if (!Number.isInteger(seed)) throw new RangeError("seed must be an integer");
   if (!(isNum(rangeFraction) && rangeFraction > 0 && rangeFraction <= 1)) throw new RangeError("rangeFraction must be a number in (0, 1]");
   const e = S.lm.get(`${landmark}_${sd}`) ?? S.lm.get(landmark);
   if (!e) throw new Error(`unknown landmark "${landmark}"`);
@@ -1948,23 +2058,30 @@ const FOOT_PINS = (s) => [`heel_sole_${s}`, `ball_sole_medial_${s}`, `ball_sole_
 
 /**
  * Move the pelvis and keep the rest where it is. move: { dy } or { dx, dy, dz } (metres) or { target: [x, y, z] } (the new pelvis position). options:
- * pinFeet (default true: the heel and the two balls of each foot stay), pinHands (false), pin (more landmark ids), free (default both legs, plus the arms
- * and clavicles when the hands are pinned), and every option of solve(). The root is moved first and the legs re-solved, so it is the squat / stand-up solver:
- * root.y decreases, hips and knees flex, the feet stay.
+ * pinFeet (default true: the heel and the two balls of each foot stay), pinHands (false), pin (more landmark ids), anchor (a pose: the pinned points stay where
+ * THAT pose has them, by default `start`), free (default both legs, plus the arms and clavicles when the hands are pinned), and every option of solve(). The root is
+ * moved first and the legs re-solved, so it is the squat / stand-up solver: root.y decreases, hips and knees flex, the feet stay.
+ * A slider that calls this with every new height should pass the pose it started from as `anchor` (and the pose of the previous call as `start`): each call then
+ * pins the feet where they were put in the first place, so the few micrometres a call is short of the pins cannot add up to a creep of the feet.
  */
 export function movePelvis(solver, start, move, options = {}) {
+  if (start === null || typeof start !== "object") throw new TypeError("movePelvis: start must be a pose { root, angles } (what rig.getPose() returns)");
   if (move === null || typeof move !== "object") throw new TypeError("move must be { dy } | { dx, dy, dz } | { target: [x, y, z] }");
-  const { pinFeet = true, pinHands = false, pin = [], ...rest } = options;
+  if (options === null || typeof options !== "object") throw new TypeError("movePelvis: options must be an object");
+  const { pinFeet = true, pinHands = false, pin = [], anchor = start, ...rest } = options;
+  if (anchor === null || typeof anchor !== "object") throw new TypeError("movePelvis: options.anchor must be a pose { root, angles }");
   const r0 = start.root ?? solver.restRoot;
   const to = move.target != null ? asPoint(move.target, "move.target") : [(r0.x ?? 0) + (move.dx ?? 0), (r0.y ?? 0) + (move.dy ?? 0), (r0.z ?? 0) + (move.dz ?? 0)];
-  for (const v of to) if (!isNum(v)) throw new RangeError("the new pelvis position must be finite");
+  for (const v of to) if (!isNum(v) || Math.abs(v) > FAR) throw new RangeError(`the new pelvis position must be finite and within ${FAR} m of the origin, got ${JSON.stringify(to)}`);
   const ids = [...(pinFeet ? SIDES.flatMap(FOOT_PINS) : []), ...(pinHands ? SIDES.map((s) => `grip_centre_${s}`) : []), ...pin];
-  const goals = pinGoals(solver, start, ids, { weight: rest.pinWeight });
+  const goals = pinGoals(solver, anchor, ids, { weight: rest.pinWeight }); // where the pinned points are: in `anchor`, by default in `start`
   delete rest.pinWeight;
   const moved = { root: { ...r0, x: to[0], y: to[1], z: to[2] }, angles: start.angles ?? {} };
   const free = rest.free ?? [...(pinFeet ? ["legs"] : []), ...(pinHands ? ["arms", "clavicles"] : [])];
   delete rest.free;
-  return solver.solve(moved, goals, { free, ...rest });
+  // no avoidance of the ends of the ranges (a drag's feature): a squat comes near the ankle's dorsiflexion limit by design, and the avoidance would buy the ankle some
+  // room with axial twist of the whole leg
+  return solver.solve(moved, goals, { free, limitStiffness: 0, analyticStart: true, ...rest });
 }
 
 /**
@@ -2032,13 +2149,15 @@ export function reachEnvelope(solver, start, side, options) {
  * describeResult(result, goalLabel) uses it for every goal that has no label of its own.
  */
 export function goalLabel(id) {
-  let s = String(id), tail = "", pinned = false;
+  if (typeof id !== "string") return String(id); // a number or NaN is not a name to take apart
+  let s = id, tail = "", pinned = false;
   if (s.startsWith("pin:")) { pinned = true; s = s.slice(4); }
   if (s.endsWith(".rot")) { s = s.slice(0, -4); tail = " orientation"; } else if (s.endsWith(".frame")) { s = s.slice(0, -6); tail = " frame"; }
   const parts = s.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().split("_").filter(Boolean), last = parts[parts.length - 1];
   const side = parts.length > 1 && (last === "l" || last === "r") ? (parts.pop(), last === "l" ? "left" : "right") : "";
-  const words = `${side} ${parts.join(" ")}`.trim() + tail + (pinned ? " (pinned)" : "");
-  return words ? words[0].toUpperCase() + words.slice(1) : String(id);
+  const name = `${side} ${parts.join(" ")}`.trim();
+  const out = (name || !pinned ? name + tail + (pinned ? " (pinned)" : "") : "pinned point").trim();
+  return out ? out[0].toUpperCase() + out.slice(1) : String(id);
 }
 
 /**
@@ -2052,12 +2171,13 @@ export function describeResult(result, labels = {}) {
   const blocking = (result.clamped ?? []).filter((c) => c.blocking);
   for (const [id, err] of Object.entries(result.error ?? {})) {
     const tol = result.tolerance?.[id] ?? DEFAULT_TOL;
-    if (!(err > tol)) continue;
+    if (!(err > tol) && !Number.isNaN(err)) continue; // NaN is not "met": it is a result that cannot be shown as a number
     // the limits that push against THIS goal, the strongest first (a Result of an older version has no pushedBy: all of them)
     const limits = blocking.filter((c) => !c.pushedBy || c.pushedBy.some((p) => p.goal === id))
       .sort((a, b) => (b.pushedBy?.find((p) => p.goal === id)?.force ?? 0) - (a.pushedBy?.find((p) => p.goal === id)?.force ?? 0));
     const angle = result.units?.[id] === "rad";
     const what = typeof labels === "function" ? labels(id) : labels !== null && typeof labels === "object" && Object.hasOwn(labels, id) ? labels[id] : id;
+    if (!Number.isFinite(err)) { lines.push(`${what}: the error could not be computed (${err}); the pose is not usable.`); continue; }
     const deg = err * R2D, mm = err * 1000;
     const amount = angle ? `${deg.toFixed(deg < 10 ? 1 : 0)} degrees off` : `${mm.toFixed(mm < 10 ? 1 : 0)} mm short of`;
     let why = "";

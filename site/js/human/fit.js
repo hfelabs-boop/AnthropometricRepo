@@ -190,7 +190,7 @@ const K = {
                             // twice the measured lean. leanMaxDeg stops it at 4.9 degrees (MODEL.md 4.1, 7.1)
   leanMaxDeg: 4.9,          // the largest lean of the shank from the vertical (degrees): the measured 3 to 4 degrees of the leg + 1 for the vertical thigh, and under the 5 degrees that the checks of the tests allow.
                             // It binds for 2,832 of the 2,928 bodies of MODEL.md 7.1 (97 %; their lean would be 4.5 to 7.3 degrees for the 40 %): the shank leans 4.9 degrees and the centre of mass
-                            // lies 25 to 47 mm (median 36) in front of the ankle, 34 to 40 % (median 37.5) of the foot from the heel
+                            // lies 27 to 44 mm (median 36; 26 to 46 over 600 real people) in front of the ankle, 34 to 40 % (median 37.5) of the foot from the heel
   spineBack: { lumbar: 0.095, thoracic: 0.095, cervical: 0.052 }, // vertebral body centre to the skin of the back (approx.; the lumbar value is also tuned so that the
                             // abdominal depth sitting, measured against a wall, is 20 mm more than the standing waist depth as in the surveys)
   // spine curve: angles of the vertebral centre line from the vertical, + = leaning forward going up

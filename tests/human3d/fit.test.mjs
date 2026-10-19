@@ -330,6 +330,18 @@ test("stance: the centre of mass of quiet standing is 34 to 40 % of the foot len
   for (const [sex, S, M] of [["M", 1750, 78], ["F", 1620, 62]]) { const b = fitBody(P(S, sex, M)); assert.ok(Math.abs(b.massInfo.com[2] - b.positions.hip_L[2]) < 0.005, `${sex}: COM ${b.massInfo.com[2]} vs hip ${b.positions.hip_L[2]}`); }
 });
 
+// The window of stanceOk (20 to 50 mm) is a plausibility window, not the literature: the sources have the centre of mass further forward than the model. This test pins the DECISION so that a later change
+// of the lean cap is deliberate: the median man stands with his centre of mass 33 to 39 mm in front of the ankle and 36 to 39 % of the foot from the heel, i.e. 1 to 14 mm short of Hellebrandt's 40 to 50 mm,
+// 8 to 25 mm short of Di Giulio and Baltzopoulos's 47 to 58 mm (hip in front of the ankle) and about 2 % of the foot short of Kawai's 39.6 %; MODEL.md 7.1 states why (the cap of 4.9 degrees keeps the knee 21 to 36 mm
+// in front of the ankle as measured, the 40 % would need 5.9 degrees).
+test("stance: the model stands a few millimetres BEHIND the measured centre of mass of quiet standing, on purpose (MODEL.md 7.1), while the knee stays where it was measured", () => {
+  const b = fitBody(P(1750, "M", 78)), ahead = mm(b.massInfo.com[2] - b.positions.ankle_L[2]), fromHeel = b.stance.comFromHeel;
+  assert.ok(ahead > 33 && ahead < 39, `${ahead} mm`);
+  assert.ok(ahead < 40, "below Hellebrandt's lower value (40 mm), as documented in MODEL.md 7.1");
+  assert.ok(fromHeel > 0.36 && fromHeel < 0.39 && fromHeel < 0.396, `${fromHeel} of the foot (Kawai et al. 1997: 0.396)`);
+  assert.ok(mm(b.stance.ankleBehindKneeM) > 21 && mm(b.stance.ankleBehindKneeM) < 40, `the knee is ${mm(b.stance.ankleBehindKneeM)} mm in front of the ankle (measured 21 to 26 mm for the knee, Di Giulio and Baltzopoulos 2019; the vertical thigh puts the hip as far)`);
+});
+
 test("stance: the shank lean is solved for the 40 % of the foot and capped at 4.9 degrees (a short foot reaches the 40 % exactly, a long one is stopped by the cap; never above 5 degrees)", () => {
   // Regression test of the independent check "neutral shank lean is 4.5-7.3 degrees, twice the literature value": with a vertical thigh the 40 % needs 5.9 degrees for the median man
   // (MODEL.md 4.1, 7.1); the measured lean of the leg is 3 to 4. A foot of 0.215 m (the shortest the fit accepts for this man; 200 mm is rejected as implausible) reaches the 40 % at 4.7 degrees: no cap. A foot of 0.32 m needs 7 degrees:

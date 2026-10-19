@@ -102,9 +102,12 @@ test("standing neutral: upright trunk, straight legs, flat feet (measured values
   // the pelvis of the model is tilted forward by 17 degrees (clinical standing values 5 to 15), the neck line 37 degrees (craniovertebral angle 53)
   near(m.pelvisTilt, 17, 4, "pelvic tilt"); near(m.neckInclination, 37, 6, "neck inclination");
   near(m.headInclination, 0, 1e-6); near(m.neckFlexion, 0, 1.5); near(m.headTilt, 0, 1e-6); near(m.gazeElevation, 0, 1e-6, "neutral gaze");
-  // legs: hip 179.5; the model's neutral shank leans forward about the ankle (fit.js leanLegs, quiet standing): knee 174.3, ankle 84.3, shank -5.7
+  // legs: hip 179.5; the model's neutral shank leans forward about the ankle (fit.js leanLegs, quiet standing): knee 175.1, ankle 85.1, shank -4.9 (the lean is capped at 4.9 degrees, MODEL.md 7.1; 4.5 to 4.9 over real people)
   near(m.hipAngle_L, 180, 3, "hip"); near(m.thighInclination_L, -90, 1e-6);
   near(m.kneeAngle_L, 180, 8, "knee"); near(m.ankleAngle_L, 90, 8, "ankle"); near(m.shankInclination_L, 0, 8, "shank");
+  // tight: the model has the lean of the stance (man.stance.shankLeanDeg), a few degrees as measured in quiet standing (Di Giulio and Baltzopoulos 2019: 3 to 4), not a vertical shank and not 6
+  near(m.shankInclination_L, -man.stance.shankLeanDeg, 0.05, "shank = stance lean"); assert.ok(man.stance.shankLeanDeg >= 3 && man.stance.shankLeanDeg <= 5, `lean ${man.stance.shankLeanDeg}`);
+  near(m.kneeAngle_L, 180 - man.stance.shankLeanDeg, 0.3, "knee = 180 - lean (thigh vertical)"); near(m.ankleAngle_L, 90 - man.stance.shankLeanDeg, 0.3, "ankle = 90 - lean (sole flat)");
   assert.ok(m.kneeAngle_L > 168 && m.ankleAngle_L < 90 && m.shankInclination_L < 0, "the lean is forward about the ankle");
   // arms hang: 3 to 14 degrees of rest abduction, straight elbow, hand below the hip
   near(m.upperArmInclination_L, 6.4, 8, "arm hangs"); assert.ok(m.upperArmInclination_L > 2 && m.shoulderAbduction_L > 2);

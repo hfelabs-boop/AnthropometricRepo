@@ -221,3 +221,166 @@ test("every posture of the Reference group is valid on the six bodies and on eve
   for (const [name, b] of bodies) for (const p of REFERENCE) { const r = P.validatePosture(b, p, { library: REFERENCE }); if (!r.ok) bad.push(`${name} | ${p.id}: ${r.errors[0]}`); }
   assert.equal(bad.length, 0, `${bad.length} failures, e.g. ${bad.slice(0, 4).join(" || ")}`);
 });
+
+// ================================================================================================================ 4. second independent pass (round 2 of the check)
+// Nothing below reads the numbers of the reconciled tests either. What is new here: random profiles (not the surveys), the lean read from the rig and the skin instead of from fit.js,
+// the tilt posture checked against a rigid rotation about the ankle, the skin of the ankle and the foot checked for holes, the loads.
+import * as THREE from "three";
+import { buildRig } from "../../site/js/human/rig.js";
+import { buildSkin } from "../../site/js/human/body.js";
+
+function lcg(seed) { let s = seed >>> 0; return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 4294967296; }
+const manual = (sex, stature, mass, extra = {}) => ({ id: "r", label: "r", sex, source: { kind: "manual" }, notes: [], measures: { stature: { value: stature, unit: "mm" }, mass: { value: mass, unit: "kg" }, ...extra } });
+
+test("random profiles (400: stature 1.30-2.20 m, BMI 15-55, both sexes, with and without a foot length / a sitting height): the neutral stance is quiet standing, the soles are level on the floor", () => {
+  const rnd = lcg(20261019), U = (a, c) => a + (c - a) * rnd(), bad = [];
+  let n = 0;
+  for (let i = 0; i < 400; i++) {
+    const sex = rnd() < 0.5 ? "M" : "F", st = U(1300, 2200), mass = U(15, 55) * (st / 1000) ** 2, extra = {};
+    if (rnd() < 0.5) extra.foot_length = { value: st * U(0.125, 0.18), unit: "mm" };
+    if (rnd() < 0.3) extra.sitting_height = { value: st * U(0.5, 0.55), unit: "mm" };
+    const b = fitBody(manual(sex, st, mass, extra)), s = stance(b), tag = `${sex} ${st.toFixed(0)} mm ${mass.toFixed(0)} kg ${JSON.stringify(Object.keys(extra))}`;
+    n++;
+    if (s.lean < 1 || s.lean > 5) bad.push(`${tag}: lean ${s.lean.toFixed(2)}`);
+    if (s.comAhead < 20 || s.comAhead > 50) bad.push(`${tag}: COM ${s.comAhead.toFixed(1)} mm in front of the ankle`);
+    if (s.comFromHeel < 0.33 || s.comFromHeel > 0.405) bad.push(`${tag}: COM ${(100 * s.comFromHeel).toFixed(1)} % of the foot`);
+    if (s.lowest < -3e-6 || s.feetOff > 3e-6 || s.heelY > 3e-6 || s.toeY > 3e-6) bad.push(`${tag}: floor ${mm(s.lowest)} / ${mm(s.feetOff)}`);
+    if (s.hipOverKnee > 1e-9) bad.push(`${tag}: thigh not vertical`);
+    const v = verdict(b, "neutral", 0);
+    if (v.fall || v.margin < 0.045) bad.push(`${tag}: neutral margin ${mm(v.margin).toFixed(0)} mm`);
+    if (!verdict(b, "fwd40", 0).fall) bad.push(`${tag}: 40 degrees forward stands`);
+  }
+  assert.equal(n, 400);
+  assert.equal(bad.length, 0, `${bad.length} of 400: ${bad.slice(0, 5).join(" | ")}`);
+});
+
+test("the stance of the rig is the stance of the fit: rig.centerOfMass() is the mass-weighted centre of fit.js and of pose.js, the ankle of the rig is behind the knee by body.stance, the soles of the rig are on the floor", opt, () => {
+  for (const [name, b] of Object.entries(six())) {
+    const rig = buildRig(b, { skeleton: false, quality: "low" });
+    const com = rig.centerOfMass().point, kin = P.solvePose(b, P.neutralPose(), { y: b.joints.pelvis.offset[1] }), pc = P.centerOfMass(b, P.neutralPose(), { y: b.joints.pelvis.offset[1] }).point;
+    assert.ok(Math.hypot(com.x - pc.x, com.y - pc.y, com.z - pc.z) < 1e-9, `${name}: rig COM ${com.toArray()} vs pose COM ${pc.toArray()}`);
+    assert.ok(Math.abs(com.z - b.massInfo.com[2]) < 1e-5 && Math.abs(com.y - b.massInfo.com[1]) < 1e-5, `${name}: rig COM ${com.toArray()} vs fit ${b.massInfo.com}`);
+    const k = rig.jointWorld("knee_L"), a = rig.jointWorld("ankle_L");
+    assert.ok(Math.abs((k.z - a.z) - b.stance.ankleBehindKneeM) < 1e-6, `${name}: rig lean`);
+    assert.ok(Math.abs(kin.position("ankle_L").z - a.z) < 1e-9);
+    const soles = rig.contactPoints("feet").map((p) => p.y);
+    assert.ok(Math.max(...soles) < 3e-6 && Math.min(...soles) > -3e-6, `${name}: soles ${Math.min(...soles)}..${Math.max(...soles)}`);
+    assert.ok(Math.abs(rig.lowestY()) < 3e-6, `${name}: lowestY ${rig.lowestY()}`);
+    // the balance margin, recomputed here: distance from the COM to the nearest edge of the convex hull of the sole contacts (a rectangle-ish polygon: heel, ball, toe of both feet)
+    const pts = rig.contactPoints("feet").map((p) => [p.x, p.z]);
+    const hull = hullOf(pts); let min = Infinity;
+    for (let i = 0; i < hull.length; i++) { const A = hull[i], B = hull[(i + 1) % hull.length], L = Math.hypot(B[0] - A[0], B[1] - A[1]); min = Math.min(min, ((B[0] - A[0]) * (com.z - A[1]) - (B[1] - A[1]) * (com.x - A[0])) / L); }
+    const r = P.validatePosture(b, base({}));
+    assert.ok(Math.abs(min - r.metrics.balanceMargin) < 1e-9, `${name}: margin ${min} here vs ${r.metrics.balanceMargin} in pose.js`);
+    rig.dispose();
+  }
+});
+function hullOf(points) {
+  const p = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]), cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+  for (const q of p) { while (lo.length >= 2 && cr(lo.at(-2), lo.at(-1), q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of [...p].reverse()) { while (up.length >= 2 && cr(up.at(-2), up.at(-1), q) <= 0) up.pop(); up.push(q); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+
+test("the tilt posture used for the balance verdicts is a rigid rotation of the body about the ankle axis: the centre of mass moves by R(angle) about the ankle, whatever the body", opt, () => {
+  for (const [name, b] of Object.entries(six())) {
+    const at = (d) => {
+      const pose = P.expandPosture(base(tilt(d))), root = P.placePose(b, { root: pose.root, angles: pose.angles }, { support: "feet" });
+      const kin = P.solvePose(b, { root: pose.root, angles: pose.angles }, root), com = P.centerOfMass(b, { root: pose.root, angles: pose.angles }, root).point, an = kin.position("ankle_L");
+      return { dz: com.z - an.z, dy: com.y - an.y, sole: Math.min(...b.contacts.feet.map((id) => P.landmarkPosition(b, { root: pose.root, angles: pose.angles }, root, id).y)) };
+    };
+    const n = at(0);
+    for (const d of [-10, -5, 5, 10, 20, 40]) {
+      const t = d * Math.PI / 180, o = at(d);
+      const ez = n.dz * Math.cos(t) + n.dy * Math.sin(t), ey = -n.dz * Math.sin(t) + n.dy * Math.cos(t); // + tilt = forward = toward +z
+      assert.ok(Math.abs(o.dz - ez) < 2e-3 && Math.abs(o.dy - ey) < 2e-3, `${name} ${d} deg: COM relative to the ankle (${mm(o.dz).toFixed(1)}, ${mm(o.dy).toFixed(1)}) mm vs a rotation about the ankle (${mm(ez).toFixed(1)}, ${mm(ey).toFixed(1)}) mm`);
+      assert.ok(Math.abs(o.sole) < 5e-3, `${name} ${d} deg: lowest sole ${mm(o.sole)} mm`);
+    }
+  }
+});
+
+test("loads: a weight held in front never helps a forward stoop, and helps a body leaning back with the arms forward; the margin is monotone in the mass; 15 kg held at the sides change standing by less than 15 mm", opt, () => {
+  for (const [name, b] of Object.entries(six())) {
+    const m = (pn, kg) => verdict(b, pn, kg).margin;
+    let prev = Infinity;
+    for (const kg of [0, 5, 10, 15, 25, 40]) { const v = m("stoop45", kg); assert.ok(v < prev + 1e-12, `${name}: stoop 45 margin rises with the load at ${kg} kg`); prev = v; }
+    prev = -Infinity;
+    const backArms = (kg) => P.validatePosture(b, base({ ...tilt(-8), joints: { ...tilt(-8).joints, shoulder_LR: [90] }, ...(kg ? { hints: { load: { mass: kg } } } : {}) })).metrics;
+    for (const kg of [0, 5, 10, 15, 25]) { const v = backArms(kg).com[2]; assert.ok(v > prev - 1e-12, `${name}: 8 back, arms forward, the centre of mass moves back with the load at ${kg} kg`); prev = v; } // (the margin itself is the distance to the nearest edge: it peaks in the middle of the foot)
+    assert.ok(backArms(15).balanceMargin > backArms(0).balanceMargin, `${name}: 15 kg in the outstretched hands of a body leaning back 8 degrees`);
+    assert.ok(Math.abs(m("neutral", 15) - m("neutral", 0)) < 0.015, `${name}: 15 kg at the sides move standing by ${mm(m("neutral", 15) - m("neutral", 0))} mm`);
+    // arms forward in a deep squat: the held weight is a counterweight, the squat stands better with it
+    assert.ok(m("squatArmsFwd", 15) > m("squatArmsFwd", 0), `${name}: 15 kg in the outstretched hands of a deep squat`);
+    assert.ok(!verdict(b, "squatArmsFwd", 15).fall && m("squatArmsFwd", 15) > 0.03, `${name}: loaded squat margin ${mm(m("squatArmsFwd", 15))}`);
+  }
+});
+
+test("hands-free deep squat: arms forward is better than arms down (more stable: the arms are a counterweight), and the verdicts do not depend on which hand grip is used", opt, () => {
+  for (const [name, b] of Object.entries(six())) {
+    const down = P.validatePosture(b, base({ joints: { hip_LR: [120], knee_LR: [145], ankle_LR: [30] } })).metrics.balanceMargin;
+    const fwd = P.validatePosture(b, base(POSTURES.squatArmsFwd)).metrics.balanceMargin;
+    assert.ok(fwd > down + 0.015, `${name}: arms forward ${mm(fwd)} vs arms down ${mm(down)} mm`);
+    for (const grip of ["fist", "open", "relaxed"]) {
+      const g = P.validatePosture(b, { ...base(POSTURES.squatArmsFwd), grips: { L: grip, R: grip } });
+      assert.ok(Math.abs(g.metrics.balanceMargin - fwd) < 0.006, `${name}: grip ${grip} moves the margin by ${mm(g.metrics.balanceMargin - fwd)} mm`);
+    }
+  }
+});
+
+// the skin around the ankle. The shank and the foot are two closed parts that overlap; the lean must not open a hole between them. Rays are shot through the ankle axis from the side, the front and the
+// back, every 4 mm of height from 16 mm above the floor (the sole is rounded below that) to 12 cm above the ankle: each ray must meet the skin of the leg (a hole in the union of the two parts would let it through), and meet it an even number of
+// times (parity: an odd count means an open surface).
+function skinTriangles(body) {
+  const bones = new Map(); // rest bones as rig.js builds them
+  for (const j of JOINTS) { const o = new THREE.Bone(); o.name = j.id; const p = body.positions[j.id]; if (j.parent) { const q = body.positions[j.parent]; o.position.set(p[0] - q[0], p[1] - q[1], p[2] - q[2]); bones.get(j.parent).add(o); } else o.position.set(...p); bones.set(j.id, o); }
+  bones.get("pelvis").updateMatrixWorld(true);
+  const skin = buildSkin(body, bones, { eyes: false, quality: "high" }), g = skin.mesh.geometry, pos = g.attributes.position.array, idx = g.index.array;
+  return { pos, idx, skin };
+}
+function hitsAlong(pos, idx, o, d, box) { // all intersections of the ray o + t d (t > 0) with triangles whose bounding box meets `box`
+  const hits = [];
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = idx[t] * 3, b = idx[t + 1] * 3, c = idx[t + 2] * 3;
+    const ya = pos[a + 1], yb = pos[b + 1], yc = pos[c + 1];
+    if (Math.max(ya, yb, yc) < box.y0 || Math.min(ya, yb, yc) > box.y1) continue;
+    const e1 = [pos[b] - pos[a], pos[b + 1] - pos[a + 1], pos[b + 2] - pos[a + 2]], e2 = [pos[c] - pos[a], pos[c + 1] - pos[a + 1], pos[c + 2] - pos[a + 2]];
+    const p = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]], det = e1[0] * p[0] + e1[1] * p[1] + e1[2] * p[2];
+    if (Math.abs(det) < 1e-14) continue;
+    const s = [o[0] - pos[a], o[1] - pos[a + 1], o[2] - pos[a + 2]], u = (s[0] * p[0] + s[1] * p[1] + s[2] * p[2]) / det;
+    if (u < 0 || u > 1) continue;
+    const q = [s[1] * e1[2] - s[2] * e1[1], s[2] * e1[0] - s[0] * e1[2], s[0] * e1[1] - s[1] * e1[0]], v = (d[0] * q[0] + d[1] * q[1] + d[2] * q[2]) / det;
+    if (v < 0 || u + v > 1) continue;
+    const tt = (e2[0] * q[0] + e2[1] * q[1] + e2[2] * q[2]) / det;
+    if (tt > 0) hits.push(tt);
+  }
+  return hits;
+}
+test("skin at the ankle and the foot: no hole between the shank and the foot, every ray through the ankle region crosses the surface an even number of times", opt, () => {
+  for (const [name, b] of Object.entries(six())) {
+    const { pos, idx, skin } = skinTriangles(b), an = b.positions.ankle_L;
+    const holes = [];
+    for (let y = 0.016; y < an[1] + 0.12; y += 0.004) {
+      for (const [label, o, d] of [["lateral", [1.5, y, an[2]], [-1, 0, 0]], ["front", [an[0], y, 1.5], [0, 0, -1]], ["back", [an[0], y, -1.5], [0, 0, 1]], ["front-lateral", [an[0] + 1, y, an[2] + 1], [-Math.SQRT1_2, 0, -Math.SQRT1_2]]]) {
+        // the leg is the first thing met along x or z; count the hits in a window of 25 cm around the ankle axis (the other leg is 20 cm or more away on the other side)
+        const hs = hitsAlong(pos, idx, o, d, { y0: y - 1e-4, y1: y + 1e-4 });
+        const near = hs.filter((t) => { const px = o[0] + d[0] * t, pz = o[2] + d[2] * t; return Math.abs(px - an[0]) < 0.12 && Math.abs(pz - an[2]) < 0.4 && (label !== "lateral" || px > 0); });
+        if (near.length === 0) holes.push(`${label} y ${mm(y).toFixed(0)} mm: no skin`);
+        else if (near.length % 2 !== 0 && label !== "front-lateral") holes.push(`${label} y ${mm(y).toFixed(0)} mm: ${near.length} crossings (open surface)`);
+      }
+    }
+    skin.dispose();
+    assert.equal(holes.length, 0, `${name}: ${holes.length} problems, e.g. ${holes.slice(0, 4).join("; ")}`);
+  }
+});
+
+// ================================================================================================================ 5. open defect found by the check
+// postures.test.mjs ("every posture of the library passes validatePosture on 6 bodies"), postures-sitting-vehicle.test.mjs ("every posture passes validatePosture on the three bodies") and the last loop
+// of pose.adversarial2.test.mjs ("library: frozen all the way down ...", val(MAN, p) for every posture) are RED at HEAD since the shank lean was capped at 4.9 degrees: sit-seiza (toes 7.1 / 7.7 mm
+// below the floor on the P50 / P95 man, limit 5 mm), sit-legs-extended and veh-pedal-brake* / veh-pedal-clutch / veh-gear-shift (heels 15.4 to 21 mm above the floor, limit 15 mm) on the P50 woman.
+// The reconciliation turned the same loop of pose.adversarial.test.mjs into a todo but left these three red. Todo here until the posture authors retune the angles (or declare hints.contactTolerance).
+test("OPEN (posture authors): every posture of the library validates on the six bodies", { todo: "sit-seiza, sit-legs-extended, veh-pedal-*, veh-gear-shift miss their floor contacts by 1 to 8 mm since the lean cap of 4.9 degrees (POSE.md 'Balance and the stance')", ...opt }, () => {
+  const bad = [];
+  for (const [name, b] of Object.entries(six())) for (const p of POSTURES_ALL) { const r = P.validatePosture(b, p, { library: POSTURES_ALL }); if (!r.ok) bad.push(`${name} | ${p.id}: ${r.errors[0]}`); }
+  assert.equal(bad.length, 0, `${bad.length} failures, e.g. ${bad.slice(0, 4).join(" || ")}`);
+});
+import { POSTURES as POSTURES_ALL } from "../../site/js/human/postures.js";

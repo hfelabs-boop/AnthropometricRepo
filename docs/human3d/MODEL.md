@@ -281,7 +281,7 @@ Hip centres at `x = +-hip_halfwidth`, height `hip_height`; knee centres **direct
 the ankles, the feet and the toe joints go back, the knees, the hips and everything above stay, until the neutral whole-body centre of mass lies `comFromHeel` = 40 % of the foot length from the
 heel (16 % of it, 42 mm for a 265 mm foot, in front of the ankle axis) **or until the shank leans `leanMaxDeg` = 4.9 degrees**, whichever comes first. The second one comes first for 97 % of the bodies (the 40 % would
 be a lean of 4.5 to 7.3 degrees, median 5.9; see the next paragraph), so in practice the shank of every body leans 4.9 degrees and the centre of mass lies where that puts it: 36 mm in front of the ankle for the median man
-(26 to 47 mm over the 528 population bodies and the 2,400 real people), 37.5 % of the foot from the heel (34 to 40 %). The knee is still `knee_height - ankle_height` above the ankle (`shank_length` is that vertical distance; the bone is
+(27 to 44 mm over the 528 population bodies, 26 to 46 mm over 600 real people, measured 19 October 2026), 37.5 % of the foot from the heel (34 to 40 %). The knee is still `knee_height - ankle_height` above the ankle (`shank_length` is that vertical distance; the bone is
 lean^2 / (2 L) = 1.6 mm longer), so every height and every seated measure of the fit report is what it would be with an upright shank (in the 2,928 bodies of 7.1 no value of the report moves by more than 0.007 mm: the calf girth, the one
 ring that sits on the slanted shank; the volume by less than 1 cm3, the mass not at all), and the report statuses and the warnings are the same.
 

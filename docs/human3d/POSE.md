@@ -257,10 +257,20 @@ by a web search, the papers not opened; a model with other assumptions gives 6.2
 sways by 10 to 20 mm; 10 + 15 + 15 is about 40 mm. Tightening it would start to reject postures whose centre of mass the model places a few millimetres off (the median woman's deep squat is at -28). Loosening it to 60 mm would accept 9 degrees backward and 12 forward, further than anyone can lean. For a posture that is
 held against something (a wall, a rail, a table) or in motion declare `hints.externalSupport` / `hints.dynamic`; for a held weight `hints.load`.
 
+Two fragilities of the rule, so that nobody mistakes them for margin. (a) The model's centre of mass is 27 to 44 mm in front of the ankle (median 36), below every measured mean (Hellebrandt 40 to 50 mm, Di Giulio and
+Baltzopoulos 47 to 58 mm; `MODEL.md` 7.1 gives the reason), so the 40 mm allowance of this rule is partly paid for by that deficit, and a model with the measured centre of mass would judge the heel-up and forward postures
+more kindly and the lean-back postures less. (b) The deep squat with the arms forward (hips 120, knees 145, ankles 30, shoulders 90; `reconcile.adversarial.test.mjs`) is judged as standing only through the allowance: its margin is
+-1 to -37 mm over six bodies (the 5th-percentile woman is 3 mm from the limit), and the same squat with the ankles at 25 degrees falls for three of them. The verdict is right (a rigid body cannot shift its weight forward
+over the toes like a person, so the model is, if anything, too severe) but it is a verdict at the edge: a squat posture added to the library should declare `hints.externalSupport` or arms forward and be checked on the
+P5 woman.
+
 The lean of the shank also decides how far the feet float or sink in the postures whose net shank rotation is not zero (`MODEL.md` 4.1: `lean x sin(rotation)`), so a posture tuned for one lean moves by up to 8 mm when the
 lean changes by one degree. The first stance (5.9 degrees, uncapped) and the present one (4.9, capped; `MODEL.md` 7.1 has the choice) differ by that much, and five postures of the library that sat at the edge of their
 tolerance on the six bodies they were tuned on missed it afterwards (heels 15.4 to 21 mm above the floor against 15 for `veh-pedal-brake`, `veh-pedal-brake-hard`, `veh-pedal-clutch`, `veh-gear-shift`, `sit-legs-extended`; the toes of `sit-seiza`
 6.8 to 7.7 mm below the floor): they need their ankle or knee angles retuned by the posture authors (`postures/sitting.js`, `postures/vehicle.js`), or `hints.contactTolerance`.
+OPEN ITEM, tracked in the tests: `postures.test.mjs` ("every posture of the library passes validatePosture on 6 bodies ..."), `postures-sitting-vehicle.test.mjs` ("... on the three bodies ..."), `pose.adversarial2.test.mjs`
+("library: frozen all the way down ...") and `pose.adversarial.test.mjs` ("every posture validates on the medians of all 176 populations") each have a HARD part that allows only these six postures to miss a floor contact, and
+by no more than 10 mm over the limit, and a `todo` part that demands the whole library. Remove the allowance and the `todo` when the angles are retuned.
 
 ## 6. A worked example: seated, reaching forward
 
