@@ -1470,3 +1470,340 @@ test("panel: a stick figure of every library posture on three bodies: finite, on
   assert.notEqual(PANEL.validateCached(BODIES[0][1], POSTURES[0]), a);
   assert.equal(PANEL.validateCached(MAN, { id: "bogus", name: "x", support: "nope" }).ok, false, "a posture that cannot be validated gives a failure, not an exception");
 });
+
+// ---- regressions: defects found by the independent verification (tests/human3d/editor.adversarial.*) ---------------------------------------------------------------------------
+test("regression: Save as custom with the name of ANOTHER saved posture never overwrites the posture being edited; the posture is updated in place only under its own name", async () => {
+  const { ed } = setup();
+  ed.apply("iso-7250-sitting", { animate: false });
+  ed.setJoint("shoulder_R", "flex", 50);
+  await ed.saveCustom("Alpha");
+  ed.setJoint("shoulder_R", "flex", 90);
+  await ed.saveCustom("Beta");
+  ed.apply("custom-alpha", { animate: false });
+  ed.setJoint("shoulder_R", "flex", 20);
+  assert.deepEqual(PANEL.saveTarget(ed.base, ed.listCustom(), "Beta"), { overwrite: null, duplicate: true });
+  assert.deepEqual(PANEL.saveTarget(ed.base, ed.listCustom(), "  Alpha "), { overwrite: "custom-alpha", duplicate: false });
+  assert.deepEqual(PANEL.saveTarget(ed.base, ed.listCustom(), "Gamma"), { overwrite: null, duplicate: false });
+  assert.deepEqual(PANEL.saveTarget({ kind: "library", id: "iso-7250-sitting" }, ed.listCustom(), "Alpha"), { overwrite: null, duplicate: true }, "a library posture is never overwritten");
+  // what the form does after the user has confirmed keeping both
+  const t = PANEL.saveTarget(ed.base, ed.listCustom(), "Beta");
+  await ed.saveCustom("Beta", { overwrite: t.overwrite });
+  assert.deepEqual(ed.listCustom().map((p) => `${p.id}:${p.name}`).sort(), ["custom-alpha:Alpha", "custom-beta-2:Beta", "custom-beta:Beta"], "nothing was lost");
+  assert.ok(Math.abs(ed.getPosture("custom-alpha").joints.shoulder_R[0] - 50) < 1e-6, "the saved Alpha is the one saved");
+  // under its own name the posture is updated in place
+  ed.apply("custom-alpha", { animate: false });
+  ed.setJoint("shoulder_R", "flex", 30);
+  const own = PANEL.saveTarget(ed.base, ed.listCustom(), "Alpha");
+  const n = ed.listCustom().length;
+  await ed.saveCustom("Alpha", { overwrite: own.overwrite });
+  assert.equal(ed.listCustom().length, n);
+  assert.ok(Math.abs(ed.getPosture("custom-alpha").joints.shoulder_R[0] - 30) < 1e-6);
+});
+
+test("regression: hostile saved preferences are cleaned (a string where an object belongs, wrong types, arrays, prototype keys) and never throw", () => {
+  assert.deepEqual(PANEL.cleanPrefs({ open: "x" }), {});
+  assert.deepEqual(PANEL.cleanPrefs(["a"]), {});
+  assert.deepEqual(PANEL.cleanPrefs("text"), {});
+  assert.deepEqual(PANEL.cleanPrefs(null), {});
+  assert.deepEqual(PANEL.cleanPrefs({ ik: "yes", tab: 5, pelvisMode: "fly", footPoint: "toe", animate: false, open: { lib: false, cur: "no", "__proto__": true, "x y": true } }), { animate: false, open: { lib: false } });
+  const parsed = JSON.parse('{"__proto__":{"ik":true},"open":{"__proto__":false},"tab":"spine"}');
+  const clean = PANEL.cleanPrefs(parsed);
+  assert.deepEqual(clean, { tab: "spine", open: {} });
+  assert.equal(({}).ik, undefined);
+});
+
+test("regression: problems in the custom store are worded for the panel, and the text of an unreadable store is kept before the first write replaces it", async () => {
+  const a = setup();
+  a.ed.apply("iso-7250-sitting", { animate: false });
+  await a.ed.saveCustom("Good one");
+  const good = JSON.parse(a.storage.getItem(STORAGE_KEY));
+  const raw = JSON.stringify({ version: 1, postures: [...good.postures, { id: "custom-bad", name: "Bad", support: "nope" }, 42] });
+  const storage = memStorage({ [STORAGE_KEY]: raw });
+  const b = setup(MAN, { storage });
+  assert.equal(b.ed.listCustom().length, 1);
+  const problems = b.ed.customProblems();
+  assert.equal(problems.length, 2);
+  const text = PANEL.customProblemsText(problems);
+  assert.match(text, /2 problems/);
+  assert.ok(text.includes(ED.BACKUP_KEY));
+  assert.equal(PANEL.customProblemsText([]), "");
+  assert.equal(storage.getItem(ED.BACKUP_KEY), null, "nothing is copied until something is written");
+  b.ed.apply("iso-7250-standing", { animate: false });
+  await b.ed.saveCustom("Second");
+  assert.equal(storage.getItem(ED.BACKUP_KEY), raw, "the text as it was");
+  assert.equal(JSON.parse(storage.getItem(STORAGE_KEY)).postures.length, 2);
+  assert.deepEqual(b.ed.customProblems(), []);
+  b.ed.deleteCustom("custom-second");
+  assert.equal(storage.getItem(ED.BACKUP_KEY), raw, "the first copy is kept");
+});
+
+test("regression: a seat the user chose is kept for postures whose seat adapts to the body, but a posture that asks for a seat height of its own (floor, high stool) gets it; a reset keeps the placement", () => {
+  const { rig, ed } = setup();
+  ed.apply("iso-7250-sitting", { animate: false });
+  ed.setSeatHeight(0.55);
+  ed.apply("sit-floor-long", { animate: false });
+  approx(ed.seatHeight(), 0.07, 1e-9, "the posture's own seat");
+  assert.equal(ed.place.seat.kind, "auto");
+  approx(Math.min(...rig.contactPoints("seat").map((q) => q.y)), 0.07, 1e-9, "and the sit bones are on it");
+  ed.apply("iso-7250-sitting", { animate: false });
+  ed.setSeatHeight(0.55);
+  ed.apply("sit-high-stool", { animate: false });
+  approx(ed.seatHeight(), 0.65, 1e-9);
+  ed.apply("iso-7250-sitting", { animate: false });
+  ed.setSeatHeight(0.5);
+  ed.apply("sit-upright-90", { animate: false });
+  approx(ed.seatHeight(), 0.5, 1e-9, "an ordinary sitting posture keeps the user's seat");
+  ed.setJoint("elbow_R", 0, 60);
+  ed.resetToLibrary();
+  approx(ed.seatHeight(), 0.5, 1e-9, "reset keeps the placement");
+});
+
+test("regression: standing up from a chair lets go of it: the figure no longer follows it when it is moved, and a deleted chair is not announced", () => {
+  const sb = fakeSandbox(), handlers = new Map(), toasts = [];
+  const ctx = { state: { sandbox: sb }, on: (e, f) => { handlers.set(e, f); return () => handlers.delete(e); }, toast: (t) => toasts.push(t), setPosture() {} };
+  const { rig, ed } = setup(MAN, { ctx });
+  ed.apply("iso-7250-sitting", { animate: false });
+  assert.equal(ed.sitOn("o1", "seat"), true);
+  ed.apply("iso-7250-standing", { animate: false });
+  assert.notEqual(ed.place.seat.kind, "object", "the chair is let go");
+  const x0 = rig.root.x, z0 = rig.root.z;
+  sb.centre = [-0.6, 0.1];
+  handlers.get("scene")({ op: "move" });
+  assert.ok(Math.hypot(rig.root.x - x0, rig.root.z - z0) < 1e-9, "the standing figure stays");
+  sb.visible = false;
+  handlers.get("scene")({ op: "remove" });
+  assert.deepEqual(toasts, []);
+  // by hand (Floor mode on the chair): the chair is kept in step but the figure does not move; back on the seat nothing jumps
+  sb.visible = true; sb.centre = [0.1, 0.6];
+  ed.apply("iso-7250-sitting", { animate: false });
+  ed.sitOn("o1", "seat");
+  ed.setMode("floor");
+  const p0 = rig.root.x;
+  sb.centre = [0.9, 0.9];
+  handlers.get("scene")({ op: "move" });
+  approx(rig.root.x, p0, 1e-9, "on the floor the figure does not follow the chair");
+  assert.equal(ed.place.seat.kind, "object");
+  ed.setMode("seat");
+  sb.centre = [1.0, 0.9];
+  handlers.get("scene")({ op: "move" });
+  approx(rig.root.x - p0, 0.1, 1e-6, "back on the seat only the move since then counts");
+});
+
+test("regression: a new profile in the middle of the glide puts the new figure at the end of the glide, not half way and 'edited'; an open slider gesture is kept as a step", () => {
+  const posted = [];
+  const rigA = buildRig(BODIES[1][1], {}), rigB = buildRig(BODIES[0][1], {}), clock = makeClock();
+  let cur = rigA;
+  const ed = createEditor({ getRig: () => cur, ik: IK, metrics: METRICS, storage: memStorage(), ctx: { on: () => () => {}, state: {}, setPosture: (p) => posted.push(p) }, scheduler: { raf: clock.raf, caf: clock.caf, now: clock.now } });
+  ed.apply("iso-7250-sitting");
+  clock.flush(100);
+  assert.ok(ed.animating);
+  rigB.setPose(rigA.getPose(), { clamp: false });
+  cur = rigB;
+  ed.info();
+  assert.equal(ed.animating, false);
+  clock.flush(1000);
+  assert.equal(ed.modified, false);
+  assert.ok(Math.abs(rigB.angles.hip_L[0] - 90) < 1e-6, `hip ${rigB.angles.hip_L[0]}`);
+  assert.equal(posted.at(-1).id, "iso-7250-sitting");
+  assert.ok(Math.abs(rigB.lowestY()) < 0.02, "grounded on the new body");
+  // a gesture open at the moment of the swap
+  ed.beginGesture("Slide", "k");
+  ed.setJoint("elbow_R", 0, 40);
+  const rigC = buildRig(BODIES[2][1], {});
+  rigC.setPose(rigB.getPose(), { clamp: false });
+  cur = rigC;
+  const steps = ed.history.steps;
+  ed.info();
+  assert.equal(ed.history.steps, steps + 1, "the edit is a step, undoable");
+  ed.undo();
+  assert.equal(rigC.angles.elbow_R[0], 0);
+});
+
+test("regression: a drag whose pointer has stopped but whose figure is still on its way goes on frame by frame, without another pointer event", () => {
+  const clock = makeClock();
+  const rig = buildRig(MAN, {});
+  const ed = createEditor({ getRig: () => rig, ik: IK, metrics: METRICS, storage: memStorage(), scheduler: { raf: clock.raf, caf: clock.caf, now: clock.now } });
+  ed.apply("iso-7250-standing", { animate: false });
+  const start = ed.handlePoint("palm_R").clone(), target = start.clone().add(new THREE.Vector3(0.12, 0.2, 0.05)), d = ed.createDrag("palm_R");
+  d.begin(start);
+  for (let i = 1; i <= 3; i++) d.move(start.clone().lerp(target, i / 3));
+  const early = ed.handlePoint("palm_R").distanceTo(target);
+  clock.flush(3000);
+  assert.ok(ed.handlePoint("palm_R").distanceTo(target) < 0.01, `still ${(ed.handlePoint("palm_R").distanceTo(target) * 100).toFixed(0)} cm from the pointer after 3 s (${(early * 100).toFixed(0)} cm after the flick)`);
+  assert.equal(clock.pending, 0, "the frames stop once the figure has arrived (no spinning)");
+  const steps = ed.history.steps;
+  d.end();
+  assert.equal(ed.history.steps, steps + 1);
+  // a handle held beyond the reach does not spin for ever either
+  const d2 = ed.createDrag("palm_R");
+  d2.begin(ed.handlePoint("palm_R"));
+  d2.move(ed.handlePoint("palm_R").clone().add(new THREE.Vector3(0, 3, 3)));
+  clock.flush(20000);
+  assert.equal(clock.pending, 0, "a goal beyond the reach is given up on");
+  d2.cancel();
+  assert.equal(clock.pending, 0);
+});
+
+test("regression: moving a region total keeps the edits of single vertebrae (the change is shared out on top of what they have); a vertebra at its limit takes no more", () => {
+  const { rig, ed } = setup();
+  ed.apply("iso-7250-standing", { animate: false });
+  ed.setJoint("L3", 0, 5);
+  const rg = REGIONS.lumbar, before = ED.regionTotals(rig.angles, "lumbar"), ws = rg.weights.reduce((a, b) => a + b, 0), i3 = rg.joints.indexOf("L3");
+  const l3 = rig.angles.L3[0];
+  ed.setRegion("lumbar", [before[0] + 4]);
+  approx(ED.regionTotals(rig.angles, "lumbar")[0], before[0] + 4, 1e-6);
+  approx(rig.angles.L3[0], l3 + (4 * rg.weights[i3]) / ws, 1e-6, "L3 keeps its own 5 degrees and takes its share of the 4");
+  // to the end of the range: reported, every vertebra inside its range
+  const res = ed.setRegion("lumbar", [500]);
+  assert.ok(res.clamped.length > 0 && ED.regionTotals(rig.angles, "lumbar")[0] <= rg.range.flex[1] + 1e-6);
+  for (const id of rg.joints) assert.ok(rig.angles[id][0] <= JOINT_BY_ID[id].dof[0].max + 1e-9 && rig.angles[id][0] >= JOINT_BY_ID[id].dof[0].min - 1e-9);
+  // without the range enforced the shares are not limited
+  ed.setOption("enforceRom", false);
+  ed.setRegion("lumbar", [500]);
+  approx(ED.regionTotals(rig.angles, "lumbar")[0], 500, 1e-6);
+});
+
+test("regression: empty edits record nothing and look at nothing: setRoot({}) and lookAtPoint(null)", () => {
+  const { rig, ed } = setup();
+  ed.apply("iso-7250-standing", { animate: false });
+  const steps = ed.history.steps, pose = JSON.stringify(rig.getPose());
+  ed.setRoot({});
+  ed.setRoot({ heading: undefined });
+  assert.equal(ed.history.steps, steps);
+  assert.equal(ed.lookAtPoint(null), null);
+  assert.equal(ed.lookAtPoint({}), null);
+  assert.equal(ed.lookAtPoint([NaN, 1, 1]), null);
+  assert.equal(ed.lookActive, false);
+  assert.equal(ed.history.steps, steps);
+  assert.equal(JSON.stringify(rig.getPose()), pose);
+});
+
+test("regression: the handle layer lets go of a drag whose release was lost (a move with no button down ends it where it is), of one the editor cancelled, and of one the window blurred or hid", () => {
+  const { rig, ed } = setup();
+  const vp = fakeViewport();
+  const layer = createHandleLayer({ viewport: vp, editor: ed, scheduler: { raf: null } });
+  ed.apply("iso-7250-standing", { animate: false });
+  layer.setEnabled(true);
+  const grab = () => { const [x, y] = screenOf(vp, ed.handlePoint("palm_R")); vp.emit("pointerdown", ptr(x + 1, y + 1)); return [x, y]; };
+  const steps = ed.history.steps;
+  // 1. the pointerup never arrives
+  let [x, y] = grab();
+  assert.equal(layer.dragging, true);
+  vp.emit("pointermove", ptr(x + 30, y - 40));
+  assert.notEqual(ed.history.steps, steps + 1, "still in the drag");
+  vp.emit("pointermove", ptr(x + 60, y - 80, { buttons: 0 }));
+  assert.equal(layer.dragging, false);
+  assert.equal(ed.dragging, false);
+  assert.equal(vp.controls.enabled, true, "orbit is back");
+  assert.equal(ed.history.steps, steps + 1, "ended where it was: one step");
+  const pose = JSON.stringify(rig.getPose());
+  vp.emit("pointermove", ptr(x + 120, y - 150, { buttons: 0 }));
+  assert.equal(JSON.stringify(rig.getPose()), pose, "a mouse move with no button moves nothing");
+  // 2. the editor cancels the drag (a new profile, an undo, a keyboard nudge of another handle)
+  [x, y] = grab();
+  vp.emit("pointermove", ptr(x + 30, y - 40));
+  assert.equal(layer.dragging, true);
+  ed.cancelDrag();
+  assert.equal(layer.dragging, false, "the layer does not go on holding the drag");
+  assert.equal(vp.controls.enabled, true);
+  // 3. the window loses the focus / the page is hidden: cancelled, and the listeners are gone again
+  const calls = { add: 0, remove: 0 };
+  const win = new EventTarget(), doc = new EventTarget();
+  for (const t of [win, doc]) { const a = t.addEventListener.bind(t), r = t.removeEventListener.bind(t); t.addEventListener = (...q) => { calls.add++; return a(...q); }; t.removeEventListener = (...q) => { calls.remove++; return r(...q); }; }
+  const saved = [globalThis.window, globalThis.document];
+  globalThis.window = win; globalThis.document = doc;
+  try {
+    [x, y] = grab();
+    vp.emit("pointermove", ptr(x + 30, y - 40));
+    const mid = JSON.stringify(rig.getPose());
+    win.dispatchEvent(new Event("blur"));
+    assert.equal(layer.dragging, false);
+    assert.notEqual(JSON.stringify(rig.getPose()), mid, "cancelled: back to the start");
+    assert.equal(vp.controls.enabled, true);
+    [x, y] = grab();
+    doc.hidden = true;
+    doc.dispatchEvent(new Event("visibilitychange"));
+    assert.equal(layer.dragging, false);
+    doc.hidden = false;
+    assert.equal(calls.add, calls.remove, "every listener added for a drag is removed");
+  } finally { [globalThis.window, globalThis.document] = saved; if (saved[0] === undefined) delete globalThis.window; if (saved[1] === undefined) delete globalThis.document; }
+  layer.dispose();
+});
+
+test("regression: the pelvis handle in Move figure mode never throws the figure far away: from the side (edge-on floor plane) it follows the pointer on the plane facing the camera, from above on the floor", () => {
+  const { rig, ed } = setup();
+  const vp = fakeViewport();
+  const layer = createHandleLayer({ viewport: vp, editor: ed, scheduler: { raf: null } });
+  ed.apply("iso-7250-standing", { animate: false });
+  ed.setOption("pelvisMode", "move");
+  layer.setEnabled(true);
+  const look = (pos, target) => { vp.camera.position.set(...pos); vp.camera.lookAt(...target); vp.camera.updateMatrixWorld(true); vp.camera.updateProjectionMatrix(); };
+  const pelvis = () => ed.handlePoint("pelvis");
+  for (const [name, pos] of [["front", [0, pelvis().y, 4]], ["right", [-4, pelvis().y, 0]], ["left", [4, pelvis().y, 0]], ["back", [0, pelvis().y, -4]], ["a camera just above the pelvis", [0, pelvis().y + 0.3, 4]]]) {
+    look(pos, [0, pelvis().y, 0]);
+    layer.update();
+    const x0 = rig.root.x, z0 = rig.root.z, [sx, sy] = screenOf(vp, pelvis());
+    vp.emit("pointerdown", ptr(sx, sy));
+    assert.equal(layer.dragging, true, name);
+    for (let k = 1; k <= 8; k++) vp.emit("pointermove", ptr(sx, sy + k)); // a few pixels up and down
+    for (let k = 1; k <= 8; k++) vp.emit("pointermove", ptr(sx + k, sy - k));
+    const away = Math.hypot(rig.root.x - x0, rig.root.z - z0);
+    vp.emit("pointerup", ptr(sx + 8, sy - 8, { buttons: 0 }));
+    assert.ok(away < 0.5, `${name}: the figure went ${away.toFixed(2)} m for 16 pixels`);
+    ed.undo();
+  }
+  // from above the figure follows the pointer on the floor
+  look([0, 6, 0.01], [0, 0.9, 0]);
+  layer.update();
+  const x0 = rig.root.x, z0 = rig.root.z, [sx, sy] = screenOf(vp, pelvis());
+  vp.emit("pointerdown", ptr(sx, sy));
+  const p = pelvis().clone();
+  const ray = vp.ray(sx + 40, sy).ray, want = new THREE.Vector3();
+  ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -p.y), want);
+  vp.emit("pointermove", ptr(sx + 40, sy));
+  vp.emit("pointerup", ptr(sx + 40, sy, { buttons: 0 }));
+  approx(rig.root.x - x0, want.x - p.x, 0.01, "x follows the pointer on the floor plane");
+  approx(rig.root.z - z0, want.z - p.z, 0.01, "z too");
+  layer.dispose();
+});
+
+test("regression: a hand dragged out and back leaves the arm as it was (no twist left in the redundant joints); a pelvis dragged down keeps the pinned feet on the floor at every step and home leaves the legs as they were", () => {
+  for (const [bn, body] of BODIES) {
+    const { rig, ed } = setup(body);
+    ed.apply("iso-7250-standing", { animate: false });
+    const A0 = JSON.parse(JSON.stringify(rig.angles)), start = ed.handlePoint("palm_R").clone();
+    const d = ed.createDrag("palm_R", { immediate: true });
+    d.begin(start);
+    for (const o of [[0, 0, 0.25], [0, 0.2, 0.25]]) { const t = start.clone().add(P(...o)); for (let i = 1; i <= 30; i++) d.move(start.clone().lerp(t, i / 30)); }
+    for (let k = 0; k < 30; k++) d.move(start);
+    d.end();
+    assert.ok(ed.handlePoint("palm_R").distanceTo(start) < 0.002, `${bn}: the hand is home`);
+    let worst = 0;
+    for (const [k, v] of Object.entries(A0)) v.forEach((x, i) => { worst = Math.max(worst, Math.abs(x - rig.angles[k][i])); });
+    assert.ok(worst < 8, `${bn}: the arm differs from the start by ${worst.toFixed(1)} degrees`);
+    // the pelvis, one solve per pointer event, 3 mm and 3 cm steps
+    for (const step of [0.003, 0.03]) {
+      ed.apply("iso-7250-standing", { animate: false });
+      const FEET = ["heel_sole_L", "heel_sole_R", "ball_sole_medial_L", "ball_sole_medial_R", "ball_sole_lateral_L", "ball_sole_lateral_R"];
+      const f0 = FEET.map((id) => rig.landmarkWorld(id).clone()), p0 = ed.handlePoint("pelvis").clone(), dp = ed.createDrag("pelvis", { immediate: true });
+      dp.begin(p0);
+      let slide = 0, sink = 0;
+      for (let i = 1; i <= Math.round(0.3 / step); i++) {
+        dp.move(p0.clone().add(P(0, -step * i, 0)));
+        slide = Math.max(slide, ...FEET.map((id, k) => rig.landmarkWorld(id).distanceTo(f0[k])));
+        sink = Math.min(sink, rig.lowestY());
+      }
+      dp.end();
+      assert.ok(slide < 0.005 && sink > -0.005, `${bn}: feet slid ${(slide * 1000).toFixed(0)} mm and sank ${(-sink * 1000).toFixed(0)} mm at ${step * 1000} mm a step`);
+    }
+    ed.apply("iso-7250-standing", { animate: false });
+    const L0 = JSON.parse(JSON.stringify(rig.angles)), q0 = ed.handlePoint("pelvis").clone(), dq = ed.createDrag("pelvis", { immediate: true });
+    dq.begin(q0);
+    for (let i = 1; i <= 30; i++) dq.move(q0.clone().add(P(0, -0.006 * i, 0)));
+    for (let i = 30; i >= 0; i--) dq.move(q0.clone().add(P(0, -0.006 * i, 0)));
+    dq.end();
+    worst = 0;
+    for (const [k, v] of Object.entries(L0)) v.forEach((x, i) => { worst = Math.max(worst, Math.abs(x - rig.angles[k][i])); });
+    assert.ok(worst < 8, `${bn}: the legs differ from the start by ${worst.toFixed(1)} degrees after the pelvis went down and home`);
+  }
+});

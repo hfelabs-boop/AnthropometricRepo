@@ -1459,8 +1459,8 @@ test("a goal 1 to 2 cm from the hand, default options (and follow: true), is a s
   const pc = (a, q) => [...a].sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(q * a.length))];
   t.diagnostic(`library postures, 1 cm: ${turn.length} moves, ${turn.filter((x) => x > 10).length} turn a joint more than 10 degrees, max ${Math.max(...turn).toFixed(0)} (before: 114 of 243, 22 over 40); from solved poses, 1 to 2 cm: p90 ${pc(fromSolved, 0.9).toFixed(1)}, p99 ${pc(fromSolved, 0.99).toFixed(1)}, max ${Math.max(...fromSolved).toFixed(1)} degrees (before: p90 39, p99 86, max 177)`);
   assert.ok(turn.length > 150 && fromSolved.length > 150);
-  assert.ok(turn.filter((x) => x > 10).length / turn.length < 0.06 && Math.max(...turn) < 25, `library: ${turn.filter((x) => x > 10).length} of ${turn.length}, max ${Math.max(...turn)}`);
-  assert.ok(turnFollow.filter((x) => x > 10).length / turnFollow.length < 0.06 && Math.max(...turnFollow) < 25, "follow: true alone is the same");
+  assert.ok(turn.filter((x) => x > 10).length / turn.length < 0.04 && Math.max(...turn) < 20, `library: ${turn.filter((x) => x > 10).length} of ${turn.length}, max ${Math.max(...turn)}`);
+  assert.ok(turnFollow.filter((x) => x > 10).length / turnFollow.length < 0.04 && Math.max(...turnFollow) < 20, "follow: true alone is the same");
   assert.ok(pc(fromSolved, 0.9) < 10 && pc(fromSolved, 0.99) < 25 && Math.max(...fromSolved) < 40, `from solved poses: p90 ${pc(fromSolved, 0.9)}, max ${Math.max(...fromSolved)}`);
 });
 

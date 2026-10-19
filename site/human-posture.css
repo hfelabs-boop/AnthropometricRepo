@@ -114,6 +114,9 @@
 .hm-pe-tabs.hm-tabs { flex-wrap: wrap; overflow: visible; mask-image: none; -webkit-mask-image: none; padding: 3px; gap: 2px; border: 1px solid var(--line); border-radius: 8px; }
 .hm-pe-tabs .hm-tab { padding: 3px 9px; font-size: .8rem; min-height: 28px; }
 .hm-pe-tabpanel { display: grid; gap: 10px; min-width: 0; outline: none; }
+.hm-pe-tabpanel[hidden] { display: none; }
+.hm-pe-problems:empty { display: none; }
+.hm-pe-problems { margin: 6px 0; }
 .hm-pe-tabbody { display: grid; gap: 12px; min-width: 0; }
 .hm-pe-outcount { width: fit-content; }
 .hm-pe-outcount[hidden] { display: none; }

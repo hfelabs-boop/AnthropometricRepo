@@ -31,8 +31,8 @@
 //   iteration goes on, almost undamped, on the penalised problem, as long as every goal stays within a quarter of its tolerance (or where it was);
 // * free DOF that no goal depends on (the fingers, the other leg, ... of a big free set) are not variables: they keep their value (idle, see compile());
 // * FOLLOWING a pose (the start is near the goals, or options.follow: a drag): the pose is the previous frame, so the variables stay in a trust region around it
-//   (0.03 rad + 4 rad per metre of starting error, widened when the goals push a variable against the border, or when the soft preferences are out of the way and
-//   a variable sits on it), and options.maxMove bounds the move of every variable per call (DRAG_OPTIONS: 0.04 rad). The soft preferences that are absolute
+//   (0.03 rad + 4 rad per metre of starting error, widened x4 at a time when relaxing the soft preferences has not brought the goals nearer although the goals push a variable against the border, or when
+//   the preferences are out of the way and a variable sits on it; the preferences then start over at full strength), and options.maxMove bounds the move of every variable per call (DRAG_OPTIONS: 0.04 rad). The soft preferences that are absolute
 //   (the pole of the elbow, the avoidance of the ends of the ranges) would otherwise carry the pose to wherever they are minimal in one call, and a minimum
 //   that appears or disappears with the goal makes the pose jump: the pole is the side the limb is on in the start (or in options.reference) for a near
 //   goal and the default one for a far goal, and the avoidance (which keeps a tracked hand out of the corners of the ranges where the figure would stop
@@ -1754,8 +1754,9 @@ function optimise(P) {
       // Runs that agree do not prove that no pose meets the goals: a corner of the ranges (the swing of the shoulder at its 180 degree cap, the clavicle at the end of its range)
       // can attract the start, the analytic poses and the best random poses alike, while a pose that is nowhere near them meets a goal that is reachable by construction (a
       // miss of 64 and of 97 mm in 7,440 targets, and 40 restarts did not help: the list ended). A goal that is still 5 mm off or more therefore gets more random poses, from
-      // the rest of the pool: EXTRA_RESTARTS when the number of restarts is automatic, what is left of `restarts` when it was given. Not for a goal that no pose can meet.
-      if (!best.ok && !closest && !P.provablyUnreachable && best.err >= EXTRA_BELOW) {
+      // the rest of the pool: EXTRA_RESTARTS when the number of restarts is automatic, what is left of `restarts` when it was given. Not for a goal that no pose can meet, and not for
+      // a squat (analyticStart: pins that cannot all be kept are over-constrained, not in a corner, and a slider calls it for every frame).
+      if (!best.ok && !closest && !P.provablyUnreachable && !P.analyticStart && best.err >= EXTRA_BELOW) {
         const extra = P.restartsAuto ? (P.follow ? 0 : EXTRA_RESTARTS) : Math.max(0, P.restarts - ran);
         for (let i = 12, e = 0; i < POOL && e < extra && !best.ok; i++, e++) { const x = sampled(i); if (x) run(x, false); }
       }

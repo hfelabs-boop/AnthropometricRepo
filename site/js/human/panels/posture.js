@@ -9,7 +9,7 @@ import { JOINT_BY_ID, REGIONS, mirrorId } from "../skeleton.js";
 import { CATEGORIES, SUPPORT_CARRIERS, SUPPORT_INFO, expandPosture, clampPose, placePose, solvePose, landmarkPosition, validatePosture } from "../pose.js";
 import { POSTURES, GRIPS } from "../postures.js";
 import { GRIP_NAMES } from "../postures/grips.js";
-import { editorFor, EDIT_TABS, HANDLES, FINGER_NAMES, createHandleLayer, sliderBounds, regionRange, regionTotals, supportLabel, supportShort, tabOfJoint, hasTwin, dofTitle, NUDGE_M } from "../editor.js";
+import { editorFor, BACKUP_KEY, EDIT_TABS, HANDLES, FINGER_NAMES, createHandleLayer, sliderBounds, regionRange, regionTotals, supportLabel, supportShort, tabOfJoint, hasTwin, dofTitle, NUDGE_M } from "../editor.js";
 import { section, tablist, badge, emptyState, notice, nextId, toUnit, fromUnit, unitDigits, UNIT_LABEL } from "../ui.js";
 
 const CSS_URL = new URL("../../../human-posture.css", import.meta.url).href;
@@ -118,6 +118,22 @@ export function nudgeVector(key, { shift = false, alt = false } = {}, right = [1
   return v ? v.map((c) => c * step) : null;
 }
 /** The label of a handle for its nudge instructions. */
+/** The sentence for the postures in the browser's store that could not be used (the first reasons, and where the original text is kept). */
+export function customProblemsText(problems, backupKey = BACKUP_KEY) {
+  const list = (problems ?? []).filter((x) => typeof x === "string");
+  if (!list.length) return "";
+  const shown = list.slice(0, 2).map((x) => x.replace(/\.$/, "")).join("; ");
+  return `${list.length === 1 ? "A saved posture" : `${list.length} problems with the saved postures`} could not be used and ${list.length === 1 ? "is" : "are"} not listed (${shown}${list.length > 2 ? "; ..." : ""}). The next save or delete keeps a copy of what was stored in this browser under "${backupKey}".`;
+}
+/**
+ * What "Save as custom" does with the name typed: { overwrite, duplicate }. The posture being edited is updated in place (`overwrite`: its id) only when it is a saved one and the name
+ * is still its own. A name that another saved posture already has (`duplicate`) never overwrites anything: the form asks first and then keeps both.
+ */
+export function saveTarget(base, saved, typed) {
+  const name = String(typed ?? "").replace(/\s+/g, " ").trim(), mine = base?.kind === "custom" ? saved.find((p) => p.id === base.id) : null;
+  if (mine && mine.name === name) return { overwrite: mine.id, duplicate: false };
+  return { overwrite: null, duplicate: saved.some((p) => p.name === name) };
+}
 export const handleHint = (hd) => `${hd.label}: arrow keys move it 10 mm across and up or down in the view, Page Up and Page Down away from and toward the camera; Shift ten times as far, Alt a tenth`;
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -228,7 +244,23 @@ export function ensurePostureStyles() {
   });
 }
 
-const loadPrefs = () => { try { const v = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "null"); return v && typeof v === "object" ? v : {}; } catch { return {}; } };
+/** The preferences read from storage, whatever was stored there: only known keys of the right type are kept (a hostile or old value is dropped, never thrown on). */
+export function cleanPrefs(raw) {
+  const out = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  const own = (k) => (Object.hasOwn(raw, k) ? raw[k] : undefined);
+  for (const k of ["ik", "poles", "ikOpen", "animate", "symmetric", "trunkAssist", "handFrame", "pinFeet", "pinHands"]) if (typeof own(k) === "boolean") out[k] = own(k);
+  if (typeof own("tab") === "string") out.tab = own("tab").slice(0, 20);
+  if (own("pelvisMode") === "bend" || own("pelvisMode") === "move") out.pelvisMode = own("pelvisMode");
+  if (own("footPoint") === "ball" || own("footPoint") === "heel") out.footPoint = own("footPoint");
+  const open = own("open");
+  if (open && typeof open === "object" && !Array.isArray(open)) {
+    out.open = {};
+    for (const k of Object.keys(open)) if (/^[a-z]{1,12}$/.test(k) && typeof open[k] === "boolean") out.open[k] = open[k];
+  }
+  return out;
+}
+const loadPrefs = () => { try { return cleanPrefs(JSON.parse(localStorage.getItem(PREFS_KEY) ?? "null")); } catch { return {}; } };
 const savePrefs = (p) => { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* private mode */ } };
 const clampNum = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const pctOf = (v, b) => clampNum(((v - b.min) / (b.max - b.min || 1)) * 100, 0, 100);
@@ -424,7 +456,8 @@ function libraryView(env) {
   const spacer = h("div", { class: "hm-pe-spacer" });
   const empty = h("div", { class: "hm-pe-empty", hidden: true }, emptyState("No posture matches.", "Clear the search or the filters to see the whole library."), btn("Clear the filters", { onClick: () => { st.query = ""; search.value = ""; st.category = "all"; st.tags = []; refilter(); } }));
   const list = h("div", { class: "hm-pe-list", role: "listbox", tabindex: "0", "aria-label": "Postures. Up and down arrow keys choose, Enter shows the posture on the figure.", id: `${uid}-list` }, spacer);
-  const el = h("div", { class: "hm-pe-lib" }, h("div", { class: "hm-pe-search" }, h("label", { for: `${uid}-q`, class: "sr-only" }, "Search postures"), search), chipBar, tagsDetails, count, list, empty);
+  const problemsEl = h("div", { class: "hm-pe-problems" });
+  const el = h("div", { class: "hm-pe-lib" }, h("div", { class: "hm-pe-search" }, h("label", { for: `${uid}-q`, class: "sr-only" }, "Search postures"), search), chipBar, tagsDetails, problemsEl, count, list, empty);
 
   const chipEls = new Map();
   const mkChip = (value, label) => {
@@ -437,7 +470,11 @@ function libraryView(env) {
   for (const c of CATEGORIES) chipEls.get(c.name).title = c.blurb;
 
   let customList = [];
-  const buildItems = () => { customList = editor.listCustom(); st.items = [...customList, ...POSTURES]; };
+  const buildItems = () => {
+    customList = editor.listCustom();
+    st.items = [...customList, ...POSTURES];
+    problemsEl.replaceChildren(...(() => { const pr = editor.customProblems(); return pr.length ? [notice(customProblemsText(pr), { level: "warn" })] : []; })());
+  };
   buildItems();
 
   // ---- rows
@@ -615,7 +652,10 @@ function currentView(env, lib) {
     h("div", { class: "hm-pe-row" }, btn("Save", { className: "primary" }), btn("Cancel", { onClick: (e) => { e.preventDefault(); closeSave(); } })), saveMsg);
   saveForm.querySelector("button.primary").type = "submit";
   const saveB = btn("Save as custom…", { title: "Keep this pose in the Custom group of the library (kept in this browser only)", onClick: () => { openSave(); }, ic: "save" });
+  let dupAsked = "";
+  saveName.addEventListener("input", () => { dupAsked = ""; });
   function openSave() {
+    dupAsked = "";
     saveForm.hidden = false; saveB.setAttribute("aria-expanded", "true");
     const b = editor.base;
     saveName.value = b.kind === "custom" ? b.name : b.kind === "neutral" ? "My posture" : `${b.name} (edited)`.slice(0, 60);
@@ -627,7 +667,14 @@ function currentView(env, lib) {
   saveB.setAttribute("aria-expanded", "false"); saveB.setAttribute("aria-controls", saveForm.id = `${uid}-saveform`);
   saveForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const overwrite = editor.base.kind === "custom" && editor.listCustom().some((p) => p.name === saveName.value.trim()) ? editor.base.id : null;
+    const { overwrite, duplicate } = saveTarget(editor.base, editor.listCustom(), saveName.value);
+    if (duplicate && dupAsked !== saveName.value.trim()) { // a second posture with the name of a saved one: ask once, nothing is overwritten either way
+      dupAsked = saveName.value.trim();
+      saveMsg.textContent = `A saved posture is already called "${dupAsked}". Press Save again to keep both, or choose another name.`;
+      saveMsg.classList.add("is-error");
+      saveName.focus();
+      return;
+    }
     const r = await editor.saveCustom(saveName.value, { category: saveCat.value, overwrite });
     if (!r.ok) { saveMsg.textContent = r.error; saveMsg.classList.add("is-error"); return; }
     saveMsg.classList.remove("is-error");
@@ -637,7 +684,7 @@ function currentView(env, lib) {
   });
   saveForm.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); closeSave(); } });
   const delB = btn("Delete", { title: "Delete this custom posture from the library", className: "hm-pe-del", ic: "trash", onClick: () => { delConfirm.hidden = false; delB.hidden = true; delYes.focus(); } });
-  const delYes = btn("Delete it", { className: "hm-pe-danger", onClick: () => { const id = editor.base.id, nm = editor.base.name; if (editor.deleteCustom(id)) env.say(`Deleted "${nm}".`); delConfirm.hidden = true; delB.hidden = false; update(); } });
+  const delYes = btn("Delete it", { className: "hm-pe-danger", onClick: () => { const id = editor.base.id, nm = editor.base.name; if (editor.deleteCustom(id)) env.say(`Deleted "${nm}".`); delConfirm.hidden = true; delB.hidden = false; update(); (delB.hidden ? saveB : delB).focus(); } });
   const delNo = btn("Keep it", { onClick: () => { delConfirm.hidden = true; delB.hidden = false; delB.focus(); } });
   const delConfirm = h("div", { class: "hm-pe-row hm-pe-confirm", hidden: true, role: "group", "aria-label": "Confirm deleting the custom posture" }, h("span", { class: "small" }, "Delete this posture for good?"), delYes, delNo);
   const exportB = btn("Export", { title: "Download the pose as a posture JSON file (the same file as the Export tab)", ic: "download", onClick: async () => {
@@ -718,14 +765,15 @@ function currentView(env, lib) {
   function update() {
     const info = (() => { try { return editor.info(); } catch { return null; } })();
     const base = editor.base, mod = !!info?.modified;
+    const saved = base.kind === "custom" && editor.listCustom().some((p) => p.id === base.id); // a custom posture that was deleted is still on the figure, but there is nothing left to delete
     nameEl.textContent = base.name;
     dot.hidden = !mod;
-    baseEl.textContent = mod ? `Edited from ${base.kind === "neutral" ? "neutral standing" : base.kind === "custom" ? "your custom posture" : base.kind === "imported" ? "an imported posture" : "the library posture"}.` : { library: "Library posture.", custom: "Your custom posture, saved in this browser.", imported: "Imported from a file.", neutral: "Every joint at 0." }[base.kind] ?? "";
+    baseEl.textContent = mod ? `Edited from ${base.kind === "neutral" ? "neutral standing" : base.kind === "custom" ? (saved ? "your custom posture" : "a custom posture that is no longer saved") : base.kind === "imported" ? "an imported posture" : "the library posture"}.` : { library: "Library posture.", custom: saved ? "Your custom posture, saved in this browser." : "A custom posture that is no longer saved. Use Save as custom to keep it.", imported: "Imported from a file.", neutral: "Every joint at 0." }[base.kind] ?? "";
     const h_ = editor.history;
     undoB.disabled = !h_.canUndo; redoB.disabled = !h_.canRedo;
     undoB.title = h_.canUndo ? `Undo: ${h_.undoLabel} (Ctrl+Z)` : "Nothing to undo"; redoB.title = h_.canRedo ? `Redo: ${h_.redoLabel} (Ctrl+Shift+Z)` : "Nothing to redo";
     resetB.disabled = !mod;
-    delB.hidden = base.kind !== "custom" || !delConfirm.hidden; if (base.kind !== "custom") delConfirm.hidden = true;
+    delB.hidden = !saved || !delConfirm.hidden; if (!saved) delConfirm.hidden = true;
     const o = editor.options, place = editor.place;
     animate.set(o.animate); stay.set(place.stick);
     if (supportSel.value !== place.support) supportSel.value = place.support;
@@ -778,7 +826,9 @@ function editView(env, layer, prefs) {
   const tabs = tablist({ label: "Body region", tabs: EDIT_TABS.map((t) => ({ id: t.id, label: t.short })), selected: EDIT_TABS.some((t) => t.id === prefs.tab) ? prefs.tab : "spine", onSelect: (id) => showTab(id), idPrefix: nextId("hm-pe-tab") });
   tabs.el.classList.add("hm-pe-tabs");
   for (const t of EDIT_TABS) { const b = tabs.tabEl(t.id); b.title = t.label; b.setAttribute("aria-label", t.label); }
-  const panel = h("div", { class: "hm-pe-tabpanel", role: "tabpanel", tabindex: "-1" });
+  // One panel element per tab (only the selected one is shown), so that the aria-controls of every tab names an element that exists.
+  const panels = new Map(EDIT_TABS.map((t) => [t.id, h("div", { class: "hm-pe-tabpanel", role: "tabpanel", tabindex: "-1", id: tabs.panelId(t.id), "aria-labelledby": tabs.tabId(t.id), hidden: true })]));
+  const panel = h("div", { class: "hm-pe-tabpanels" }, ...panels.values());
 
   function build(id) {
     const t = EDIT_TABS.find((x) => x.id === id), parts = [];
@@ -804,9 +854,7 @@ function editView(env, layer, prefs) {
   function showTab(id) {
     if (!views.has(id)) views.set(id, build(id));
     const v = views.get(id);
-    panel.replaceChildren(v.el);
-    panel.setAttribute("aria-labelledby", tabs.tabId(id));
-    panel.id = tabs.panelId(id);
+    for (const [k, p] of panels) { p.hidden = k !== id; if (k === id && !p.firstChild) p.append(v.el); }
     v.update();
     prefs.tab = id;
     env.savePrefs();
@@ -901,7 +949,7 @@ function editView(env, layer, prefs) {
       const v = views.get(tabId);
       if (REGIONS_OF_VERTEBRAE.has(jointId) && v?.extra && !v.extra.open) v.extra.open = true;
       requestAnimationFrame(() => {
-        const node = panel.querySelector(`[data-joint="${jointId}"]`);
+        const node = panels.get(tabs.selected)?.querySelector(`[data-joint="${jointId}"]`);
         if (node) { node.scrollIntoView({ block: "nearest" }); node.classList.add("is-flash"); setTimeout(() => node.classList.remove("is-flash"), 1600); }
       });
     },
@@ -1030,7 +1078,7 @@ export default {
     layer.setPoles(prefs.poles !== false);
     const lib = libraryView(env), cur = currentView(env, lib), edit = editView(env, layer, prefs), insp = inspectorView(env);
 
-    const sec = (key, title, body, extra) => { const s = section(title, body, { open: prefs.open?.[key] !== false, className: `hm-pe-sec hm-pe-sec-${key}` }); if (extra) s.querySelector("summary").prepend(extra); s.addEventListener("toggle", () => { (prefs.open ??= {})[key] = s.open; savePrefs(prefs); }); return s; };
+    const sec = (key, title, body, extra) => { const s = section(title, body, { open: prefs.open?.[key] !== false, className: `hm-pe-sec hm-pe-sec-${key}` }); if (extra) s.querySelector("summary").prepend(extra); s.addEventListener("toggle", () => { (prefs.open = prefs.open && typeof prefs.open === "object" ? prefs.open : {})[key] = s.open; savePrefs(prefs); }); return s; };
     const waiting = emptyState("Waiting for the model.", "The figure is being built; the postures can be chosen as soon as it is on the stage.");
     const root = h("div", { class: "hm-pe", dataset: { ready: "0" } }, h("h2", { class: "hm-panel-title" }, "Posture"), note, waiting,
       sec("lib", "Library", [lib.el]), sec("cur", "Current posture", [cur.el]), sec("edit", "Edit", [edit.el]), live);

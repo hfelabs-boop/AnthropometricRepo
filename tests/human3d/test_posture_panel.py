@@ -1153,6 +1153,141 @@ def test_leaving_and_returning_to_the_tab_and_other_tabs_do_not_break_the_panel(
     assert s.errors() == []
 
 
+# ---------------------------------------------------------------------------------------------------------------------------------- regressions of the independent verification
+def test_save_with_the_name_of_another_saved_posture_never_overwrites_the_posture_being_edited(s):
+    s.open()
+    p = s.page
+    s.js(f"{ED}.apply('iso-7250-sitting', {{ animate: false }})")
+    s.js(f"{ED}.setJoint('shoulder_R', 'flex', 50)")
+    s.js(f"{ED}.saveCustom('Alpha')")
+    s.js(f"{ED}.setJoint('shoulder_R', 'flex', 90)")
+    s.js(f"{ED}.saveCustom('Beta')")
+    p.wait_for_timeout(200)
+    s.js(f"{ED}.apply('custom-alpha', {{ animate: false }})")
+    s.settle(150)
+    s.js(f"{ED}.setJoint('shoulder_R', 'flex', 20)")
+    s.scroll_panel(".hm-pe-sec-cur")
+    p.get_by_role("button", name="Save as custom…").click()
+    name = p.get_by_label("Save as a custom posture")
+    assert name.input_value() == "Alpha"
+    name.fill("Beta")
+    p.get_by_role("button", name="Save", exact=True).click()
+    p.wait_for_timeout(300)
+    assert "already called" in p.locator(".hm-pe-formmsg").inner_text()
+    assert s.js(f"{ED}.listCustom().map((c) => c.id + ':' + c.name)") == ["custom-alpha:Alpha", "custom-beta:Beta"], "the first press changes nothing"
+    p.get_by_role("button", name="Save", exact=True).click()
+    p.wait_for_timeout(400)
+    assert sorted(s.js(f"{ED}.listCustom().map((c) => c.id + ':' + c.name)")) == ["custom-alpha:Alpha", "custom-beta-2:Beta", "custom-beta:Beta"], "the second press keeps both and loses nothing"
+    assert abs(s.js(f"{ED}.getPosture('custom-alpha').joints.shoulder_R[0]") - 50) < 1e-6
+    assert s.errors() == []
+
+
+def test_hostile_preferences_do_not_break_the_panel_and_every_tab_controls_an_existing_panel(chromium, server):
+    init = ["localStorage.setItem('hm-posture-prefs-v1', '{\"open\":\"x\",\"tab\":7,\"ik\":\"no\"}')"]
+    with make_session(chromium, server, init=init) as a:
+        a.open()
+        p = a.page
+        a.scroll_panel(".hm-pe-sec-cur")
+        p.locator(".hm-pe-sec-cur > summary").click()
+        p.wait_for_timeout(150)
+        p.locator(".hm-pe-sec-cur > summary").click()
+        p.wait_for_timeout(150)
+        assert a.errors() == []
+        tabs = a.js("[...document.querySelectorAll('.hm-pe-edit [role=tab]')].map((t) => [t.getAttribute('aria-controls'), !!document.getElementById(t.getAttribute('aria-controls')), t.id])")
+        assert len(tabs) == 8 and all(ok for _, ok, _ in tabs), tabs
+        panels = a.js("[...document.querySelectorAll('.hm-pe-edit [role=tabpanel]')].map((e) => [e.id, e.hidden, e.getAttribute('aria-labelledby')])")
+        assert len(panels) == 8 and sum(1 for _, hidden, _ in panels if not hidden) == 1, panels
+        p.get_by_role("tab", name="Head").click() if p.get_by_role("tab", name="Head").count() else p.locator(".hm-pe-edit [role=tab]").nth(1).click()
+        p.wait_for_timeout(200)
+        assert sum(1 for _, hidden, _ in a.js("[...document.querySelectorAll('.hm-pe-edit [role=tabpanel]')].map((e) => [e.id, e.hidden, 0])") if not hidden) == 1
+
+
+def test_unreadable_entries_of_the_custom_store_are_shown_and_a_copy_is_kept_before_the_first_write(chromium, server):
+    raw = '{"version":1,"postures":[{"id":"custom-x","name":"X","support":"nope"},5]}'
+    init = ["localStorage.setItem('hm-custom-postures-v1', %s)" % json.dumps(raw)]
+    with make_session(chromium, server, init=init) as a:
+        a.open()
+        p = a.page
+        assert a.js(f"{ED}.listCustom().length") == 0 and a.js(f"{ED}.customProblems().length") == 2
+        note = p.locator(".hm-pe-problems")
+        assert note.is_visible() and "could not be used" in note.inner_text() and "hm-custom-postures-v1-unreadable" in note.inner_text()
+        assert a.js("localStorage.getItem('hm-custom-postures-v1-unreadable')") is None
+        a.js(f"{ED}.apply('iso-7250-sitting', {{ animate: false }})")
+        a.js(f"{ED}.saveCustom('Fresh')")
+        p.wait_for_timeout(400)
+        assert a.js("localStorage.getItem('hm-custom-postures-v1-unreadable')") == raw
+        assert a.js("JSON.parse(localStorage.getItem('hm-custom-postures-v1')).postures.length") == 1
+        assert a.errors() == []
+
+
+def test_deleting_the_posture_on_the_figure_hides_delete_and_keeps_the_focus_on_the_form(s):
+    s.open()
+    p = s.page
+    s.js(f"{ED}.apply('iso-7250-sitting', {{ animate: false }})")
+    s.js(f"{ED}.setJoint('shoulder_R', 'flex', 40)")
+    s.js(f"{ED}.saveCustom('Short lived')")
+    p.wait_for_timeout(300)
+    s.scroll_panel(".hm-pe-sec-cur")
+    p.get_by_role("button", name="Delete", exact=True).click()
+    p.get_by_role("button", name="Delete it").click()
+    p.wait_for_timeout(300)
+    assert s.js(f"{ED}.listCustom().length") == 0
+    assert p.get_by_role("button", name="Delete", exact=True).is_hidden(), "nothing left to delete"
+    assert "no longer saved" in p.locator(".hm-pe-curbase").inner_text()
+    assert s.js("document.activeElement && document.activeElement.textContent.trim()") == "Save as custom…"
+    assert s.errors() == []
+
+
+def test_a_lost_pointer_release_does_not_leave_the_handle_following_the_mouse(s):
+    s.open()
+    p = s.page
+    s.apply("iso-7250-standing")
+    h = s.handle_xy("palm_R")
+    m = p.mouse
+    p.evaluate("window.__swallow = (e) => e.stopImmediatePropagation(); window.addEventListener('pointerup', window.__swallow, true);")
+    m.move(h["x"], h["y"])
+    m.down()
+    for i in range(1, 6):
+        m.move(h["x"] + 10 * i, h["y"] - 10 * i)
+        p.wait_for_timeout(40)
+    m.up()
+    p.wait_for_timeout(200)
+    p.evaluate("window.removeEventListener('pointerup', window.__swallow, true)")
+    assert s.js(f"{ED}.handleLayer.dragging") is True, "the release was lost"
+    m.move(h["x"] + 90, h["y"] - 40)
+    p.wait_for_timeout(400)
+    assert s.js(f"[{ED}.dragging, {ED}.handleLayer.dragging, window.__human.viewport.controls.enabled]") == [False, False, True]
+    assert s.js(f"{ED}.history.undoLabel") == "Move right hand"
+    pose = s.pose()
+    m.move(h["x"] + 140, h["y"] - 90)
+    p.wait_for_timeout(300)
+    assert s.pose() == pose, "a mouse move with no button moves nothing"
+    assert s.errors() == []
+
+
+def test_move_figure_with_the_pelvis_handle_in_a_side_view_does_not_throw_the_figure_away(s):
+    s.open()
+    p = s.page
+    s.apply("iso-7250-standing")
+    s.js(f"{ED}.setOption('pelvisMode', 'move')")
+    s.js("window.__human.viewport.setView('front', { animate: false })")
+    p.wait_for_timeout(600)
+    z0 = s.js(f"{RIG}.root.z")
+    h = s.handle_xy("pelvis")
+    assert h["visible"] and s.js(f"{ED}.handleLayer.pick({h['x']}, {h['y']})") == "pelvis"
+    m = p.mouse
+    m.move(h["x"], h["y"])
+    m.down()
+    for i in range(1, 9):
+        m.move(h["x"], h["y"] - i)
+        p.wait_for_timeout(30)
+    m.up()
+    p.wait_for_timeout(400)
+    root = s.js(f"{RIG}.root")
+    assert abs(root["z"] - z0) < 0.5 and abs(root["x"]) < 0.5, root
+    assert s.errors() == []
+
+
 def test_a_walk_through_every_library_posture_has_no_console_errors(s):
     s.open()
     ids = s.js("import('/js/human/postures.js').then((m) => m.POSTURES.map((p) => p.id))")

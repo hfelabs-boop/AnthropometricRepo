@@ -19,13 +19,15 @@
 // on both sides; "symmetric" edits keep the two eyes looking the same way (the posture convention of DESIGN.md 1.4).
 import * as THREE from "three";
 import { JOINTS, JOINT_BY_ID, REGIONS, clampAngles, mirrorId, sideOf, swingLength } from "./skeleton.js";
-import { CATEGORIES, SUPPORT_CARRIERS, SUPPORT_INFO, expandPosture, expandSpine, clampPose, mirrorPose, copySide, blendPoses, poseEquals, placePoseDetailed, seatHeightFor, contactClearances, balance } from "./pose.js";
+import { CATEGORIES, SUPPORT_CARRIERS, SUPPORT_INFO, expandPosture, clampPose, mirrorPose, copySide, blendPoses, poseEquals, placePoseDetailed, seatHeightFor, contactClearances, balance } from "./pose.js";
 import { POSTURES, GRIPS } from "./postures.js";
 import { GRIP_NAMES, HAND_JOINTS, gripAngles } from "./postures/grips.js";
 
 export { SUPPORT_CARRIERS, SUPPORT_INFO, CATEGORIES, GRIPS, GRIP_NAMES };
 
 export const STORAGE_KEY = "hm-custom-postures-v1";
+/** Where the text of a store that had entries which could not be read is kept before the first write replaces it (the first one is kept). */
+export const BACKUP_KEY = `${STORAGE_KEY}-unreadable`;
 export const MAX_CUSTOM = 100;
 export const MAX_CUSTOM_BYTES = 200_000;
 export const MAX_HISTORY = 200;
@@ -112,6 +114,23 @@ export function regionTotals(angles, region) {
   const out = [0, 0, 0];
   for (const id of REGIONS[region].joints) { const a = angles?.[id]; if (a) for (let c = 0; c < 3; c++) out[c] += a[c] ?? 0; }
   return out.map((v) => r6(v));
+}
+/** Share `total` over entries with weights `w` so that entry i changes by x_i within lim[i] = [lo, hi] (water-filling: an entry at its limit takes no more, the rest goes to the others). */
+function shareOut(total, w, lim) {
+  const n = w.length, x = new Array(n).fill(0), fixed = new Array(n).fill(false);
+  for (let it = 0; it < 60; it++) {
+    let rest = total, ws = 0;
+    for (let i = 0; i < n; i++) if (fixed[i]) rest -= x[i]; else ws += w[i];
+    if (ws <= 0) break;
+    let changed = false;
+    for (let i = 0; i < n; i++) {
+      if (fixed[i]) continue;
+      const v = (rest * w[i]) / ws;
+      if (v > lim[i][1] + 1e-12) { x[i] = lim[i][1]; fixed[i] = true; changed = true; } else if (v < lim[i][0] - 1e-12) { x[i] = lim[i][0]; fixed[i] = true; changed = true; } else x[i] = v;
+    }
+    if (!changed) break;
+  }
+  return x;
 }
 /** Range of a region total per channel: [[min, max], ...] */
 export const regionRange = (region) => [REGIONS[region].range.flex, REGIONS[region].range.lat, REGIONS[region].range.rot];
@@ -249,8 +268,10 @@ const PELVIS_SOLVE = Object.freeze({ follow: false, maxMove: Infinity, maxIterat
 const RESCUE_MS = 120, RESCUE_MOVE = 0.03, RESCUE_RESTARTS = 6, GLIDE_DEG = 8;
 // A drag follows the previous frame, so the redundant joints (the twist of the forearm against the shoulder, the rotation of the knee) keep whatever the path left in them: a hand
 // taken out and back ends with the arm twisted 50 degrees. The pose a solve from the drag-start pose gives for the same point is the relaxed one; it is taken when it is
-// nearer the start pose by RELAX_GAIN (square degrees summed over the joints), in the drag when the pointer rests and always at the end.
-const RELAX_GAIN = 40, RELAX_IDLE = 240;
+// nearer the start pose by RELAX_GAIN (square degrees summed over the joints), when the button is released.
+const RELAX_GAIN = 40;
+// A drag solve moves the figure a few degrees at most; while it is still on its way and the pointer rests, the next frame goes on (at most this many frames after the last pointer event).
+const KEEP_GOING_FRAMES = 600, CATCH_UP_STEPS = 6, CATCH_UP_MS = 12;
 /** Sum over all joints of the squared difference of the angles of two poses (degrees squared): how far the redundant joints have wandered. */
 function poseSpread(a, b) {
   let t = 0;
@@ -436,6 +457,10 @@ export function createEditor(options = {}) {
     const text = serializeCustomStore(list);
     if (text.length > MAX_CUSTOM_BYTES) return { ok: false, error: `The saved postures would take ${Math.round(text.length / 1000)} kB; at most ${Math.round(MAX_CUSTOM_BYTES / 1000)} kB are kept. Delete some first.` };
     const st = store();
+    const was = loadCustom();
+    if (st && was.problems.length && typeof was.raw === "string") { // entries that could not be read are about to be dropped by this write: keep the text as it was
+      try { if (st.getItem(BACKUP_KEY) == null) st.setItem(BACKUP_KEY, was.raw); } catch { /* quota: nothing more can be done */ }
+    }
     if (st) {
       try { st.setItem(STORAGE_KEY, text); memoryText = null; } catch (e) {
         memoryText = text; // quota or blocked storage: the session still has them
@@ -499,15 +524,18 @@ export function createEditor(options = {}) {
     const st = S.place.seat;
     if (st.kind !== "object" || disposed) return false;
     const c = chairSurface(st);
+    // The figure follows the chair only while it sits on it. A free figure, or one standing, kneeling or sitting on the floor by its own choice, only keeps the bookkeeping fresh.
+    const sitting = S.place.mode === "seat" && Object.values(carriersOf()).includes("seat");
     if (!c) {
       st.kind = "height";
       emit("place");
-      say("The seat the figure was sitting on was removed. It stays at the same height.");
+      if (sitting) say("The seat the figure was sitting on was removed. It stays at the same height.");
       return true;
     }
     const obj = sandbox()?.objects?.get?.(st.objectId), yaw = obj?.yaw ?? st.yaw, dyaw = yaw - st.yaw;
     const old = st.centre ?? c.centre, moved = Math.hypot(c.centre[0] - old[0], c.centre[1] - old[1]) > 1e-7, turned = Math.abs(dyaw) > 1e-7, higher = Math.abs(c.y - (st.height ?? c.y)) > 1e-7;
     if (!moved && !turned && !higher) return false;
+    if (!sitting) { st.centre = [...c.centre]; st.yaw = yaw; st.height = c.y; return false; }
     if (turned) {
       const a = dyaw * Math.PI / 180, ox = S.place.anchor.x - old[0], oz = S.place.anchor.z - old[1];
       S.place.anchor = { x: c.centre[0] + ox * Math.cos(a) + oz * Math.sin(a), z: c.centre[1] - ox * Math.sin(a) + oz * Math.cos(a) };
@@ -650,10 +678,15 @@ export function createEditor(options = {}) {
     const r = rig(), P = S.place;
     P.support = Object.hasOwn(SUPPORT_CARRIERS, info.support) ? info.support : "feet";
     const hint = info.seatHint ?? "popliteal";
+    // The seat the user chose (a height, a chair) is kept for the postures whose seat adapts to the body ("popliteal"); a posture that asks for a height of its own (a mat, a high stool)
+    // gets that one, as its card shows it. `keepPlacement` (reset) keeps everything.
+    if (!keepPlacement && typeof hint === "number" && P.seat.kind !== "auto") P.seat = { kind: "auto", hint, height: null, objectId: null, supportId: null, name: null, centre: null, yaw: 0 };
     if (P.seat.kind === "auto") P.seat.hint = hint;
     if (!keepPlacement) {
       const hasSeat = Object.values(SUPPORT_CARRIERS[P.support]).includes("seat");
       P.mode = hasSeat && !(P.seat.kind === "auto" && hint === 0) ? "seat" : "floor";
+      // Standing up (or kneeling, lying, sitting on the floor) leaves the chair: the figure no longer follows it; its height stays for the next sitting posture.
+      if (P.seat.kind === "object" && P.mode !== "seat") P.seat = { ...P.seat, kind: "height", height: chairSurface(P.seat)?.y ?? P.seat.height ?? seatHeightFor(bodyOf(r), "popliteal"), objectId: null, supportId: null, name: null, centre: null };
     }
     const cur = r.getPose();
     const target = { root: { x: cur.root.x, y: cur.root.y, z: cur.root.z, heading: wrap180(P.heading + (pose.root?.heading ?? 0)), flex: pose.root?.flex ?? 0, lat: pose.root?.lat ?? 0, rot: pose.root?.rot ?? 0 }, angles: copyPose(pose).angles };
@@ -757,14 +790,18 @@ export function createEditor(options = {}) {
     const { clamp = S.opts.enforceRom, record = true } = o;
     begin();
     const r = rig(), rg = REGIONS[region], t = [0, 1, 2].map((c) => values[c] ?? 0), partial = {}, report = [];
-    if (clamp) {
-      const { angles, shortfall } = expandSpine({ [region]: t });
-      for (const id of rg.joints) { const a = Array.from(r.angles[id]); for (const c of chans) a[c] = angles[id][c]; partial[id] = a; }
-      for (const s of shortfall) { const c = ["flex", "lat", "rot"].indexOf(s.dof); if (chans.includes(c)) report.push({ joint: region, dof: s.dof, requested: s.requested, applied: s.applied }); }
-    } else {
-      const w = [rg.weights, rg.weightsLat, rg.weightsRot];
-      rg.joints.forEach((id, i) => { const a = Array.from(r.angles[id]); for (const c of chans) a[c] = t[c] * w[c][i]; partial[id] = a; });
+    // The change of the total is shared out over the vertebrae by the weights of the region ON TOP of what each vertebra has, so an edit of a single vertebra (L3 at 5 degrees)
+    // survives the move of the slider of its region; a vertebra at the end of its range takes no more and the rest goes to the others (water-filling, as expandSpine does).
+    const cur = rg.joints.map((id) => Array.from(r.angles[id])), now = regionTotals(r.angles, region), w = [rg.weights, rg.weightsLat, rg.weightsRot];
+    for (const c of chans) {
+      const delta = t[c] - now[c];
+      const lim = rg.joints.map((id, i) => { const d = JOINT_BY_ID[id].dof[c]; return clamp ? [Math.min(0, d.min - cur[i][c]), Math.max(0, d.max - cur[i][c])] : [-Infinity, Infinity]; });
+      const share = shareOut(delta, w[c], lim);
+      cur.forEach((a, i) => { a[c] += share[i]; });
+      const got = cur.reduce((sum, a) => sum + a[c], 0);
+      if (clamp && Math.abs(got - t[c]) > 1e-6) report.push({ joint: region, dof: ["flex", "lat", "rot"][c], requested: t[c], applied: r6(got) });
     }
+    rg.joints.forEach((id, i) => { partial[id] = cur[i]; });
     const rep = applyAngles(partial, false);
     afterEdit(`Edit ${rg.label.toLowerCase()} spine`, `region:${region}:${chans.join("")}`, { record, report: [...rep.clamped, ...report] });
     return { applied: regionTotals(r.angles, region), clamped: report };
@@ -777,6 +814,7 @@ export function createEditor(options = {}) {
       if (v !== undefined && !isNum(v)) throw new RangeError(`root.${k} must be a finite number`);
     }
     const { record = true } = o;
+    if (!Object.values(partial).some((v) => v !== undefined)) return { root: rig().getPose().root }; // nothing to set: no history step
     begin();
     const r = rig(), cur = r.root, next = {};
     for (const k of ORIENT) if (partial[k] !== undefined) next[k] = k === "heading" ? wrap180(partial[k]) : partial[k];
@@ -948,6 +986,7 @@ export function createEditor(options = {}) {
 
   // ---- custom postures, import and export ---------------------------------------------------------------------------------------------------
   const listCustom = () => loadCustom().list.map(copyPosture);
+  /** What could not be read from the store (plain sentences; empty when all is well). */
   const customProblems = () => loadCustom().problems.slice();
   /**
    * Save the current pose as a custom posture ("custom-<slug of the name>", unique): every non-zero joint by its own id (the eyes in the posture convention: export.js
@@ -1265,7 +1304,7 @@ export function createEditor(options = {}) {
       move(point) {
         if (!st) return;
         st.target = vec(point).add(st.off);
-        st.idle = 0;
+        st.frames = 0;
         if (h.kind === "gaze") { S.look = st.target.toArray(); emit("look", { target: S.look }); }
         if (immediate) solveNow(); else if (!st.pending) { st.pending = true; st.raf = sched.raf(solveNow); }
       },
@@ -1274,6 +1313,7 @@ export function createEditor(options = {}) {
         const d = st;
         if (d.pending && d.raf && sched.caf) sched.caf(d.raf);
         d.pending = false;
+        d.ending = true;
         if (d.moved || d.target.distanceToSquared(d.P0) > 1e-12) {
           solveNow();
           for (let i = 0; i < 80 && (d.glide || (d.res?.limited && d.res.changed?.length !== 0)); i++) solveNow(); // the figure is still on its way: let it arrive
@@ -1359,12 +1399,24 @@ export function createEditor(options = {}) {
       const mm = d.ok.t.distanceTo(d.target) * 1000;
       d.status = { ...statusOf(hit.res, h), reachable: false, state: "short", limited: false, amount: mm, unit: "mm", short: `${mm.toFixed(mm < 10 ? 1 : 0)} mm short`, message: "The pelvis cannot go further with the feet where they are: the legs have reached a limit of motion. Switch off \"Keep the feet in place\" to go on." };
     }
+    const clockMs = () => globalThis.performance?.now?.() ?? 0;
     function solveNow() {
       const d = st;
       if (!d) return;
+      solveStep(d);
+      // The pointer is at rest and the figure is still on its way: this frame is a repeat for the same target, so take a few steps in it (within a small time budget) instead of one,
+      // or the arrival would depend on the frame rate (software WebGL draws 2 or 3 frames a second).
+      const t0 = clockMs();
+      for (let k = 0; k < CATCH_UP_STEPS && st === d && d.pending && d.frames > 1 && clockMs() - t0 < CATCH_UP_MS; k++) {
+        if (d.raf && sched.caf) sched.caf(d.raf);
+        solveStep(d);
+      }
+      if (st === d) emit("drag", { phase: "move", handle: h.id, status: d.status });
+    }
+    function solveStep(d) {
       d.pending = false;
       d.raf = 0;
-      const plan = d.plan(d.target, d.cur);
+      const before = d.cur, plan = d.plan(d.target, d.cur);
       if (plan.direct) { // the whole figure slides: no solver
         const { dx, dy, dz } = plan.direct, free = S.place.mode === "free";
         S.place.anchor = { x: d.place0.anchor.x + dx, z: d.place0.anchor.z + dz };
@@ -1413,7 +1465,11 @@ export function createEditor(options = {}) {
       }
       d.status.target = d.target.toArray();
       d.moved = true;
-      emit("drag", { phase: "move", handle: h.id, status: d.status });
+      // Still on its way (the solver moves a few degrees a call) and the pointer has stopped: the next frame goes on without waiting for another pointer event.
+      if (!immediate && !d.ending && sched.raf && d.res && (d.glide || d.res.limited) && poseGap(before, d.cur) > 0.01 && (d.frames = (d.frames ?? 0) + 1) <= KEEP_GOING_FRAMES) {
+        d.pending = true;
+        d.raf = sched.raf(solveNow);
+      }
     }
     return api;
   }
@@ -1449,10 +1505,13 @@ export function createEditor(options = {}) {
   /** Look at a world point now (head, neck and eyes by ik.js lookAt, the target stays as the look-at handle). Returns the drag status shape. */
   function lookAtPoint(point, { record = true } = {}) {
     if (!IK) return null;
+    const coords = Array.isArray(point) ? point.slice(0, 3) : point && typeof point === "object" ? [point.x, point.y, point.z] : [];
+    if (coords.length !== 3 || !coords.every(Number.isFinite)) return null; // not a point: do not look at the origin
+    const t = vec(point);
     const sv = solver();
     if (!sv) return null;
     begin();
-    const r = rig(), start = r.getPose(), t = vec(point);
+    const r = rig(), start = r.getPose();
     setLookTarget(t);
     const res = IK.lookAt(sv, start, t.toArray(), { trunk: S.opts.trunkAssist, reference: start });
     writePose(res.pose, false);
@@ -1466,8 +1525,8 @@ export function createEditor(options = {}) {
   // ---- lifecycle ----------------------------------------------------------------------------------------------------------------------------------------------
   function rigReplaced() {
     cancelDrag();
-    cancelAnimation({ finish: false });
-    gesture = null;
+    endGesture(); // an open slider gesture is one history step, not lost
+    cancelAnimation(); // the new figure got the pose of the old one mid-glide: it goes to the end of the glide, the posture the base already says, not half way
     solverRef = null;
     try { syncChair(); ground(); } catch (e) { console.warn("posture editor: the posture does not fit the new figure:", e); }
     syncPosture();
@@ -1644,14 +1703,29 @@ export function createHandleLayer({ viewport, editor, colors = {}, onSelect = nu
 
   // ---- pointer ----------------------------------------------------------------------------------------------------
   const plane = new THREE.Plane(), hit = new THREE.Vector3(), tmp = new THREE.Vector3(), cdir = new THREE.Vector3();
+  // "Move figure" slides the figure on the floor, so the natural plane is the horizontal one through the pelvis. Seen from the side (the camera at about the height of the pelvis) that
+  // plane is edge-on and a few pixels of pointer reach tens of metres, so it is used only when the camera looks down on the pelvis steeply enough (HORIZONTAL_MIN: the sine of the
+  // elevation of the line of sight, 0.3 is 17 degrees); otherwise the plane faces the camera and the figure follows the pointer sideways. Either way the reach is limited.
+  const HORIZONTAL_MIN = 0.3, MAX_REACH = 4;
+  let anchorPt = new THREE.Vector3();
   function planeFor(h, p0) {
-    if (h.kind === "pelvis" && editor.options.pelvisMode === "move" && editor.place.mode !== "free") return plane.setFromNormalAndCoplanarPoint(tmp.set(0, 1, 0), p0);
+    anchorPt.copy(p0);
+    if (h.kind === "pelvis" && editor.options.pelvisMode === "move" && editor.place.mode !== "free") {
+      const los = tmp.copy(p0).sub(viewport.camera.getWorldPosition(cdir)).normalize();
+      if (Math.abs(los.y) >= HORIZONTAL_MIN) return plane.setFromNormalAndCoplanarPoint(tmp.set(0, 1, 0), p0);
+    }
     return plane.setFromNormalAndCoplanarPoint(viewport.camera.getWorldDirection(cdir), p0);
   }
-  const rayHit = (ev) => { const ray = viewport.ray(ev.clientX, ev.clientY).ray; return ray.intersectPlane(plane, hit) ? hit : null; };
+  const rayHit = (ev) => {
+    const ray = viewport.ray(ev.clientX, ev.clientY).ray;
+    if (!ray.intersectPlane(plane, hit)) return null;
+    if (hit.distanceTo(anchorPt) > MAX_REACH) { tmp.copy(hit).sub(anchorPt).setLength(MAX_REACH); hit.copy(anchorPt).add(tmp); }
+    return hit;
+  };
   function holdOrbit() { if (viewport.controls) viewport.controls.enabled = false; }
   function releaseOrbit() { if (viewport.controls) viewport.controls.enabled = (viewport.active === undefined ? true : !!viewport.active) && !viewport.gizmoDragging; }
-  function stopDrag(commit) {
+  /** End the drag of the layer: `commit` ends it (one history step), otherwise it is cancelled; `engine`: the editor has cancelled it already (a new profile, an undo), only the layer lets go. */
+  function stopDrag(commit, { engine = false } = {}) {
     const d = dragging;
     if (!d) return;
     dragging = null;
@@ -1661,12 +1735,20 @@ export function createHandleLayer({ viewport, editor, colors = {}, onSelect = nu
     releaseOrbit();
     viewport.setCursor?.(hover ? "pointer" : "grab");
     let status = null;
-    if (commit) status = d.api.end(); else d.api.cancel();
+    if (!engine) { if (commit) status = d.api.end(); else d.api.cancel(); }
     if (commit && onSelect) onSelect(d.id);
     schedule();
     return status;
   }
-  const docEvents = (add) => { if (typeof document !== "undefined") document[add ? "addEventListener" : "removeEventListener"]("keydown", onKey, true); };
+  // While a handle is dragged: Escape cancels, and so does everything that can swallow the release (the window loses the focus, the tab is hidden). A move with no button down
+  // (see onMove) is the same: the release was lost.
+  const onLost = () => { if (dragging) stopDrag(false); };
+  const onHidden = () => { if (typeof document !== "undefined" && document.hidden) onLost(); };
+  const docEvents = (add) => {
+    const m = add ? "addEventListener" : "removeEventListener";
+    if (typeof document !== "undefined") { document[m]("keydown", onKey, true); document[m]("visibilitychange", onHidden); }
+    if (typeof window !== "undefined") window[m]("blur", onLost);
+  };
   function onKey(e) { if (e.key === "Escape" && dragging) { e.preventDefault(); e.stopPropagation(); stopDrag(false); } }
   function onDown(ev) {
     if (!enabled || !editor.ikReady || ev.button !== 0 || ev.originalEvent?.isPrimary === false) { stopDrag(false); return; }
@@ -1687,6 +1769,7 @@ export function createHandleLayer({ viewport, editor, colors = {}, onSelect = nu
   }
   function onMove(ev) {
     if (dragging) {
+      if (ev.buttons === 0 && ev.pointerType !== "touch") { stopDrag(true); return; } // the button is up and nobody told us: a lost release ends the drag where it is
       if (!dragging.moved && Math.hypot(ev.clientX - dragging.x0, ev.clientY - dragging.y0) < 3) return;
       dragging.moved = true;
       const p = rayHit(ev);
@@ -1705,6 +1788,7 @@ export function createHandleLayer({ viewport, editor, colors = {}, onSelect = nu
     editor.on("change", (e) => { if (e?.reason !== "drag" && e?.reason !== "animation") bad.clear(); schedule(); }),
     editor.on("external", schedule), editor.on("look", schedule), editor.on("rig", schedule), editor.on("options", schedule),
     editor.on("drag", (e) => {
+      if (e.phase === "cancel" && dragging?.id === e.handle) stopDrag(false, { engine: true }); // cancelled from outside (a new profile, an undo): do not go on holding the orbit controls
       if (e.phase === "cancel") bad.delete(e.handle);
       else if (e.status?.state === "short") bad.set(e.handle, e.status.short || "cannot reach"); else bad.delete(e.handle);
       schedule();
