@@ -256,17 +256,19 @@ function build(body) {
     // Between two neighbouring rings the skin is a loft of sections whose breadth, depth and exponent follow a smooth curve through the rings (body.js: monotone cubic
     // Hermite for breadth, depth and exponent, Catmull-Rom for the centre), and a section between a boxy chest and a rounder shoulder reaches lower on a diagonal (a body
     // rolled half way onto its side) than either of them, by up to 11 mm: so SUB_RINGS sections per interval are interpolated the same way and added to the rings.
-    const addRings = (rs, jointOf) => {
+    // `tube` names the loft a ring belongs to and `u` is its position along it (the index of the ring below, plus the fraction to the next): armTorsoDepth picks the
+    // sections of the upper arms and the stack of the trunk by them. `up` is the direction from the ring to the next one (the normal of the section plane).
+    const addRings = (rs, jointOf, tube) => {
       const at = loft(rs), nrm = (v) => { const l = Math.hypot(...v) || 1; return v.map((x) => x / l); };
-      const ring = (c, rx, rz, nn, f) => { const j = jointOf({ c }), q = P(j), n = Math.max(1.05, nn ?? 2); rings.push({ joint: j, ji: JIDX.get(j), off: [c[0] - q[0], c[1] - q[1], c[2] - q[2]], ex: f.ex, ez: f.ez, rx, rz, q: n / (n - 1) }); };
+      const ring = (c, rx, rz, nn, f, u) => { const j = jointOf({ c }), q = P(j), n = Math.max(1.05, nn ?? 2); rings.push({ joint: j, ji: JIDX.get(j), off: [c[0] - q[0], c[1] - q[1], c[2] - q[2]], ex: f.ex, ez: f.ez, rx, rz, q: n / (n - 1), n, tube, u, ns: f.ex[2] * f.ez[0] - f.ex[0] * f.ez[2] < 0 ? -1 : 1 }); };
       rs.forEach((r, i) => {
         const f = frame(rs[Math.max(0, i - 1)].c, rs[Math.min(rs.length - 1, i + 1)].c);
-        ring(r.c, r.rx, r.rz, r.n, f);
+        ring(r.c, r.rx, r.rz, r.n, f, i);
         if (i + 1 >= rs.length || !at) return;
         const f1 = frame(rs[i].c, rs[Math.min(rs.length - 1, i + 2)].c);
         for (let k = 1; k <= SUB_RINGS; k++) {
           const t = k / (SUB_RINGS + 1), m = at(i, t);
-          ring(m.c, m.rx, m.rz, m.n, { ex: nrm(f.ex.map((v, d) => v + (f1.ex[d] - v) * t)), ez: nrm(f.ez.map((v, d) => v + (f1.ez[d] - v) * t)) });
+          ring(m.c, m.rx, m.rz, m.n, { ex: nrm(f.ex.map((v, d) => v + (f1.ex[d] - v) * t)), ez: nrm(f.ez.map((v, d) => v + (f1.ez[d] - v) * t)) }, i + t);
         }
       });
     };
@@ -281,21 +283,29 @@ function build(body) {
         const r = tn[i], fr = r.c[2] + r.rz;
         if (fr < front) { const back = r.c[2] - r.rz; r.rz = 0.5 * (front - back); r.c[2] = 0.5 * (front + back); } else front = fr;
       }
-      addRings(tn, trunkJoint);
+      addRings(tn, trunkJoint, "trunk");
     }
-    addRings(body.shape.head.rings, () => "head");
+    addRings(body.shape.head.rings, () => "head", "head");
     for (const s of ["L", "R"]) {
-      addRings(tubes[`upper_arm_${s}`].rings, () => `shoulder_${s}`);
-      addRings(tubes[`forearm_${s}`].rings, () => `elbow_${s}`);
-      if (body.shape.hands?.[s]?.palm) addRings(body.shape.hands[s].palm, () => `wrist_${s}`);
-      addRings(tubes[`thigh_${s}`].rings, () => `hip_${s}`);
-      addRings(tubes[`shank_${s}`].rings, () => `knee_${s}`);
+      addRings(tubes[`upper_arm_${s}`].rings, () => `shoulder_${s}`, `upper_arm_${s}`);
+      addRings(tubes[`forearm_${s}`].rings, () => `elbow_${s}`, `forearm_${s}`);
+      if (body.shape.hands?.[s]?.palm) addRings(body.shape.hands[s].palm, () => `wrist_${s}`, `palm_${s}`);
+      addRings(tubes[`thigh_${s}`].rings, () => `hip_${s}`, `thigh_${s}`);
+      addRings(tubes[`shank_${s}`].rings, () => `knee_${s}`, `shank_${s}`);
     }
   }
   const byId = new Map(list.map((c, i) => [c.id, i]));
   const bmi = body.mass / (body.stature * body.stature), soft = Number.isFinite(bmi) ? Math.min(1.8, Math.max(1, bmi / 24)) : 1;
   const { pairs, tol } = selfPairs(list, soft);
-  const p = { version: 1, list, n: list.length, byId, pairs, tol, softness: soft, rings, joints: body.joints, landmarks: body.landmarks, shape: body.shape };
+  const stack = [], armRings = { L: [], R: [] };
+  const nTorso = tube("torso").rings.filter((r) => r.id !== "crotch").length; // the trunk loft goes on into the neck, which the neck capsule covers (an arm raised beside the head)
+  rings.forEach((r, i) => {
+    if (r.tube === "trunk" && r.u <= nTorso - 1) stack.push(i);
+    else if (r.tube === "upper_arm_L" && r.u >= 1) armRings.L.push(i); // the section at the shoulder joint (u < 1) is inside the trunk's outline by construction
+    else if (r.tube === "upper_arm_R" && r.u >= 1) armRings.R.push(i);
+  });
+  const arm = { stack, rings: armRings, tol: { L: ARM_TORSO, R: ARM_TORSO }, buf: new Float64Array(12 * stack.length) };
+  const p = { version: 1, list, n: list.length, byId, pairs, tol, softness: soft, rings, arm, joints: body.joints, landmarks: body.landmarks, shape: body.shape };
   // The reference postures of the library (ISO 7250-1 standing and sitting, T-pose) must never be rejected for what the fitted body itself does in them: a P5 body whose
   // thighs overlap by 61 mm in the neutral pose (ring half-breadths 99 + 99 mm, ring centres 138 mm apart), a 130 kg man whose belly lies on his thighs.
   // A pair that overlaps by more than its tolerance there gets the depth it has plus 6 mm: the tolerance describes soft tissue, and this body has more.
@@ -304,6 +314,8 @@ function build(body) {
     kin.solve(pose, { x: 0, y: body.joints.pelvis.offset[1], z: 0 });
     proxyWorld(p, kin, W);
     for (let k = 0; k < tol.length; k++) tol[k] = Math.max(tol[k], overlapAt(W, pairs[2 * k], pairs[2 * k + 1]) + REFERENCE_MARGIN);
+    const d = armTorsoDepth(p, kin);
+    for (const s of ["L", "R"]) arm.tol[s] = Math.max(arm.tol[s], d[s] + ARM_MARGIN);
   }
   return p;
 }
@@ -312,6 +324,12 @@ const OPEN = { ...gripAngles("open", "L"), ...gripAngles("open", "R") };
 // ISO 7250-1 standing / sitting and the T-pose of the library (arms 84 degrees out, open hands: the arm hangs 3 to 14 degrees abducted, so 84 puts it horizontal for most bodies)
 const REFERENCE_POSES = Object.freeze([{ ...RELAXED }, { ...RELAXED, hip_L: [90, 0, 0], hip_R: [90, 0, 0], knee_L: [90, 0], knee_R: [90, 0] }, { ...OPEN, shoulder_L: [0, 84, 0], shoulder_R: [0, 84, 0] }]);
 const REFERENCE_MARGIN = 0.006;
+// The upper arm against the trunk is judged on the skin sections, not on capsules (see armTorsoDepth): 50 mm of soft tissue of the chest and the armpit that may give
+// (the arm pressed against the chest: crossed arms, a hand on the opposite shoulder), or the depth the arm has in the reference postures of THIS body plus a margin,
+// whichever is more. No BMI factor: the reference depth already carries the body's own geometry (the 95th-percentile man's hanging arm is 56 mm inside his trunk's
+// outline, the 5th-percentile woman's 9), and the margin is smaller than REFERENCE_MARGIN because a check on the sections of the skin has no coarse proxy to allow for.
+const ARM_TORSO = 0.05;
+const ARM_MARGIN = 0.003;
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Self-collision pairs and their tolerances (metres of allowed overlap = soft tissue plus resting contact). Rules, first match wins:
@@ -453,6 +471,74 @@ export function lowestSkinPoint(proxies, kin, world, out = new THREE.Vector3()) 
   }
   out.set(atX, y, atZ);
   return { y, point: out, proxy: rk };
+}
+
+const ARM_ANGLES = 12; // points on the boundary of each section of the upper arm
+const _q = new Float64Array(3);
+// v rotated by the quaternion at Q[j4..j4+3] into _q
+function rotTo(Q, j4, vx, vy, vz) {
+  const x = Q[j4], y = Q[j4 + 1], z = Q[j4 + 2], w = Q[j4 + 3];
+  const tx = 2 * (y * vz - z * vy), ty = 2 * (z * vx - x * vz), tz = 2 * (x * vy - y * vx);
+  _q[0] = vx + w * tx + (y * tz - z * ty); _q[1] = vy + w * ty + (z * tx - x * tz); _q[2] = vz + w * tz + (x * ty - y * tx);
+}
+/**
+ * How far the skin of each upper arm lies inside the skin of the trunk in a SOLVED pose (`kin`): { L, R } in metres (positive = inside; -Infinity when the arm is
+ * nowhere near the trunk). The capsules cannot do this job: the shoulder joint lies inside the chest's outline, so a capsule pair has to be excused from the
+ * upper arm / chest test altogether (it was: an arm swung back through the thorax passed with 100 to 135 mm of skin inside the trunk). Here the sections of the
+ * arm's tube (the shoulder section excepted) are sampled on their boundary (12 points of the superellipse each) and every point is looked up in the posed stack of
+ * trunk and neck sections: the two sections whose planes enclose it, the depth `(1 - f) * min(rx, rz)` in each (f = the superellipse norm of the point in the
+ * section's own axes) and the mean of the two by the distance to the planes. Cost about 20 microseconds. bodyProxies learns the allowed depth per body and side from the reference
+ * postures (proxies.arm.tol, m).
+ */
+export function armTorsoDepth(proxies, kin, out = { L: -Infinity, R: -Infinity }) {
+  const { stack, rings: armRings, buf } = proxies.arm, R = proxies.rings, P = kin.positions, Q = kin.quaternions, N = stack.length;
+  for (let i = 0; i < N; i++) { // the stack in the pose: centre, lateral axis, anterior axis, normal (towards the head) of every trunk section
+    const r = R[stack[i]], j3 = 3 * r.ji, j4 = 4 * r.ji, o = 12 * i;
+    rotTo(Q, j4, r.off[0], r.off[1], r.off[2]); buf[o] = P[j3] + _q[0]; buf[o + 1] = P[j3 + 1] + _q[1]; buf[o + 2] = P[j3 + 2] + _q[2];
+    rotTo(Q, j4, r.ex[0], r.ex[1], r.ex[2]); buf[o + 3] = _q[0]; buf[o + 4] = _q[1]; buf[o + 5] = _q[2];
+    rotTo(Q, j4, r.ez[0], r.ez[1], r.ez[2]); buf[o + 6] = _q[0]; buf[o + 7] = _q[1]; buf[o + 8] = _q[2];
+    const sg = r.ns; // ex x ez points up or down depending on how frame() oriented the axes; ns turns it towards the head
+    buf[o + 9] = sg * (buf[o + 4] * buf[o + 8] - buf[o + 5] * buf[o + 7]); buf[o + 10] = sg * (buf[o + 5] * buf[o + 6] - buf[o + 3] * buf[o + 8]); buf[o + 11] = sg * (buf[o + 3] * buf[o + 7] - buf[o + 4] * buf[o + 6]);
+  }
+  for (const side of ["L", "R"]) {
+    let worst = -Infinity;
+    for (const ri of armRings[side]) {
+      const r = R[ri], j3 = 3 * r.ji, j4 = 4 * r.ji;
+      rotTo(Q, j4, r.off[0], r.off[1], r.off[2]);
+      const cx = P[j3] + _q[0], cy = P[j3 + 1] + _q[1], cz = P[j3 + 2] + _q[2];
+      rotTo(Q, j4, r.ex[0], r.ex[1], r.ex[2]); const ex = _q[0], ey = _q[1], ez_ = _q[2];
+      rotTo(Q, j4, r.ez[0], r.ez[1], r.ez[2]); const fx = _q[0], fy = _q[1], fz = _q[2];
+      const e = 2 / r.n;
+      for (let a = 0; a < ARM_ANGLES; a++) {
+        const th = (a * 2 * Math.PI) / ARM_ANGLES, c = Math.cos(th), s = Math.sin(th), u = r.rx * Math.sign(c) * Math.abs(c) ** e, v = r.rz * Math.sign(s) * Math.abs(s) ** e;
+        const px = cx + u * ex + v * fx, py = cy + u * ey + v * fy, pz = cz + u * ez_ + v * fz;
+        const d = trunkDepth(proxies, px, py, pz);
+        if (d > worst) worst = d;
+      }
+    }
+    out[side] = worst;
+  }
+  return out;
+}
+// depth (positive = inside) of a world point in the posed stack of trunk sections of armTorsoDepth; -Infinity above, below or beside the stack
+function trunkDepth(proxies, px, py, pz) {
+  const { stack, buf } = proxies.arm, R = proxies.rings, N = stack.length;
+  let s0 = (px - buf[0]) * buf[9] + (py - buf[1]) * buf[10] + (pz - buf[2]) * buf[11];
+  for (let i = 0; i + 1 < N; i++) {
+    const o1 = 12 * (i + 1), s1 = (px - buf[o1]) * buf[o1 + 9] + (py - buf[o1 + 1]) * buf[o1 + 10] + (pz - buf[o1 + 2]) * buf[o1 + 11];
+    if (s0 >= 0 && s1 < 0) {
+      const t = s0 / (s0 - s1);
+      return (1 - t) * sectionDepth(R[stack[i]], buf, 12 * i, px, py, pz, s0) + t * sectionDepth(R[stack[i + 1]], buf, o1, px, py, pz, s1);
+    }
+    s0 = s1;
+  }
+  return -Infinity;
+}
+// depth of the world point p in the section r (posed data at buf[o..o+11]); s = its signed distance to the section plane
+function sectionDepth(r, buf, o, px, py, pz, s) {
+  const dx = px - buf[o] - s * buf[o + 9], dy = py - buf[o + 1] - s * buf[o + 10], dz = pz - buf[o + 2] - s * buf[o + 11];
+  const a = Math.abs((dx * buf[o + 3] + dy * buf[o + 4] + dz * buf[o + 5]) / r.rx), b = Math.abs((dx * buf[o + 6] + dy * buf[o + 7] + dz * buf[o + 8]) / r.rz);
+  return (1 - (a ** r.n + b ** r.n) ** (1 / r.n)) * Math.min(r.rx, r.rz);
 }
 
 /** Squared distance between two segments and the parameters of the closest points (Ericson, Real-Time Collision Detection 5.1.9). */

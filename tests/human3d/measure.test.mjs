@@ -208,7 +208,7 @@ test("height, angle and distance values against hand calculations", () => {
   const a3 = ms.addAngle({ kind: "world", p: [1, 1, 1] }, { kind: "world", p: [1, 1, 1] }, { kind: "world", p: [0, 0, 0] }); r = ms.evaluate(a3); assert.equal(r.ok, false); assert.match(r.why, /coincide/);
   const d = ms.addDistance({ kind: "world", p: [0, 0, 0] }, { kind: "world", p: [0.3, 0.4, 1.2] }); r = ms.evaluate(d); near(r.value, 1.3); near(r.horizontal, Math.hypot(0.3, 1.2)); assert.equal(ms.formatDeltas(r), "Δx 300 mm, Δy 400 mm, Δz 1,200 mm, horizontal 1,237 mm");
   const flat = ms.addHeight({ kind: "world", p: [0, 0, 0] }); assert.equal(ms.format(ms.evaluate(flat)), "0 mm");
-  const below = ms.addHeight({ kind: "world", p: [0, -0.25, 0] }); assert.equal(ms.format(ms.evaluate(below)), "-250 mm");
+  const below = ms.addHeight({ kind: "world", p: [0, -0.25, 0] }); assert.equal(ms.format(ms.evaluate(below)), "−250 mm");
 });
 
 test("view: eye to a display, the angle below the horizontal, the size the screen subtends, from real anchors", () => {
@@ -398,4 +398,55 @@ test("one measure per viewport: measureFor, peekMeasure, acquire / release, ctx 
   const file = m.sandbox.toSceneFile(); assert.ok(Array.isArray(file.measurements), "registered itself as the measurements section of the scene file");
   acquireMeasure(ctx); releaseMeasure(ctx); assert.equal(m.disposed, true); assert.equal(peekMeasure(ctx), null); assert.throws(() => measureFor({}), /no viewport/); assert.doesNotThrow(() => releaseMeasure({ viewport: stubViewport() }));
   sandboxFor(ctx).dispose();
+});
+
+// ============================================================================================================================ regressions of the verifier's defects
+test("an update evaluates every measurement once, however many listeners and labels read it; a change in between is never answered from a stale result", () => {
+  const rig = rigFixture(), f = fixture({ rig }), { ms, ctx } = f;
+  for (let i = 0; i < 5; i++) ms.addDistance(lm("eye_mid"), lm("vertex"));
+  f.run();
+  let calls = 0; const lmw = rig.landmarkWorld.bind(rig); rig.landmarkWorld = (...a) => { calls++; return lmw(...a); };
+  const readers = () => { for (const it of ms.items) { ms.evaluate(it); ms.format(ms.evaluate(it)); } };
+  const off1 = ms.onChange((e) => { if (e.op === "values") readers(); }), off2 = ms.onChange((e) => { if (e.op === "values") readers(); });
+  ctx.emit("pose", {}); f.run();
+  assert.equal(calls, 5 * 2, `5 items x 2 points, once (${calls})`);
+  calls = 0; f.vp.labels("measure"); assert.equal(calls, 0, "the labels reuse the update");
+  ctx.emit("pose", {}); calls = 0; f.vp.labels("measure"); assert.equal(calls, 5 * 2, "after an event that may have changed the values, the labels evaluate again");
+  calls = 0; ms.evaluate(ms.items[0]); assert.equal(calls, 2, "outside an update nothing is cached");
+  off1(); off2();
+});
+
+test("formatting: no negative zero, one minus sign, in every unit", () => {
+  for (const u of ["mm", "cm", "in"]) {
+    for (const v of [-0.0001, -0.00001, -0, 1e-9]) assert.ok(!/^[-−]0(\.0+)? /.test(fmtM(v, u)), `${u} ${v}: ${fmtM(v, u)}`);
+    assert.ok(!fmtM(-0.5, u).includes("-"), `${u}: ${fmtM(-0.5, u)}`); assert.match(fmtM(-0.5, u), /^−/);
+  }
+  assert.equal(fmtM(-0.0001), "0 mm"); assert.equal(fmtM(-0.509), "−509 mm"); assert.equal(fmtM(-0.00001, "in"), "0.00 in");
+  assert.equal(formatDeltas({ ok: true, dx: -0.0001, dy: -0.509, dz: 0.3, horizontal: 0.3 }), "Δx 0 mm, Δy −509 mm, Δz 300 mm, horizontal 300 mm");
+  assert.equal(formatResult({ ok: true, kind: "angle", value: -0.01 }), "0°");
+});
+
+test("CSV: a name that a spreadsheet would run as a formula gets a quote in front; numbers and coordinates are untouched", () => {
+  const f = fixture({ rig: rigFixture() }), { ms } = f;
+  const a = ms.addDistance({ kind: "world", p: [0, 0, 0] }, { kind: "world", p: [-0.1, 0, 0.3] }, { label: '=HYPERLINK("http://x","y")' });
+  ms.addHeight({ kind: "world", p: [0, 1, 0] }, { label: "@SUM(1)" }); ms.addHeight({ kind: "world", p: [0, 1, 0] }, { label: "-2+3" }); ms.addHeight({ kind: "world", p: [0, 1, 0] }, { label: "+cmd" });
+  ms.addHeight({ kind: "world", p: [0, 1, 0] }, { label: "Tab\tinside" }); ms.addHeight({ kind: "world", p: [0, 1, 0] }, { label: "Height = 1" });
+  const rows = ms.toCSV().split("\n").slice(1, -1), cell = (r) => r.split(",");
+  assert.ok(rows[0].includes(`"'=HYPERLINK(""http://x"",""y"")"`), rows[0]);
+  assert.ok(rows[1].includes(",'@SUM(1),"), rows[1]); assert.ok(rows[2].includes(",'-2+3,"), rows[2]); assert.ok(rows[3].includes(",'+cmd,"), rows[3]);
+  assert.ok(rows[5].includes(",Height = 1,"), "a name with an equals sign inside is fine");
+  assert.ok(rows[0].includes(`,-100 0 300,`) || rows[0].includes(`0 0 0,-100 0 300`), `coordinates keep their minus: ${rows[0]}`);
+  assert.equal(a.label, '=HYPERLINK("http://x","y")', "the measurement itself keeps its name; only the export is protected");
+  void cell;
+});
+
+test("a gesture that completes a measurement leaves the tool asking for the first point again (the panel reads pending and the ops)", () => {
+  const f = fixture({ rig: rigFixture() }), { ms, vp } = f; const ops = [];
+  ms.onChange((e) => { if (e.op !== "values") ops.push([e.op, ms.pending.length]); });
+  const sb = f.sb; const a = sb.add("box", { position: [0, 0, 1], params: { width: 0.6, depth: 0.6, height: 0.6 } });
+  ms.setTool("distance"); ops.length = 0;
+  vp.emit("click", vp.ev(V(0, 0.6, 1))); vp.emit("click", vp.ev(V(0.3, 0.6, 1.3)));
+  assert.deepEqual(ops.map((o) => o[0]), ["tool", "add", "select"], JSON.stringify(ops));
+  assert.equal(ms.pending.length, 0, "the next click starts a new measurement"); assert.equal(ms.tool, "distance");
+  void a;
 });

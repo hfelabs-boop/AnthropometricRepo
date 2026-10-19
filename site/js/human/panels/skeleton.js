@@ -49,27 +49,34 @@ export const DERIVED_FROM = Object.freeze({
   ball_length: ["foot_length"],
 });
 
+/** Derived dimensions whose edit is applied to another dimension (fit.js DERIVED_OVERRIDES): editing the first moves what the second moves. */
+export const EDIT_AS = Object.freeze({ shank_length: "knee_height", hip_height: "femur_length", gh_halfwidth: "acromion_to_gh" });
+// The arm tilts outward to clear the hip and the model solves the shoulder for a span or a reach, so a hand hangs differently when any of these changes.
+const ARM_DIMS = ["acromion_halfwidth", "acromion_to_gh", "upper_arm_length", "forearm_length", "shoulder_height"];
+// A longer thigh or a different L5 height leaves less of the stature for the neck and the shoulder girdle (found by moving each dimension and refitting).
+const STATURE_SHARE = ["femur_length", "l5_above_hip"];
+
 function buildJointDims() {
   const t = {};
   t.pelvis = entry(["hip_height"], [], "The root: its offset is the height of the hip centres above the floor.");
   t.L5 = entry(["l5_above_hip"], ["hip_height"], "When L5/S1 is placed from the iliac crest height, the iliac crest stays where it is, so a longer thigh shortens this segment.");
   for (const id of [...REGIONS.lumbar.joints.slice(1), ...REGIONS.thoracic.joints, "C7"]) t[id] = entry(["trunk_length"], [], "One of the 17 intervals between L5/S1 and C7/T1; together they add up to the trunk length.");
-  for (const id of [...REGIONS.cervical.joints.slice(1), "head"]) t[id] = entry(["neck_length"], [], "One of the 7 intervals between C7/T1 and the occiput-C1 joint; together they add up to the neck length.");
+  for (const id of [...REGIONS.cervical.joints.slice(1), "head"]) t[id] = entry(["neck_length"], ["femur_length"], "One of the 7 intervals between C7/T1 and the occiput-C1 joint; together they add up to the neck length.");
   t.jaw = entry([], [], FIXED_NOTE);
   for (const s of ["L", "R"]) {
     t[`eye_${s}`] = entry(["interpupillary_breadth", "head_length"], ["tragion_below_eye", "vertex_to_eye"]);
-    t[`clavicle_${s}`] = entry(["c7_height"], [], "The shoulder girdle follows the height of C7/T1.");
-    t[`shoulder_${s}`] = entry(["shoulder_height", "gh_halfwidth", "shoulder_protraction"], ["c7_height"], SHOULDER_NOTE);
-    t[`elbow_${s}`] = entry(["upper_arm_length"], ["gh_halfwidth", "shoulder_height"], ARM_TILT + " A length that comes from the acromion-radiale distance also follows the shoulder height.");
+    t[`clavicle_${s}`] = entry(["c7_height"], STATURE_SHARE, "The shoulder girdle follows the height of C7/T1.");
+    t[`shoulder_${s}`] = entry(["shoulder_height", "gh_halfwidth", "shoulder_protraction"], ["c7_height", ...STATURE_SHARE, "knee_height", "buttock_back", "upper_arm_length", "forearm_length", "hand_length", "hand_breadth"], SHOULDER_NOTE);
+    t[`elbow_${s}`] = entry(["upper_arm_length"], ["gh_halfwidth", "shoulder_height", "forearm_length", "hand_length"], ARM_TILT + " A length that comes from the acromion-radiale distance also follows the shoulder height.");
     t[`forearm_${s}`] = entry([], [], "At the elbow centre (offset zero): this joint turns the forearm about its own axis; the forearm bone is as long as the wrist joint is far from the elbow.");
-    t[`wrist_${s}`] = entry(["forearm_length"], ["gh_halfwidth"], ARM_TILT);
-    t[`thumb_cmc_${s}`] = entry(["hand_length", "hand_breadth"]);
-    t[`thumb_mcp_${s}`] = entry(["hand_length"]);
-    t[`thumb_ip_${s}`] = entry(["hand_length"]);
+    t[`wrist_${s}`] = entry(["forearm_length"], ["gh_halfwidth", "upper_arm_length", "shoulder_height", "hand_length"], ARM_TILT);
+    t[`thumb_cmc_${s}`] = entry(["hand_length", "hand_breadth"], ARM_DIMS);
+    t[`thumb_mcp_${s}`] = entry(["hand_length"], ARM_DIMS);
+    t[`thumb_ip_${s}`] = entry(["hand_length"], ARM_DIMS);
     for (const f of ["index", "middle", "ring", "little"]) {
-      t[`${f}_mcp_${s}`] = entry(["hand_length", "hand_breadth"]);
-      t[`${f}_pip_${s}`] = entry(["hand_length"]);
-      t[`${f}_dip_${s}`] = entry(["hand_length"]);
+      t[`${f}_mcp_${s}`] = entry(["hand_length", "hand_breadth"], ARM_DIMS);
+      t[`${f}_pip_${s}`] = entry(["hand_length"], ARM_DIMS);
+      t[`${f}_dip_${s}`] = entry(["hand_length"], ARM_DIMS);
     }
     t[`hip_${s}`] = entry(["hip_halfwidth"], [], "Sideways from the pelvis midpoint to the hip joint centre.");
     t[`knee_${s}`] = entry(["femur_length"], ["knee_height"]);
@@ -99,7 +106,8 @@ export function jointInfluences(jointId) {
 }
 /** Joints whose rest segment a dimension sets or moves (the inverse of JOINT_DIMS, derived dimensions expanded). */
 export function dimensionJoints(dimId) {
-  return JOINTS.map((j) => j.id).filter((id) => jointInfluences(id).has(dimId));
+  const ids = [dimId, EDIT_AS[dimId]].filter(Boolean); // an edit of a derived dimension is applied to the one it stands for
+  return JOINTS.map((j) => j.id).filter((id) => ids.some((d) => jointInfluences(id).has(d)));
 }
 
 /**
@@ -516,16 +524,21 @@ async function mount(container, ctx) {
   }
   function focusItem(item) { setStop(item); item.el.focus({ preventScroll: false }); }
 
-  function refreshRows() {
+  // Only the angle text changes from one pose frame to the next: the rest segment, its units and the status chip depend on the body and the display units, so
+  // they are redrawn when those change (poseOnly = false) and not for every frame of a slider drag.
+  const setText = (el, t) => { if (el.textContent !== t) el.textContent = t; };
+  function refreshRows({ poseOnly = false } = {}) {
     const body = ctx.getBody(), rig = ctx.getRig();
     for (const item of nodes) {
       if (!item.jointId) continue;
-      item.angEl.textContent = angleSummary(item.jointId, rig?.angles?.[item.jointId]);
+      setText(item.angEl, angleSummary(item.jointId, rig?.angles?.[item.jointId]));
+      if (poseOnly) continue;
       const mm = restSegmentMm(item.jointId, body), st = jointBoneStatus(item.jointId, body);
       item.segEl.textContent = mm == null ? "" : !JOINT_BY_ID[item.jointId].parent ? `${fmtLength(mm, ctx.units)} up` : mm < 0.05 ? "at parent" : fmtLength(mm, ctx.units);
       item.segEl.title = JOINT_BY_ID[item.jointId].parent ? "Rest segment to the parent joint" : "Height of the hip centres above the floor";
       item.chipEl.replaceChildren(statusChip(st.status));
     }
+    if (poseOnly) return;
     const lm = body?.landmarks ? Object.keys(body.landmarks).length : 0;
     summaryEl.textContent = summaryText(lm);
   }
@@ -615,7 +628,9 @@ async function mount(container, ctx) {
     if (!rig || !lmSec.open) return;
     for (const [id, r] of lmRows) {
       if (r.li.hidden) continue;
-      try { r.pos.textContent = fmtPointMm(rig.landmarkWorld(id).toArray()); } catch { r.pos.textContent = ""; }
+      let t = "";
+      try { t = fmtPointMm(rig.landmarkWorld(id).toArray()); } catch { /* unknown landmark */ }
+      setText(r.pos, t);
     }
   }
   lmSearch.addEventListener("input", () => { filterLandmarks(); updateLandmarkPositions(); });
@@ -712,7 +727,7 @@ async function mount(container, ctx) {
   offs.push(() => narrow.removeEventListener?.("change", onNarrow));
   function onPoseNow() {
     if (!shown) return;
-    refreshRows();
+    refreshRows({ poseOnly: true });
     const spec = currentSpec();
     inspView.pose(spec);
     if (narrow.matches) inlineView.pose(spec);

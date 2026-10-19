@@ -6,7 +6,8 @@
 //
 // EXTENSION FIELDS. A Profile may carry two optional fields the shell has to pass on to fitBody(profile, opts): `form` ("male" | "female" | "neutral": opts.form)
 // and `overrides` ({ dimensionId: metres }: opts.overrides, the edits of the mapping table that no measure can express). This panel sets them and, after every
-// build, checks that the body has them; when it has not, it says so (see verifyExtras). shell.js deps.fit should read them:
+// build, checks that the body has them; when it has not, it says so (see extrasNotice). shell.js deps.fit should read them (it does not yet: until then the
+// body form and the edits of the 33 dimensions that are not profile measures have no effect, and the panel says so):
 //   fitBody(profile, { form: profile.form ?? formOf(profile), overrides: profile.overrides })
 import { h, toast, download, fmtInt } from "../../util.js";
 import * as anthro from "../anthro.js";
@@ -89,12 +90,30 @@ export function populationHint(entry) {
     : `${fmtInt(n)} measures are published for this population (the fewer, the more of the body the model has to estimate).`;
   return { measures: n, few, text };
 }
-/** The selection a population profile came from, to put the controls back when another part of the page loads one. null for other profiles. */
-export function selectionOfProfile(profile) {
+/** anthro.percentileProfile cuts the ids it stores in `source` at 100 characters; a pooled population (many countries in one) has a longer id. */
+export const SOURCE_ID_MAX = 100;
+/** The entry of `list` ({ id }) that an id from a profile source means: the exact id, or the only one it is the cut-off start of. Else null. */
+export function resolveSourceId(list, id) {
+  if (typeof id !== "string" || !Array.isArray(list)) return null;
+  const exact = list.find((x) => x.id === id);
+  if (exact) return exact;
+  const longer = id.length >= SOURCE_ID_MAX ? list.filter((x) => x.id.length > id.length && x.id.startsWith(id)) : [];
+  return longer.length === 1 ? longer[0] : null;
+}
+/**
+ * The selection a population profile came from, to put the controls back when another part of the page loads one. null for other profiles. With the loaded
+ * `index` the ids that the profile cut short are completed (see SOURCE_ID_MAX), so that the controls keep showing the population that is on the stage.
+ */
+export function selectionOfProfile(profile, index) {
   const s = profile?.source;
   if (s?.kind !== "population") return null;
   const level = ["high", "medium", "low"].includes(s.minReliability) ? s.minReliability : "medium";
-  return { country: s.country_id, role: s.role_id, sex: s.sex, percentile: Number(s.percentile) || 50, scaling: s.scaling === "proportional" ? "proportional" : "percentile", reliability: level, survey: s.survey ? "latest" : "combined" };
+  let country = s.country_id, role = s.role_id;
+  if (index?.countries) {
+    const c = resolveSourceId(index.countries, country);
+    if (c) { country = c.id; role = resolveSourceId(c.roles, role)?.id ?? role; }
+  }
+  return { country, role, sex: s.sex, percentile: Number(s.percentile) || 50, scaling: s.scaling === "proportional" ? "proportional" : "percentile", reliability: level, survey: s.survey ? "latest" : "combined" };
 }
 
 const LAST_KEY = "hm-profile-last";
@@ -203,6 +222,7 @@ export function dimensionRows(body, profile, catalog) {
       viaLabels: via.map((k) => niceLabel(k, catalog)),
       edited: Object.hasOwn(ov, d.id) || (!!ALIASED_OVERRIDES[d.id] && Object.hasOwn(ov, ALIASED_OVERRIDES[d.id])) || via.some((k) => meas[k]?.status === "edited"),
       group: groupOfDim(d.id), target: DIM_TARGET[d.id] ?? null, band: bandOf(d.id),
+      ...(d.id === "gh_halfwidth" ? { acromionHalfwidth: body.dims.find((x) => x.id === "acromion_halfwidth")?.value } : {}),
     };
     row.editability = editability(row);
     return row;
@@ -280,23 +300,64 @@ export function finalizeProfile(profile, extras = {}) {
   if (form) p.notes.push(noteForm(form, defaultForm(p)));
   return p;
 }
+/** How many things the person changed by hand in a profile: edited measures plus overridden dimensions. */
+export function countEdits(profile) {
+  return Object.values(profile?.measures ?? {}).filter((m) => m.status === "edited").length + Object.keys(profile?.overrides ?? {}).length;
+}
+/** A note or message with its first letter in capitals ("the model's arm hangs..." -> "The model's arm hangs..."). */
+export const capFirst = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 /** Two profiles the fitter would turn into the same body (same id, form and overrides). */
 export function sameProfile(a, b) {
   return !!a && !!b && a.id === b.id && (a.form ?? null) === (b.form ?? null) && JSON.stringify(a.overrides ?? {}) === JSON.stringify(b.overrides ?? {});
 }
 
-/** The profile with the dimension set to `value` (in `unit`: mm, cm, m or in; kg or lb for the mass). Throws an Error with a plain message when it cannot. */
+/** The name of a dimension for messages: the label without its parenthesis ("Hand length (stylion to the tip of the middle finger)" -> "Hand length"). */
+export const plainLabel = (row) => String(row.label ?? row.id).replace(/\s*\(.*$/, "");
+const LIMIT_MM = 5000;
+/** "120 to 260 mm", "at least 20 mm", "at most 90 mm" for a plausible band in metres (null for an open edge). */
+export function bandText(lo, hi) {
+  const f = (m) => fmtLength(m * 1000, "mm", { suffix: false });
+  return lo != null && hi != null ? `${f(lo)} to ${f(hi)} mm` : lo != null ? `at least ${f(lo)} mm` : hi != null ? `at most ${f(hi)} mm` : "range of a person";
+}
+/**
+ * The profile with the dimension set to `value` (in `unit`: mm, cm, m or in; kg or lb for the mass). Throws an Error with a plain message when it cannot.
+ * An edit of the shoulder half-width is stored as the acromion offset it comes from (the row carries the acromion half-width of its body): the fitter's
+ * arm-span solver leaves that one alone, whereas it would undo an override of the derived half-width.
+ */
 export function editDimension(profile, row, value, unit = row.kind === "kg" ? "kg" : "mm") {
   const ed = row.editability ?? editability(row);
-  if (ed.kind === "measure") return finalizeProfile(anthro.editMeasure(profile, ed.key, value, unit));
-  if (ed.kind === "override") {
-    const v = typeof value === "number" ? value : parseNumber(value);
+  if (ed.kind !== "measure" && ed.kind !== "override") throw new Error(ed.why ?? "This dimension cannot be edited.");
+  const v = typeof value === "number" ? value : parseNumber(value);
+  if (!Number.isFinite(v)) throw new Error("Enter the value as a number.");
+  const name = row.kind === "kg" ? "Body mass" : plainLabel(row);
+  const [lo, hi] = bandOf(row.id);
+  if (row.kind === "kg") {
+    const kg = unit === "lb" ? v * 0.45359237 : v;
+    if (!(kg > 0)) throw new Error(`${name} must be more than zero.`);
+  } else {
     const mm = toMm(v, unit);
-    if (!Number.isFinite(mm)) throw new Error("Enter the value as a number.");
-    if (!(mm > 0 && mm <= 5000)) throw new Error("A dimension of a person is between 0 and 5 metres.");
-    return finalizeProfile(profile, { overrides: { ...(profile.overrides ?? {}), [row.id]: mm / 1000 } });
+    if (!Number.isFinite(mm)) throw new Error(`Unknown unit “${unit}”.`);
+    const mayBeNegative = lo != null && lo < 0; // a signed offset (the shoulder protraction): zero and negative values are real
+    if (Math.abs(mm) > LIMIT_MM) throw new Error("A dimension of a person is between 0 and 5 metres.");
+    if (!mayBeNegative && !(mm > 0)) throw new Error(`${name} must be more than zero.`);
+    // a measure outside the plausible band would be refused by the model (it falls back to another route) while the profile, and its export, keep the value
+    if (ed.kind === "measure" && row.id !== "stature" && ((lo != null && mm < lo * 1000) || (hi != null && mm > hi * 1000))) {
+      throw new Error(`${name} of ${fmtLength(mm, "mm")} is outside the ${bandText(lo, hi)} that the model accepts for this dimension.`);
+    }
   }
-  throw new Error(ed.why ?? "This dimension cannot be edited.");
+  if (ed.kind === "measure") return finalizeProfile(anthro.editMeasure(profile, ed.key, v, unit)); // its range errors (stature, mass) are plain already
+  const mm = toMm(v, unit);
+  const ov = { ...(profile.overrides ?? {}) };
+  if (row.id === "gh_halfwidth") {
+    const half = row.acromionHalfwidth;
+    if (Number.isFinite(half)) { // a half-width wider than the acromion leaves no offset: the smallest positive one lets the model hold it at its lower limit and say so
+      ov.acromion_to_gh = Math.max(1e-6, half - mm / 1000);
+      delete ov.gh_halfwidth;
+      return finalizeProfile(profile, { overrides: ov });
+    }
+  }
+  ov[row.id] = mm / 1000;
+  return finalizeProfile(profile, { overrides: ov });
 }
 /** Undo the edit of one dimension (its measure back to the value it had, or its override removed). */
 export function revertDimension(profile, row) {
@@ -305,9 +366,14 @@ export function revertDimension(profile, row) {
     const key = [ed.key, ...(row.via ?? [])].find((k) => profile.measures[k]?.status === "edited");
     return key ? finalizeProfile(anthro.revertMeasure(profile, key)) : profile;
   }
-  const ov = { ...(profile.overrides ?? {}) };
+  const ov = { ...(profile.overrides ?? {}) }, from = ALIASED_OVERRIDES[row.id];
   delete ov[row.id];
-  return finalizeProfile(profile, { overrides: ov });
+  if (from) delete ov[from]; // the row is marked edited by an edit of the dimension it comes from
+  const p = finalizeProfile(profile, { overrides: ov });
+  if (!from) return p;
+  const src = { id: from, via: row.via ?? [], status: "derived" }; // that dimension may be a profile measure (knee height): its edit goes too
+  src.editability = editability(src);
+  return src.editability.kind === "measure" ? revertDimension(p, src) : p;
 }
 /** Undo every edit: edited measures back to their values, overrides removed. */
 export function revertAll(profile) {
@@ -315,22 +381,74 @@ export function revertAll(profile) {
   for (const [k, m] of Object.entries(profile.measures)) if (m.status === "edited") p = anthro.revertMeasure(p, k);
   return finalizeProfile(p, { overrides: {} });
 }
-/** Edits the model did not apply (a shell that does not pass `form` or `overrides` on to fitBody): ["body form", "dimension edits"], empty when all is applied. */
+// The warning fit.js adds when it had to move an edited dimension or girth into its plausible range (fit.js inBand, ringOverride).
+const heldWarning = (body, ...names) => (body?.warnings ?? []).some((t) => names.some((n) => t.startsWith(`The edited ${n} (`)));
+const ringName = (id) => id.slice(5).replace("_", " ") + " girth"; // fit.js ringOverride: ring_neck_base -> "neck base girth"
+/** The ids of the overrides of `profile` that the model did not apply, [] when all were. An edit that was applied and then held in its range counts as applied. */
+export function unappliedOverrides(profile, body) {
+  if (!profile || !body) return [];
+  return Object.entries(profile.overrides ?? {}).filter(([id, v]) => {
+    const d = body.dims?.find((x) => x.id === id);
+    if (!d) return false;
+    if (/limited to|plausible|clamp/.test(d.note ?? "")) return false; // applied, then held inside the band
+    if (id.startsWith("ring_")) return Math.abs(d.value - v) > 0.02 * v && !heldWarning(body, ringName(id)); // a girth is held within 1.5 % by the section; fit.js clamps extreme ones (0.4 to 2.2 x typical) and says so only in the warnings
+    // an alias (shank length, hip height, ...) is an edit of the dimension it is derived from: that one carries the note
+    const target = ALIASED_OVERRIDES[id] ? body.dims.find((x) => x.id === ALIASED_OVERRIDES[id]) : d;
+    return !(target?.note ?? "").includes("overridden by the user");
+  }).map(([id]) => id);
+}
+/** Edits the model did not apply (a shell that does not pass `form` or `overrides` on to fitBody): ["the body form", "the dimension edits"], empty when all is applied. */
 export function verifyExtras(profile, body) {
   const out = [];
   if (!profile || !body) return out;
   if (profile.form && body.form && body.form !== profile.form) out.push("the body form");
-  const unapplied = Object.entries(profile.overrides ?? {}).filter(([id, v]) => {
-    const d = body.dims?.find((x) => x.id === id);
-    if (!d) return false;
-    if (/limited to|plausible|clamp/.test(d.note ?? "")) return false; // applied, then held inside the band
-    if (id.startsWith("ring_")) return Math.abs(d.value - v) > 0.02 * v; // a girth is held within 1.5 % by the section it must fit
-    // an alias (shank length, hip height, ...) is an edit of the dimension it is derived from: that one carries the note
-    const target = ALIASED_OVERRIDES[id] ? body.dims.find((x) => x.id === ALIASED_OVERRIDES[id]) : d;
-    return !(target?.note ?? "").includes("overridden by the user");
-  });
-  if (unapplied.length) out.push("the dimension edits");
+  if (unappliedOverrides(profile, body).length) out.push("the dimension edits");
   return out;
+}
+const labelOfDim = (body, id) => `“${plainLabel(body?.dims?.find((d) => d.id === id) ?? { id, label: id })}”`;
+/**
+ * What to tell the person when the model did not apply their body form or dimension edits, or null when it did. Says which: a shell that passes nothing on
+ * (the form and every edit missing) is a different problem from one edit the fitter cannot take (a zero or negative offset).
+ */
+export function extrasNotice(profile, body) {
+  const missing = verifyExtras(profile, body);
+  if (!missing.length) return null;
+  const ids = unappliedOverrides(profile, body), all = Object.keys(profile.overrides ?? {});
+  const signed = ids.filter((id) => !(profile.overrides[id] > 0)); // fit.js ignores an override of zero or less
+  const rest = ids.filter((id) => !signed.includes(id));
+  const bits = [];
+  if (missing.includes("the body form")) bits.push("the body form");
+  const shellDrops = missing.includes("the body form") ? rest.length > 0 : rest.length > 0 && rest.length === all.filter((id) => !signed.includes(id)).length;
+  if (rest.length) bits.push(shellDrops ? "the dimension edits" : `your edit of ${rest.slice(0, 3).map((id) => labelOfDim(body, id)).join(", ")}${rest.length > 3 ? ` and ${rest.length - 3} more` : ""}`);
+  let text = "";
+  if (bits.length) text = `The model ignored ${bits.join(" and ")}${shellDrops ? ": this build of the Digital human view passes only the measures of the profile to the fitting module. Edit the measures instead (for example the stature) or ask for the update." : ": the fitting module did not use it for the profile in use. Revert the edit to clear this message."}`;
+  if (signed.length) text += `${text ? " " : ""}The fitting module does not take a value of zero or less for ${signed.map((id) => labelOfDim(body, id)).join(", ")} yet, so that edit was not applied. Revert it to get the earlier shape back.`;
+  return text;
+}
+
+/**
+ * Whether the model built the edited dimension as asked. `askedMm` is the value that was typed in mm (kg for the mass). Returns null when it did, else
+ * { level: "warn", text } saying what happened: held at the edge of the plausible range, the edit not applied, or built a little differently.
+ */
+export function explainEdit(row, askedMm, body, unit = "mm") {
+  const d = body?.dims?.find((x) => x.id === row.id);
+  if (!d || !Number.isFinite(askedMm)) return null;
+  const kg = row.kind === "kg", built = kg ? d.value : d.value * 1000;
+  const show = (v) => (kg ? fmtKg(v) : fmtLength(v, unit));
+  const name = kg ? "Body mass" : plainLabel(row);
+  const tol = Math.max(kg ? 0.05 : 1, Math.abs(askedMm) * 0.003);
+  if (Math.abs(built - askedMm) <= tol) return null;
+  const alias = ALIASED_OVERRIDES[row.id] ? body.dims.find((x) => x.id === ALIASED_OVERRIDES[row.id]) : null;
+  const edge = [d, alias].some((x) => x && /limited to/.test(x.note ?? "")) || heldWarning(body, d.label, alias?.label ?? "", ...(row.id.startsWith("ring_") ? [ringName(row.id)] : []));
+  if (edge) return { level: "warn", text: `${name} was held to ${show(built)}: ${show(askedMm)} is outside the range the model accepts for this dimension.` };
+  if (row.editability?.kind === "override") {
+    const ring = row.id.startsWith("ring_"); // a girth is solved with its section: its note does not say "overridden", and it is held within 1.5 %
+    if (!ring && ![d, alias].some((x) => (x?.note ?? "").includes("overridden by the user"))) return { level: "warn", text: `The model did not apply this edit: ${name} is ${show(built)}.` };
+    if (ring && Math.abs(built - askedMm) <= 0.02 * Math.abs(askedMm)) return { level: "info", text: `${name} was fitted as ${show(built)}: the body section cannot hold ${show(askedMm)} exactly (it holds a girth within 1.5 %).` };
+    if (ring) return { level: "warn", text: `The model did not apply this edit: ${name} is ${show(built)}.` };
+    return { level: "warn", text: `${name} was built as ${show(built)} instead of ${show(askedMm)}: other dimensions it depends on limit it.` };
+  }
+  return { level: "warn", text: `The model did not accept ${show(askedMm)} for ${name} and used ${show(built)} from another route (see the note of the dimension).` };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -350,7 +468,8 @@ export function reportSummary(rows) {
   if (c.warn) bits.push(`${c.warn} close (warn)`);
   if (c.off) bits.push(`${c.off} off`);
   if (c.na) bits.push(`${c.na} without an input value`);
-  return { evaluated, ...c, text: `${c.ok} of ${evaluated} checks within tolerance`, detail: bits.join(", ") };
+  // a population that publishes next to nothing leaves nothing to compare: "0 of 0 checks within tolerance" would read like a failure
+  return { evaluated, ...c, text: evaluated ? `${c.ok} of ${evaluated} checks within tolerance` : "Nothing to check: the profile has none of the measures the report compares", detail: bits.join(", ") };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -481,10 +600,21 @@ async function mount(container, ctx) {
   const status = el("div", "hm-pf-status small");
   status.setAttribute("role", "status");
   status.setAttribute("aria-live", "polite");
+  let statusKind = "ok", building = 0, editNote = false; // building: submits in flight; editNote: the line is the result of a dimension edit
   const setStatus = (kind, content) => {
+    statusKind = kind;
+    editNote = false;
     status.className = `hm-pf-status small hm-pf-status-${kind}`;
     status.replaceChildren(...[].concat(content ?? []).map((c) => (c instanceof Node ? c : document.createTextNode(String(c)))));
   };
+  /** The line after a build: what is shown, and what of the person's choices the model did not take. */
+  function showBuilt(fallbackLabel) {
+    const cur = ctx.getProfile(), b = ctx.getBody();
+    const miss = cur && b && (b.profileId == null || b.profileId === cur.id) ? verifyExtras(cur, b) : [];
+    const label = cur?.label ?? fallbackLabel;
+    if (miss.length) setStatus("warn", `Showing ${label}, but the model did not apply ${miss.join(" and ")} (the message above the 3D view says why).`);
+    else setStatus("ok", `Showing ${label}`);
+  }
   const retryBtn = (fn) => h("button", { type: "button", class: "btn small", onclick: fn }, "Retry");
 
   // ---- the profile in use
@@ -515,10 +645,11 @@ async function mount(container, ctx) {
     const my = ++submitGen;
     setStatus("busy", [h("span", { class: "spinner", "aria-hidden": "true" }), " Building the model…"]);
     let res;
-    try { res = await ctx.setProfile(p, { immediate }); } catch (e) { res = { ok: false, error: e }; }
+    building++;
+    try { res = await ctx.setProfile(p, { immediate }); } catch (e) { res = { ok: false, error: e }; } finally { building--; }
     if (disposed || my !== submitGen) return res;
     if (res?.ok === false && res.superseded !== true) setStatus("error", `The model could not be built (${msgOf(res.error ?? "see the message above the 3D view")}).`);
-    else setStatus("ok", `Showing ${ctx.getProfile()?.label ?? p.label}`);
+    else showBuilt(p.label);
     return res;
   }
 
@@ -593,7 +724,7 @@ async function mount(container, ctx) {
     try {
       index = await anthro.loadIndex();
       indexState = "ready";
-      const sel = selectionOfProfile(ctx.getProfile()); // a population profile that arrived while the list was loading
+      const sel = selectionOfProfile(ctx.getProfile(), index); // a population profile that arrived while the list was loading
       if (sel) { Object.assign(pop, sel); pop.extended = pop.percentile < 5 || pop.percentile > 95; }
     } catch (e) {
       indexState = "error";
@@ -604,7 +735,7 @@ async function mount(container, ctx) {
     renderPopulationView();
   }
   function renderPopulationView() {
-    if (indexState === "loading" || indexState === "idle") { popView.replaceChildren(el("div", "loading", el("div", "spinner"), "Loading the list of populations…")); return; }
+    if (indexState === "loading" || indexState === "idle") { popView.replaceChildren(h("div", { class: "loading", role: "status" }, el("div", "spinner"), "Loading the list of populations…")); return; }
     if (indexState === "error") {
       popView.replaceChildren(notice(`The list of populations could not be loaded (${popView.errorText}). You can still import a file or type a stature and mass.`, { level: "warn" }), h("p", {}, retryBtn(loadIndex)));
       return;
@@ -661,7 +792,13 @@ async function mount(container, ctx) {
     }
     if (my !== popGen) return;
     writeLast(pop);
-    await submit(profile, { immediate: true });
+    const before = ctx.getProfile(), lost = countEdits(before);
+    const res = await submit(profile, { immediate: true });
+    // a new population is a new body: the edits of the old one cannot follow (they are values of that body). Say so, and offer the way back.
+    if (lost && my === popGen && !disposed && res?.ok !== false && !res?.same && ctx.getProfile()?.id !== before?.id) {
+      setStatus("warn", [`Loaded ${profile.label}. Your ${lost} edit${lost === 1 ? "" : "s"} to the previous profile ${lost === 1 ? "was" : "were"} not carried over. `,
+        h("button", { type: "button", class: "btn small", onclick: () => submit(before) }, "Go back to the previous profile")]);
+    }
   }
 
   // =====================================================================================================================
@@ -746,7 +883,7 @@ async function mount(container, ctx) {
   function renderIndividual() {
     if (ind.state === "idle") { indView.replaceChildren(); return; }
     if (ind.state === "loading") {
-      indView.replaceChildren(el("div", "loading", el("div", "spinner"), "Loading the database (about 5 MB, only the first time)…"));
+      indView.replaceChildren(h("div", { class: "loading", role: "status" }, el("div", "spinner"), "Loading the database (about 5 MB, only the first time)…"));
       return;
     }
     if (ind.state === "error") {
@@ -879,9 +1016,10 @@ async function mount(container, ctx) {
   const manSex = h("select", { class: "input", id: mids.sex }, h("option", { value: "M" }, "Man"), h("option", { value: "F" }, "Woman"), h("option", { value: "both" }, "Not stated (neutral body)"));
   manSex.value = ctx.getProfile()?.sex === "F" ? "F" : ctx.getProfile()?.sex === "both" ? "both" : "M";
   let manDirty = false; // the person typed here: do not overwrite with the current body
-  const manSt = h("input", { class: "input", id: mids.st, type: "number", step: "any", inputmode: "decimal", placeholder: "1755", value: cur0 ? Math.round(cur0.stature * 1000) : "" });
+  // text fields, not number fields: a number field reads "175,5" as 1755 in some browsers, and manualFromForm reads a decimal comma itself
+  const manSt = h("input", { class: "input", id: mids.st, type: "text", inputmode: "decimal", autocomplete: "off", placeholder: "1755", value: cur0 ? Math.round(cur0.stature * 1000) : "" });
   const manStU = h("select", { class: "input hm-pf-unit", id: mids.stu, "aria-label": "Stature unit" }, STATURE_UNITS.map((u) => h("option", { value: u }, u)));
-  const manMs = h("input", { class: "input", id: mids.ms, type: "number", step: "any", inputmode: "decimal", placeholder: "80", value: cur0 ? Number(cur0.mass.toFixed(1)) : "" });
+  const manMs = h("input", { class: "input", id: mids.ms, type: "text", inputmode: "decimal", autocomplete: "off", placeholder: "80", value: cur0 ? Number(cur0.mass.toFixed(1)) : "" });
   const manMsU = h("select", { class: "input hm-pf-unit", id: mids.msu, "aria-label": "Mass unit" }, MASS_UNITS.map((u) => h("option", { value: u }, u)));
   const manErr = el("p", "small hm-pf-msg hm-pf-msg-error");
   manErr.setAttribute("role", "alert");
@@ -892,7 +1030,23 @@ async function mount(container, ctx) {
     try { p = manualFromForm({ sex: manSex.value, stature: manSt.value, statureUnit: manStU.value, mass: manMs.value, massUnit: manMsU.value }); } catch (err) { manErr.textContent = err.message; return; }
     submit(p);
   }
-  manView.append(h("form", { class: "hm-pf-form", onsubmit: applyManual, novalidate: true },
+  // Sliders over the same two values (DESIGN.md 3.1): they move the fields in the unit chosen there, and the fields move them. The rest of the body is the
+  // model's estimate for that stature, mass and sex (the regressions of the survey data), so the sliders are the base-population part of the choice.
+  const sliderMm = (unitEl) => TO_MM[unitEl.value] ?? 1;
+  const stSlider = sliderRow({ label: "Adjust stature", min: 1400, max: 2100, step: 1, value: cur0 ? Math.min(2100, Math.max(1400, Math.round(cur0.stature * 1000))) : 1755, unit: "mm",
+    onInput: (v) => { manSt.value = String(Number((v / sliderMm(manStU)).toFixed(manStU.value === "mm" ? 0 : 2))); manDirty = true; }, onChange: () => applyManual() });
+  const msSlider = sliderRow({ label: "Adjust body mass", min: 40, max: 150, step: 1, value: cur0 ? Math.min(150, Math.max(40, Math.round(cur0.mass))) : 80, unit: "kg",
+    onInput: (v) => { manMs.value = String(Number((manMsU.value === "lb" ? v / 0.45359237 : v).toFixed(manMsU.value === "lb" ? 0 : 1))); manDirty = true; }, onChange: () => applyManual() });
+  /** The sliders show what the fields say (left where they are when a field is empty or not a number). */
+  function syncSliders() {
+    const st = parseNumber(manSt.value), ms = parseNumber(manMs.value);
+    if (Number.isFinite(st)) stSlider.set(st * sliderMm(manStU));
+    if (Number.isFinite(ms)) msSlider.set(manMsU.value === "lb" ? ms * 0.45359237 : ms);
+  }
+  for (const e of [manSt, manMs, manStU, manMsU]) e.addEventListener("input", syncSliders);
+  manStU.addEventListener("change", syncSliders);
+  manMsU.addEventListener("change", syncSliders);
+  manView.append(el("div", "hm-pf-mansliders", stSlider.el, msSlider.el), h("form", { class: "hm-pf-form", onsubmit: applyManual, novalidate: true },
     el("div", "field", h("label", { for: mids.sex }, "Sex"), manSex),
     el("div", "field", h("label", { for: mids.st }, "Stature"), el("div", "hm-pf-withunit", manSt, manStU)),
     el("div", "field", h("label", { for: mids.ms }, "Body mass (optional)"), el("div", "hm-pf-withunit", manMs, manMsU)),
@@ -910,6 +1064,7 @@ async function mount(container, ctx) {
     manMs.value = String(Number(b.mass.toFixed(1)));
     manMsU.value = "kg";
     manSex.value = p?.sex === "F" ? "F" : p?.sex === "both" ? "both" : "M";
+    syncSliders();
   }
 
   // =====================================================================================================================
@@ -939,7 +1094,7 @@ async function mount(container, ctx) {
   const formHint = el("p", "small muted");
   function renderForm() {
     const p = ctx.getProfile(), b = ctx.getBody();
-    formSeg.set(p?.form ?? "auto");
+    formSeg.set(formChoice ?? p?.form ?? "auto");
     formHint.textContent = p ? `Auto follows the sex of the profile (here: ${defaultForm(p)}). The form only changes what is not measured: typical proportions, section shapes and mass distribution. Measured dimensions stay as they are.${b?.form ? ` The body now uses the ${b.form} form.` : ""}` : "";
   }
   async function setForm(v) {
@@ -947,6 +1102,7 @@ async function mount(container, ctx) {
     const p = ctx.getProfile();
     if (!p) return;
     await submit(p);
+    renderForm(); // a form equal to the one the sex gives leaves the profile unchanged (no event), but the person's choice stays visible
   }
   const formSec = section("Body form", [formSeg.el, formHint], { open: false });
 
@@ -958,7 +1114,7 @@ async function mount(container, ctx) {
   const chipEls = new Map(chipDefs.map(([k, label]) => [k, h("button", { type: "button", class: "hm-chip hm-pf-fchip", "aria-pressed": k === "all" ? "true" : "false", dataset: { filter: k }, onclick: () => { dimState.filter = k; renderDims(); } }, label)]));
   const dimList = el("div", "hm-pf-dims");
   const dimSummary = el("p", "small muted hm-pf-dimsum");
-  const revertAllBtn = h("button", { type: "button", class: "btn small", hidden: true, onclick: () => submit(revertAll(ctx.getProfile())) }, "Revert all edits");
+  const revertAllBtn = h("button", { type: "button", class: "btn small", hidden: true, "data-focus-key": "revertall", onclick: () => { if (editNote) showBuilt(); submit(revertAll(ctx.getProfile())); } }, "Revert all edits");
   const dimLegend = el("p", "small muted", "Measured: the value is a measure of the profile (or typed by you). Derived: computed from measures with a documented relation. Estimated: no measure, so the model uses a typical value for the stature, mass and sex. Select a row to see where it came from and to edit it; the 3D view shows what it moves.");
   dimSearch.addEventListener("input", () => { dimState.query = dimSearch.value; renderDims(); });
 
@@ -980,7 +1136,7 @@ async function mount(container, ctx) {
     const parts = [];
     const dl = h("dl", { class: "hm-pf-dl" });
     const add = (k, v) => { if (v != null && v !== "") dl.append(h("dt", {}, k), h("dd", {}, v)); };
-    const cap = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
+    const cap = capFirst;
     const noteRepeats = row.formula && row.note.toLowerCase().startsWith(row.formula.toLowerCase());
     add(noteRepeats ? "How it was set" : "Route used", noteRepeats ? cap(row.note) : row.formula ? cap(row.formula) : row.status === "estimated" ? "Estimated from stature, mass and sex" : "");
     if (row.via.length) {
@@ -1009,28 +1165,30 @@ async function mount(container, ctx) {
     if (ed.kind === "measure" || ed.kind === "override") {
       const kg = row.kind === "kg";
       const id = nextId("hm-pf-ed");
-      const input = h("input", { type: "number", class: "input hm-pf-edit", id, step: "any", inputmode: "decimal", "data-focus-key": `edit:${row.id}`,
+      // type text, not number: a number field reads "175,5" as 1755 in some browsers, and the panel reads a decimal comma itself (parseNumber)
+      const input = h("input", { type: "text", class: "input hm-pf-edit", id, inputmode: "decimal", autocomplete: "off", "data-focus-key": `edit:${row.id}`,
         value: kg ? Number(row.value.toFixed(1)) : Number(toUnit(row.mm, u).toFixed(unitDigits(u) + (u === "mm" ? 1 : 0))) });
       const msg = el("div", "small hm-pf-msg hm-pf-msg-error");
       msg.setAttribute("role", "alert");
       const apply = async () => {
         msg.textContent = "";
+        if (editNote) showBuilt(); // the result of the previous edit is not the result of this one
         const v = parseNumber(input.value);
         if (!Number.isFinite(v)) { msg.textContent = "Enter a number."; return; }
         let next;
         try { next = editDimension(ctx.getProfile(), row, v, kg ? "kg" : u); } catch (e) { msg.textContent = e.message; return; }
         dimState.open = row.id;
         const res = await submit(next);
-        const d = ctx.getBody()?.dims?.find((x) => x.id === row.id);
-        if (d && !kg && res?.ok !== false) {
-          const asked = fromUnit(v, u);
-          if (Math.abs(d.value * 1000 - asked) > Math.max(1, asked * 0.003)) setStatus("warn", `${row.label}: ${ctx.fmt(asked)} was held to ${ctx.fmt(d.value * 1000)}, the edge of what the model accepts for this dimension.`);
-        }
+        const b = ctx.getBody(), cur = ctx.getProfile();
+        if (disposed || res?.ok === false || !b || (b.profileId != null && b.profileId !== cur?.id)) return;
+        // say what the model did with the value when it is not what was typed (held at an edge, not applied, built another way)
+        const ex = explainEdit(row, kg ? v : fromUnit(v, u), b, u);
+        if (ex) { setStatus(ex.level === "info" ? "ok" : "warn", ex.text); editNote = true; }
       };
       input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); apply(); } });
       parts.push(el("div", "hm-pf-editor", h("label", { for: id, class: "small" }, `Set ${kg ? "the mass" : "this dimension"} to`), el("div", "hm-pf-editrow", input, el("span", "hm-unit", kg ? "kg" : UNIT_LABEL[u]),
-        h("button", { type: "button", class: "btn primary small", onclick: apply }, "Apply"),
-        row.edited ? h("button", { type: "button", class: "btn small", onclick: async () => { dimState.open = row.id; await submit(revertDimension(ctx.getProfile(), row)); } }, "Revert") : null), msg,
+        h("button", { type: "button", class: "btn primary small", "data-focus-key": `apply:${row.id}`, onclick: apply }, "Apply"),
+        row.edited ? h("button", { type: "button", class: "btn small", "data-focus-key": `revert:${row.id}`, onclick: async () => { dimState.open = row.id; if (editNote) showBuilt(); await submit(revertDimension(ctx.getProfile(), row)); } }, "Revert") : null), msg,
         ed.kind === "measure" ? el("div", "small muted", `Stored as the profile measure “${niceLabel(ed.key)}”.`) : el("div", "small muted", "Applied to the model; the profile's measures stay as they are.")));
     } else if (ed.kind === "derived") {
       parts.push(el("div", "hm-pf-editor", el("div", "small muted", ed.why), el("div", "hm-pf-fromlinks", ed.from.map((id2) => {
@@ -1039,6 +1197,22 @@ async function mount(container, ctx) {
       }))));
     } else if (ed.kind === "none") parts.push(el("div", "hm-pf-editor small muted", ed.why));
     return parts;
+  }
+  /**
+   * Put the keyboard focus back where it was after the list was redrawn. A control that is gone (Revert once nothing is edited, "Revert all edits" when it
+   * hides) hands the focus to the nearest thing that is left: the value field of the same row, the row itself, the search field.
+   */
+  function restoreFocus(key) {
+    if (!key) return;
+    const id = key.slice(key.indexOf(":") + 1);
+    const chain = [key, ...(/^(apply|revert):/.test(key) ? [`edit:${id}`] : []), ...(/^(apply|revert|edit):/.test(key) ? [`row:${id}`] : [])];
+    for (const k of chain) {
+      const el = root.querySelector(`[data-focus-key="${CSS.escape(k)}"]`);
+      if (!el || el.hidden) continue;
+      el.focus();
+      if (document.activeElement === el) return;
+    }
+    if (key === "revertall") dimSearch.focus();
   }
   function renderDims() {
     if (disposed) return;
@@ -1074,7 +1248,7 @@ async function mount(container, ctx) {
       return h("div", { class: "hm-pf-dimgrp" }, h("h3", { class: "hm-pf-grp" }, g.label, h("span", { class: "small muted" }, ` ${g.rows.length}`)), h("ul", { class: "hm-pf-dimlist" }, items));
     });
     dimList.replaceChildren(...(sections.length ? sections : [el("p", "small muted", "No dimension matches.")]));
-    if (focusKey) dimList.querySelector(`[data-focus-key="${CSS.escape(focusKey)}"]`)?.focus();
+    restoreFocus(focusKey);
     renderCurrent();
     const cnt = dimSec.querySelector("summary .tag");
     if (cnt) cnt.textContent = String(rows.length);
@@ -1105,7 +1279,7 @@ async function mount(container, ctx) {
     return h("li", { class: "hm-pf-rrow", dataset: { status: r.status, id: r.id } },
       el("div", "hm-pf-rtop", h("span", { class: "hm-pf-rname" }, r.label), h("span", { class: `hm-pf-st hm-rs-${r.status.replace("/", "")}`, title: { ok: "Within tolerance", warn: "Close but outside the tolerance", off: "Further off than the warning limit", "n/a": "The profile has no value to compare with" }[r.status] }, r.status)),
       el("div", "hm-pf-rnums", num("input", r.input), num("model", r.model), num("Δ", r.delta, true), pr ? num("in this pose", pr.model) : null, pr ? num("Δ in pose", pr.delta, true) : null),
-      r.note && r.status !== "ok" ? el("div", "hm-pf-rnote small muted", r.note) : null);
+      r.note && r.status !== "ok" ? el("div", "hm-pf-rnote small muted", capFirst(r.note)) : null);
   }
   function renderReport() {
     const body = ctx.getBody();
@@ -1131,9 +1305,9 @@ async function mount(container, ctx) {
   function renderNotes() {
     const body = ctx.getBody(), p = ctx.getProfile();
     const w = body?.warnings ?? [], n = p?.notes ?? [];
-    warnList.replaceChildren(...w.map((t) => h("li", {}, t)));
+    warnList.replaceChildren(...w.map((t) => h("li", {}, capFirst(t))));
     noWarn.hidden = !body || w.length > 0;
-    noteList.replaceChildren(...n.map((t) => h("li", {}, t)));
+    noteList.replaceChildren(...n.map((t) => h("li", {}, capFirst(t))));
     noteTitle.hidden = !n.length;
     warnTitle.hidden = !body;
     const cnt = notesSec.querySelector("summary .tag");
@@ -1150,14 +1324,14 @@ async function mount(container, ctx) {
   function checkExtras() {
     const p = ctx.getProfile(), b = ctx.getBody();
     if (!p || !b || (b.profileId != null && b.profileId !== p.id)) return;
-    const miss = verifyExtras(p, b);
-    if (miss.length) ctx.notify(`The model ignored ${miss.join(" and ")}: this build of the Digital human view passes only the measures of the profile to the fitting module. Edit the measures instead (for example the stature) or ask for the update.`, { level: "warn", id: noExtrasId });
+    const text = extrasNotice(p, b);
+    if (text) ctx.notify(text, { level: "warn", id: noExtrasId });
     else ctx.dismiss(noExtrasId);
   }
   offs.push(ctx.on("profile", (p) => {
     note(p);
-    formChoice = p?.form ?? null;
-    const sel = selectionOfProfile(p);
+    formChoice = p?.form ?? (formChoice && formChoice === defaultForm(p) ? formChoice : null); // an explicit choice that equals the default is not stored in the profile
+    const sel = selectionOfProfile(p, index);
     // a population profile that came from somewhere else (not from these controls): put the controls back. When it is what the controls already say, leave
     // them alone: redrawing a slider while it is being dragged would drop the drag.
     if (sel && indexState === "ready" && !popTimer && !["country", "role", "sex", "percentile", "scaling", "reliability", "survey"].every((k) => pop[k] === sel[k])) {
@@ -1167,8 +1341,15 @@ async function mount(container, ctx) {
     }
     renderForm();
     renderCurrent();
+    // a profile that another part of the page loaded: the status line must not keep naming the old one
+    if (!building && !editNote && (statusKind === "ok" || statusKind === "warn")) showBuilt(p?.label);
   }));
-  offs.push(ctx.on("body", () => { poseRows = null; renderDims(); renderReport(); renderNotes(); renderForm(); checkExtras(); }));
+  offs.push(ctx.on("body", () => {
+    poseRows = null; renderDims(); renderReport(); renderNotes(); renderForm(); checkExtras();
+    if (!building && !editNote && (statusKind === "ok" || statusKind === "warn") && ctx.getProfile()) showBuilt();
+  }));
+  // the "in this pose" columns belong to the pose they were measured in: any later pose change makes them wrong, so they go (cheap: nothing to do without them)
+  offs.push(ctx.on("pose", () => { if (poseRows) { poseRows = null; renderReport(); } }));
   offs.push(ctx.on("units", () => { ind.closest.stature = null; renderDims(); renderReport(); renderCurrent(); if (ind.state === "ready") renderIndividual(); }));
   offs.push(ctx.on("rig", () => { /* a new figure: the pose columns belong to the old body and were dropped on "body" */ }));
 

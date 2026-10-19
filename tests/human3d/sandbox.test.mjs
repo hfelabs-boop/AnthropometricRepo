@@ -909,3 +909,160 @@ test("hover outlines follow the pointer and are cleaned up", () => {
   sb.hover(o.id); sb.select(o.id); sb.hover(o.id); assert.equal(sb.hovered, null, "the selected object is not also hovered");
   sb.hover("ghost"); assert.equal(sb.hovered, null);
 });
+
+// ============================================================================================================================ regressions of the verifier's defects
+// A stand-in for the figure's skin: a solid slab where the body is. The sandbox only needs `rig.skin` (a raycastable object) and `rig.display`.
+function figureSkin({ xray = false } = {}) {
+  const skin = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.7, 0.3), new THREE.MeshBasicMaterial());
+  skin.position.set(0, 0.85, 0); skin.updateMatrixWorld(true);
+  return { skin, display: { skin: true, xray }, root: { x: 0, z: 0 } };
+}
+const chest = new THREE.Vector3(0, 1.3, 0.15); // on the front of the slab, as seen from the default camera
+
+test("picking: an object behind the figure is not under the pointer; beside it, in front of it, through an x-ray or a hidden skin it is", () => {
+  const rig = figureSkin(), f = fixture({ rig }), { sb, vp } = f;
+  const wall = sb.add("box", { position: [0, 0, -0.6], params: { width: 2, depth: 0.3, height: 2 } });
+  assert.equal(sb.pickAt(...Object.values(vp.toClient(chest))), null, "the press on the chest belongs to the figure");
+  vp.emit("pointerdown", ptr(vp, chest)); assert.equal(vp.controls.enabled, true, "no drag started: the orbit controls keep the press");
+  vp.emit("pointermove", ptr(vp, chest.clone().add(new THREE.Vector3(0.3, 0, 0)))); assert.equal(sb.dragging, false); assert.deepEqual(wall.position, [0, 0, -0.6]);
+  vp.emit("pointerup", ptr(vp, chest));
+  const click = vp.toClient(chest); const ev = { ...click, handled: false }; vp.emit("click", ev); assert.equal(ev.handled, false, "the click is left to the figure");
+  assert.equal(sb.selected, null);
+  const beside = new THREE.Vector3(0.8, 1.0, -0.45); // wall surface seen next to the figure
+  assert.equal(sb.pickAt(...Object.values(vp.toClient(beside)))?.obj.id, wall.id, "next to the figure the wall is pickable");
+  assert.equal(sb.pickAt(...Object.values(vp.toClient(chest)), { ignoreFigure: true })?.obj.id, wall.id, "a caller that compares with the skin itself can ask for the object");
+  rig.display.xray = true; assert.equal(sb.pickAt(...Object.values(vp.toClient(chest)))?.obj.id, wall.id, "x-ray: the figure is see-through");
+  rig.display.xray = false; rig.skin.visible = false; assert.equal(sb.pickAt(...Object.values(vp.toClient(chest)))?.obj.id, wall.id, "a hidden skin hides nothing");
+  rig.skin.visible = true;
+  const holder = new THREE.Object3D(); holder.add(rig.skin); holder.visible = false;
+  assert.equal(sb.pickAt(...Object.values(vp.toClient(chest)))?.obj.id, wall.id, "a hidden parent hides the skin too");
+  holder.visible = true;
+  const front = sb.add("box", { position: [0, 0, 0.9], params: { width: 0.5, depth: 0.2, height: 1.4 } });
+  assert.equal(sb.pickAt(...Object.values(vp.toClient(new THREE.Vector3(0, 1.0, 1.0))))?.obj.id, front.id, "an object in front of the figure is picked");
+});
+
+test("picking: the skin is only tested when an object is hit (a skinned ray test is slow, hover runs often)", () => {
+  const rig = figureSkin(), f = fixture({ rig }), { sb, vp } = f;
+  let rays = 0; const raycast = rig.skin.raycast.bind(rig.skin); rig.skin.raycast = (...a) => { rays++; return raycast(...a); };
+  sb.add("box", { position: [3, 0, 1], params: { width: 0.4, depth: 0.4, height: 0.4 } });
+  sb.pickAt(...Object.values(vp.toClient(new THREE.Vector3(-3, 0, 2)))); assert.equal(rays, 0, "nothing hit: no skin test");
+  sb.pickAt(...Object.values(vp.toClient(new THREE.Vector3(3, 0.2, 1)))); assert.equal(rays, 1);
+});
+
+test("pointercancel (a touch the browser took over) ends the drag: orbit back on, undo group closed, from the viewport event and from the DOM event", () => {
+  for (const via of ["dom", "viewport"]) {
+    const f = fixture(), { sb, vp } = f;
+    const o = sb.add("box", { position: [0, 0, 1], params: { width: 0.6, depth: 0.6, height: 0.6 } });
+    const at = new THREE.Vector3(0, 0.3, 1);
+    vp.emit("pointerdown", ptr(vp, at)); vp.emit("pointermove", ptr(vp, new THREE.Vector3(0.4, 0.3, 1.2)));
+    assert.equal(sb.dragging, true, via); assert.equal(vp.controls.enabled, false);
+    if (via === "dom") vp.container.dispatchEvent(new Event("pointercancel")); else vp.emit("pointercancel", {});
+    assert.equal(sb.dragging, false, via); assert.equal(vp.controls.enabled, true, "orbit is back");
+    sb.add("small_box"); // would be swallowed into a still-open group
+    assert.equal(sb.undoLabel.startsWith("Add"), true, `${via}: the drag was committed as its own step, then the add`);
+    assert.equal(sb.undo(), true); assert.ok(sb.objects.has(o.id)); assert.equal(sb.undoLabel, `Move ${o.name}`);
+  }
+});
+
+test("touch: a finger on an object leaves the camera its pinch, the drag takes over only after the threshold", () => {
+  const f = fixture(), { sb, vp } = f;
+  vp.controls = { enabled: true, touches: { ONE: 0, TWO: 2 } };
+  const o = sb.add("box", { position: [0, 0, 1], params: { width: 0.6, depth: 0.6, height: 0.6 } });
+  const at = new THREE.Vector3(0, 0.3, 1), t = (extra = {}) => ptr(vp, at, { pointerType: "touch", ...extra });
+  // finger 1 down, finger 2 down: the controls were never switched off, so they see both fingers and pinch
+  vp.emit("pointerdown", t()); assert.equal(vp.controls.enabled, true, "the controls still get the press"); assert.equal(vp.controls.touches.ONE, -1, "but the one-finger orbit is parked: the object is being held");
+  vp.emit("pointerdown", t({ originalEvent: { isPrimary: false, pointerId: 2 } }));
+  assert.equal(vp.controls.touches.ONE, 0, "the second finger gives the one-finger action back"); assert.equal(vp.controls.enabled, true); assert.equal(sb.dragging, false);
+  vp.emit("pointerup", t()); assert.deepEqual(o.position, [0, 0, 1]);
+  // a one-finger drag: below the threshold nothing moves, beyond it the controls are off, at the end everything is restored
+  vp.emit("pointerdown", t()); vp.emit("pointermove", { ...t(), clientX: t().clientX + 2 }); assert.equal(vp.controls.enabled, true); assert.equal(sb.dragging, false);
+  vp.emit("pointermove", ptr(vp, new THREE.Vector3(0.4, 0.3, 1), { pointerType: "touch" })); assert.equal(sb.dragging, true); assert.equal(vp.controls.enabled, false);
+  vp.emit("pointerup", t()); assert.equal(vp.controls.enabled, true); assert.equal(vp.controls.touches.ONE, 0); assert.ok(o.position[0] > 0.1);
+  // a tap: restored too
+  vp.emit("pointerdown", t()); vp.emit("pointerup", t()); assert.equal(vp.controls.touches.ONE, 0); assert.equal(vp.controls.enabled, true);
+  // a mouse press still switches the controls off at once (there is no pinch to keep)
+  vp.emit("pointerdown", ptr(vp, new THREE.Vector3(o.position[0], 0.3, 1))); assert.equal(vp.controls.enabled, false); vp.emit("pointerup", ptr(vp, at)); assert.equal(vp.controls.enabled, true);
+});
+
+test("dragging on the floor with the camera near it does not throw the object away (a few pixels move it a little, the view along the floor is damped)", () => {
+  const f = fixture(), { sb, vp } = f;
+  vp.camera.position.set(0.5, 0.35, 4.5); vp.camera.lookAt(0, 0.3, 1.2); vp.camera.updateMatrixWorld(); vp.camera.updateProjectionMatrix();
+  const o = sb.add("box", { position: [0, 0, 1.2], params: { width: 0.4, depth: 0.4, height: 0.4 } });
+  const p0 = vp.toClient(new THREE.Vector3(0, 0.2, 1.2));
+  vp.emit("pointerdown", { ...p0, button: 0, buttons: 1, shift: false, alt: false, pointerType: "mouse", originalEvent: { isPrimary: true, pointerId: 1 } });
+  let last = 1.2, at36 = null;
+  for (const dy of [-4, -8, -12, -20, -36, -80, -200, -600]) {
+    vp.emit("pointermove", { ...p0, clientY: p0.clientY + dy, buttons: 1, shift: false, alt: false, pointerType: "mouse", originalEvent: { isPrimary: true, pointerId: 1 } });
+    const z = o.position[2];
+    assert.ok(Math.abs(z - 1.2) < 12, `${dy} px moved it to z=${z}`);
+    assert.ok(z <= last + 1e-9, `moving the pointer further up never brings it back (${dy}: ${z} after ${last})`); last = z;
+    if (dy === -36) at36 = z;
+  }
+  assert.ok(Math.abs(at36 - 1.2) < 1.5, `36 px of motion on a grazing view stay below 1.5 m: ${at36} (it was 838 m)`);
+  vp.emit("pointerup", p0);
+  // a normal view is not damped: the object follows the pointer's point on the floor plane exactly (the cap is 6 times the distance the pointer covers)
+  const g = fixture(); const q = g.sb.add("box", { position: [0, 0, 1], params: { width: 0.6, depth: 0.6, height: 0.6 } });
+  const floorAt = (c) => g.vp.ray(c.clientX, c.clientY).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), new THREE.Vector3());
+  const a = ptr(g.vp, new THREE.Vector3(0, 0.3, 1)), to = g.vp.toClient(new THREE.Vector3(0.5, 0, 1.5)), want = floorAt(a);
+  const w2 = floorAt(to); g.vp.emit("pointerdown", a); g.vp.emit("pointermove", { ...a, ...to });
+  near(q.position[0], w2.x - want.x, 1e-6, `x ${q.position}`); near(q.position[2], 1 + w2.z - want.z, 1e-6, `z ${q.position}`);
+});
+
+test("keyboard: with objectKeys off only undo / redo / duplicate work; the 3D view's keys come from the canvas only", () => {
+  const f = fixture(), { sb, vp } = f;
+  const o = sb.add("box", { position: [0, 0, 1] }); sb.select(o.id);
+  for (const k of ["Delete", "Backspace", "w", "e", "r", "[", "]", "ArrowUp"]) assert.equal(sb.onKey(key(k), { objectKeys: false }), false, k);
+  assert.ok(sb.objects.has(o.id)); assert.equal(sb.gizmoMode, "translate"); assert.equal(o.yaw, 0);
+  assert.equal(sb.onKey(key("d", { ctrlKey: true }), { objectKeys: false }), true); assert.equal(sb.objects.size, 2);
+  assert.equal(sb.onKey(key("z", { ctrlKey: true }), { objectKeys: false }), true); assert.equal(sb.objects.size, 1);
+  const button = { tagName: "BUTTON" }, canvas = new EventTarget(); vp.canvas = canvas;
+  sb.select(o.id);
+  vp.container.dispatchEvent(key("Delete", { target: button })); assert.ok(sb.objects.has(o.id), "a button inside the view container does not delete");
+  vp.container.dispatchEvent(key("Delete", { target: canvas })); assert.equal(sb.objects.has(o.id), false, "the canvas does");
+  sb.undo(); sb.select(o.id); vp.container.dispatchEvent(key("Delete", { target: vp.container })); assert.equal(sb.objects.has(o.id), false, "so does the container itself");
+});
+
+test("Open scene: Undo brings the old measurements back with the old objects, Redo the new ones; Add scene leaves them alone", () => {
+  const f = fixture(), { sb } = f;
+  let items = [{ id: "m1", kind: "height", a: { kind: "world", p: [0, 1, 0] } }];
+  const ser = { toJSON: () => items.map((i) => ({ ...i })), fromJSON: (v) => { items = Array.isArray(v) ? v.map((i) => ({ ...i })) : []; } };
+  sb.registerSerializer("measurements", ser);
+  sb.add("box", { position: [0, 0, 1] });
+  assert.equal(sb.fromJSON({ version: 1, objects: [{ type: "crate" }, { type: "crate" }] }).ok, true);
+  assert.equal(items.length, 0, "a file without measurements replaces them");
+  sb.undo(); assert.equal(sb.objects.size, 1); assert.deepEqual(items.map((i) => i.id), ["m1"], "undo restores the measurements too");
+  sb.redo(); assert.equal(sb.objects.size, 2); assert.equal(items.length, 0, "redo opens the file again, measurements included");
+  sb.undo();
+  const n = sb.objects.size; sb.fromJSON({ version: 1, objects: [{ type: "crate" }] }, { merge: true });
+  assert.equal(items.length, 1, "Add scene (merge) keeps them"); sb.undo(); assert.equal(sb.objects.size, n); assert.equal(items.length, 1, "undoing an Add scene changes nothing about measurements");
+  // a file that changes nothing about the sections still is an undo step (an empty scene opened over an empty scene)
+  const g = fixture(); items = []; g.sb.registerSerializer("measurements", ser); g.sb.fromJSON({ version: 1, objects: [] }); assert.equal(g.sb.canUndo, false, "nothing changed: no step");
+});
+
+test("catalogue: grip normals are perpendicular to their axes; seat supports are at the seat top; nothing dips below the floor", () => {
+  for (const t of CATALOG) for (const [vn, params] of Object.entries(variants(t))) {
+    const tag = `${t.type}/${vn}`;
+    for (const gr of t.grips(params)) {
+      const n = new THREE.Vector3(...gr.normal), ax = new THREE.Vector3(...gr.axis);
+      near(n.length(), 1, 1e-5, `${tag} ${gr.id} normal length`); near(ax.length(), 1, 1e-5, `${tag} ${gr.id} axis length`); near(n.dot(ax), 0, 1e-5, `${tag} grip ${gr.id}: normal.axis = ${n.dot(ax)}`);
+    }
+    assert.ok(t.build(params).userData.bbox.min.y > -1e-6, `${tag} dips below the floor by ${t.build(params).userData.bbox.min.y}`);
+  }
+  for (const height of [0.6, 0.75, 0.8]) {
+    const g = buildObject("bar_stool", { height }), top = new THREE.Raycaster(new THREE.Vector3(0.05, height + 1, 0.05), new THREE.Vector3(0, -1, 0)).intersectObject(g, true)[0];
+    near(top.point.y, height, 1e-6, "the seat top is where the seat support and the seat anchor say");
+    near(byType("bar_stool").supports({ height })[0].y, height, 1e-9); assert.ok(g.userData.bbox.max.y >= height - 1e-9);
+  }
+  // the grip of a tilted lever keeps the intended side: the palm still faces the user (-Z) after the projection
+  const tilted = byType("lever").grips({ angle: 40 })[0]; assert.ok(tilted.normal[2] < -0.3 || Math.abs(tilted.normal[1]) > 0.3, `lever grip normal ${tilted.normal}`);
+});
+
+test("catalogue: the defaults lie within the ranges their source text quotes, and the text says where the sliders go further", () => {
+  const st = byType("stairs"), lad = byType("ladder"), step = byType("step");
+  const def = (t, k) => t.params.find((p) => p.key === k).default;
+  assert.ok(def(st, "rise") >= 0.12 && def(st, "rise") <= 0.20 && def(st, "tread") >= 0.24, "stairs defaults");
+  assert.ok(def(lad, "width") >= 0.4 && def(lad, "spacing") >= 0.25 && def(lad, "spacing") <= 0.35, "ladder defaults");
+  assert.ok(def(step, "rise") >= 0.12 && def(step, "rise") <= 0.25 && def(step, "depth") >= 0.2, "step defaults");
+  assert.match(st.source, /sliders go further/); assert.match(lad.source, /width slider starts at 0\.35/); assert.match(step.source, /Rise slider goes from 0\.05 to 0\.45/);
+  assert.equal(st.params.find((p) => p.key === "rise").max, 0.25); assert.equal(lad.params.find((p) => p.key === "width").min, 0.35); assert.equal(step.params.find((p) => p.key === "rise").max, 0.45);
+});

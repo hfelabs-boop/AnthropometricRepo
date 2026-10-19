@@ -1232,3 +1232,230 @@ def test_individual_source_database_error_and_retry(chromium, server):
         assert "the demo database is offline" in p.locator(".hm-pf-msg-error").inner_text()
         assert s.js("window.__demo.ctx.getProfile().id") == before
         assert not s.errors()
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------- regressions of the verifier's defects
+def wait_idle(s):
+    s.page.wait_for_timeout(300)
+    s.page.wait_for_function("!window.__human.state.busy", timeout=60000)
+    s.page.wait_for_timeout(100)
+
+
+def edit_dimension(s, dim_id, value):
+    p = s.page
+    if p.locator(f"button[data-dim={dim_id}][aria-expanded=true]").count() == 0:
+        row(s, dim_id).click()
+    inp = p.locator(".hm-pf-dimdetail input.hm-pf-edit")
+    inp.fill("")
+    inp.press_sequentially(str(value))
+    inp.press("Enter")
+    wait_idle(s)
+
+
+def test_a_pooled_population_with_a_very_long_id_keeps_its_controls_and_percentile_buttons(s):
+    """anthro cuts source.country_id at 100 characters; the controls must not fall back to the first country (the next click would load Angola)."""
+    s.open()
+    p = s.page
+    p.wait_for_selector(".hm-pf-view select")
+    slug = s.js("""async () => { const idx = await (await fetch('api/v1/index.json')).json(); return idx.populations.map((x) => x.country_id).find((id) => id.length > 120); }""")
+    assert slug, "the index has a pooled population with a long id"
+    p.select_option(".hm-pf-view select >> nth=0", slug)
+    p.wait_for_function(f"window.__human.state.profile.source.country_id === {json.dumps(slug[:100])}", timeout=60000)
+    s.built()
+    assert p.locator(".hm-pf-view select >> nth=0").input_value() == slug, "the control still says what is on the stage"
+    role = p.locator(".hm-pf-view select >> nth=1").input_value()
+    p.get_by_role("button", name="P95", exact=True).click()
+    p.wait_for_function("window.__human.state.profile.source.percentile === 95", timeout=60000)
+    s.built()
+    assert s.profile()["source"]["country_id"] == slug[:100], "P95 of the same population, not of Angola"
+    assert s.profile()["source"]["role_id"] == role
+    assert p.locator(".hm-pf-view select >> nth=0").input_value() == slug
+    assert not s.errors()
+
+
+def test_the_focus_survives_apply_revert_and_revert_all(sp):
+    sp.open()
+    p = sp.page
+    active = lambda: sp.js("(() => { const e = document.activeElement; return e.dataset.focusKey || e.tagName; })()")  # noqa: E731
+    p.focus("button[data-dim=hand_length]")
+    p.keyboard.press("Enter")
+    p.focus(".hm-pf-dimdetail input.hm-pf-edit")
+    p.keyboard.press("Control+a")
+    p.keyboard.type("210")
+    p.focus(".hm-pf-dimdetail button:has-text('Apply')")
+    p.keyboard.press("Enter")
+    wait_idle(sp)
+    assert active() == "apply:hand_length", active()
+    p.focus(".hm-pf-dimdetail button:has-text('Revert')")
+    p.keyboard.press("Enter")
+    wait_idle(sp)
+    assert active() == "edit:hand_length", "Revert is gone once nothing is edited: the focus goes to the value field of the row"
+    p.focus(".hm-pf-dimdetail input.hm-pf-edit")
+    p.keyboard.press("Control+a")
+    p.keyboard.type("212")
+    p.keyboard.press("Enter")
+    wait_idle(sp)
+    p.focus("button:has-text('Revert all edits')")
+    p.keyboard.press("Enter")
+    wait_idle(sp)
+    assert active() != "BODY", "the focus is not thrown back to the top of the page"
+    assert not sp.errors()
+
+
+def test_choosing_the_form_the_sex_gives_stays_visible(sp):
+    sp.open()
+    p = sp.page
+    p.locator("summary", has_text="Body form").click()
+    pressed = lambda: p.locator(".hm-pf-formseg button[aria-pressed=true]").inner_text()  # noqa: E731
+    assert pressed() == "Auto" and sp.profile()["sex"] == "M"
+    p.get_by_role("button", name="Male", exact=True).click()
+    wait_idle(sp)
+    assert pressed() == "Male", "the male form on a male profile is the person's choice, not Auto"
+    assert sp.profile()["form"] is None, "(it is the default, so the profile does not store it)"
+    p.get_by_role("button", name="Female", exact=True).click()
+    wait_idle(sp)
+    assert pressed() == "Female"
+    p.get_by_role("button", name="Auto", exact=True).click()
+    wait_idle(sp)
+    assert pressed() == "Auto"
+    assert not sp.errors()
+
+
+def test_the_shoulder_half_width_edit_is_kept_for_a_profile_with_an_arm_span(sp):
+    sp.open()
+    assert "span" in sp.profile()["measures"]
+    before = sp.js("window.__human.ctx.getBody().dims.find(d => d.id === 'gh_halfwidth').value * 1000")
+    edit_dimension(sp, "gh_halfwidth", f"{before + 8:.1f}")
+    after = sp.js("window.__human.ctx.getBody().dims.find(d => d.id === 'gh_halfwidth').value * 1000")
+    assert abs(after - (before + 8)) < 0.2, (before, after)
+    assert list(sp.profile()["overrides"]) == ["acromion_to_gh"]
+    status = sp.page.locator(".hm-pf-status").inner_text()
+    assert "held to" not in status and "did not apply" not in status, status
+    assert not sp.js("window.__human.state.notices.some(n => n.id === 'profile-extras')")
+    sp.page.get_by_role("button", name="Revert", exact=True).click()
+    wait_idle(sp)
+    assert abs(sp.js("window.__human.ctx.getBody().dims.find(d => d.id === 'gh_halfwidth').value * 1000") - before) < 0.01
+    assert not sp.errors()
+
+
+def test_an_extreme_girth_is_held_and_explained_not_reported_as_ignored(sp):
+    sp.open()
+    for mm in ("4000", "50"):
+        edit_dimension(sp, "ring_waist", mm)
+        text = sp.page.locator(".hm-pf-status").inner_text()
+        assert "was held to" in text and "outside the range the model accepts" in text, text
+        assert not sp.js("window.__human.state.notices.some(n => n.id === 'profile-extras')"), "the edit was applied (held in its range)"
+    assert not sp.errors()
+
+
+def test_a_measure_outside_the_plausible_range_is_refused_before_it_reaches_the_profile(s):
+    s.open()
+    p = s.page
+    row(s, "hand_length").click()
+    before = s.profile()["id"]
+    V(p).get_by_label("Set this dimension to").fill("2000")
+    p.get_by_role("button", name="Apply").click()
+    assert "Hand length of 2,000 mm is outside the 120 to 260 mm" in p.locator(".hm-pf-dimdetail .hm-pf-msg").inner_text()
+    V(p).get_by_label("Set this dimension to").fill("-5")
+    p.get_by_role("button", name="Apply").click()
+    msg = p.locator(".hm-pf-dimdetail .hm-pf-msg").inner_text()
+    assert msg == "Hand length must be more than zero." and "hand_length" not in msg
+    assert s.profile()["id"] == before and s.profile()["measures"]["hand_length"][2] != "edited"
+    assert not s.errors()
+
+
+def test_the_status_line_follows_the_profile_and_forgets_old_edit_results(sp):
+    sp.open()
+    p = sp.page
+    edit_dimension(sp, "upper_arm_length", "600")
+    assert "was held to" in p.locator(".hm-pf-status").inner_text()
+    # a failed edit afterwards must not leave the old result next to the new error
+    inp = p.locator(".hm-pf-dimdetail input.hm-pf-edit")
+    inp.fill("-3")
+    inp.press("Enter")
+    assert "held to" not in p.locator(".hm-pf-status").inner_text()
+    assert "must be more than zero" in p.locator(".hm-pf-dimdetail .hm-pf-msg").inner_text()
+    # a profile loaded by another part of the page: the line names it
+    sp.js("""() => { const c = window.__human.ctx, q = c.getProfile(); return c.setProfile({ ...q, id: q.id + '~elsewhere', label: 'Loaded elsewhere' }, { immediate: true }); }""")
+    sp.built()
+    p.wait_for_function("document.querySelector('.hm-pf-status').textContent.includes('Loaded elsewhere')", timeout=10000)
+    assert not sp.errors()
+
+
+def test_a_new_population_says_which_edits_it_dropped_and_offers_the_way_back(s):
+    s.open()
+    p = s.page
+    edit_dimension(s, "hand_length", "215")
+    edited_id = s.profile()["id"]
+    p.get_by_role("button", name="P95", exact=True).click()
+    p.wait_for_function("window.__human.state.profile.source.percentile === 95", timeout=60000)
+    s.built()
+    text = p.locator(".hm-pf-status").inner_text()
+    assert "Your 1 edit to the previous profile was not carried over" in text, text
+    p.get_by_role("button", name="Go back to the previous profile").click()
+    p.wait_for_function(f"window.__human.state.profile.id === {json.dumps(edited_id)}", timeout=60000)
+    s.built()
+    assert s.profile()["measures"]["hand_length"][0] == 215
+    assert p.locator(".hm-pf-quick button[aria-pressed=true]").inner_text() == "P50", "the controls follow the profile that is back"
+    assert not s.errors()
+
+
+def test_the_pose_columns_of_the_fit_report_go_when_the_pose_changes(s):
+    s.open()
+    p = s.page
+    p.locator("summary", has_text="Fit report").click()
+    s.js("() => { const r = window.__human.state.rig; r.setPose({ root: { y: r.root.y }, angles: { hip_L: [90, 0, 0], hip_R: [90, 0, 0], knee_L: [90, 0], knee_R: [90, 0] } }); }")
+    p.get_by_role("button", name="Recompute in current pose").click()
+    assert "in this pose" in p.locator(".hm-pf-rrow[data-id=sitting_height]").inner_text()
+    s.js("() => window.__human.state.rig.setPose({ angles: { hip_L: [0, 0, 0], hip_R: [0, 0, 0], knee_L: [0, 0], knee_R: [0, 0] } })")
+    p.wait_for_function("!document.querySelector('.hm-pf-rrow[data-id=sitting_height]').textContent.includes('in this pose')", timeout=10000)
+    assert not p.get_by_role("button", name="Back to the reference postures").is_visible()
+    assert not s.errors()
+
+
+def test_manual_entry_reads_a_decimal_comma_and_has_sliders_that_follow_the_fields(s):
+    s.open()
+    p = s.page
+    s.source("Manual")
+    st = V(p).get_by_label("Stature", exact=True)
+    assert st.get_attribute("type") == "text", "a number field would read 175,5 as 1755"
+    V(p).get_by_label("Stature unit").select_option("cm")
+    st.fill("175,5")
+    V(p).get_by_label("Body mass (optional)").fill("")
+    p.get_by_role("button", name="Build this body").click()
+    p.wait_for_function("window.__human.ctx.getProfile().source.kind === 'manual'", timeout=30000)
+    s.built()
+    assert abs(s.stature() - 1755) < 0.01
+    # the slider follows the field, the field follows the slider (in the unit chosen there)
+    slider = p.locator(".hm-pf-mansliders input[type=range]").first
+    assert slider.input_value() == "1755"
+    slider.evaluate("(e) => { e.value = 1820; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); }")
+    p.wait_for_function("Math.abs(window.__human.ctx.getProfile().measures.stature.value - 1820) < 0.5", timeout=30000)
+    s.built()
+    assert st.input_value() == "182"
+    assert abs(s.stature() - 1820) < 0.01
+    assert not s.errors()
+
+
+def test_the_loading_text_of_the_population_list_is_announced(chromium, server):
+    # the text is shown for a moment only: record every loading element that ever appears in the panel
+    watch = """new MutationObserver(() => { for (const e of document.querySelectorAll('.hm-pf-view .loading')) (window.__loading ||= new Set()).add(e.getAttribute('role') || 'none'); })
+        .observe(document, { childList: true, subtree: true });"""
+    with make_session(chromium, server, init=[watch]) as sess:
+        sess.open()
+        seen = sess.js("[...(window.__loading || [])]")
+        assert seen and set(seen) == {"status"}, seen
+        assert not sess.errors()
+
+
+def test_the_skeleton_rows_are_not_redrawn_for_every_pose_frame(s):
+    s.open("skeleton")
+    p = s.page
+    s.js("() => { window.__chips = [...document.querySelectorAll('.hm-sk-tree [role=treeitem] .hm-pf-st')]; }")
+    n = s.js("window.__chips.length")
+    assert n > 70
+    s.js("() => window.__human.state.rig.setAngles({ elbow_L: [40] })")
+    p.wait_for_function("[...document.querySelectorAll('.hm-sk-tree')].some((t) => t.textContent.includes('flex 40'))", timeout=10000)
+    same = s.js("window.__chips.filter((c) => c.isConnected).length")
+    assert same == n, "the status chips are the same elements: only the angle text changed"
+    assert not s.errors()

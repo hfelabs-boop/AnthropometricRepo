@@ -15,7 +15,7 @@ import * as THREE from "three";
 import { JOINTS, JOINT_BY_ID, BONES, REGIONS, clampAngles, expandSides, mirrorId, sideOf } from "./skeleton.js";
 import { Kinematics } from "./fk.js";
 import { GRIPS, GRIP_NAMES, HAND_JOINTS, gripAngles } from "./postures/grips.js";
-import { bodyProxies, proxyWorld, lowestSkinPoint, selfPenetrations } from "./proxies.js";
+import { bodyProxies, proxyWorld, lowestSkinPoint, selfPenetrations, armTorsoDepth } from "./proxies.js";
 
 const nz = (x) => (x === 0 ? 0 : x); // -0 -> 0
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -1025,6 +1025,10 @@ function validate(body, posture, options) {
     const lp = lowestSkinPoint(prox, c.kin, c.W);
     if (!hasSeat && lp.y < -0.02 && !below.length) err(`the skin (${lp.proxy.replace(/^ring:/, "section of ")}) sinks ${mm(-lp.y)} below the floor`);
     const pens = selfPenetrations(prox, c.W);
+    // the upper arms against the trunk: the skin sections, not capsules (the shoulder joint is inside the chest's capsule, so that pair cannot be tested there)
+    const arms = armTorsoDepth(prox, c.kin);
+    for (const side of ["L", "R"]) if (arms[side] > prox.arm.tol[side]) pens.push({ a: `upper_arm_${side}`, b: "trunk", depth: arms[side], tolerance: prox.arm.tol[side], excess: arms[side] - prox.arm.tol[side] });
+    pens.sort((x, y) => y.excess - x.excess);
     metrics.penetrations = pens;
     metrics.worstPenetration = pens.length ? pens[0].depth : 0;
     for (const p of pens.slice(0, 4)) err(`${p.a} and ${p.b} overlap by ${mmVs(p.depth, p.tolerance)} (more than ${mmVs(p.tolerance, p.depth)}): ${selfHint(p.a, p.b)}`);
@@ -1078,6 +1082,7 @@ function selfHint(a, b) {
   const g = (n) => n.replace(/_[LR]$/, "");
   if (HAND_PARTS.has(g(a)) && HAND_PARTS.has(g(b))) return "the hands (or the fingers of one hand) overlap: check the grip presets and the wrist and elbow angles";
   if (HAND_PARTS.has(g(a)) || HAND_PARTS.has(g(b))) return "a hand is inside the body: check the shoulder, elbow and wrist angles";
+  if (g(a) === "upper_arm" && b === "trunk") return "the upper arm passes through the trunk: check the shoulder angles (extension with adduction swings the arm back through the chest)";
   if (g(a) === "thigh" && g(b) === "thigh") return "the thighs press into each other: check hip abduction (adduction) and rotation of both legs";
   if (["shank", "foot", "toes"].includes(g(a)) && ["shank", "foot", "toes", "thigh"].includes(g(b))) return "one leg passes through the other: check hip abduction and rotation";
   if (g(a) === "head" || g(b) === "head") return "the head is in the shoulders or chest: check the neck and head angles";

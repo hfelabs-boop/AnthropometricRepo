@@ -284,7 +284,15 @@ function clean(anchors) {
   return out;
 }
 const grip = (id, label, hand, position, normal, axis, diameter) => ({ id, label, hand, position, normal, axis, diameter });
-const cleanGrip = (g) => ({ ...g, position: arr3(g.position), normal: arr3(unit(g.normal)), axis: arr3(unit(g.axis)), diameter: r6(g.diameter) });
+// The palm direction must be perpendicular to the bar the fingers wrap around: the authored normal is projected onto the plane across the axis
+// (so a lever tilted by 40 degrees keeps a correct frame), and a normal along the axis gets any perpendicular one.
+function perpendicular(normal, axis) {
+  const ax = unit(axis), n = unit(normal), k = n[0] * ax[0] + n[1] * ax[1] + n[2] * ax[2], q = [n[0] - ax[0] * k, n[1] - ax[1] * k, n[2] - ax[2] * k];
+  if (Math.hypot(...q) > 1e-6) return unit(q);
+  const w = Math.abs(ax[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0], d = w[0] * ax[0] + w[1] * ax[1] + w[2] * ax[2];
+  return unit([w[0] - ax[0] * d, w[1] - ax[1] * d, w[2] - ax[2] * d]);
+}
+const cleanGrip = (g) => ({ ...g, position: arr3(g.position), normal: arr3(perpendicular(g.normal, g.axis)), axis: arr3(unit(g.axis)), diameter: r6(g.diameter) });
 const support = (id, label, y, size, center, pitch) => ({ id, label, y, size, center, ...(pitch ? { pitch } : {}) });
 const cleanSupport = (s) => ({ ...s, y: r6(s.y), size: [r6(s.size[0]), r6(s.size[1])], center: [r6(s.center[0]), r6(s.center[1])] });
 const a = (label, position, normal) => ({ label, position, ...(normal ? { normal } : {}) });
@@ -435,7 +443,7 @@ def({
   params: [num("height", "Seat height", "m", 0.60, 0.80, 0.005, 0.75), num("diameter", "Seat diameter", "m", 0.30, 0.45, 0.005, 0.36), bool("back", "Low back")],
   build(P, p) {
     const h = p.height, r = p.diameter / 2, fh = h * 0.38;
-    P.cyl(r, 0.06, [0, h - 0.04, 0], "main", "y", { seg: 28 });
+    P.cyl(r, 0.06, [0, h - 0.03, 0], "main", "y", { seg: 28 }); // the seat top is at h, where the seat support and the seat anchor are
     P.cyl(r * 0.8, 0.02, [0, h - 0.08, 0], "dark", "y", { seg: 24 });
     for (let k = 0; k < 4; k++) {
       const ang = (k * 90 + 45) * D2R, s = Math.sin(ang), c = Math.cos(ang);
@@ -961,7 +969,7 @@ def({
 def({
   type: "step", name: "Step", category: "Structures", color: "#8a929b", tags: ["stairs", "stand"],
   description: "A single step with a non-slip tread edge. Origin: the floor under the middle of the tread. Its top is a support surface.",
-  source: "Riser 0.12 to 0.25 m, tread at least 0.2 m (typical stair practice; see MIL-STD-1472 for stairways).",
+  source: "Typical stair practice: riser 0.12 to 0.25 m, tread at least 0.2 m (see MIL-STD-1472 for stairways). The defaults lie in that range; the Rise slider goes from 0.05 to 0.45 m so that low kerbs and high ledges can be studied too.",
   params: [num("width", "Width (X)", "m", 0.3, 1.5, 0.01, 0.8), num("depth", "Tread depth (Z)", "m", 0.2, 0.5, 0.005, 0.3), num("rise", "Rise (Y)", "m", 0.05, 0.45, 0.005, 0.18)],
   build(P, p) {
     const { width: w, depth: d, rise: h } = p;
@@ -976,7 +984,7 @@ def({
 def({
   type: "stairs", name: "Stairs", category: "Structures", color: "#a9a79f", tags: ["stairs", "climb", "stand"],
   description: "Straight flight of stairs climbing along +Z, with optional handrails. Origin: the floor under the middle of the first riser. Every tread is a support surface.",
-  source: "Ranges after MIL-STD-1472 stair guidance (riser about 0.12 to 0.20 m, tread at least 0.24 m, handrail about 0.9 m above the nosing line); check the current revision for compliance work.",
+  source: "Defaults after MIL-STD-1472 stair guidance (riser about 0.12 to 0.20 m, tread at least 0.24 m, handrail about 0.9 m above the nosing line); the sliders go further (rise to 0.25 m, tread from 0.20 m) so that steep flights can be studied. Check the current revision for compliance work.",
   params: [num("steps", "Number of steps", "", 2, 16, 1, 5), num("rise", "Rise per step", "m", 0.12, 0.25, 0.005, 0.18), num("tread", "Tread depth", "m", 0.20, 0.35, 0.005, 0.28), num("width", "Width", "m", 0.6, 1.5, 0.01, 0.9), bool("handrails", "Handrails")],
   build(P, p) {
     const { steps: n, rise: r, tread: t, width: w } = p;
@@ -1006,7 +1014,7 @@ def({
 def({
   type: "ladder", name: "Ladder", category: "Structures", color: "#dcae2e", tags: ["climb"],
   description: "Leaning rung ladder. Origin: the middle of the foot on the floor; it leans towards +Z, the way the climber faces. Rungs are grip targets for both hands.",
-  source: "Ranges after MIL-STD-1472 ladder guidance (rung spacing about 0.25 to 0.35 m, rung diameter about 20 to 40 mm, width at least 0.4 m); check the current revision for compliance work.",
+  source: "Defaults after MIL-STD-1472 ladder guidance (rung spacing about 0.25 to 0.35 m, rung diameter about 20 to 40 mm, width at least 0.4 m); the width slider starts at 0.35 m so that narrower ladders can be studied. Check the current revision for compliance work.",
   params: [num("length", "Ladder length", "m", 1.0, 4.0, 0.05, 2.4), num("angle", "Angle from the floor", "deg", 60, 90, 1, 75), num("spacing", "Rung spacing", "m", 0.25, 0.35, 0.005, 0.30), num("width", "Width between rails", "m", 0.35, 0.6, 0.005, 0.45), num("rung", "Rung diameter", "m", 0.02, 0.04, 0.001, 0.03)],
   dims(p) {
     const al = p.angle * D2R, dir = [0, Math.sin(al), Math.cos(al)], count = Math.max(1, Math.floor((p.length - 0.15) / p.spacing));
@@ -1015,7 +1023,7 @@ def({
   build(P, p, d) {
     for (const s of [-1, 1]) {
       const x = s * p.width / 2;
-      P.rod([x, 0.022 * Math.cos(d.al), 0], add3([x, 0, 0], d.dir, p.length), 0.022, "main", 10); // the cap of a leaning rod dips r*cos(angle) below its end point
+      P.rod(add3([x, 0, 0], d.dir, 0.022 / Math.tan(d.al)), add3([x, 0, 0], d.dir, p.length), 0.022, "main", 10); // the foot starts r/tan(angle) up the rail: the rim of its cap then touches the floor, and the rail keeps its direction
       P.box([0.05, 0.03, 0.07], [x, 0.015, 0.0], "rubber");
     }
     for (let i = 1; i <= d.count; i++) { const c = add3([0, 0, 0], d.dir, 0.15 + (i - 1) * p.spacing); P.cyl(p.rung / 2, p.width, c, "metal", "x", { seg: 10 }); }
@@ -1391,7 +1399,7 @@ def({
     P.frame([0, 0, 0], [0, 0, 0], (q) => {
       for (const s of [-1, 1]) {
         q.cyl(0.026, 0.12, [s * 0.0345, 0.026, 0.04], "main", "z", { seg: 18 });
-        q.cyl(0.0265, 0.012, [s * 0.0345, 0.026, 0.1], "steel", "z", { seg: 18 });
+        q.cyl(0.0265, 0.012, [s * 0.0345, 0.0265, 0.1], "steel", "z", { seg: 18 }); // its radius is the largest: its axis is at that height, not 0.5 mm lower
         q.cyl(0.0185, 0.045, [s * 0.0345, 0.026, -0.0425], "dark", "z", { seg: 14 });
         q.cyl(0.021, 0.008, [s * 0.0345, 0.026, -0.066], "rubber", "z", { seg: 14 });
       }

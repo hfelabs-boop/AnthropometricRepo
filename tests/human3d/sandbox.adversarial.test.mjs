@@ -364,7 +364,7 @@ test("measure: live update scheduling is coalesced and disposed measure ignores 
     assert.equal(f.vp.scene.children.filter((c) => c.name === "hm-measure").length, 0);
 });
 
-test("measure: formatting never shows NaN / -0 and uses consistent minus", () => {
+test("DEFECT (low): measure formatting never shows NaN or negative zero", () => {
   assert.equal(fmtM(NaN), "—"); assert.equal(fmtM(Infinity), "—");
   assert.ok(!/^-0 /.test(fmtM(-0.0001)), "negative zero: " + fmtM(-0.0001));
   assert.ok(!/^-0\.0+ /.test(fmtM(-0.00001, "in")), fmtM(-0.00001, "in"));
@@ -437,4 +437,20 @@ test("100 objects: mesh count and triangle budget", () => {
   f.vp.scene.traverse((o) => { if (o.isMesh) { meshes++; tris += o.geometry.attributes.position.count / 3; } });
   console.log(`100 objects: ${meshes} meshes, ${tris} triangles`);
   assert.ok(meshes < 700, `${meshes} meshes`); assert.ok(tris < 400000, `${tris} tris`);
+});
+
+test("free-spot placement: 25 rotated long objects never overlap each other (independent polygon test)", () => {
+  const f = fix(); const { sb } = f;
+  const polys = [];
+  const poly = (o) => { const b = o.bbox, c = Math.cos(o.yaw * Math.PI / 180), s = Math.sin(o.yaw * Math.PI / 180); return [[b.min.x, b.min.z], [b.max.x, b.min.z], [b.max.x, b.max.z], [b.min.x, b.max.z]].map(([x, z]) => [o.position[0] + x * c + z * s, o.position[2] - x * s + z * c]); };
+  const sat = (A, B) => { for (const P of [A, B]) for (let i = 0; i < 4; i++) { const [x1, z1] = P[i], [x2, z2] = P[(i + 1) % 4], ax = -(z2 - z1), az = x2 - x1; const pr = (Q) => Q.map(([x, z]) => x * ax + z * az); const a = pr(A), b = pr(B); if (Math.max(...a) <= Math.min(...b) + 1e-9 || Math.max(...b) <= Math.min(...a) + 1e-9) return false; } return true; };
+  for (let i = 0; i < 25; i++) { const o = sb.add(i % 2 ? "bench" : "ladder", { yaw: [0, 90, 45, 30][i % 4] }); polys.push(poly(o)); }
+  for (let i = 0; i < polys.length; i++) for (let j = i + 1; j < polys.length; j++) assert.equal(sat(polys[i], polys[j]), false, `${i} overlaps ${j}`);
+});
+
+test("rest on a surface: a box released above a desk lands on the desk top; outside the desk it lands on the floor", () => {
+  const f = fix(); const { sb } = f;
+  const desk = sb.add("desk", { position: [0, 0, 1] }), b = sb.add("small_box", { position: [0.1, 1.5, 1.05] });
+  sb.dropToSurface(b.id); near(b.position[1], 0.74, 1e-6);
+  const c = sb.add("small_box", { position: [3, 1.5, 3] }); sb.dropToSurface(c.id); assert.equal(c.position[1], 0);
 });

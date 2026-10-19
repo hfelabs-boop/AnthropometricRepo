@@ -12,7 +12,7 @@
 // two-click picking tool with snapping. It never touches `document` / `window`: the panel (panels/measure.js) draws the controls.
 import * as THREE from "three";
 import { JOINT_BY_ID, JOINTS } from "./skeleton.js";
-import { fmtLength } from "./ui.js";
+import { toUnit, unitDigits, UNIT_LABEL } from "./ui.js";
 import { toCSV } from "../util.js";
 import { sandboxFor } from "./sandbox.js";
 
@@ -69,10 +69,17 @@ export function viewInfo(eye, centre, { normal = null, left = null, right = null
 // ---------------------------------------------------------------------------------------------------------------------
 // formatting (never NaN: unresolved values show an em dash)
 export const DASH = "—";
-const fmtDeg = (v) => (fin(v) ? `${(Math.round(v * 10) / 10).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 1 })}°` : DASH);
-/** A length in metres in the display unit ("1,153 mm", "115.3 cm", "45.39 in"). */
-export const fmtM = (m, unit = "mm") => (fin(m) ? fmtLength(m * 1000, unit) : DASH);
-/** The headline value of an evaluated item: "612 mm", "1,153 mm above the floor", "87.3°", "612 mm, 12.3° below level". */
+// number.toLocaleString(locale, options) builds a formatter on every call (about 20 microseconds); a list of 200 measurements formats 1000 numbers per update
+const formatters = new Map();
+const numberFormat = (min, max) => { const k = `${min}.${max}`; let f = formatters.get(k); if (!f) { f = new Intl.NumberFormat("en-US", { minimumFractionDigits: min, maximumFractionDigits: max }); formatters.set(k, f); } return f; };
+const fmtDeg = (v) => (fin(v) ? `${numberFormat(0, 1).format((Math.round(v * 10) / 10) || 0)}°` : DASH);
+/** A length in metres in the display unit ("1,153 mm", "115.3 cm", "45.39 in"). Negative values use the real minus sign; a value that rounds to zero has no sign. */
+export const fmtM = (m, unit = "mm") => {
+  if (!fin(m)) return DASH;
+  const d = unitDigits(unit), t = numberFormat(d, d).format(toUnit(m * 1000, unit)); // toUnit throws on an unknown unit, like ui.js fmtLength
+  return `${t[0] !== "-" ? t : /[1-9]/.test(t) ? `−${t.slice(1)}` : t.slice(1)} ${UNIT_LABEL[unit]}`;
+};
+/** The headline value of an evaluated item: "612 mm", "1,153 mm" (a height: the label says what it is), "87.3°", "612 mm, 12.3° below level". */
 export function formatResult(res, unit = "mm") {
   if (!res?.ok) return DASH;
   if (res.kind === "angle") return fmtDeg(res.value);
@@ -82,8 +89,7 @@ export function formatResult(res, unit = "mm") {
 /** The Δ components of a distance result as text: "Δx 120 mm, Δy −45 mm, Δz 300 mm, horizontal 323 mm". */
 export function formatDeltas(res, unit = "mm") {
   if (!res?.ok || res.dx == null) return "";
-  const s = (v) => fmtM(v, unit).replace(/^-/, "−");
-  return `Δx ${s(res.dx)}, Δy ${s(res.dy)}, Δz ${s(res.dz)}, horizontal ${fmtM(res.horizontal, unit)}`;
+  return `Δx ${fmtM(res.dx, unit)}, Δy ${fmtM(res.dy, unit)}, Δz ${fmtM(res.dz, unit)}, horizontal ${fmtM(res.horizontal, unit)}`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -156,6 +162,9 @@ export function createMeasure({ viewport, ctx, sandbox, scheduler } = {}) {
   const drawn = new Map(); // item id -> { sig, group }
   let seq = 0, selectedId = null, disposed = false, queued = false, tool = "off", pending = [], hoverState = null, resumeInput = null, previewGroup = null;
   let colorIdx = 0;
+  // Results of the update in progress (flush) are shared by the overlay and by every listener, so an item is evaluated once per frame, not once per
+  // consumer; `lastFrame` also serves the labels until the next event says that something may have changed.
+  let frame = null, lastFrame = null;
 
   // ---- references -------------------------------------------------------------------------------------------------
   const theme = () => viewport.theme ?? {};
@@ -209,6 +218,13 @@ export function createMeasure({ viewport, ctx, sandbox, scheduler } = {}) {
   function evaluate(itemOrId) {
     const item = typeof itemOrId === "string" ? items.find((i) => i.id === itemOrId) : itemOrId;
     if (!item) return { ok: false, why: "There is no such measurement.", kind: null, points: {} };
+    const hit = frame?.get(item);
+    if (hit) return hit;
+    const res = evaluateNow(item);
+    frame?.set(item, res);
+    return res;
+  }
+  function evaluateNow(item) {
     const pts = {}, whys = [];
     for (const k of KIND_POINTS[item.kind]) {
       const r = resolve(item[k], new THREE.Vector3());
@@ -311,6 +327,7 @@ export function createMeasure({ viewport, ctx, sandbox, scheduler } = {}) {
 
   // ---- live update and overlay --------------------------------------------------------------------------------------
   function invalidate() {
+    lastFrame = null;
     if (queued || disposed) return;
     queued = true;
     later(() => { queued = false; if (!disposed) flush(); });
@@ -319,8 +336,12 @@ export function createMeasure({ viewport, ctx, sandbox, scheduler } = {}) {
   function flush() {
     if (disposed) return;
     queued = false;
-    redraw();
-    for (const f of [...listeners]) { try { f({ op: "values" }); } catch (e) { console.error("measure: listener failed:", e); } }
+    frame = new Map();
+    try {
+      redraw();
+      for (const f of [...listeners]) { try { f({ op: "values" }); } catch (e) { console.error("measure: listener failed:", e); } }
+      lastFrame = frame;
+    } finally { frame = null; }
     viewport.requestRender?.();
   }
 
@@ -407,7 +428,7 @@ export function createMeasure({ viewport, ctx, sandbox, scheduler } = {}) {
     const out = [], u = unit();
     for (const item of items) {
       if (!item.visible) continue;
-      const res = evaluate(item);
+      const res = lastFrame?.get(item) ?? evaluate(item);
       if (!res.ok) continue;
       const P = res.points, pos = item.kind === "angle" ? P.b.clone() : item.kind === "height" ? P.a.clone().setY(P.a.y / 2) : P.a.clone().lerp(P.b, 0.5);
       const sel = item.id === selectedId, text = `${item.label}: ${formatResult(res, u)}`;
@@ -474,7 +495,7 @@ export function createMeasure({ viewport, ctx, sandbox, scheduler } = {}) {
     const ray = viewport.ray?.(clientX, clientY);
     if (!ray) return null;
     let best = null;
-    const objHit = sandbox?.pickAt?.(clientX, clientY);
+    const objHit = sandbox?.pickAt?.(clientX, clientY, { ignoreFigure: true }); // the skin is compared below
     if (objHit) best = { dist: objHit.distance, p: objHit.point, ref: { kind: "object", id: objHit.obj.id, local: sandbox.worldToLocal(objHit.obj.id, objHit.point).toArray().map((v) => round(v, 6)) }, text: `${objHit.obj.name} (surface)` };
     const rig = rigOf();
     if (rig?.skin) {
@@ -619,10 +640,12 @@ export function createMeasure({ viewport, ctx, sandbox, scheduler } = {}) {
     });
   }
   const triple = (v) => (v ? v.join(" ") : "");
+  // a spreadsheet runs a cell that starts with = + - @ (or a tab / return) as a formula: names come from the user or from a file, so they get a quote in front
+  const csvText = (v) => (typeof v === "string" && /^[=+\-@\t\r]/.test(v) ? `'${v}` : v);
   /** CSV text: id, label, kind, value, unit, dx, dy, dz, a, b, c (x y z in mm), horizontal, status, notes. Millimetres and degrees, DESIGN.md axes. */
   function toCSVText() {
     return toCSV(["id", "label", "kind", "value", "unit", "dx", "dy", "dz", "a", "b", "c", "horizontal", "status", "notes"],
-      exportRows().map((r) => [r.id, r.label, r.kind, r.value, r.unit, r.dx, r.dy, r.dz, triple(r.a), triple(r.b), triple(r.c), r.horizontal, r.status, r.notes]));
+      exportRows().map((r) => [csvText(r.id), csvText(r.label), r.kind, r.value, r.unit, r.dx, r.dy, r.dz, triple(r.a), triple(r.b), triple(r.c), r.horizontal, csvText(r.status), csvText(r.notes)]));
   }
   /** JSON text of the results (and the references they were made from), for other tools. */
   function toResultsJSON() {

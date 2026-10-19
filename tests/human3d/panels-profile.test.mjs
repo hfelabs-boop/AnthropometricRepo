@@ -245,8 +245,10 @@ test("editing a measured dimension edits the profile's measure (and reverts exac
   near(fitBody(m2, {}).d.hand_length, 0.2, 1e-9);
   // nonsense is refused with a message that says what to fix
   assert.throws(() => P.editDimension(prof, rows.stature, 100), /outside|Give the unit/);
-  assert.throws(() => P.editDimension(prof, rows.hand_length, 5), /too small|Give the unit/);
-  assert.throws(() => P.editDimension(prof, rows.hand_length, NaN), /not a finite number/);
+  assert.throws(() => P.editDimension(prof, rows.hand_length, 5), /outside the 120 to 260 mm/);
+  assert.throws(() => P.editDimension(prof, rows.hand_length, 2000), /outside the 120 to 260 mm/, "the model would refuse it and fall back to another route");
+  assert.throws(() => P.editDimension(prof, rows.hand_length, -5), /Hand length must be more than zero\./, "no raw measure key in the message");
+  assert.throws(() => P.editDimension(prof, rows.hand_length, NaN), /Enter the value as a number/);
 });
 
 test("editing a derived or estimated dimension sets a fit override, which fitBody applies; ids and labels follow", () => {
@@ -295,7 +297,7 @@ test("editing a derived or estimated dimension sets a fit override, which fitBod
   // refused: a pure derivation, nonsense numbers
   assert.throws(() => P.editDimension(prof, rows.trunk_length, 450), /other dimensions/);
   assert.throws(() => P.editDimension(prof, rows.adiposity, 1), /volume/);
-  assert.throws(() => P.editDimension(prof, rows.femur_length, -5), /between 0 and 5 metres/);
+  assert.throws(() => P.editDimension(prof, rows.femur_length, -5), /must be more than zero/);
   assert.throws(() => P.editDimension(prof, rows.femur_length, 9000), /between 0 and 5 metres/);
   assert.throws(() => P.editDimension(prof, rows.femur_length, "abc"), /number/);
 });
@@ -375,7 +377,7 @@ test("fit report: sorted by status, split into measures and checks, summary coun
   // stable inside a status
   const rows = [{ id: "a", status: "ok" }, { id: "b", status: "off" }, { id: "c", status: "ok" }, { id: "d", status: "n/a" }, { id: "e", status: "warn" }];
   assert.deepEqual(P.sortReport(rows).map((r) => r.id), ["b", "e", "a", "c", "d"]);
-  assert.deepEqual(P.reportSummary([]), { evaluated: 0, ok: 0, warn: 0, off: 0, na: 0, text: "0 of 0 checks within tolerance", detail: "" });
+  assert.deepEqual(P.reportSummary([]), { evaluated: 0, ok: 0, warn: 0, off: 0, na: 0, text: "Nothing to check: the profile has none of the measures the report compares", detail: "" });
   assert.equal(P.reportSummary(rows).detail, "1 close (warn), 1 off, 1 without an input value");
 });
 
@@ -552,7 +554,10 @@ test("JOINT_DIMS covers all 77 joints; every dimension it names exists in fit.js
   assert.ok(S.expandDims(["neck_length"]).has("tragion_below_eye"));
   assert.ok(S.expandDims(["shank_length"]).has("ankle_height"));
   assert.ok(S.jointInfluences("ankle_L").has("knee_height"));
-  assert.deepEqual(S.dimensionJoints("hand_breadth").filter((j) => j.endsWith("_L")).sort(), ["index_mcp_L", "little_mcp_L", "middle_mcp_L", "ring_mcp_L", "thumb_cmc_L"]);
+  // (the shoulder too: a profile with an arm span or a thumbtip reach makes the model solve the shoulder, and the hand sets the span)
+  assert.deepEqual(S.dimensionJoints("hand_breadth").filter((j) => j.endsWith("_L")).sort(), ["index_mcp_L", "little_mcp_L", "middle_mcp_L", "ring_mcp_L", "shoulder_L", "thumb_cmc_L"]);
+  // an edit of a derived dimension is an edit of the one it stands for
+  assert.ok(S.dimensionJoints("hip_height").includes("knee_L") && S.dimensionJoints("shank_length").includes("knee_L") && S.dimensionJoints("gh_halfwidth").includes("index_mcp_L"));
   assert.deepEqual(S.dimensionJoints("hip_halfwidth").sort(), ["hip_L", "hip_R"]);
 });
 
@@ -562,6 +567,8 @@ test("the joint -> dimension table agrees with fit.js: moving a dimension only m
   // Aliases (shank_length, hip_height, gh_halfwidth) are edits of other dimensions and are covered by those.
   const sample = [profiles.manual, profiles.manualF, anthro.manualProfile({ sex: "M", stature: 1900, mass: 95 })];
   if (haveData) { const p = { ...profiles.armyF, measures: { ...profiles.armyF.measures } }; delete p.measures.span; delete p.measures.thumbtip_reach; sample.push(p); }
+  // the profiles with a span and a thumbtip reach: the model solves the shoulder for them, which moves joints the other profiles do not move
+  if (haveData) sample.push(profiles.armyM, profiles.armyF);
   let pairs = 0;
   for (const prof of sample) {
     const b0 = fitBody(prof, {});
@@ -734,4 +741,159 @@ test("landmark search and coordinate text", () => {
   assert.equal(S.matchLandmarks(null, "x").length, 0);
   assert.equal(S.fmtPointMm([-0.0852, 1.4029, 0.0153]), "−85.2   1,402.9   15.3");
   assert.equal(S.fmtPointMm([0, 0, 0]), "0.0   0.0   0.0");
+});
+
+// ------------------------------------------------------------------------------------------------------------------ regressions of the verifier's defects
+const fitWith = (p) => fitBody(p, { form: p.form ?? P.defaultForm(p), overrides: p.overrides }); // what a shell that passes the extras on does
+const rowOf = (body, prof, id) => P.dimensionRows(body, prof).find((r) => r.id === id);
+
+test("a population id that the profile cut at 100 characters is completed from the index (the controls must not jump to the first country)", async () => {
+  const long = `multiple-${"bolivia-brazil-colombia-chile-".repeat(5)}venezuela`;
+  assert.ok(long.length > P.SOURCE_ID_MAX + 20);
+  const index = { countries: [{ id: "angola", roles: [{ id: "cadets", sexes: ["M"] }] }, { id: long, roles: [{ id: "recruits", sexes: ["M", "F"] }] }], populations: [] };
+  const cut = { source: { kind: "population", country_id: long.slice(0, P.SOURCE_ID_MAX), role_id: "recruits", sex: "F", percentile: 95 } };
+  assert.equal(P.resolveSourceId(index.countries, cut.source.country_id).id, long);
+  assert.deepEqual(P.selectionOfProfile(cut, index), { country: long, role: "recruits", sex: "F", percentile: 95, scaling: "percentile", reliability: "medium", survey: "combined" });
+  assert.equal(P.selectionOfProfile(cut).country, long.slice(0, P.SOURCE_ID_MAX), "without an index the id is as the profile has it");
+  // ambiguous or short ids are not guessed
+  const two = [{ id: `${long}-a` }, { id: `${long}-b` }];
+  assert.equal(P.resolveSourceId(two, long.slice(0, P.SOURCE_ID_MAX)), null);
+  assert.equal(P.resolveSourceId([{ id: "united-states" }, { id: "united-states-navy" }], "united"), null, "a short id must match exactly");
+  assert.equal(P.resolveSourceId([{ id: "united-states" }], "united-states").id, "united-states");
+  // and the real pooled populations of the index come back whole
+  if (haveData) {
+    const idx = await anthro.loadIndex("api/v1", async (url) => readJSON(url.replace(/^api\/v1\//, "")));
+    for (const c of idx.countries.filter((x) => x.id.length > P.SOURCE_ID_MAX)) assert.equal(P.resolveSourceId(idx.countries, c.id.slice(0, P.SOURCE_ID_MAX)).id, c.id);
+  }
+});
+
+test("editing the shoulder half-width works for a profile with an arm span (it is stored as the acromion offset the solver leaves alone)", { skip: !haveData }, () => {
+  const prof = P.finalizeProfile(profiles.armyM, {});
+  assert.ok(prof.measures.span, "this profile has an arm span: the model solves the shoulder for it");
+  const b0 = fitWith(prof), row = rowOf(b0, prof, "gh_halfwidth");
+  const target = row.mm + 7;
+  const p1 = P.editDimension(prof, row, target);
+  assert.deepEqual(Object.keys(p1.overrides), ["acromion_to_gh"], "stored as the offset it comes from");
+  const b1 = fitWith(p1);
+  near(b1.dims.find((d) => d.id === "gh_halfwidth").value * 1000, target, 0.01, "applied");
+  assert.deepEqual(P.verifyExtras(p1, b1), []);
+  const r1 = rowOf(b1, p1, "gh_halfwidth");
+  assert.ok(r1.edited, "the row is marked edited");
+  assert.equal(P.explainEdit(r1, target, b1), null, "nothing to explain: the value is what was typed");
+  // the other route (an override of the derived row itself) is what the solver used to undo
+  const bOld = fitWith({ ...prof, overrides: { gh_halfwidth: target / 1000 } });
+  assert.ok(Math.abs(bOld.dims.find((d) => d.id === "gh_halfwidth").value * 1000 - target) > 3, "documented: fit.js does not honour it with a span in the profile");
+  // revert removes the offset (and an old override of the derived row)
+  const back = P.revertDimension(p1, r1);
+  assert.equal(back.overrides, undefined);
+  assert.equal(back.id, prof.id);
+  assert.equal(P.revertDimension({ ...p1, overrides: { gh_halfwidth: 0.15, acromion_to_gh: 0.04 } }, r1).overrides, undefined);
+  // wider than the acromion: the offset would be negative; the model holds it at its lower limit and says so
+  const p2 = P.editDimension(prof, row, row.mm + 400);
+  assert.ok(p2.overrides.acromion_to_gh > 0);
+  const b2 = fitWith(p2);
+  const ex = P.explainEdit(rowOf(b2, p2, "gh_halfwidth"), row.mm + 400, b2);
+  assert.match(ex.text, /was held to .* outside the range the model accepts/);
+  assert.deepEqual(P.verifyExtras(p2, b2), []);
+});
+
+test("an extreme girth is applied (held in its range): no 'ignored the edits' notice, and the status says it was held", () => {
+  const prof = profiles.manual, b0 = fitWith(prof), row = rowOf(b0, prof, "ring_waist");
+  for (const mm of [50, 4000]) {
+    const p1 = P.editDimension(prof, row, mm), b1 = fitWith(p1);
+    const held = b1.dims.find((d) => d.id === "ring_waist").value * 1000;
+    assert.ok(held !== mm && held > 100, `held to ${held}`);
+    assert.ok(b1.warnings.some((w) => w.startsWith("The edited waist girth (")), "fit.js says so only in the warnings");
+    assert.deepEqual(P.unappliedOverrides(p1, b1), []);
+    assert.deepEqual(P.verifyExtras(p1, b1), []);
+    assert.equal(P.extrasNotice(p1, b1), null);
+    assert.match(P.explainEdit(rowOf(b1, p1, "ring_waist"), mm, b1).text, /^Waist section.* was held to .*: .* is outside the range the model accepts/);
+  }
+  // an edit the model really dropped is still noticed
+  const p1 = P.editDimension(prof, row, row.mm * 1.3);
+  assert.deepEqual(P.unappliedOverrides(p1, b0), ["ring_waist"]);
+  assert.match(P.extrasNotice(p1, b0), /ignored the dimension edits: this build/);
+  // a girth the section holds to within 1.5 % is explained as such, not as a limit of the model
+  if (haveData) {
+    const prof2 = P.finalizeProfile(profiles.armyM, {}), r2 = rowOf(fitWith(prof2), prof2, "ring_chest");
+    const p2 = P.editDimension(prof2, r2, r2.mm * 1.08), b2 = fitWith(p2);
+    const ex = P.explainEdit(rowOf(b2, p2, "ring_chest"), r2.mm * 1.08, b2);
+    assert.equal(ex.level, "info");
+    assert.match(ex.text, /^Chest .* was fitted as .*: the body section cannot hold .* exactly \(it holds a girth within 1\.5 %\)/);
+  }
+});
+
+test("a signed offset (the shoulder protraction) takes zero and negative values; the others say what is wrong", () => {
+  const prof = profiles.manual, body = fitWith(prof), row = rowOf(body, prof, "shoulder_protraction");
+  assert.ok(row.band[0] < 0, "its plausible band is signed");
+  for (const mm of [-20, 0, -80, 20]) assert.deepEqual(P.editDimension(prof, row, mm).overrides, { shoulder_protraction: mm / 1000 });
+  assert.throws(() => P.editDimension(prof, row, 6000), /between 0 and 5 metres/);
+  const femur = rowOf(body, prof, "femur_length");
+  for (const bad of [0, -3]) assert.throws(() => P.editDimension(prof, femur, bad), /must be more than zero/);
+  assert.throws(() => P.editDimension(prof, rowOf(body, prof, "mass"), 0), /Body mass must be more than zero/);
+  // a fitter that ignores a value of zero or less is reported as that, not as a shell that drops everything
+  const p1 = P.editDimension(prof, row, -20), b1 = fitWith(p1);
+  assert.deepEqual(P.unappliedOverrides(p1, b1), ["shoulder_protraction"]);
+  const text = P.extrasNotice(p1, b1);
+  assert.match(text, /does not take a value of zero or less for “Glenohumeral centre ahead of its standard place”/);
+  assert.doesNotMatch(text, /this build of the Digital human view/);
+});
+
+test("explainEdit: held at an edge, not applied, or built another way; null when the value is what was typed", () => {
+  const prof = profiles.manual, b0 = fitWith(prof);
+  const row = rowOf(b0, prof, "upper_arm_length");
+  // not applied (a shell that drops the overrides)
+  const p1 = P.editDimension(prof, row, row.mm + 15);
+  assert.match(P.explainEdit(row, row.mm + 15, b0).text, /^The model did not apply this edit: Upper arm is /);
+  // applied
+  const b1 = fitWith(p1);
+  assert.equal(P.explainEdit(rowOf(b1, p1, "upper_arm_length"), row.mm + 15, b1), null);
+  // held at the edge of the plausible band
+  const p2 = P.editDimension(prof, row, 600), b2 = fitWith(p2);
+  assert.match(P.explainEdit(rowOf(b2, p2, "upper_arm_length"), 600, b2).text, /^Upper arm was held to .*: .* is outside the range the model accepts for this dimension\.$/);
+  // units: the text follows the display unit
+  assert.match(P.explainEdit(rowOf(b2, p2, "upper_arm_length"), 600, b2, "in").text, /in\b/);
+  // the mass
+  assert.equal(P.explainEdit(rowOf(b0, prof, "mass"), 80, b0), null);
+  assert.equal(P.explainEdit(row, NaN, b0), null);
+  assert.equal(P.explainEdit({ id: "nonsense", kind: "mm" }, 5, b0), null);
+});
+
+test("a measure outside the plausible band is refused with the range, not stored for the model to drop (a hand length of 2 m)", () => {
+  const prof = profiles.manual, b0 = fitWith(prof), row = rowOf(b0, prof, "hand_length");
+  assert.throws(() => P.editDimension(prof, row, 2000), /Hand length of 2,000 mm is outside the 120 to 260 mm that the model accepts for this dimension\./);
+  assert.throws(() => P.editDimension(prof, row, 11, "cm"), /outside the 120 to 260 mm/);
+  assert.equal(P.bandText(0.12, 0.26), "120 to 260 mm");
+  assert.equal(P.bandText(0.02, null), "at least 20 mm");
+  assert.equal(P.bandText(null, 0.09), "at most 90 mm");
+  assert.equal(P.editDimension(prof, row, 21, "cm").measures.hand_length.value, 210);
+});
+
+test("reverting a row that is marked edited because of the dimension it comes from removes that edit (shank length, hip height)", () => {
+  const prof = profiles.manual, b0 = fitWith(prof);
+  const kh = rowOf(b0, prof, "knee_height");
+  const p1 = P.editDimension(prof, kh, kh.mm + 20), b1 = fitWith(p1);
+  const shank = rowOf(b1, p1, "shank_length");
+  assert.ok(shank.edited, "marked edited through the knee height");
+  const back = P.revertDimension(p1, shank);
+  assert.ok(!back.overrides && !Object.values(back.measures).some((m) => m.status === "edited"));
+  assert.equal(back.id, prof.id);
+});
+
+test("small helpers: countEdits, capFirst, the report with nothing to compare", () => {
+  assert.equal(P.countEdits(null), 0);
+  assert.equal(P.countEdits(profiles.manual), 0);
+  const e = P.editDimension(P.editDimension(profiles.manual, rowOf(bodies.manual, profiles.manual, "hand_length"), 200), rowOf(bodies.manual, profiles.manual, "femur_length"), 430);
+  assert.equal(P.countEdits(e), 2);
+  assert.equal(P.capFirst("the model's arm hangs"), "The model's arm hangs");
+  assert.equal(P.capFirst(""), "");
+  assert.match(P.reportSummary([]).text, /^Nothing to check/);
+  assert.doesNotMatch(P.reportSummary([]).text, /0 of 0/);
+});
+
+test("dimensionJoints follows an edit of a derived dimension to the one it is applied to", () => {
+  assert.deepEqual(S.EDIT_AS, { shank_length: "knee_height", hip_height: "femur_length", gh_halfwidth: "acromion_to_gh" });
+  assert.ok(S.dimensionJoints("gh_halfwidth").includes("thumb_cmc_L"), "an arm that tilts differently carries the hand");
+  assert.ok(S.dimensionJoints("femur_length").includes("C3") && S.dimensionJoints("hip_height").includes("head"), "a longer thigh leaves less stature for the neck");
+  assert.ok(S.dimensionJoints("l5_above_hip").includes("clavicle_L"));
 });

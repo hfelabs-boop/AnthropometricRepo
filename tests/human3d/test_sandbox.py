@@ -484,6 +484,190 @@ def test_touch_tap_selects_and_one_finger_drags_an_object_but_two_fingers_orbit(
         assert not s.errors(), s.errors()
 
 
+def test_the_figure_hides_the_objects_behind_it_from_picking_and_dragging(s):
+    """A press on the figure belongs to the figure, even with a big box right behind it: nothing is selected or dragged, and the camera orbits instead."""
+    p = s.page
+    s.js(f"""async () => {{ const sb = await {SB}; sb.add('box', {{ position: [0, 0, -0.6], params: {{ width: 2, depth: 0.3, height: 2 }} }}); sb.select(null);
+        const vp = window.__human.viewport; vp.camera.position.set(0.3, 1.4, 4); vp.controls.target.set(0, 1.1, 0); vp.controls.update(); vp.requestRender(); }}""")
+    s.settle(1200)
+    c = s.client(s.js("() => { const p = window.__human.ctx.getRig().landmarkWorld('suprasternale'); return [p.x, p.y - 0.12, p.z + 0.12]; }"))
+    assert c["visible"]
+    p.mouse.click(c["x"], c["y"])
+    s.settle(300)
+    assert s.selected() is None, "the click on the chest does not select the box behind it"
+    before_view, before = s.view(), s.objects()[0]["position"]
+    s.drag(c, {"x": c["x"] + 80, "y": c["y"]})
+    assert s.objects()[0]["position"] == before, "dragging the chest does not drag the box"
+    assert s.view() != before_view, "the camera orbited instead"
+    # next to the figure the box is still there to pick
+    side = s.client([0.9, 1.0, -0.45])
+    p.mouse.click(side["x"], side["y"])
+    s.settle(300)
+    assert s.selected() == s.objects()[0]["id"]
+    assert not s.errors(), s.errors()
+
+
+def test_touch_cancel_and_pinch_from_an_object(chromium, server):
+    """A cancelled touch ends the object drag (orbit works again, the undo group is closed); a pinch whose first finger lands on an object still zooms the camera."""
+    with make_session(chromium, server, 390, 800, mobile=True) as s:
+        s.open("scene")
+        cdp = s.page.context.new_cdp_session(s.page)
+        touch = lambda kind, pts: cdp.send("Input.dispatchTouchEvent", {"type": kind, "touchPoints": [{"x": x, "y": y, "id": i} for i, (x, y) in enumerate(pts)]})
+        s.js(f"""async () => {{ const sb = await {SB}; sb.add('box', {{ position: [0, 0, 1.2], params: {{ width: 0.8, depth: 0.8, height: 0.8 }} }}); sb.select(null);
+            const vp = window.__human.viewport; vp.camera.position.set(1.5, 1.6, 4); vp.controls.target.set(0, 0.5, 1); vp.controls.update(); vp.requestRender(); }}""")
+        s.page.evaluate("document.querySelector('canvas').scrollIntoView({block:'center'})")
+        s.settle(1200)
+        pt = s.client([0, 0.4, 1.2])
+        x, y = pt["x"], pt["y"]
+        touch("touchStart", [(x, y)])
+        for i in range(1, 8):
+            touch("touchMove", [(x + i * 4, y + i)])
+            s.page.wait_for_timeout(20)
+        assert s.js(f"async () => (await {SB}).dragging") is True
+        assert s.js("window.__human.viewport.controls.enabled") is False
+        touch("touchCancel", [])
+        s.settle(400)
+        assert s.js(f"async () => (await {SB}).dragging") is False
+        assert s.js("window.__human.viewport.controls.enabled") is True, "the orbit controls are back after a cancelled touch"
+        assert s.js(f"async () => (await {SB}).undoLabel").startswith("Move"), "the drag was committed as one step"
+        c0 = s.js("window.__human.viewport.camera.position.toArray()")
+        touch("touchStart", [(40, 300)])
+        for i in range(1, 10):
+            touch("touchMove", [(40 + i * 10, 300)])
+            s.page.wait_for_timeout(20)
+        touch("touchEnd", [])
+        s.settle(500)
+        assert s.js("window.__human.viewport.camera.position.toArray()") != c0, "a one-finger drag on empty space orbits"
+        # pinch with the first finger on the box
+        dist = lambda: s.js("(() => { const v = window.__human.viewport; return v.camera.position.distanceTo(v.controls.target); })()")
+        pos = s.objects()[0]["position"]
+        pt = s.client([pos[0], 0.4, pos[2]])
+        x, y = pt["x"], pt["y"]
+        d0 = dist()
+        touch("touchStart", [(x, y)])
+        s.page.wait_for_timeout(50)
+        touch("touchStart", [(x, y), (x + 80, y + 120)])
+        s.page.wait_for_timeout(50)
+        for i in range(1, 12):
+            touch("touchMove", [(x - i * 4, y - i * 4), (x + 80 + i * 6, y + 120 + i * 8)])
+            s.page.wait_for_timeout(20)
+        touch("touchEnd", [])
+        s.settle(600)
+        assert abs(dist() - d0) > 0.3, (d0, dist())
+        assert s.objects()[0]["position"] == pos, "the pinch moved the camera, not the box"
+        assert not s.errors(), s.errors()
+
+
+def test_dragging_with_the_camera_near_the_floor_does_not_throw_the_object(s):
+    s.js(f"""async () => {{ const vp = window.__human.viewport; vp.camera.position.set(0.5, 0.35, 4.5); vp.controls.target.set(0, 0.3, 1.2); vp.controls.update(); vp.requestRender();
+        (await {SB}).add('box', {{ position: [0, 0, 1.2], params: {{ width: 0.4, depth: 0.4, height: 0.4 }} }}); }}""")
+    s.settle(1200)
+    p0 = s.client([0, 0.2, 1.2])
+    p = s.page
+    p.mouse.move(p0["x"], p0["y"])
+    p.mouse.down()
+    for dy in range(-4, -40, -4):
+        p.mouse.move(p0["x"], p0["y"] + dy)
+    z = s.objects()[0]["position"][2]
+    p.mouse.up()
+    assert abs(z - 1.2) < 2, f"36 px of motion moved the box to z={z} (it went to -838 m)"
+
+
+def test_scene_keys_belong_to_the_focused_control_and_the_list_row(s):
+    """Delete / Backspace and the letters do not act on the selected object while a catalogue card, a button or a swatch has the focus; on a list row Delete removes that row's object."""
+    p = s.page
+    s.js(f"async () => {{ const sb = await {SB}; sb.add('box', {{ position: [0, 0, 1], select: true }}); sb.add('crate', {{ position: [1, 0, 1] }}); sb.select('o1'); }}")
+    s.settle(400)
+    p.click(".hm-obj-cats button:has-text('Seating')")
+    p.focus(".hm-obj-card[data-type='stool']")
+    for k in ("Delete", "Backspace", "w", "e", "r", "[", "]"):
+        p.keyboard.press(k)
+    s.settle(200)
+    assert len(s.objects()) == 2 and s.js(f"async () => (await {SB}).gizmoMode") == "translate" and s.objects()[0]["yaw"] == 0
+    p.keyboard.press("Control+z")  # undo still works from here
+    s.settle(200)
+    assert len(s.objects()) == 1
+    s.js(f"async () => (await {SB}).redo()")
+    s.settle(200)
+    # on the row of the CRATE, with the BOX selected: Delete removes the crate
+    row = p.locator(".hm-ol-row").nth(1)
+    row.locator(".hm-ol-main").focus()
+    assert "Crate" in row.inner_text()
+    p.keyboard.press("Delete")
+    s.settle(300)
+    left = s.objects()
+    assert [o["type"] for o in left] == ["box"], left
+    assert p.evaluate("document.activeElement.classList.contains('hm-ol-main')"), "focus goes to the neighbouring row"
+    # a locked object is not deleted by the key
+    s.js(f"async () => (await {SB}).setLocked('o1', true)")
+    s.settle(200)
+    p.locator(".hm-ol-row").nth(0).locator(".hm-ol-main").focus()
+    p.keyboard.press("Delete")
+    s.settle(200)
+    assert len(s.objects()) == 1
+    # in the 3D view the key still works
+    s.js(f"async () => (await {SB}).setLocked('o1', false)")
+    p.locator("canvas.hm-canvas").focus()
+    p.keyboard.press("Delete")
+    s.settle(200)
+    assert len(s.objects()) == 0
+    assert not s.errors(), s.errors()
+
+
+def test_measure_panel_keeps_its_hint_the_typed_eye_point_and_stays_quiet_during_a_drag(s):
+    p = s.page
+    s.js(f"async () => (await {SB}).applyTemplate('office')")
+    s.settle(400)
+    objs = {o["type"]: o for o in s.objects()}
+    s.js("window.__human.viewport.setView('iso', { animate: false })")
+    s.js(f"async () => (await {SB}).frameObjects(null)")
+    s.settle(900)
+    s.tab("measure")
+    # 1. the hint asks for the first point again after a measurement is complete
+    p.click(".hm-ms button:has-text('Distance')")
+    a, b = s.client(s.anchor(objs["monitor"]["id"], "screen_centre")), s.client(s.anchor(objs["office_chair"]["id"], "srp"))
+    p.mouse.click(a["x"] + 3, a["y"] - 3)
+    s.settle(200)
+    assert "Click the second point" in p.locator(".hm-ms-hint").inner_text()
+    p.mouse.click(b["x"] + 2, b["y"] + 2)
+    s.settle(400)
+    assert s.js(f"async () => (await {MS}).items.length") == 1
+    assert "Click the first point" in p.locator(".hm-ms-hint").inner_text(), p.locator(".hm-ms-hint").inner_text()
+    p.keyboard.press("Escape")
+    # 2. what was typed as the eye point survives a scene change
+    p.select_option(".hm-ms select[aria-label='What to measure']", "view")
+    eye = p.get_by_label("Eye point", exact=True)
+    eye.fill("Joint · Left elbow")
+    s.js(f"async () => (await {SB}).add('crate', {{ position: [1.5, 0, 1] }})")
+    s.js(f"async () => {{ const sb = await {SB}; sb.move('o1', {{ x: 0.1 }}); sb.undo(); }}")
+    s.settle(400)
+    assert eye.input_value() == "Joint · Left elbow", eye.input_value()
+    # 3. a drag emits many scene events: the panel does not rebuild its lists for them
+    n = s.js("""async () => { const m = await """ + MS + """; let calls = 0; const f = m.pointOptions; m.pointOptions = (...a) => { calls++; return f.apply(m, a); };
+        const ctx = window.__human.ctx; for (let i = 0; i < 100; i++) ctx.emit('scene', { op: 'move', id: 'o1', live: true });
+        await new Promise((r) => setTimeout(r, 300)); m.pointOptions = f; return calls; }""")
+    assert n == 0, f"{n} rebuilds of the point list for 100 move events"
+    assert not s.errors(), s.errors()
+
+
+def test_open_scene_then_undo_brings_the_measurements_back(s):
+    p = s.page
+    s.js(f"async () => (await {SB}).applyTemplate('office')")
+    s.settle(300)
+    s.tab("measure")
+    s.js(f"async () => {{ const m = await {MS}; m.addHeight({{ kind: 'landmark', id: 'eye_mid' }}); }}")
+    s.settle(300)
+    assert p.locator(".hm-ms-item").count() == 1
+    r = s.js(f"async () => {{ const sb = await {SB}; return sb.fromJSON({{ version: 1, objects: [{{ type: 'box' }}] }}); }}")
+    assert r["ok"]
+    s.settle(300)
+    assert p.locator(".hm-ms-item").count() == 0
+    s.js(f"async () => (await {SB}).undo()")
+    s.settle(400)
+    assert p.locator(".hm-ms-item").count() == 1, "the measurement is back with the old objects"
+    assert not s.errors(), s.errors()
+
+
 def test_attach_to_the_hand_follows_the_pose(s):
     """A tool attached to the right palm from the settings follows the hand when the pose changes (through the shell's rig events) and stays when detached."""
     p = s.page

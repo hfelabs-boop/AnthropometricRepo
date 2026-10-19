@@ -50,8 +50,8 @@ export default {
     function toggleTool(t) { measure.setTool(measure.tool === t ? "off" : t); }
     function syncTool() {
       for (const [k, b] of Object.entries(tools)) b.setPressed(measure.tool === k);
-      const h2 = HINTS[measure.tool];
-      hint.textContent = measure.tool === "off" ? HINTS.off : `${h2[Math.min(measure.pending.length, h2.length - 1)]} Esc cancels.`;
+      const h2 = HINTS[measure.tool], text = measure.tool === "off" ? HINTS.off : `${h2[Math.min(measure.pending.length, h2.length - 1)]} Esc cancels.`;
+      if (hint.textContent !== text) hint.textContent = text; // a live region: say it once, when it changes
     }
 
     // ---- measure between points chosen from lists -------------------------------------------------------------------------------
@@ -67,15 +67,27 @@ export default {
       return { input, el: h("div", { class: "field" }, h("label", { for: input.id }, label), input) };
     }
     function eyeDefault() { const o = measure.pointOptions().find((x) => x.ref.kind === "landmark" && x.ref.id === "eye_mid"); return o?.text ?? ""; }
+    const displayNodes = (opts) => (opts.length ? opts.map((o) => h("option", { value: o.key }, o.label)) : [h("option", { value: "" }, "No display in the scene")]);
+    // The displays in the scene change when objects come and go; the eye point the user typed must stay. So the display list is updated in place.
+    function syncDisplays() {
+      if (form?.kind !== "view") return;
+      const opts = measure.displayOptions(), keep = form.display.value, same = opts.length === form.options.length && opts.every((o, i) => o.key === form.options[i].key && o.label === form.options[i].label);
+      form.options = opts;
+      if (same) return;
+      form.display.replaceChildren(...displayNodes(opts));
+      if (opts.some((o) => o.key === keep)) form.display.value = keep;
+      form.noDisplay.hidden = opts.length > 0;
+    }
     function renderForm() {
       const kind = kindSel.value;
       formErr.hidden = true;
       if (kind === "view") {
         const eye = pointInput("Eye point", eyeDefault()), opts = measure.displayOptions();
-        const sel = h("select", { class: "input", id: nextId("hm-ms-disp"), "aria-label": "Display to look at" }, opts.length ? opts.map((o) => h("option", { value: o.key }, o.label)) : [h("option", { value: "" }, "No display in the scene")]);
-        form = { kind, inputs: [eye.input], display: sel, options: opts };
-        fieldsEl.replaceChildren(eye.el, h("div", { class: "field" }, h("label", { for: sel.id }, "Display point"), sel),
-          opts.length ? null : h("p", { class: "small muted" }, "Add a monitor, tablet, laptop, wall display, HUD or instrument panel in the Scene tab first."), h("p", { class: "small muted" }, VIEW_NOTE));
+        const sel = h("select", { class: "input", id: nextId("hm-ms-disp"), "aria-label": "Display to look at" }, displayNodes(opts));
+        const noDisplay = h("p", { class: "small muted" }, "Add a monitor, tablet, laptop, wall display, HUD or instrument panel in the Scene tab first.");
+        noDisplay.hidden = opts.length > 0;
+        form = { kind, inputs: [eye.input], display: sel, options: opts, noDisplay };
+        fieldsEl.replaceChildren(eye.el, h("div", { class: "field" }, h("label", { for: sel.id }, "Display point"), sel), noDisplay, h("p", { class: "small muted" }, VIEW_NOTE));
       } else {
         const labels = kind === "distance" ? ["From", "To"] : kind === "height" ? ["Point"] : ["First point", "Vertex (the corner of the angle)", "Third point"];
         const fs = labels.map((l) => pointInput(l));
@@ -147,17 +159,19 @@ export default {
       const r = rows.get(it.id);
       if (!r) return;
       const res = measure.evaluate(it), sel = measure.selected === it.id;
-      if (document.activeElement !== r.name) r.name.value = it.label;
-      r.name.setAttribute("aria-label", `Name of ${it.label}`);
-      r.val.textContent = measure.format(res);
-      r.sub.textContent = subText(it, res);
-      r.row.dataset.state = res.ok ? "ok" : "grey";
-      if (sel) r.row.setAttribute("aria-current", "true"); else r.row.removeAttribute("aria-current");
-      r.dot.style.background = dotColor(it, res.ok);
-      r.sw.setAttribute("aria-pressed", it.visible ? "false" : "true");
-      r.sw.setAttribute("aria-label", `${it.visible ? "Hide" : "Show"} ${it.label} in the 3D view`);
-      r.sw.title = it.visible ? "Hide it in the 3D view" : "Hidden. Press to show it";
-      r.row.dataset.hidden = it.visible ? "" : "1";
+      // this runs for every row on every pose or scene change: write only what differs (a write, even of the same text, costs layout)
+      const put = (el, prop, v) => { if (el[prop] !== v) el[prop] = v; }, attr = (el, k, v) => { if (el.getAttribute(k) !== v) el.setAttribute(k, v); };
+      if (document.activeElement !== r.name) put(r.name, "value", it.label);
+      attr(r.name, "aria-label", `Name of ${it.label}`);
+      put(r.val, "textContent", measure.format(res));
+      put(r.sub, "textContent", subText(it, res));
+      put(r.row.dataset, "state", res.ok ? "ok" : "grey");
+      if (sel) attr(r.row, "aria-current", "true"); else r.row.removeAttribute("aria-current");
+      put(r.dot.style, "background", dotColor(it, res.ok));
+      attr(r.sw, "aria-pressed", it.visible ? "false" : "true");
+      attr(r.sw, "aria-label", `${it.visible ? "Hide" : "Show"} ${it.label} in the 3D view`);
+      put(r.sw, "title", it.visible ? "Hide it in the 3D view" : "Hidden. Press to show it");
+      put(r.row.dataset, "hidden", it.visible ? "" : "1");
     }
     function renderList() {
       rows.clear();
@@ -191,10 +205,10 @@ export default {
         const cur = measure.items.find((x) => x.id === it.id);
         if (!cur) return;
         const res = measure.evaluate(cur), u = unit(), rowsOut = [];
-        big.textContent = measure.format(res);
+        if (big.textContent !== measure.format(res)) big.textContent = measure.format(res);
         big.dataset.state = res.ok ? "ok" : "grey";
         if (!res.ok) { rowsOut.push(["Status", res.why], ...pointRows(cur, res)); note.textContent = "A measurement that cannot be resolved is shown in grey and is not drawn. It resolves again when its points come back (for example after Undo)."; } else {
-          note.textContent = "";
+          if (note.textContent) note.textContent = "";
           if (cur.kind === "distance") rowsOut.push(["Distance", fmtM(res.value, u)], ["Horizontal distance", fmtM(res.horizontal, u)], ["Δx (towards the figure's left)", fmtM(res.dx, u)], ["Δy (up)", fmtM(res.dy, u)], ["Δz (in front of the figure)", fmtM(res.dz, u)]);
           else if (cur.kind === "height") rowsOut.push(["Height above the floor", fmtM(res.value, u)]);
           else if (cur.kind === "angle") rowsOut.push(["Angle", formatResult(res, u)]);
@@ -208,7 +222,8 @@ export default {
           }
           rowsOut.push(...pointRows(cur, res));
         }
-        dl.replaceChildren(...rowsOut.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]));
+        const sig = rowsOut.map(([k, v]) => `${k}\u0001${typeof v === "string" ? v : v.textContent}`).join("\u0002");
+        if (sig !== dl.dataset.sig) { dl.dataset.sig = sig; dl.replaceChildren(...rowsOut.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)])); }
         if (document.activeElement !== name) name.value = cur.label;
         swatches.forEach((b, i) => b.setAttribute("aria-checked", cur.color === COLOR_TOKENS[i] ? "true" : "false"));
         vis.querySelector("input").checked = cur.visible;
@@ -252,26 +267,47 @@ export default {
     syncTool();
 
     // ---- live updates ---------------------------------------------------------------------------------------------------------------------------------------
+    // While another tab is shown nothing here is visible, so nothing is updated; onShow brings the panel up to date (`stale`).
+    let shown = false, stale = false, shownSel = null;
     offs.push(measure.onChange((e) => {
+      if (e.op === "tool") { syncTool(); return; }
+      if (!shown) { stale = true; return; }
       switch (e.op) {
         case "values": for (const it of measure.items) syncRow(it); detail?.refresh(); break;
-        case "select": for (const it of measure.items) syncRow(it); renderDetail(); break;
-        case "tool": syncTool(); break;
+        case "select": { for (const id of new Set([shownSel, measure.selected])) { const it = measure.items.find((x) => x.id === id); if (it) syncRow(it); } shownSel = measure.selected; renderDetail(); break; }
         case "update": { const it = measure.items.find((x) => x.id === e.id); if (it) syncRow(it); detail?.refresh(); dock.place(); break; }
-        default: renderList(); renderDetail();
+        default: renderList(); shownSel = measure.selected; renderDetail(); syncTool(); // a measurement was just completed: the hint must ask for the first point again
       }
     }));
-    on("units", (u) => { unitsSeg.set(u); for (const it of measure.items) syncRow(it); detail?.refresh(); });
+    on("units", (u) => { unitsSeg.set(u); if (!shown) { stale = true; return; } for (const it of measure.items) syncRow(it); detail?.refresh(); });
     on("display", () => landmarksBtn.setPressed(!!ctx.state.display.landmarks));
-    on("scene", () => { if (form?.kind === "view") { const keep = form.display.value; renderForm(); if ([...form.display.options].some((o) => o.value === keep)) form.display.value = keep; } else refreshOptions(); });
-    on("rig", () => { refreshOptions(); if (form?.kind === "view" && !form.inputs[0].value) form.inputs[0].value = eyeDefault(); });
+    // A scene event comes with every pointer move of a drag: moving an object changes no name, so it is ignored here; the rest is done once per frame.
+    // The suggestions of the point fields are rebuilt when a field gets the focus (pointInput), so only a field that already has it needs them now.
+    let sceneRaf = 0;
+    const frame = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (f) => setTimeout(f, 16);
+    function refreshScene() {
+      sceneRaf = 0;
+      if (!shown) { stale = true; return; }
+      syncDisplays();
+      if (form && form.inputs.includes(document.activeElement)) refreshOptions();
+    }
+    on("scene", (e) => { if (e.op === "move" || e.op === "history") return; if (!sceneRaf) sceneRaf = frame(refreshScene); });
+    on("rig", () => { if (shown && form?.inputs.includes(document.activeElement)) refreshOptions(); if (form?.kind === "view" && !form.inputs[0].value) form.inputs[0].value = eyeDefault(); syncDisplays(); });
 
     root.addEventListener("keydown", (e) => { if (e.key === "Escape" && measure.tool !== "off") { measure.cancel(); e.preventDefault(); e.stopPropagation(); } });
 
     return {
-      onShow() { sandbox.setInteraction({ pick: true, drag: false, gizmo: false }); dock.place(true); renderDetail(); },
-      onHide() { measure.setTool("off"); sandbox.setInteraction({ pick: false, drag: false, gizmo: false }); },
+      onShow() {
+        shown = true;
+        sandbox.setInteraction({ pick: true, drag: false, gizmo: false });
+        dock.place(true);
+        if (stale) { stale = false; syncDisplays(); renderList(); syncTool(); }
+        shownSel = measure.selected;
+        renderDetail();
+      },
+      onHide() { shown = false; measure.setTool("off"); sandbox.setInteraction({ pick: false, drag: false, gizmo: false }); },
       dispose() {
+        shown = false;
         measure.setTool("off");
         for (const f of offs.splice(0)) f();
         dock.dispose();

@@ -61,6 +61,7 @@
 .hm-pf-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .hm-pf-sub { font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-3); font-weight: 600; margin-top: 4px; }
 .hm-pf-form { display: grid; gap: 10px; }
+.hm-pf-mansliders { display: grid; gap: 8px; margin-bottom: 10px; }
 .hm-pf-formseg { width: 100%; }
 .hm-pf-formseg button { flex: 1; padding: 6px 4px; }
 .hm-pf-msg-ok { color: var(--good); }

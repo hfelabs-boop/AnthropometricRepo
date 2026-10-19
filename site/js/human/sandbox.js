@@ -265,6 +265,7 @@ export const TEMPLATES = Object.freeze([
 // ---------------------------------------------------------------------------------------------------------------------
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _box = new THREE.Box3(), _pl = new THREE.Plane();
 const GROUND = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const DRAG_GAIN_MAX = 6; // a drag moves an object at most this many times the distance the pointer covers on the object's own depth (a view along the floor would give 10 to 100)
 
 function edgesOf(box, pad = 0.004) {
   const a = box.min, b = box.max, x0 = a.x - pad, y0 = a.y - pad, z0 = a.z - pad, x1 = b.x + pad, y1 = b.y + pad, z1 = b.z + pad;
@@ -363,18 +364,20 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
   });
   const serializeAll = () => [...objects.values()].map(serializeObject);
   const states = [];
-  let hIdx = -1, hKey = null, hTime = 0, groupDepth = 0, groupDirty = false, groupLabel = "", muted = 0;
+  let hIdx = -1, hKey = null, hTime = 0, groupDepth = 0, groupDirty = false, groupLabel = "", groupExt = null, muted = 0;
   const now = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
-  function commit(label, key) {
+  // `ext` = { before, after } snapshots of the sections other modules keep in the scene file (the measurements), for a step that replaces them
+  // (Open scene): the objects are in every state, the measurements are not (they have a life of their own), so only such a step carries them
+  function commit(label, key, ext = null) {
     if (muted) return false;
     const json = JSON.stringify(serializeAll());
-    if (hIdx >= 0 && states[hIdx].json === json) return false;
+    if (!ext && hIdx >= 0 && states[hIdx].json === json) return false;
     const t = now();
-    if (key && hKey === key && t - hTime < 1000 && hIdx === states.length - 1 && hIdx > 0) states[hIdx] = { json, label };
+    if (!ext && key && hKey === key && t - hTime < 1000 && hIdx === states.length - 1 && hIdx > 0) states[hIdx] = { json, label };
     else {
       states.length = hIdx + 1;
-      states.push({ json, label });
+      states.push({ json, label, ext });
       if (states.length > MAX_HISTORY) states.shift();
       hIdx = states.length - 1;
     }
@@ -393,10 +396,10 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
   function endGroup() {
     if (groupDepth === 0) return false;
     if (--groupDepth > 0) return false;
-    const was = groupDirty;
-    groupDirty = false;
+    const was = groupDirty, ext = groupExt;
+    groupDirty = false; groupExt = null;
     hKey = null;
-    return was ? commit(groupLabel) : false;
+    return was ? commit(groupLabel, undefined, ext) : false;
   }
   /** Run fn as one undo step. */
   function grouped(label, fn) { beginGroup(label); try { return fn(); } finally { endGroup(); } }
@@ -423,8 +426,24 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     render();
     emitScene("restore");
   }
-  function undo() { if (groupDepth) endGroup(); if (hIdx <= 0) return false; hIdx--; hKey = null; applyState(states[hIdx].json); emitScene("history"); scheduleSave(); return true; }
-  function redo() { if (hIdx >= states.length - 1) return false; hIdx++; hKey = null; applyState(states[hIdx].json); emitScene("history"); scheduleSave(); return true; }
+  function undo() {
+    if (groupDepth) endGroup();
+    if (hIdx <= 0) return false;
+    const ext = states[hIdx].ext;
+    hIdx--; hKey = null;
+    applyState(states[hIdx].json);
+    if (ext) applySections(ext.before);
+    emitScene("history"); scheduleSave();
+    return true;
+  }
+  function redo() {
+    if (hIdx >= states.length - 1) return false;
+    hIdx++; hKey = null;
+    applyState(states[hIdx].json);
+    if (states[hIdx].ext) applySections(states[hIdx].ext.after);
+    emitScene("history"); scheduleSave();
+    return true;
+  }
 
   // ---- placement --------------------------------------------------------------------------------------------------
   function footprintOf(obj, pos = obj.position, yaw = obj.yaw) {
@@ -710,8 +729,18 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
   const inputOn = () => inputEnabled && suspended.size === 0 && !disposed;
 
   function pickTargets() { const t = []; for (const o of objects.values()) if (o.visible && o.model) t.push(o.model); return t; }
-  /** The nearest visible object under a client position: { obj, point: Vector3, distance } or null. */
-  function pickAt(clientX, clientY) {
+  /** Distance along the ray to the figure's skin when it is shown and solid (it hides what is behind it), else Infinity. A skinned ray test is slow, so it runs only once an object is hit. */
+  function skinDistance(ray) {
+    const rig = ctx?.getRig?.(), skin = rig?.skin;
+    if (!skin || rig.display?.xray) return Infinity; // x-ray: the figure is see-through, what is behind it can be picked
+    for (let n = skin; n; n = n.parent) if (n.visible === false) return Infinity;
+    try { return ray.intersectObject(skin, true)[0]?.distance ?? Infinity; } catch { return Infinity; }
+  }
+  /**
+   * The nearest visible object under a client position: { obj, point: Vector3, distance } or null. An object behind the figure is not under the
+   * pointer (the press belongs to the figure); `ignoreFigure` skips that test for a caller that compares with the skin itself (the measuring tool).
+   */
+  function pickAt(clientX, clientY, { ignoreFigure = false } = {}) {
     const targets = pickTargets();
     if (!targets.length || !viewport.ray) return null;
     const ray = viewport.ray(clientX, clientY);
@@ -721,18 +750,37 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
       let n = h.object;
       while (n && !n.userData?.sandboxId) n = n.parent;
       const obj = n && objects.get(n.userData.sandboxId);
-      if (obj) return { obj, point: h.point.clone(), distance: h.distance };
+      if (!obj) continue;
+      if (!ignoreFigure && skinDistance(ray) < h.distance) return null;
+      return { obj, point: h.point.clone(), distance: h.distance };
     }
     return null;
   }
 
   let drag = null, cursorOwned = false; // cursorOwned: this module set the "move" / "grabbing" cursor (and must restore it; the shell sets its own over joints)
+  let heldTouch = null; // the orbit controls' one-finger action while a finger is down on an object (see holdOrbit)
+  /**
+   * The press belongs to the object, not to the orbit controls. A mouse press just switches the controls off. A finger must not: controls that
+   * never saw the first finger cannot make a pinch of it when the second one lands, so the one-finger action is parked instead and the controls
+   * switch off only once the drag really starts (dragStarted).
+   */
+  function holdOrbit(touch) {
+    const c = viewport.controls;
+    if (!c) return;
+    if (touch && c.touches) { heldTouch = { one: c.touches.ONE }; c.touches.ONE = -1; } else c.enabled = false;
+  }
+  function releaseOrbit() {
+    const c = viewport.controls;
+    if (!c) return;
+    if (heldTouch) { if (c.touches) c.touches.ONE = heldTouch.one; heldTouch = null; }
+    c.enabled = (viewport.active === undefined ? true : !!viewport.active) && !viewport.gizmoDragging;
+  }
   function cancelDrag() {
     if (!drag) return;
     const d = drag;
     drag = null;
     if (d.moved) endGroup();
-    if (viewport.controls) viewport.controls.enabled = (viewport.active === undefined ? true : !!viewport.active) && !viewport.gizmoDragging;
+    releaseOrbit();
     if (cursorOwned) { cursorOwned = false; viewport.setCursor?.("grab"); }
   }
   function planeHit(ev, plane, out) { const ray = viewport.ray(ev.clientX, ev.clientY); return ray.ray.intersectPlane(plane, out) ? out : null; }
@@ -750,16 +798,22 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     d.plane = _pl.clone();
     d.grab = planeHit(ev, d.plane, new THREE.Vector3());
     d.start = [...o.position];
+    d.ax = ev.clientX; d.ay = ev.clientY;
+    // metres per pixel at the depth of the object under the pointer (not of the plane point behind it, which is far away on a grazing view); see DRAG_GAIN_MAX
+    const a = viewport.ray(ev.clientX, ev.clientY).ray, d0 = a.direction.clone(), d1 = viewport.ray(ev.clientX + 1, ev.clientY).ray.direction;
+    d.pxScale = d0.angleTo(d1) * d.dist;
   }
   function onPointerDown(ev) {
+    // a second pointer (a pinch), another button, or input switched off: whatever was being dragged stops, and the camera gets the gesture
     if (!inputOn() || !dragEnabled || ev.button !== 0 || ev.originalEvent?.isPrimary === false) { cancelDrag(); return; }
+    cancelDrag(); // a stale drag (a pointerup that never came)
     if (viewport.gizmo?.axis) return; // the pointer is on a gizmo handle: the gizmo owns this press
     const hit = pickAt(ev.clientX, ev.clientY);
     if (!hit || hit.obj.locked || hit.obj.attachedTo) return;
-    drag = { id: hit.obj.id, x0: ev.clientX, y0: ev.clientY, moved: false, pointerId: ev.originalEvent?.pointerId };
+    drag = { id: hit.obj.id, dist: hit.distance, x0: ev.clientX, y0: ev.clientY, moved: false, pointerId: ev.originalEvent?.pointerId };
     setupDragPlane(ev);
     if (!drag.grab) { drag = null; return; }
-    if (viewport.controls) viewport.controls.enabled = false; // the press belongs to the object, not to the orbit controls
+    holdOrbit(ev.pointerType === "touch");
     try { if (drag.pointerId != null) viewport.canvas?.setPointerCapture?.(drag.pointerId); } catch { /* not capturable */ }
   }
   function onPointerMove(ev) {
@@ -768,6 +822,7 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
       if (!drag.moved) {
         if (Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) < 4) return;
         drag.moved = true;
+        if (viewport.controls) viewport.controls.enabled = false;
         beginGroup(`Move ${objects.get(drag.id)?.name ?? "object"}`);
         select(drag.id);
         cursorOwned = true;
@@ -778,7 +833,9 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
       if (!!ev.shift !== drag.vertical) setupDragPlane(ev); // Shift pressed or released mid-drag: re-anchor so the object does not jump
       const p = planeHit(ev, drag.plane, new THREE.Vector3());
       if (!p) return;
-      const dx = p.x - drag.grab.x, dy = p.y - drag.grab.y, dz = p.z - drag.grab.z;
+      let dx = p.x - drag.grab.x, dy = p.y - drag.grab.y, dz = p.z - drag.grab.z;
+      const len = Math.hypot(dx, dy, dz), cap = DRAG_GAIN_MAX * (drag.pxScale || 0) * Math.hypot(ev.clientX - drag.ax, ev.clientY - drag.ay);
+      if (drag.pxScale && len > cap) { const k = cap / len; dx *= k; dy *= k; dz *= k; }
       const target = drag.vertical ? { y: drag.start[1] + dy } : { x: drag.start[0] + dx, z: drag.start[2] + dz };
       move(drag.id, target, { snap: !ev.alt, label: `Move ${o.name}` });
       return;
@@ -786,6 +843,8 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     scheduleHover(ev);
   }
   function onPointerUp() { if (drag) cancelDrag(); }
+  // a cancelled pointer (the browser took the touch over for scrolling, a call came in) sends no pointerup: end the drag here, so that the orbit controls and the undo group are not left stuck
+  const onPointerCancel = () => cancelDrag();
   let hoverEv = null, hoverQueued = false;
   function scheduleHover(ev) {
     if (!inputOn() || !pickEnabled || ev.buttons || ev.pointerType === "touch") return;
@@ -809,8 +868,11 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
 
   // ---- keyboard --------------------------------------------------------------------------------------------------------------
   const typing = (el) => !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName ?? ""));
-  /** Handle a keydown from the 3D view or the Scene panel. Returns true when it was used (the caller then stops the event). */
-  function onKey(e, { arrows = true } = {}) {
+  /**
+   * Handle a keydown from the 3D view or the Scene panel. Returns true when it was used (the caller then stops the event). `objectKeys: false` (the
+   * Scene panel: focus is on a button, a card, a swatch) leaves only Ctrl+Z / Y / D: Delete, W, E, R, [ ] and the arrows then belong to the control.
+   */
+  function onKey(e, { arrows = true, objectKeys = true } = {}) {
     // keys edit the scene, so they work only while editing is on (the Scene panel is shown): in the Measure or Posture tab Delete and the arrow keys are not ours
     if (!inputOn() || !dragEnabled || e.defaultPrevented || typing(e.target)) return false;
     const mod = e.ctrlKey || e.metaKey, k = e.key, id = selectedId, o = id && objects.get(id);
@@ -820,7 +882,7 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
       if ((k === "d" || k === "D") && o) { duplicate(id, { select: true }); return true; }
       return false;
     }
-    if (mod) return false;
+    if (mod || !objectKeys) return false;
     if (!o) return false;
     if (k === "Delete" || k === "Backspace") { if (o.locked) { ctx?.toast?.(`"${o.name}" is locked. Unlock it to delete it.`); return true; } remove(id); return true; }
     if (k === "w" || k === "W") return setGizmoMode("translate") || true;
@@ -839,8 +901,10 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     return false;
   }
   // capture phase on the viewport container: runs before OrbitControls' own arrow-key panning on the canvas, and survives a rebuilt canvas
-  const onContainerKey = (e) => { if (onKey(e)) { e.preventDefault(); e.stopPropagation(); } };
+  // only keys pressed on the 3D view itself: a button inside the container (or any other control) has its own meaning for Delete and the letters
+  const onContainerKey = (e) => { if (e.target !== viewport.canvas && e.target !== viewport.container) return; if (onKey(e)) { e.preventDefault(); e.stopPropagation(); } };
   viewport.container?.addEventListener?.("keydown", onContainerKey, true);
+  viewport.container?.addEventListener?.("pointercancel", onPointerCancel, true);
 
   // ---- attachments (an object follows a joint or landmark of the figure) ----------------------------------------------------------
   function attachmentTarget(att) {
@@ -1006,6 +1070,15 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     for (const [k, s] of serializers) { try { const v = s.toJSON(); if (v !== undefined) f[k] = v; } catch (e) { console.error(`sandbox: saving "${k}" failed:`, e); } }
     return f;
   }
+  // The sections of other modules as plain data (a deep copy) and back: what Undo / Redo of "Open scene" hands back
+  function sectionsSnapshot() {
+    const out = {};
+    for (const [k, s] of serializers) { try { const v = s.toJSON(); if (v !== undefined) out[k] = JSON.parse(JSON.stringify(v)); } catch { /* a section that cannot be saved cannot be restored */ } }
+    return out;
+  }
+  function applySections(snap) {
+    for (const [k, s] of serializers) { try { s.fromJSON(Object.hasOwn(snap, k) ? snap[k] : undefined, { merge: false }); } catch (e) { console.error(`sandbox: restoring "${k}" failed:`, e); } }
+  }
   /**
    * Replace (or, with { merge: true }, extend) the scene from a scene file (an object or JSON text). One undo step. Returns
    * { ok, added, skipped, warnings, errors }: nothing is changed when `ok` is false.
@@ -1016,6 +1089,7 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     const room = merge ? MAX_OBJECTS - objects.size : MAX_OBJECTS, list = v.objects.slice(0, Math.max(room, 0)), warnings = [...v.warnings];
     if (list.length < v.objects.length) warnings.push(`Only ${list.length} of ${v.objects.length} objects fit: a scene is limited to ${MAX_OBJECTS} objects.`);
     let added = 0;
+    const before = merge ? null : sectionsSnapshot();
     grouped(merge ? "Add scene" : "Open scene", () => {
       if (!merge) for (const o of [...objects.values()]) destroyObject(o);
       const ids = new Set(); // file ids that were used: an attachment never refers to ids, so only uniqueness matters
@@ -1029,6 +1103,7 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
         try { s.fromJSON(has ? v.extras[k] : undefined, { merge }); } catch (e) { warnings.push(`The "${k}" section of the file could not be read (${String(e?.message ?? e).slice(0, 100)}).`); }
       }
       emitScene("load", { added });
+      if (before) { const after = sectionsSnapshot(); if (JSON.stringify(before) !== JSON.stringify(after)) groupExt = { before, after }; } // Undo brings the old measurements back with the old objects
       record(merge ? "Add scene" : "Open scene");
     });
     if (selectedId && !objects.has(selectedId)) select(null);
@@ -1096,11 +1171,12 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     unsubs.push(ctx.on("rig", () => updateAttached()));
     unsubs.push(ctx.on("theme", () => { for (const o of objects.values()) for (const l of [o._outline, o._hover]) if (l) l.material.color.copy(accent()); render(); }));
   }
-  for (const [evt, fn] of [["click", onClick], ["pointerdown", onPointerDown], ["pointermove", onPointerMove], ["pointerup", onPointerUp], ["gizmo-start", onGizmoStart], ["gizmo-change", onGizmoChange], ["gizmo-end", onGizmoEnd]]) {
+  for (const [evt, fn] of [["click", onClick], ["pointerdown", onPointerDown], ["pointermove", onPointerMove], ["pointerup", onPointerUp], ["pointercancel", onPointerCancel], ["gizmo-start", onGizmoStart], ["gizmo-change", onGizmoChange], ["gizmo-end", onGizmoEnd]]) {
     const off = viewport.on?.(evt, fn);
     if (typeof off === "function") unsubs.push(off);
   }
   unsubs.push(() => viewport.container?.removeEventListener?.("keydown", onContainerKey, true));
+  unsubs.push(() => viewport.container?.removeEventListener?.("pointercancel", onPointerCancel, true));
   commit("Start"); // the empty scene is the first state of the history
   states[0].label = "Start";
 

@@ -558,7 +558,7 @@ export default {
     checkPlace();
 
     const keys = h("details", { class: "hm-sc-keys" }, h("summary", {}, "Keyboard"), h("dl", { class: "hm-sc-kbd" },
-      ...[["Arrow keys", "Nudge the selected object (10 mm; Shift ×10, Alt ×0.1)"], ["[ and ]", "Turn it left or right"], ["W, E, R", "Move, rotate, resize gizmo"], ["Delete", "Remove it"], ["Ctrl+D", "Duplicate it"], ["Ctrl+Z, Ctrl+Shift+Z", "Undo, redo"], ["Esc", "Deselect (then the arrow keys move the camera again)"]].flatMap(([k, d]) => [h("dt", {}, h("kbd", { class: "hm-kbd" }, k)), h("dd", {}, d)])));
+      ...[["Arrow keys", "In the 3D view: nudge the selected object (10 mm; Shift ×10, Alt ×0.1)"], ["[ and ]", "In the 3D view: turn it left or right"], ["W, E, R", "In the 3D view: move, rotate, resize gizmo"], ["Delete", "In the 3D view: remove the selected object. On a row of the list: remove that object"], ["Ctrl+D", "Duplicate it"], ["Ctrl+Z, Ctrl+Shift+Z", "Undo, redo"], ["Esc", "Deselect (then the arrow keys move the camera again)"]].flatMap(([k, d]) => [h("dt", {}, h("kbd", { class: "hm-kbd" }, k)), h("dd", {}, d)])));
 
     // ---- assemble --------------------------------------------------------------------------------------------------------------------------------------------
     const addSection = section("Add an object", [h("div", { class: "field hm-obj-search" }, h("label", { for: id.search, class: "sr-only" }, "Search objects"), h("span", { class: "hm-obj-sicon" }, svgIcon("search", 14)), search), catBar, grid, detail], { open: true });
@@ -573,10 +573,21 @@ export default {
       addSection, tplSection, objSection, placeSection, editSection, snapSection, fileSection, keys, live);
     host.replaceChildren(root);
 
-    // keys: the same shortcuts as in the 3D view, while focus is in this panel or in its settings (arrows are left to the controls here)
-    const onKeys = (e) => { if (sandbox.onKey(e, { arrows: false })) { e.preventDefault(); e.stopPropagation(); } };
+    // keys: with focus in this panel or in its settings only Ctrl+Z / Y / D work (undo, redo, duplicate). Delete, W, E, R, [ ] and the arrows belong to the
+    // 3D view and to the control that has the focus: on a button, a card or a swatch they must not act on whichever object happens to be selected.
+    const onKeys = (e) => { if (sandbox.onKey(e, { arrows: false, objectKeys: false })) { e.preventDefault(); e.stopPropagation(); } };
     root.addEventListener("keydown", onKeys);
     editorEl.addEventListener("keydown", onKeys);
+    // Delete on a row of the list removes THAT row's object (the row is what has the focus; the selection may be another object)
+    list.addEventListener("keydown", (e) => {
+      if ((e.key !== "Delete" && e.key !== "Backspace") || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || e.defaultPrevented) return;
+      const li = e.target.closest?.(".hm-ol-row"), o = li && sandbox.objects.get(li.dataset.id);
+      if (!o) return;
+      e.preventDefault(); e.stopPropagation();
+      if (o.locked) { toast(`"${o.name}" is locked. Unlock it to delete it.`); return; }
+      const at = [...list.children].indexOf(li);
+      if (sandbox.remove(o.id)) { pendingFocus = at; say(`${o.name} deleted.`); }
+    });
 
     // ---- live updates -------------------------------------------------------------------------------------------------------------------------------------------
     let raf = 0, needList = false, needEditor = false, needHistory = false;
