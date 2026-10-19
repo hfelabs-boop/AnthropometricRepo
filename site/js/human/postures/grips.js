@@ -97,9 +97,9 @@ const G = {
   },
   cup: {
     label: "Cupped",
-    description: "A shallow C-shape, fingers spread and half flexed, thumb opposed: holding a cup, a ball or water.",
+    description: "A shallow C-shape, fingers spread and gently flexed, thumb opposed to them: holding a cup or a ball of about 70 mm (thumb tip about 50 mm from the index fingertip), or water.",
     source: "Cutkosky 1989 'sphere' / Kapandji spherical grip; approx.",
-    joints: hand({ thumb: [15, 30, 0, 10], index: [35, 6, 35, 15], middle: [40, 0, 40, 15], ring: [42, 5, 40, 15], little: [45, 10, 40, 15] }),
+    joints: hand({ thumb: [10, 40, 0, 5], index: [28, 6, 30, 5], middle: [32, 0, 34, 6], ring: [34, 5, 34, 6], little: [37, 10, 34, 6] }),
   },
   thumbsup: {
     label: "Thumb up",
@@ -127,9 +127,9 @@ const G = {
   },
   spherical: {
     label: "Ball grip",
-    description: "All five digits around a ball or a knob of about 60 mm (Cutkosky 'spherical'): fingers spread and moderately flexed.",
-    source: "Cutkosky 1989; Kapandji spherical grip; approx.",
-    joints: hand({ thumb: [20, 40, 5, 10], index: [45, 8, 50, 25], middle: [48, 0, 52, 26], ring: [50, 6, 52, 26], little: [52, 12, 52, 26] }),
+    description: "All five digits around a ball or a knob of about 60 mm (Cutkosky 'spherical'): fingers spread and moderately flexed, the thumb tip about 45 mm from the index and middle fingertips.",
+    source: "Cutkosky 1989; Kapandji spherical grip; angles approx., tuned so that the thumb and fingertips span a 60 mm ball (pose.test.mjs)",
+    joints: hand({ thumb: [18, 21, 12, 10], index: [48, 8, 52, 25], middle: [51, 0, 54, 26], ring: [53, 6, 54, 26], little: [55, 12, 54, 26] }),
   },
   typing: {
     label: "Keyboard",

@@ -913,7 +913,7 @@ test("grips: hand anatomy. Flexion curls toward the palm, fist closes onto the p
     const spread = (g) => { const L = hand(g); return L("index_tip").z - L("little_tip").z; };
     assert.ok(spread("spread") > spread("open") && spread("open") > spread("flat"), "abduction + spreads the fingers away from the middle finger");
     // pad-to-pad grips: thumb tip close to the index tip
-    for (const [g, lim] of [["pinch", 0.025], ["tripod", 0.035], ["wheel", 0.03], ["spherical", 0.03], ["power", 0.03]]) { const L = hand(g); assert.ok(L("thumb_tip").distanceTo(L("index_tip")) < lim, `${g} thumb-index ${L("thumb_tip").distanceTo(L("index_tip"))}`); }
+    for (const [g, lim] of [["pinch", 0.025], ["tripod", 0.035], ["wheel", 0.03], ["power", 0.03]]) { const L = hand(g); assert.ok(L("thumb_tip").distanceTo(L("index_tip")) < lim, `${g} thumb-index ${L("thumb_tip").distanceTo(L("index_tip"))}`); }
     { const L = hand("tripod"); assert.ok(L("thumb_tip").distanceTo(L("middle_tip")) < 0.035); }
     { const L = hand("open"); assert.ok(L("thumb_tip").distanceTo(L("index_tip")) > 0.07, "open: thumb away from the index"); }
     { const L = hand("thumbsup"); assert.ok(L("thumb_tip").distanceTo(L("index_tip")) > 0.06); }

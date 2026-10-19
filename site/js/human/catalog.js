@@ -296,13 +296,20 @@ const cleanGrip = (g) => ({ ...g, position: arr3(g.position), normal: arr3(perpe
 const support = (id, label, y, size, center, pitch) => ({ id, label, y, size, center, ...(pitch ? { pitch } : {}) });
 const cleanSupport = (s) => ({ ...s, y: r6(s.y), size: [r6(s.size[0]), r6(s.size[1])], center: [r6(s.center[0]), r6(s.center[1])] });
 const a = (label, position, normal) => ({ label, position, ...(normal ? { normal } : {}) });
-/** The 8 top / bottom corners of a box centred on the floor footprint: shared by the many box-like types. */
-const boxAnchors = (w, d, h, x0 = 0, z0 = 0) => ({
-  top_centre: a("Top, centre", [x0, h, z0]), base_centre: a("Base, centre", [x0, 0, z0]),
-  top_front: a("Top, front edge centre", [x0, h, z0 + d / 2]), top_back: a("Top, back edge centre", [x0, h, z0 - d / 2]),
-  corner_fl: a("Top corner, front left (+X)", [x0 + w / 2, h, z0 + d / 2]), corner_fr: a("Top corner, front right (-X)", [x0 - w / 2, h, z0 + d / 2]),
-  corner_bl: a("Top corner, back left (+X)", [x0 + w / 2, h, z0 - d / 2]), corner_br: a("Top corner, back right (-X)", [x0 - w / 2, h, z0 - d / 2]),
-});
+/**
+ * The top / bottom anchors of a box-like object. "Left" and "right" always name a frame in the label: by default the OBJECT's (it faces +Z like the
+ * figure, so its left is +X); with `viewer` the side of the person who uses it, standing at +Z and looking along -Z (desk, console: their left is -X,
+ * like the left edge of a monitor), so `corner_fl` is then the corner at the viewer's front left.
+ */
+const boxAnchors = (w, d, h, x0 = 0, z0 = 0, viewer = false) => {
+  const L = viewer ? -1 : 1, who = viewer ? "viewer's" : "object's", sgn = (k) => (k > 0 ? "+X" : "-X");
+  const c = (id, name, fz, k) => [id, a(`Top corner, ${name} (${who} ${k === L ? "left" : "right"}, ${sgn(k)})`, [x0 + k * w / 2, h, z0 + fz * d / 2])];
+  return Object.fromEntries([
+    ["top_centre", a("Top, centre", [x0, h, z0])], ["base_centre", a("Base, centre", [x0, 0, z0])],
+    ["top_front", a("Top, front edge centre", [x0, h, z0 + d / 2])], ["top_back", a("Top, back edge centre", [x0, h, z0 - d / 2])],
+    c("corner_fl", "front", 1, L), c("corner_fr", "front", 1, -L), c("corner_bl", "back", -1, L), c("corner_br", "back", -1, -L),
+  ]);
+};
 
 // =====================================================================================================================
 // SEATING
@@ -411,7 +418,7 @@ def({
       srp: a("Seat reference point (SRP)", srp), h_point: a("H-point proxy (= SRP)", srp),
       seat_front_edge: a("Seat front edge", [0, p.seatHeight, d.zc + p.seatDepth / 2]),
       back_top: a("Seat-back top", top, d.nb),
-      ...(p.armrests ? { armrest_left: a("Armrest top, left (+X)", [p.seatWidth / 2 + 0.03, ah + 0.015, d.zc - 0.03]), armrest_right: a("Armrest top, right (-X)", [-p.seatWidth / 2 - 0.03, ah + 0.015, d.zc - 0.03]) } : {}),
+      ...(p.armrests ? { armrest_left: a("Armrest top (sitter's left, +X)", [p.seatWidth / 2 + 0.03, ah + 0.015, d.zc - 0.03]), armrest_right: a("Armrest top (sitter's right, -X)", [-p.seatWidth / 2 - 0.03, ah + 0.015, d.zc - 0.03]) } : {}),
     };
   },
   supports: (p, d) => [support("seat", "Seat pan", p.seatHeight, [p.seatWidth, p.seatDepth], [0, d.zc])],
@@ -478,7 +485,7 @@ def({
       P.box([l - 0.1, 0.12, 0.03], [0, h + 0.34, -d / 2 + 0.03], "main");
     }
   },
-  anchors: (p) => ({ seat_centre: a("Seat centre", [0, p.height, 0]), seat_front: a("Seat front edge", [0, p.height, p.depth / 2]), end_left: a("Seat end, left (+X)", [p.length / 2, p.height, 0]), end_right: a("Seat end, right (-X)", [-p.length / 2, p.height, 0]), ...(p.backrest ? { back_top: a("Backrest top", [0, p.height + 0.4, -p.depth / 2 + 0.03]) } : {}) }),
+  anchors: (p) => ({ seat_centre: a("Seat centre", [0, p.height, 0]), seat_front: a("Seat front edge", [0, p.height, p.depth / 2]), end_left: a("Seat end (sitter's left, +X)", [p.length / 2, p.height, 0]), end_right: a("Seat end (sitter's right, -X)", [-p.length / 2, p.height, 0]), ...(p.backrest ? { back_top: a("Backrest top", [0, p.height + 0.4, -p.depth / 2 + 0.03]) } : {}) }),
   supports: (p) => [support("seat", "Seat", p.height, [p.length, p.depth], [0, 0])],
 });
 
@@ -558,9 +565,12 @@ def({
   },
 });
 
+/** Frame of the side panel on side s (+1 = +X, -1 = -X) of a triple monitor: its hinge point and its turn about Y (towards the user), see the type's dims. */
+const triSide = (d, s) => { const th = -s * d.turn, r = th * D2R; return { rot: [0, th, 0], pos: [s * d.hx - d.sag * Math.sin(r), 0, d.sag * (1 - Math.cos(r))] }; };
+
 def({
   type: "triple_monitor", name: "Triple monitor array", category: "Displays", color: "#555c66", yaw: 180, tags: ["screen", "display", "cockpit"],
-  description: "Three monitors side by side, flat or curved, with an adjustable angle between neighbouring panels (180 degrees = flat). Origin: the floor under the centre of the middle screen.",
+  description: "Three monitors side by side, flat or curved, with an adjustable angle between neighbouring panels (180 degrees = in line; less wraps the side screens towards the user, who is at +Z). Left and right are the viewer's. Origin: the floor under the centre of the middle screen.",
   source: "Common multi-monitor desk layout; curved panels use an 1800 mm radius.",
   params: [
     num("diagonal", "Diagonal of each screen", "in", 20, 34, 0.5, 24, { digits: 1 }),
@@ -570,26 +580,38 @@ def({
     num("tilt", "Tilt back", "deg", -5, 25, 1, 5),
     num("centreHeight", "Screen centre height", "m", 0.3, 1.6, 0.005, 1.15),
   ],
+  // The side panels wrap TOWARDS the user (who is at +Z): a panel on the +X side turns about Y by a negative angle, so its outer edge moves to +Z and its
+  // normal points inwards. "Angle between panels" is the angle between neighbouring panels at the joint: 180 = in line, less = more wrapped. A curved
+  // panel is an arc whose edges already turn towards the user by phi (sagitta `sag`); the joint then turns by 2 phi more, so 180 degrees is one smooth arc.
   dims(p) {
-    const [w, h] = screenSize(p.diagonal, p.aspect), turn = 180 - p.panelAngle, gap = 0.012, W = w + 2 * BZ_SIDE;
-    const hx = W / 2 + gap / 2; // hinge x of the side panels (inner edges)
-    return { w, h, cH: Math.max(p.centreHeight, minCentre(h, p.tilt)), turn, hx, R: 1.8 };
+    const [w, h] = screenSize(p.diagonal, p.aspect), gap = 0.012, W = w + 2 * BZ_SIDE, R = 1.8;
+    const phi = p.curved ? Math.asin(Math.min(0.99, W / 2 / R)) / D2R : 0, sag = p.curved ? R - Math.sqrt(R * R - (W / 2) ** 2) : 0;
+    return { w, h, W, cH: Math.max(p.centreHeight, minCentre(h, p.tilt)), turn: 180 - p.panelAngle + 2 * phi, hx: W / 2 + gap / 2, R, sag };
   },
   build(P, p, d) {
     const o = { curved: p.curved, radius: d.R };
     monitorUnit(P, d.w, d.h, d.cH, p.tilt, o);
-    for (const s of [-1, 1]) P.frame([s * d.hx, 0, 0], [0, s * d.turn, 0], (q) => q.frame([s * (d.w / 2 + BZ_SIDE), 0, 0], [0, 0, 0], (m) => monitorUnit(m, d.w, d.h, d.cH, p.tilt, o)));
+    for (const s of [-1, 1]) { const f = triSide(d, s); P.frame(f.pos, f.rot, (q) => q.frame([s * d.W / 2, 0, 0], [0, 0, 0], (m) => monitorUnit(m, d.w, d.h, d.cH, p.tilt, o))); }
   },
   anchors(p, d) {
-    const out = {}, n0 = dirAt([-p.tilt, 0, 0], [0, 0, 1]), f = [0, d.cH, 0];
-    out.screen_centre = a("Centre screen, centre", f, n0);
-    out.top_edge = a("Centre screen, top edge", at(f, [-p.tilt, 0, 0], [0, d.h / 2, 0]));
-    out.bottom_edge = a("Centre screen, bottom edge", at(f, [-p.tilt, 0, 0], [0, -d.h / 2, 0]));
-    for (const [id, s, name] of [["left", 1, "left (+X)"], ["right", -1, "right (-X)"]]) {
-      const pos = [s * d.hx, 0, 0], rot = [0, s * d.turn, 0], loc = [s * (d.w / 2 + BZ_SIDE), d.cH, 0];
-      const c = at(pos, rot, loc), nrm = dirAt(rot, n0);
-      out[`${id}_screen`] = a(`Side screen ${name}, centre`, p.curved ? add3(c, nrm, 0) : c, nrm);
-      out[`${id}_outer_edge`] = a(`Side screen ${name}, outer edge`, at(pos, rot, [s * (d.w / 2 + BZ_SIDE) + s * d.w / 2, d.cH, 0]));
+    const out = {}, tilt = [-p.tilt, 0, 0], n0 = dirAt(tilt, [0, 0, 1]), f0 = [0, d.cH, 0], arcZ = (x) => (p.curved ? d.R - Math.sqrt(d.R * d.R - x * x) : 0);
+    // points of a screen at (x, y) on its face, in the frame of its unit (the middle screen: the object frame; a side screen: the joint frame)
+    const centre = (x, y) => at(f0, tilt, [x, y, arcZ(x)]);
+    out.screen_centre = a("Centre screen, centre", f0, n0);
+    out.top_edge = a("Centre screen, top edge", centre(0, d.h / 2));
+    out.bottom_edge = a("Centre screen, bottom edge", centre(0, -d.h / 2));
+    out.left_edge = a("Centre screen, left edge (viewer's left)", centre(-d.w / 2, 0));
+    out.right_edge = a("Centre screen, right edge (viewer's right)", centre(d.w / 2, 0));
+    // "left" and "right" are the VIEWER's (at +Z, looking along -Z): the left screen is on -X, like the left edge of the single monitor
+    for (const [id, s, who] of [["left", -1, "viewer's left"], ["right", 1, "viewer's right"]]) {
+      const f = triSide(d, s), nrm = dirAt(f.rot, n0), pt = (x, y) => at(f.pos, f.rot, add3([s * d.W / 2, d.cH, 0], dirAt(tilt, [x, y, arcZ(x)])));
+      const name = `Side screen, ${who}`;
+      out[`${id}_screen`] = a(`${name}, centre`, pt(0, 0), nrm);
+      out[`${id}_screen_top_edge`] = a(`${name}, top edge`, pt(0, d.h / 2));
+      out[`${id}_screen_bottom_edge`] = a(`${name}, bottom edge`, pt(0, -d.h / 2));
+      out[`${id}_screen_left_edge`] = a(`${name}, left edge (viewer's left)`, pt(-d.w / 2, 0));
+      out[`${id}_screen_right_edge`] = a(`${name}, right edge (viewer's right)`, pt(d.w / 2, 0));
+      out[`${id}_outer_edge`] = a(`${name}, outer edge`, pt(s * d.w / 2, 0));
     }
     return out;
   },
@@ -1049,7 +1071,7 @@ def({
       for (let i = 0; i < 3; i++) { const y = 0.1 + i * ((h - 0.2) / 3); P.box([0.36, 0.008, 0.01], [x, y + (h - 0.2) / 6, d / 2 - 0.058], "dark"); P.box([0.1, 0.014, 0.014], [x, y + (h - 0.2) / 6 - 0.02, d / 2 - 0.05], "metal"); }
     }
   },
-  anchors: (p) => ({ ...boxAnchors(p.width, p.depth, p.height), user_edge: a("Edge towards the user, centre", [0, p.height, p.depth / 2]), top_centre: a("Desk top, centre", [0, p.height, 0]) }),
+  anchors: (p) => ({ ...boxAnchors(p.width, p.depth, p.height, 0, 0, true), user_edge: a("Edge towards the user, centre", [0, p.height, p.depth / 2]), top_centre: a("Desk top, centre", [0, p.height, 0]) }),
   supports: (p) => [support("top", "Desk top", p.height, [p.width, p.depth], [0, 0])],
 });
 
@@ -1067,7 +1089,7 @@ def({
     P.box([0.1, 0.09, 0.16], [w / 2 - 0.12, h + 0.04, d / 2 - 0.1], "dark");
     P.box([0.07, 0.05, 0.015], [w / 2 - 0.12, h + 0.04, d / 2 + 0.01], "metal");
   },
-  anchors: (p) => ({ ...boxAnchors(p.width, p.depth, p.height), user_edge: a("Edge towards the user, centre", [0, p.height, p.depth / 2]) }),
+  anchors: (p) => ({ ...boxAnchors(p.width, p.depth, p.height, 0, 0, true), user_edge: a("Edge towards the user, centre", [0, p.height, p.depth / 2]) }),
   supports: (p) => [support("top", "Bench top", p.height, [p.width, p.depth], [0, 0]), support("lower_shelf", "Lower shelf", 0.235, [p.width - 0.12, p.depth - 0.12], [0, 0])],
 });
 
@@ -1095,7 +1117,7 @@ def({
     P.box([p.width + 0.004, 0.08, p.thickness + 0.004], [0, 0.04, -p.thickness / 2 + 0.002], "dark");
   },
   anchors: (p) => ({
-    top_centre: a("Top edge, front centre", [0, p.height, 0]), base_centre: a("Base, front centre", [0, 0, 0]), corner_left: a("Front top corner (+X)", [p.width / 2, p.height, 0]), corner_right: a("Front top corner (-X)", [-p.width / 2, p.height, 0]),
+    top_centre: a("Top edge, front centre", [0, p.height, 0]), base_centre: a("Base, front centre", [0, 0, 0]), corner_left: a("Front top corner (object's left, +X)", [p.width / 2, p.height, 0]), corner_right: a("Front top corner (object's right, -X)", [-p.width / 2, p.height, 0]),
     mid_front: a("Middle of the front face", [0, p.height / 2, 0], [0, 0, 1]),
   }),
 });
@@ -1113,7 +1135,7 @@ def({
     P.box([w + 0.08, 0.04, t + 0.03], [0, h + 0.02, 0], "dark");
     P.box([w, 0.012, t + 0.02], [0, 0.006, 0], "steel");
   },
-  anchors: (p) => ({ opening_centre: a("Opening, centre", [0, p.height / 2, 0]), opening_top: a("Opening top, centre", [0, p.height, 0]), jamb_left: a("Jamb, left (+X)", [p.width / 2, p.height / 2, 0]), jamb_right: a("Jamb, right (-X)", [-p.width / 2, p.height / 2, 0]), threshold: a("Threshold, centre", [0, 0.012, 0]) }),
+  anchors: (p) => ({ opening_centre: a("Opening, centre", [0, p.height / 2, 0]), opening_top: a("Opening top, centre", [0, p.height, 0]), jamb_left: a("Jamb (object's left, +X)", [p.width / 2, p.height / 2, 0]), jamb_right: a("Jamb (object's right, -X)", [-p.width / 2, p.height / 2, 0]), threshold: a("Threshold, centre", [0, 0.012, 0]) }),
   supports: (p) => [support("threshold", "Threshold", 0.012, [p.width, p.thickness + 0.02], [0, 0])],
 });
 
@@ -1132,7 +1154,7 @@ def({
     const lo = Math.max(0, d.sill - 0.03), hi = d.top + 0.03; // door leaf hinged on the +X jamb, swung 70 degrees outwards
     P.frame([p.width / 2 + 0.045, (lo + hi) / 2, p.thickness / 2 + 0.02], [0, 70, 0], (q) => q.rbox([p.width + 0.06, hi - lo, 0.03], 0.02, [-(p.width + 0.06) / 2, 0, 0], "steel"));
   },
-  anchors: (p, d) => ({ opening_centre: a("Opening, centre", [0, d.sill + p.height / 2, 0]), opening_top: a("Opening top, centre", [0, d.top, 0]), sill: a("Sill, centre", [0, d.sill, 0]), jamb_left: a("Opening edge, left (+X)", [p.width / 2, d.sill + p.height / 2, 0]), jamb_right: a("Opening edge, right (-X)", [-p.width / 2, d.sill + p.height / 2, 0]) }),
+  anchors: (p, d) => ({ opening_centre: a("Opening, centre", [0, d.sill + p.height / 2, 0]), opening_top: a("Opening top, centre", [0, d.top, 0]), sill: a("Sill, centre", [0, d.sill, 0]), jamb_left: a("Opening edge (object's left, +X)", [p.width / 2, d.sill + p.height / 2, 0]), jamb_right: a("Opening edge (object's right, -X)", [-p.width / 2, d.sill + p.height / 2, 0]) }),
   supports: (p, d) => (d.sill > 0.03 ? [support("sill", "Sill", d.sill, [p.width, p.thickness], [0, 0])] : []),
 });
 
@@ -1145,7 +1167,7 @@ def({
     P.box([p.width + 0.01, 0.025, p.thickness + 0.01], [0, p.height - 0.0125, 0], "dark");
     for (const s of [-1, 1]) P.box([0.04, 0.04, 0.4], [s * (p.width / 2 - 0.15), 0.02, 0], "steel");
   },
-  anchors: (p) => ({ top_centre: a("Top edge, centre", [0, p.height, 0]), base_centre: a("Base, centre", [0, 0, 0]), corner_left: a("Top corner (+X)", [p.width / 2, p.height, 0]), corner_right: a("Top corner (-X)", [-p.width / 2, p.height, 0]) }),
+  anchors: (p) => ({ top_centre: a("Top edge, centre", [0, p.height, 0]), base_centre: a("Base, centre", [0, 0, 0]), corner_left: a("Top corner (object's left, +X)", [p.width / 2, p.height, 0]), corner_right: a("Top corner (object's right, -X)", [-p.width / 2, p.height, 0]) }),
 });
 
 def({
@@ -1179,7 +1201,7 @@ def({
       P.cyl(0.013, 0.012, add3([x, h + d.rise * u, zf - d.run * u], nrm, 0.004), ["red", "yellow", "white"][r], [slope / D2R, 0, 0], { seg: 10 });
     }
   },
-  anchors: (p, d) => ({ ...boxAnchors(p.width, p.depth, p.height), panel_centre: a("Control panel, centre", [0, p.height + d.rise * 0.45, -p.depth / 2 + d.run * 0.55], [0, Math.sin(Math.atan2(d.rise, d.run)), Math.cos(Math.atan2(d.rise, d.run))]), user_edge: a("Work surface edge, centre", [0, p.height, p.depth / 2]) }),
+  anchors: (p, d) => ({ ...boxAnchors(p.width, p.depth, p.height, 0, 0, true), panel_centre: a("Control panel, centre", [0, p.height + d.rise * 0.45, -p.depth / 2 + d.run * 0.55], [0, Math.sin(Math.atan2(d.rise, d.run)), Math.cos(Math.atan2(d.rise, d.run))]), user_edge: a("Work surface edge, centre", [0, p.height, p.depth / 2]) }),
   supports: (p, d) => [support("work_surface", "Work surface", p.height, [p.width, p.depth - d.run], [0, d.run / 2])],
 });
 
@@ -1550,7 +1572,7 @@ def({
     for (const y of [e / 2, s - e / 2]) { for (const sz of [-1, 1]) P.box([s, e, e], [0, y, sz * (s / 2 - e / 2)], "dark"); for (const sx of [-1, 1]) P.box([e, e, s - 2 * e], [sx * (s / 2 - e / 2), y, 0], "dark"); }
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) P.box([e, s - 2 * e, e], [sx * (s / 2 - e / 2), s / 2, sz * (s / 2 - e / 2)], "dark");
   },
-  anchors: (p) => ({ ...boxAnchors(p.size, p.size, p.size), base_corner_fl: a("Base corner, front left (+X)", [p.size / 2, 0, p.size / 2]), base_corner_fr: a("Base corner, front right (-X)", [-p.size / 2, 0, p.size / 2]), centre: a("Cube centre", [0, p.size / 2, 0]) }),
+  anchors: (p) => ({ ...boxAnchors(p.size, p.size, p.size), base_corner_fl: a("Base corner, front left (object's left, +X)", [p.size / 2, 0, p.size / 2]), base_corner_fr: a("Base corner, front right (object's right, -X)", [-p.size / 2, 0, p.size / 2]), centre: a("Cube centre", [0, p.size / 2, 0]) }),
   supports: (p) => [support("top", "Top", p.size, [p.size, p.size], [0, 0])],
 });
 
@@ -1611,7 +1633,7 @@ def({
     const b = Math.min(0.03, p.size * 0.1);
     P.box([p.size - 2 * b, 0.001, p.size - 2 * b], [0, p.thickness + 0.0005, 0], "white");
   },
-  anchors: (p) => ({ centre: a("Tile, centre", [0, p.thickness, 0]), corner_fl: a("Corner, front left (+X)", [p.size / 2, p.thickness, p.size / 2]), corner_fr: a("Corner, front right (-X)", [-p.size / 2, p.thickness, p.size / 2]), corner_bl: a("Corner, back left (+X)", [p.size / 2, p.thickness, -p.size / 2]), corner_br: a("Corner, back right (-X)", [-p.size / 2, p.thickness, -p.size / 2]) }),
+  anchors: (p) => ({ centre: a("Tile, centre", [0, p.thickness, 0]), corner_fl: a("Corner, front left (object's left, +X)", [p.size / 2, p.thickness, p.size / 2]), corner_fr: a("Corner, front right (object's right, -X)", [-p.size / 2, p.thickness, p.size / 2]), corner_bl: a("Corner, back left (object's left, +X)", [p.size / 2, p.thickness, -p.size / 2]), corner_br: a("Corner, back right (object's right, -X)", [-p.size / 2, p.thickness, -p.size / 2]) }),
   supports: (p) => [support("top", "Tile top", p.thickness, [p.size, p.size], [0, 0])],
 });
 

@@ -1237,7 +1237,7 @@ test("defect: upright kneeling (support knees, thighs vertical, shanks on the fl
 
 test("defect: the hint of an overlap with a thumb, index, ring or little finger blames the hand, not the neck, head or shoulders", () => {
   const cases = [
-    [{ shoulder_L: [77.16, 65.55, -20.96], elbow_L: [137.58], forearm_L: [-1.19], wrist_L: [6.83, 9.29] }, "point", /^head and thumb_L overlap by \d+ mm \(more than \d+ mm\): a hand is inside the body/],
+    [{ shoulder_L: [100.33, 65.84, 3.9], elbow_L: [116.98], forearm_L: [-9.9], wrist_L: [-29.73, 1.22] }, "point", /^head and thumb_L overlap by \d+ mm \(more than \d+ mm\): a hand is inside the body/],
     [{ shoulder_L: [131.52, 68.79, 14.78], elbow_L: [148.61], forearm_L: [28.6], wrist_L: [22.42, 9.49] }, "point", /^neck and thumb_L overlap by \d+ mm \(more than \d+ mm\): a hand is inside the body/],
     [{ shoulder_L: [114.16, 67.69, 9.46], elbow_L: [113.04], forearm_L: [-14.96], wrist_L: [1.56, 9.22] }, "flat", /^head and index_L overlap by \d+ mm \(more than \d+ mm\): a hand is inside the body/],
     [{ shoulder_L: [4.14, -11.23, -27.65], elbow_L: [3.59], forearm_L: [10.12], wrist_L: [7.98, -3.73] }, "point", /^(little|ring)_L and thigh_L overlap by \d+ mm \(more than \d+ mm\): a hand is inside the body/],
@@ -1367,4 +1367,212 @@ test("docs/human3d/POSE.md contains the current DOF table generated from skeleto
   const a = text.indexOf("<!-- dof-table:begin -->"), b = text.indexOf("<!-- dof-table:end -->");
   assert.ok(a >= 0 && b > a, "markers missing");
   assert.equal(text.slice(a + "<!-- dof-table:begin -->".length, b).trim(), dofTable().trim(), "regenerate with: node scripts/human_dof_table.mjs --update-docs");
+});
+
+
+// ---- defects of the third verification round ------------------------------------------------------------------------------------
+// The skin sections of the head (the oracle of these tests is not proxies.js): depth in mm, positive = inside, of a world point, by linear interpolation between the rings
+function headDepth(body, p) {
+  const rs = body.shape.head.rings.slice().sort((a, b) => a.c[1] - b.c[1]);
+  if (p.y < rs[0].c[1] || p.y > rs[rs.length - 1].c[1]) return -1;
+  let i = 0;
+  while (i < rs.length - 2 && rs[i + 1].c[1] < p.y) i++;
+  const a = rs[i], b = rs[i + 1], t = Math.min(1, Math.max(0, (p.y - a.c[1]) / (b.c[1] - a.c[1]))), L = (u, v) => u + (v - u) * t;
+  const rx = L(a.rx, b.rx), rz = L(a.rz, b.rz), n = L(a.n ?? 2, b.n ?? 2);
+  return (1 - (Math.abs((p.x - L(a.c[0], b.c[0])) / rx) ** n + Math.abs((p.z - L(a.c[2], b.c[2])) / rz) ** n) ** (1 / n)) * Math.min(rx, rz);
+}
+const popBody95 = (rel) => popBody(rel, 95);
+const W50 = army("F", 50), M95 = army("M", 95);
+
+test("defect: the upper arm swung through the thorax is rejected on the skin sections (it was never tested: the shoulder joint is inside the chest capsule)", () => {
+  for (const [name, body] of Object.entries({ "median man": MAN, "median woman": W50, "5th-percentile woman": WOMAN5, "95th-percentile man": M95 })) {
+    for (const joints of [{ shoulder_L: [-60, -50, 60], elbow_L: [10] }, { shoulder_L: [-30, -45, 0], elbow_L: [0] }]) {
+      const r = P.validatePosture(body, base({ joints }));
+      assert.equal(r.ok, false, `${name} ${JSON.stringify(joints)}`);
+      assert.match(r.errors[0], /^upper_arm_L and trunk overlap by \d+ mm \(more than \d+ mm\): the upper arm passes through the trunk/, `${name}: ${r.errors[0]}`);
+      const pen = r.metrics.penetrations.find((q) => q.b === "trunk");
+      assert.equal(pen.a, "upper_arm_L"); assert.ok(pen.depth > pen.tolerance + 0.01 && pen.depth > 0.06, `${name}: depth ${pen.depth} tolerance ${pen.tolerance}`);
+      // the same on the right: the right arm is the mirror image
+      const mirrored = { shoulder_R: joints.shoulder_L, elbow_R: joints.elbow_L };
+      assert.match(P.validatePosture(body, base({ joints: mirrored })).errors[0], /^upper_arm_R and trunk overlap/, name);
+    }
+  }
+});
+
+test("upper arm against the trunk: the arm at rest, a T-pose, hands on the hips, a hand on the opposite shoulder, reaching forward and overhead are not rejected (4 bodies)", () => {
+  const ok = [
+    {}, { shoulder_LR: [0, 84, 0] }, { shoulder_LR: [-10, 30, 0], elbow_LR: [100], wrist_LR: [0, -10] }, { shoulder_L: [60, -30, 40], elbow_L: [135], forearm_L: [50] },
+    { shoulder_LR: [90, 0, 0], elbow_LR: [10] }, { shoulder_LR: [170, 10, 0], elbow_LR: [5] }, { shoulder_LR: [-45, 5, 0] }, { shoulder_L: [35, -5, 0], elbow_L: [120], forearm_L: [40] },
+  ];
+  for (const [name, body] of Object.entries({ MAN, W50, WOMAN5, M95 })) {
+    for (const joints of ok) {
+      const r = P.validatePosture(body, base({ joints }));
+      assert.ok(!r.errors.some((e) => /trunk/.test(e)), `${name} ${JSON.stringify(joints)}: ${r.errors.join("; ")}`);
+    }
+    const px = bodyProxies(P.figureOf(body)), kin = P.solvePose(body, { angles: {} }, { y: body.joints.pelvis.offset[1] });
+    const d = PX.armTorsoDepth(px, kin);
+    assert.ok(d.L <= px.arm.tol.L && d.R <= px.arm.tol.R, `${name}: the neutral arm is ${d.L} / ${d.R} inside the trunk, allowed ${px.arm.tol.L}`);
+    near(d.L, d.R, 0.002, `${name}: left and right arm of the neutral pose`);
+  }
+});
+
+test("skinPenetrations: the entries have the form of selfPenetrations, deepest excess first, `all` lists every positive depth, slack is added to the tolerance", () => {
+  const ex = P.expandPosture({ id: "a", joints: { shoulder_L: [-60, -50, 60], elbow_L: [10], shoulder_R: [100, 65, 0], elbow_R: [120], forearm_R: [-10], wrist_R: [-30, 1] }, grips: { L: "relaxed", R: "point" } });
+  const kin = P.solvePose(MAN, ex, P.placePose(MAN, ex, {})), px = bodyProxies(P.figureOf(MAN)), W = proxyWorld(px, kin, null);
+  const pens = PX.skinPenetrations(px, kin, W);
+  assert.ok(pens.length >= 2, JSON.stringify(pens));
+  for (const q of pens) { assert.deepEqual(Object.keys(q).sort(), ["a", "b", "depth", "excess", "tolerance"]); near(q.excess, q.depth - q.tolerance, 1e-12); assert.ok(q.excess > 0); }
+  assert.deepEqual(pens.map((q) => q.excess), pens.map((q) => q.excess).sort((x, y) => y - x));
+  assert.ok(pens.some((q) => q.a === "upper_arm_L" && q.b === "trunk") && pens.some((q) => q.a === "head" && /_R$/.test(q.b)), JSON.stringify(pens.map((q) => [q.a, q.b])));
+  assert.ok(PX.skinPenetrations(px, kin, W, { all: true }).length >= pens.length);
+  assert.ok(PX.skinPenetrations(px, kin, W, { slack: 0.2 }).length === 0, "a slack of 200 mm excuses everything");
+  const rest = P.solvePose(MAN, { angles: {} }, { y: MAN.joints.pelvis.offset[1] });
+  assert.deepEqual(PX.skinPenetrations(px, rest, proxyWorld(px, rest, null)), [], "nothing in the neutral pose");
+  assert.deepEqual(PX.handHeadDepth(px, rest, proxyWorld(px, rest, null)), [], "hands at the sides are nowhere near the head");
+});
+
+test("defect: a palm laid against the side of the head is not 'a hand inside the body' (the head capsule is 10 mm too wide at the temples), a hand 25 to 70 mm inside it still is", () => {
+  const HAND = ["grip_centre_L", "metacarpale_radiale_L", "metacarpale_ulnare_L", "middle_tip_L", "index_tip_L", "ring_tip_L", "little_tip_L", "thumb_tip_L", "stylion_L"];
+  const wi = JOINTS.findIndex((j) => j.id === "wrist_L"), q = new THREE.Quaternion();
+  const sample = (body, want, seed, accept) => { // poses whose palm centre has the skin depth (mm) given by `want`, and the rest of the hand outside the head when accept says so
+    const rand = rng(seed), root = { y: body.joints.pelvis.offset[1] }, out = [], mid = body.shape.head.rings[Math.floor(body.shape.head.rings.length / 2)];
+    for (let it = 0; it < 400000 && out.length < 40; it++) {
+      const sh = clampAngles("shoulder_L", [-30 + rand() * 210, -30 + rand() * 170, -80 + rand() * 160]).angles;
+      const joints = { shoulder_L: sh, elbow_L: [40 + rand() * 110], forearm_L: [-90 + rand() * 180], wrist_L: [-40 + rand() * 80, -10 + rand() * 20] };
+      const ex = P.expandPosture({ id: "a", joints, grips: { L: "flat", R: "relaxed" } }), kin = P.solvePose(body, ex, root);
+      const pc = P.landmarkPosition(body, ex, root, "palm_centre_L"), d0 = headDepth(body, pc);
+      if (d0 < want[0] || d0 > want[1]) continue;
+      if (accept === "touching") {
+        if (Math.max(...HAND.map((id) => headDepth(body, P.landmarkPosition(body, ex, root, id)))) > 0.001) continue;
+        q.set(kin.quaternions[4 * wi], kin.quaternions[4 * wi + 1], kin.quaternions[4 * wi + 2], kin.quaternions[4 * wi + 3]);
+        if (new THREE.Vector3(-1, 0, 0).applyQuaternion(q).dot(new THREE.Vector3(0, pc.y, mid.c[2]).sub(pc).normalize()) < 0.8) continue; // the palm faces the head
+      }
+      const r = P.validatePosture(body, base({ joints, grips: { L: "flat", R: "relaxed" } }));
+      if (r.errors.some((e) => /range|requested|swing/.test(e))) continue;
+      out.push(r.errors.some((e) => /^head and (palm|thumb|index|fingers|ring|little)_L/.test(e)));
+    }
+    return out;
+  };
+  let n = 0, rej = 0, nd = 0, rejd = 0;
+  for (const [i, body] of [MAN, W50, WOMAN5, M95].entries()) {
+    const a = sample(body, [-0.006, 0.001], 92 + i, "touching"), b = sample(body, [0.025, 0.07], 7 + i, "any");
+    n += a.length; rej += a.filter(Boolean).length; nd += b.length; rejd += b.filter(Boolean).length;
+  }
+  assert.ok(n >= 100, `${n} touching poses sampled`);
+  assert.ok(rej / n < 0.1, `${rej} of ${n} palm-on-head poses rejected (it was 40 to 65 %)`);
+  assert.ok(nd >= 100 && rejd / nd > 0.9, `${rejd} of ${nd} poses with the palm 25 to 70 mm inside the head rejected`);
+});
+
+test("hand against the head: a fingertip in front of the face is judged on the face (the capsule was 11 mm short there), a hand beside the head on the temple (10 mm too wide)", () => {
+  // the head table of the proxies is the loft of the skin sections: its depth at the brow ring's front, back and side is the ring's own
+  const px = bodyProxies(P.figureOf(MAN)), H = px.head, brow = MAN.shape.head.rings.find((r) => r.id === "brow"), kin = P.solvePose(MAN, { angles: {} }, { y: MAN.joints.pelvis.offset[1] });
+  const j = kin.position("head"), W = proxyWorld(px, kin, null);
+  assert.ok(H.y.length > 20 && H.y.every((y, i) => i === 0 || y >= H.y[i - 1]), "the sections are sorted from the chin up");
+  assert.ok(H.top > H.y[H.y.length - 1] && H.top < 0.2, "the dome above the top section ends at the vertex");
+  // put a finger tip sphere at known places by moving the left index finger capsule of a copy of the world result
+  const ci = px.byId.get("index_L"), pi = px.byId.get("palm_L"), at = (x, y, z) => { // the index finger collapsed to a sphere of 10 mm there; the palm capsule moved along so that the hand counts as near the head
+    const w = { ...W, ax: W.ax.slice(), ay: W.ay.slice(), az: W.az.slice(), bx: W.bx.slice(), by: W.by.slice(), bz: W.bz.slice(), ra: Float64Array.from(W.ra), rb: Float64Array.from(W.rb) };
+    for (const i of [ci, pi]) for (const k of ["a", "b"]) { w[k + "x"][i] = x; w[k + "y"][i] = y; w[k + "z"][i] = z; }
+    w.ra[ci] = w.rb[ci] = 0.01; w.ra[pi] = w.rb[pi] = 0.001;
+    return w;
+  };
+  const depthOf = (w) => PX.handHeadDepth(px, kin, w).find((h) => h.part === "index_L")?.depth;
+  const cz = brow.c[2], by = brow.c[1];
+  near(depthOf(at(0, by, cz)), brow.rx < brow.rz ? brow.rx + 0.01 : brow.rz + 0.01, 0.002, "a sphere of 10 mm at the middle of the brow section: the half-width plus the radius");
+  near(depthOf(at(brow.rx - 0.02, by, cz)), 0.02 + 0.01, 0.003, "20 mm inside the temple");
+  near(depthOf(at(0, by, cz + brow.rz - 0.02)), 0.02 * Math.min(brow.rx, brow.rz) / brow.rz + 0.01, 0.002, "20 mm inside the face (depth is measured in units of the shorter half axis)");
+  near(depthOf(at(brow.rx + 0.01, by, cz)), 0.01 - 0.01, 0.003, "touching the temple from outside");
+  assert.ok(depthOf(at(0, by, cz + brow.rz + 0.05)) < -0.02, "in front of the face, away from it");
+});
+
+test("defect: a body lying on its side rests on the floor within 6 mm: the upper arm of the support sections is narrowed to the measured bideltoid breadth like the skin (it floated 11 to 16 mm)", async () => {
+  const { buildRig } = await import("../../site/js/human/rig.js");
+  const { buildSkin } = await import("../../site/js/human/body.js");
+  for (const rel of ["multiple-latin-america-18-countries/tri-service/both.json", "germany/aircrew/both.json", "france/pilots/both.json"]) {
+    const body = popBody95(rel), rig = buildRig(body, { skinBuilder: (b, bo, o) => buildSkin(b, bo, o), skeleton: false });
+    for (const lat of [90, -90]) {
+      const ex = P.expandPosture({ id: "l", root: { lat } }), r = P.placePose(body, ex, { support: "body" });
+      rig.setPose({ root: r, angles: ex.angles }, { clamp: false });
+      const y = rig.lowestY({ skin: true });
+      assert.ok(y > -0.006 && y < 0.006, `${rel} lat ${lat}: the skin is ${(y * 1000).toFixed(1)} mm from the floor`);
+    }
+    rig.dispose();
+  }
+});
+
+test("upper arm support sections: no section of the upper arm reaches beyond half the bideltoid breadth by more than the 12 mm of body.js (narrow shoulders)", () => {
+  for (const rel of ["multiple-latin-america-18-countries/tri-service/both.json", "germany/aircrew/both.json", "france/pilots/both.json"]) {
+    const body = popBody95(rel), px = bodyProxies(P.figureOf(body)), kin = P.solvePose(body, { angles: {} }, { y: body.joints.pelvis.offset[1] });
+    const half = body.report.find((r) => r.id === "bideltoid_breadth" && r.kind === "measure")?.input / 2000;
+    assert.ok(half > 0.1, `${rel}: bideltoid breadth measured`);
+    const elbowY = kin.position("elbow_L").y, sx = kin.position("shoulder_L");
+    let widest = 0;
+    for (const r of px.rings) if (r.tube === "upper_arm_L" && sx.y + r.off[1] >= elbowY) widest = Math.max(widest, sx.x + r.off[0] + r.rx);
+    assert.ok(widest <= half + 0.0005 + 0.012 + 0.0015, `${rel}: the outer edge of the upper arm is ${(widest * 1000).toFixed(1)} mm, half the bideltoid breadth ${(half * 1000).toFixed(1)} mm`);
+  }
+});
+
+test("defect: sitting with the thighs rotated outward does not sink the trochanter into the seat (a bony point on the side of the hip, not a seat contact)", () => {
+  const files = ["united-states/army/M.json", "united-states/army/F.json", "germany/aircrew/both.json", "france/pilots/both.json", "multiple-latin-america-18-countries/tri-service/both.json"];
+  for (const rel of files) for (const pc of [5, 50, 95]) {
+    const body = fitBody(percentileProfile(popFile(rel), { percentile: pc, meanStature: true }));
+    for (const [abd, rot] of [[15, -45], [0, -45], [0, -60], [30, -60]]) {
+      const r = P.validatePosture(body, base({ support: "seat", joints: { hip_LR: [90, abd, rot], knee_LR: [90] }, hints: { seat: { height: 0.45 } } }));
+      assert.ok(!r.errors.some((e) => /sink into the seat/.test(e)), `${rel} P${pc} abd ${abd} rot ${rot}: ${r.errors.join("; ")}`);
+    }
+  }
+  // the buttocks of a reclined posture still sink into the seat and are caught: "defect: the buttocks of a reclined seated posture do not sink into the seat plane" above
+});
+
+test("defect: the grips 'spherical' and 'cup' open to their descriptions (a 60 mm ball: the thumb tip is 40 to 55 mm from the index and middle fingertips; a cup of 70 mm: more)", () => {
+  for (const [name, body] of Object.entries({ MAN, W50, WOMAN5, M95 })) {
+    const root = { y: body.joints.pelvis.offset[1] }, scale = body.stature / MAN.stature;
+    const d = (g) => { const ex = P.expandPosture({ id: "g", grips: { L: g, R: g } }), tip = (id) => P.landmarkPosition(body, ex, root, id).clone(); return { ti: tip("thumb_tip_L").distanceTo(tip("index_tip_L")), tm: tip("thumb_tip_L").distanceTo(tip("middle_tip_L")), im: tip("index_tip_L").distanceTo(tip("middle_tip_L")) }; };
+    const sph = d("spherical"), cup = d("cup"), power = d("power");
+    for (const k of ["ti", "tm"]) assert.ok(sph[k] > 0.037 * scale && sph[k] < 0.06 * scale, `${name} spherical ${k} ${sph[k]}`);
+    assert.ok(cup.ti > 0.042 * scale && cup.ti < 0.07 * scale && cup.tm > sph.tm, `${name} cup ${JSON.stringify(cup)}`);
+    assert.ok(sph.ti > 2 * power.ti, `${name}: the ball grip is wider than the 35 mm power grip`);
+    assert.ok(sph.im > 0.02 * scale, `${name}: the fingertips do not pile up (index to middle ${sph.im})`);
+  }
+  for (const g of ["spherical", "cup"]) { // inside the ranges of motion, no finger clamped
+    const { pose, clamped } = P.clampPose({ root: {}, angles: P.expandPosture({ id: "g", grips: { L: g, R: g } }).angles });
+    assert.deepEqual(clamped, [], g); assert.ok(pose);
+  }
+});
+
+test("defect: options.contactTolerance and options.seatHeight are validated like their hints, and the messages never echo 'undefined'", () => {
+  const floating = base({ support: "seat+feet", joints: { hip_LR: [90], knee_LR: [60] } });
+  assert.match(P.validatePosture(MAN, floating).errors[0], /^contact set "feet": its lowest point is 54 mm above the floor/);
+  for (const bad of [NaN, Infinity, -Infinity, "5", "0.01", 5, -0.001, 0.2, {}, [], true]) {
+    const r = P.validatePosture(MAN, floating, { contactTolerance: bad });
+    assert.equal(r.ok, false);
+    assert.match(r.errors[0], /^options\.contactTolerance must be a number of metres between 0 and 0\.1, got /, String(bad));
+    assert.ok(r.errors.some((e) => /^contact set "feet"/.test(e)), "the contact is then checked against the default 15 mm, not against the bad value");
+  }
+  for (const bad of [NaN, Infinity, -Infinity, "5", "high", 1.6, -0.001, {}, [], true]) {
+    const s = P.validatePosture(MAN, floating, { seatHeight: bad });
+    assert.match(s.errors[0], /^options\.seatHeight must be "popliteal" or a height in metres \(0 to 1\.5\), got /, String(bad));
+    assert.equal(s.errors.filter((e) => /seat ?height/i.test(e)).length, 1, "reported once");
+  }
+  for (const good of [0, 0.01, 0.055, 0.1]) assert.ok(!P.validatePosture(MAN, floating, { contactTolerance: good }).errors.some((e) => /options\./.test(e)), String(good));
+  const loose = P.validatePosture(MAN, floating, { contactTolerance: 0.055 });
+  assert.equal(loose.ok, true); assert.ok(loose.warnings.some((w) => /options\.contactTolerance is 55 mm/.test(w)));
+  assert.equal(P.validatePosture(MAN, floating, { seatHeight: 0.43 }).metrics.seatHeight, 0.43);
+  assert.equal(P.validatePosture(MAN, floating, { seatHeight: "popliteal", contactTolerance: null }).metrics.seatHeight, P.seatHeightFor(MAN));
+  // the same value in a hint: one error, and the rest of the posture is still checked with the default
+  for (const hints of [{ seat: { height: -1 } }, { seat: { height: "high" } }]) {
+    const r = P.validatePosture(MAN, { ...floating, hints });
+    assert.equal(r.errors.filter((e) => /seat/i.test(e) && !/contact set/.test(e)).length, 1, r.errors.join("\n"));
+    assert.ok(!r.errors.some((e) => /cannot place the posture/.test(e)), r.errors.join("\n"));
+    assert.ok(r.errors.some((e) => /^contact set "feet"/.test(e)), r.errors.join("\n"));
+  }
+  const r2 = P.validatePosture(MAN, { ...floating, hints: { contactTolerance: 5 } });
+  assert.deepEqual(r2.errors.map((e) => e.slice(0, 22)), ["hints.contactTolerance", "contact set \"feet\": it"]);
+  // missing fields are named as missing
+  for (const [key, re] of [["support", /^support is missing: it must be one of: feet, seat/], ["category", /^category is missing: it must be one of: Standing/], ["id", /^id is missing: it must be kebab-case/]]) {
+    const p = { ...floating }; delete p[key];
+    const r = P.validatePosture(MAN, p);
+    assert.match(r.errors[0], re); assert.ok(!r.errors.some((e) => /undefined/.test(e)), r.errors.join("\n"));
+  }
+  assert.match(P.validatePosture(MAN, { ...floating, support: "hovering" }).errors[0], /^support "hovering" must be one of/);
 });

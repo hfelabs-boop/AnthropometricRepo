@@ -15,12 +15,13 @@ import * as THREE from "three";
 import { JOINTS, JOINT_BY_ID, BONES, REGIONS, clampAngles, expandSides, mirrorId, sideOf } from "./skeleton.js";
 import { Kinematics } from "./fk.js";
 import { GRIPS, GRIP_NAMES, HAND_JOINTS, gripAngles } from "./postures/grips.js";
-import { bodyProxies, proxyWorld, lowestSkinPoint, selfPenetrations, armTorsoDepth } from "./proxies.js";
+import { bodyProxies, proxyWorld, lowestSkinPoint, selfPenetrations, skinPenetrations } from "./proxies.js";
 
 const nz = (x) => (x === 0 ? 0 : x); // -0 -> 0
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 const wrap180 = (d) => { const w = ((((d + 180) % 360) + 360) % 360) - 180; return w === -180 ? 180 : w; }; // (-180, 180]
+const shown = (v) => { try { return typeof v === "number" ? String(v) : JSON.stringify(v) ?? String(v); } catch { return String(v); } }; // a value in a message (NaN, a function, a circular object included)
 const mm = (m) => `${(m * 1000).toFixed(m !== 0 && Math.abs(m * 1000) < 10 ? 1 : 0)} mm`;
 // mm(v) with enough decimals to tell it from the limit it is compared with: "15.1 mm (limit 15 mm)", not "15 mm (limit 15 mm)"
 const mmVs = (v, limit) => {
@@ -843,20 +844,22 @@ const SITS = new Set(["pelvis", "hip_L", "hip_R", "L5", "L4", "L3", "L2", "L1"])
 // (the shank is round and its lowest point is the calf side). Counted as touching at 30 mm in the balance polygon, else the polygon of a kneeling body is the segment
 // between the two knee fronts and the shank that carries the weight is left out.
 const byDepth = (a, b) => Math.round(b[1] * 1e6) - Math.round(a[1] * 1e6) || (a[0] < b[0] ? -1 : 1); // deepest first; equal depths (left and right) in id order, so that the message does not depend on rounding noise
+const TROCHANTER = /^trochanterion_[LR]$/;
 const SHIN_ID = /^shin_[LR]$/, SHIN_TOUCH = 0.03;
 const TOUCH = 0.015; // a contact counts as touching up to this far above its surface (rule 3)
 const SINK = 0.005; // and a landmark may be this far below it (rule 3)
 
 /**
  * Check a posture against the rules of POSTURES.md on a body. Never throws for a bad posture: the problems come back as strings.
- * options: { library: Posture[] (for the duplicate-id check), seatHeight (override), contactTolerance (override, m) }.
+ * options: { library: Posture[] (for the duplicate-id check), seatHeight (override: "popliteal" or 0 to 1.5 m), contactTolerance (override, 0 to 0.1 m) }; an invalid override is an error of the result, not silently used.
  * Returns { ok, errors, warnings, metrics: { romViolations, regionShortfalls, gaps, clearances, penetrations, worstPenetration, balanceMargin, seatHeight, root, com } }:
  *  1. schema: kebab-case unique id, category in CATEGORIES, name, description, source, tags (lower-case), a known support, known landmarks in contacts, hints;
  *  2. every joint angle inside its range of motion (a clamped value is an error naming the joint and the DOF), spine region totals that the vertebrae can take;
  *  3. support: the posture is placed on the floor (and on a seat of hints.seat.height for supports with a seat): the primary carrier touches by construction,
  *     every other carrier of the support and every landmark in `contacts` is at most 15 mm (hints.contactTolerance) above its surface, no landmark is more
  *     than 5 mm below the floor (or below the seat plane under the buttocks, pelvis and thighs, as far back as they reach), and without a seat the skin is not more than 20 mm below the floor;
- *  4. gross self-intersection: proxies.js capsules, with the tolerances of pairTolerance (hands may rest on the body, not be inside it);
+ *  4. gross self-intersection: proxies.js capsules, with the tolerances of pairTolerance (hands may rest on the body, not be inside it), and on the skin sections the upper
+ *     arms against the trunk and the hands against the head (skinPenetrations);
  *  5. balance: for supports on the feet, knees or hands the centre of mass is within 40 mm of the support polygon (the hull of the carrier points that touch; for
  *     support "knees" the shin landmarks touch up to 30 mm) unless hints.dynamic or hints.externalSupport; a body without masses is an error;
  *  6. warnings: a hand without a grip preset; "symmetric" postures with unequal sides, explicit _L and _R entries that are equal (write _LR), sides that differ by less than 2 degrees.
@@ -877,11 +880,20 @@ function validate(body, posture, options) {
   if (!isObj(posture)) { err("the posture is not an object"); return out(); }
 
   // ---- 1. schema -------------------------------------------------------------------------------------------------------------
+  // The values that placement uses: the option or the hint when it is valid, else the default (a bad one is reported once, here, and not again by the placement)
+  let optTol, optSeat, hintTol, hintSeat;
   try {
-    if (typeof posture.id !== "string" || !ID_RE.test(posture.id)) err(`id ${JSON.stringify(posture.id)} must be kebab-case (lower-case letters, digits, hyphens)`);
+    const o = options;
+    // the option is the caller's override (an editor that wants to see how far a foot floats): looser than the 40 mm that a library posture may declare, but 10 cm is not touching
+    if (o.contactTolerance != null) {
+      if (isNum(o.contactTolerance) && o.contactTolerance >= 0 && o.contactTolerance <= 0.1) { optTol = o.contactTolerance; if (o.contactTolerance > TOUCH) warn(`options.contactTolerance is ${mm(o.contactTolerance)}: the secondary contacts are checked against that, not 15 mm`); }
+      else err(`options.contactTolerance must be a number of metres between 0 and 0.1, got ${shown(o.contactTolerance)}`);
+    }
+    if (o.seatHeight != null) { if (o.seatHeight === "popliteal" || (isNum(o.seatHeight) && o.seatHeight >= 0 && o.seatHeight <= 1.5)) optSeat = o.seatHeight; else err(`options.seatHeight must be "popliteal" or a height in metres (0 to 1.5), got ${shown(o.seatHeight)}`); }
+    if (typeof posture.id !== "string" || !ID_RE.test(posture.id)) err(`id ${posture.id === undefined ? "is missing: it" : `${shown(posture.id)}`} must be kebab-case (lower-case letters, digits, hyphens)`);
     if (options.library && typeof posture.id === "string" && options.library.some((p) => p !== posture && p?.id === posture.id)) err(`duplicate id "${posture.id}" in the library`);
     if (typeof posture.name !== "string" || !posture.name.trim()) err("name is missing"); else if (posture.name.length > 60) warn(`name is ${posture.name.length} characters: keep it short and plain`);
-    if (!CATEGORIES.some((c) => c.name === posture.category)) err(`category ${JSON.stringify(posture.category)} is not one of: ${CATEGORIES.map((c) => c.name).join(", ")}`);
+    if (!CATEGORIES.some((c) => c.name === posture.category)) err(`category ${posture.category === undefined ? "is missing: it must be" : `${shown(posture.category)} is not`} one of: ${CATEGORIES.map((c) => c.name).join(", ")}`);
     if (typeof posture.description !== "string" || !posture.description.trim()) err("description is missing (one or two sentences: what it is and what it is for)");
     else if (posture.description.trim().length < 20) warn("description is very short: say what the posture is and what it is for");
     if (typeof posture.source !== "string" || !posture.source.trim()) err('source is missing (the reference of the angles, or "illustrative")');
@@ -890,7 +902,7 @@ function validate(body, posture, options) {
       if (!posture.tags.length) warn("no tags");
       for (const t of posture.tags) if (typeof t !== "string" || !TAG_RE.test(t)) err(`tag ${JSON.stringify(t)} must be a lower-case word`);
     }
-    if (!Object.hasOwn(SUPPORT_CARRIERS, posture.support)) err(`support ${JSON.stringify(posture.support)} must be one of: ${Object.keys(SUPPORT_CARRIERS).join(", ")}`);
+    if (!Object.hasOwn(SUPPORT_CARRIERS, posture.support)) err(`support ${posture.support === undefined ? "is missing: it" : shown(posture.support)} must be one of: ${Object.keys(SUPPORT_CARRIERS).join(", ")}`);
     for (const k of Object.keys(posture)) if (!KNOWN_FIELDS.has(k)) warn(`unknown field "${k}"`);
     if (posture.contacts != null) {
       if (!Array.isArray(posture.contacts)) err("contacts must be an array of landmark ids");
@@ -902,9 +914,10 @@ function validate(body, posture, options) {
       else {
         const sh = h.seat?.height;
         if (h.seat != null && !isObj(h.seat)) err("hints.seat must be an object { height }");
-        else if (sh !== undefined && sh !== "popliteal" && !(isNum(sh) && sh >= 0 && sh <= 1.5)) err(`hints.seat.height must be "popliteal" or a height in metres (0 to 1.5), got ${JSON.stringify(sh)}`);
+        else if (sh !== undefined && sh !== "popliteal" && !(isNum(sh) && sh >= 0 && sh <= 1.5)) err(`hints.seat.height must be "popliteal" or a height in metres (0 to 1.5), got ${shown(sh)}`);
+        else if (sh !== undefined) hintSeat = sh;
         if (h.contactTolerance !== undefined && !(isNum(h.contactTolerance) && h.contactTolerance >= 0 && h.contactTolerance <= 0.04)) err("hints.contactTolerance must be a number of metres between 0 and 0.04");
-        else if (h.contactTolerance !== undefined && h.contactTolerance > TOUCH) warn(`hints.contactTolerance is ${mm(h.contactTolerance)}: the secondary contacts are checked against that, not 15 mm`);
+        else if (h.contactTolerance !== undefined) { hintTol = h.contactTolerance; if (h.contactTolerance > TOUCH) warn(`hints.contactTolerance is ${mm(h.contactTolerance)}: the secondary contacts are checked against that, not 15 mm`); }
         for (const k of ["dynamic"]) if (h[k] !== undefined && typeof h[k] !== "boolean") err(`hints.${k} must be true or false`);
         if (h.externalSupport !== undefined && typeof h.externalSupport !== "boolean" && typeof h.externalSupport !== "string") err("hints.externalSupport must be true or the name of what carries the weight");
         if (h.load !== undefined) {
@@ -948,14 +961,14 @@ function validate(body, posture, options) {
     const hints = posture.hints ?? {};
     const carriers = SUPPORT_CARRIERS[posture.support];
     const hasSeat = Object.values(carriers).includes("seat");
-    const seat = hasSeat ? seatHeightFor(body, options.seatHeight ?? hints.seat?.height ?? "popliteal") : null;
+    const seat = hasSeat ? seatHeightFor(body, optSeat ?? hintSeat ?? "popliteal") : null;
     const surfaces = hasSeat ? { floor: 0, seat } : { floor: 0 };
     metrics.seatHeight = seat;
     const placed = placePoseDetailed(body, pose, { carriers, surfaces });
     const root = placed.root;
     metrics.root = root;
     metrics.gaps = placed.gaps;
-    const tol = options.contactTolerance ?? hints.contactTolerance ?? TOUCH;
+    const tol = optTol ?? hintTol ?? TOUCH;
     const external = !!hints.externalSupport;
     c.kin.solve(pose.angles, root);
     const w = new THREE.Vector3();
@@ -1009,6 +1022,7 @@ function validate(body, posture, options) {
       for (const e of c.lm.values()) {
         if (!SITS.has(e.joint)) continue;
         if (e.id === "crotch") continue; // a soft-tissue point between the thighs, set by the standing crotch height: it can lie below the ischial plane in the model
+        if (TROCHANTER.test(e.id)) continue; // a bony point on the side of the hip that rides on the hip joint, not a seat contact: external rotation of the thigh swings it up to 35 mm below the ischial plane, where a real seat gives 20 mm or more under the hip
         worldOf(c, e, w);
         const a = w.x * fr.ux + w.z * fr.uz, b = w.x * fr.fx + w.z * fr.fz;
         if (a >= bounds[0] && a <= bounds[1] && b <= bounds[2] && w.y < seat - SINK && w.y > seat - 0.12) sunk.push([e.id, seat - w.y]);
@@ -1024,11 +1038,9 @@ function validate(body, posture, options) {
     // are meant to press into it (and a body-model thigh can hang 40 mm below the seat plane), the landmark rules above and the seat check decide
     const lp = lowestSkinPoint(prox, c.kin, c.W);
     if (!hasSeat && lp.y < -0.02 && !below.length) err(`the skin (${lp.proxy.replace(/^ring:/, "section of ")}) sinks ${mm(-lp.y)} below the floor`);
-    const pens = selfPenetrations(prox, c.W);
-    // the upper arms against the trunk: the skin sections, not capsules (the shoulder joint is inside the chest's capsule, so that pair cannot be tested there)
-    const arms = armTorsoDepth(prox, c.kin);
-    for (const side of ["L", "R"]) if (arms[side] > prox.arm.tol[side]) pens.push({ a: `upper_arm_${side}`, b: "trunk", depth: arms[side], tolerance: prox.arm.tol[side], excess: arms[side] - prox.arm.tol[side] });
-    pens.sort((x, y) => y.excess - x.excess);
+    // capsule pairs, plus what capsules cannot judge: the upper arms against the trunk (the shoulder joint is inside the chest's capsule) and the hands against the head
+    // (the head capsule is 10 mm too wide at the temples and the palm capsule twice as thick as the palm): those are judged on the skin sections
+    const pens = selfPenetrations(prox, c.W).concat(skinPenetrations(prox, c.kin, c.W)).sort((x, y) => y.excess - x.excess);
     metrics.penetrations = pens;
     metrics.worstPenetration = pens.length ? pens[0].depth : 0;
     for (const p of pens.slice(0, 4)) err(`${p.a} and ${p.b} overlap by ${mmVs(p.depth, p.tolerance)} (more than ${mmVs(p.tolerance, p.depth)}): ${selfHint(p.a, p.b)}`);

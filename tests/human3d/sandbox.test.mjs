@@ -10,6 +10,8 @@ import {
   validateScene, parseSceneText, cleanAttachment, TEMPLATES, MAX_OBJECTS, MAX_HISTORY, MAX_TEXT, SCENE_VERSION, GRID_STEPS_MM, ANGLE_STEPS, yawOfQuaternion,
 } from "../../site/js/human/sandbox.js";
 import { createStore } from "../../site/js/human/state.js";
+import { createMeasure } from "../../site/js/human/measure.js";
+import { Worker } from "node:worker_threads";
 
 const near = (a, b, eps = 1e-6, msg) => assert.ok(Math.abs(a - b) <= eps, msg ?? `${a} != ${b} (eps ${eps})`);
 const vnear = (v, [x, y, z], eps = 1e-6) => { near(v.x, x, eps, `x ${v.x} != ${x}`); near(v.y, y, eps, `y ${v.y} != ${y}`); near(v.z, z, eps, `z ${v.z} != ${z}`); };
@@ -1065,4 +1067,123 @@ test("catalogue: the defaults lie within the ranges their source text quotes, an
   assert.ok(def(step, "rise") >= 0.12 && def(step, "rise") <= 0.25 && def(step, "depth") >= 0.2, "step defaults");
   assert.match(st.source, /sliders go further/); assert.match(lad.source, /width slider starts at 0\.35/); assert.match(step.source, /Rise slider goes from 0\.05 to 0\.45/);
   assert.equal(st.params.find((p) => p.key === "rise").max, 0.25); assert.equal(lad.params.find((p) => p.key === "width").min, 0.35); assert.equal(step.params.find((p) => p.key === "rise").max, 0.45);
+});
+
+// ============================================================================================================================ regressions of the verifier's round-2 defects
+// Run a module snippet in a worker thread, so that a regression back to an endless loop fails this test (after `ms`) instead of hanging the whole file.
+async function inWorker(code, ms = 5000) {
+  const w = new Worker(code, { eval: true, execArgv: ["--import", new URL("./register.mjs", import.meta.url).href] });
+  const res = await Promise.race([new Promise((r) => { w.once("message", r); w.once("error", (e) => r({ error: String(e) })); }), new Promise((r) => setTimeout(() => r({ hang: true }), ms))]);
+  await w.terminate();
+  return res;
+}
+const href = (rel) => new URL(rel, import.meta.url).href;
+const HEAD = `import * as THREE from "three"; import { parentPort } from "node:worker_threads";
+const vp = { scene: new THREE.Scene(), add() {}, remove() {}, requestRender() {}, on() { return () => {}; }, container: null };
+const ctx = { state: {}, on: () => () => {}, emit() {}, select() {}, getRig: () => null, toast() {}, units: "mm" };`;
+
+test("an id like o99999999999999999999 in a scene file cannot freeze id allocation (sandbox and measurements)", async () => {
+  const r1 = await inWorker(`${HEAD} import { createSandbox } from "${href("../../site/js/human/sandbox.js")}";
+    const sb = createSandbox({ viewport: vp, ctx, scheduler: () => () => {} });
+    const r = sb.fromJSON({ version: 1, objects: [{ type: "box", id: "o99999999999999999999" }, { type: "box" }, { type: "box" }] });
+    sb.add("box"); parentPort.postMessage({ ok: r.ok, ids: [...sb.objects.keys()] });`);
+  assert.ok(!r1.hang, "loading the scene never finished (newId spun)");
+  assert.equal(r1.ok, true); assert.equal(new Set(r1.ids).size, 4, `ids ${r1.ids}`);
+  const r2 = await inWorker(`${HEAD} import { createMeasure } from "${href("../../site/js/human/measure.js")}";
+    const ms = createMeasure({ viewport: vp, ctx, scheduler: () => {} }), w = (x) => ({ kind: "world", p: [x, 0, 0] });
+    const r = ms.fromJSON([{ kind: "distance", id: "m99999999999999999999", a: w(0), b: w(1) }, { kind: "distance", a: w(0), b: w(2) }, { kind: "distance", a: w(0), b: w(3) }, { kind: "height", id: "m1".padEnd(40, "9"), a: w(1) }, { kind: "height", a: w(4) }]);
+    parentPort.postMessage({ ok: r.ok, ids: ms.items.map((i) => i.id) });`);
+  assert.ok(!r2.hang, "loading the measurements never finished (nextId spun)");
+  assert.equal(r2.ok, true); assert.equal(new Set(r2.ids).size, 5, `ids ${r2.ids}`);
+  // numbers up to 9 digits still advance the counter, so a new object never takes an id of the file
+  const f = fixture(); f.sb.fromJSON({ version: 1, objects: [{ type: "box", id: "o999999999" }] });
+  assert.equal(f.sb.add("box").id, "o1000000000");
+});
+
+test("'Remember this scene' brings back the measurements, even though their module registers after the restore, and never overwrites them", () => {
+  const scene = { app: "digital-human-scene", version: 1, objects: [{ id: "o1", type: "monitor", position: [0, 0, 1.5] }],
+    measurements: [{ id: "m1", kind: "height", a: { kind: "world", p: [0, 1.5, 0] }, label: "Remembered" }], snap: { gridMm: 0, angleDeg: 0 } };
+  const st = fakeStorage(); st.m.set("hm-scene-remember", "1"); st.m.set("hm-scene", JSON.stringify(scene));
+  const sch = manualScheduler(), f = fixture({ storage: st, scheduler: sch });
+  const stored = () => JSON.parse(st.m.get("hm-scene"));
+  assert.equal(f.sb.restore().ok, true);
+  sch.run(); // the autosave that follows the restore, while nobody owns the measurements yet
+  assert.equal(stored().measurements.length, 1, "the section is written back, not dropped, while its module is missing");
+  const ms = createMeasure({ viewport: f.vp, ctx: f.ctx, sandbox: f.sb, scheduler: (fn) => fn() });
+  assert.deepEqual(ms.items.map((i) => i.label), ["Remembered"], "the module is handed its section when it registers");
+  f.sb.add("box"); sch.run();
+  assert.equal(stored().objects.length, 2); assert.equal(stored().measurements.length, 1); assert.equal(f.sb.canUndo, true);
+  f.sb.undo(); assert.equal(ms.items.length, 1, "undoing an object does not touch the measurements");
+  // the module goes away (its panel is closed), the scene stays: the next save keeps its section, and a new module gets it back
+  ms.dispose(); f.sb.add("box"); sch.run(); assert.equal(stored().measurements.length, 1);
+  const ms2 = createMeasure({ viewport: f.vp, ctx: f.ctx, sandbox: f.sb, scheduler: (fn) => fn() }); assert.equal(ms2.items.length, 1);
+  // opening a scene file without measurements replaces them also when nobody owns them
+  ms2.dispose(); f.sb.fromJSON({ version: 1, objects: [] }); sch.run(); assert.equal(stored().measurements, undefined);
+  // a merge adds to the waiting section
+  f.sb.fromJSON({ version: 1, objects: [], measurements: [{ kind: "height", a: { kind: "world", p: [0, 1, 0] } }] });
+  f.sb.fromJSON({ version: 1, objects: [], measurements: [{ kind: "height", a: { kind: "world", p: [0, 2, 0] } }] }, { merge: true });
+  const ms3 = createMeasure({ viewport: f.vp, ctx: f.ctx, sandbox: f.sb, scheduler: (fn) => fn() }); assert.equal(ms3.items.length, 2);
+});
+
+test("an edit younger than the autosave delay is written when the sandbox is disposed or flushSave() is called", () => {
+  const st = fakeStorage(), sch = manualScheduler(), f = fixture({ storage: st, scheduler: sch }), x = () => JSON.parse(st.m.get("hm-scene")).objects[0].position[0];
+  f.sb.setRemember(true);
+  const o = f.sb.add("box", { position: [0, 0, 2] }); sch.run();
+  f.sb.move(o.id, { x: 1 }); assert.equal(sch.pending(), 1); assert.equal(x(), 0, "not stored yet");
+  assert.equal(f.sb.flushSave(), true); assert.equal(x(), 1); assert.equal(sch.pending(), 0); assert.equal(f.sb.flushSave(), false, "nothing waiting");
+  f.sb.move(o.id, { x: 2 }); f.sb.dispose(); assert.equal(x(), 2, "dispose flushes the waiting save");
+  const off = fixture({ storage: fakeStorage(), scheduler: manualScheduler() }); off.sb.add("box"); assert.equal(off.sb.flushSave(), false, "without the opt-in nothing is written");
+});
+
+test("hover picking is throttled: at most one pick per 30 ms", () => {
+  const q = [], f = fixture({ scheduler: (fn, ms) => { q.push([fn, ms]); return () => {}; } }), { sb, vp } = f;
+  sb.add("box", { position: [0, 0, 1.5], params: { width: 0.6, depth: 0.6, height: 1 } });
+  const move = () => vp.emit("pointermove", { ...vp.toClient(new THREE.Vector3(0, 0.5, 1.5)), buttons: 0, pointerType: "mouse" });
+  q.length = 0; move(); assert.equal(q.length, 1); assert.equal(q[0][1], 0, "the first pick is not delayed"); q.shift()[0]();
+  move(); move(); assert.equal(q.length, 1, "moves between two picks are coalesced");
+  const delay = q[0][1]; assert.ok(delay > 0 && delay <= 30, `the next pick waits for the rest of the 30 ms (${delay})`);
+});
+
+test("triple monitor: the side screens wrap towards the user, left and right are the viewer's, and every screen has its edges", () => {
+  const T = byType("triple_monitor"), A = (p) => T.anchors(normalizeParams("triple_monitor", p)), P = (a) => new THREE.Vector3(...a.position), N = (a) => new THREE.Vector3(...a.normal);
+  const eye = new THREE.Vector3(0, 1.15, 0.7), incidence = (a) => N(a).angleTo(eye.clone().sub(P(a))) * 180 / Math.PI;
+  for (const curved of [false, true]) {
+    const flat = A({ panelAngle: 180, curved }), wrap = A({ panelAngle: 140, curved });
+    assert.ok(wrap.left_screen.position[0] < 0 && wrap.right_screen.position[0] > 0, "the viewer's left screen is on -X (the user is at +Z looking along -Z)");
+    assert.match(wrap.left_screen.label, /viewer's left/); assert.match(wrap.right_screen.label, /viewer's right/);
+    for (const side of ["left", "right"]) {
+      assert.ok(wrap[`${side}_outer_edge`].position[2] > wrap[`${side}_screen`].position[2] + 0.05, `${side}: the outer edge comes towards the user (curved ${curved})`);
+      assert.ok(incidence(wrap[`${side}_screen`]) < incidence(flat[`${side}_screen`]) - 5, `${side}: a smaller angle between the panels turns the side screens towards the eye (curved ${curved})`);
+    }
+    assert.ok(wrap.left_screen.normal[0] > 0.3 && wrap.right_screen.normal[0] < -0.3, "the side normals point inwards");
+    // every screen reports its four edges (the viewing check takes the width and the visual angle from them), the viewer's right edge being on the right
+    for (const id of ["", "left_screen_", "right_screen_"]) {
+      const l = wrap[`${id}left_edge`], r = wrap[`${id}right_edge`], t = wrap[`${id}top_edge`], b = wrap[`${id}bottom_edge`];
+      assert.ok(l && r && t && b, `edges of "${id || "centre screen"}"`);
+      near(P(l).distanceTo(P(r)), 0.5313, 2e-3, `${id} width`); assert.ok(t.position[1] > b.position[1]);
+    }
+    const lc = wrap.left_screen_right_edge, cc = wrap.left_edge; // the joint: the left screen's inner edge meets the middle screen's left edge
+    assert.ok(P(lc).distanceTo(P(cc)) < 0.06 && Math.abs(lc.position[2] - cc.position[2]) < 0.03, `the panels meet at the joint (curved ${curved})`);
+  }
+  // in line (180, flat): the side screens lie in the plane of the middle one; the angle between neighbours' normals is 180 - the angle between panels
+  const line = A({ panelAngle: 180, curved: false, tilt: 0 }), a140 = A({ panelAngle: 140, curved: false, tilt: 0 });
+  near(line.left_screen.position[2], line.screen_centre.position[2], 1e-9); near(N(line.left_screen).angleTo(N(line.screen_centre)), 0, 1e-9);
+  near(N(a140.left_screen).angleTo(N(a140.screen_centre)) * 180 / Math.PI, 40, 1e-3);
+  // curved and 180: the three arcs form one smooth arc of the 1.8 m radius
+  const c180 = A({ panelAngle: 180, curved: true });
+  for (const id of ["left_screen", "right_screen"]) { const x = Math.abs(c180[id].position[0]), z = 1.8 - Math.sqrt(1.8 * 1.8 - x * x); near(c180[id].position[2], z, 0.003, `${id} lies on the circle of the curved array`); }
+});
+
+test("anchors name the side they are on: 'viewer's' for what a user at +Z faces, 'object's' for the rest, 'sitter's' for seats, and the label agrees with the position", () => {
+  const want = { "viewer's left": (x) => x < 0, "viewer's right": (x) => x > 0, "object's left": (x) => x > 0, "object's right": (x) => x < 0, "sitter's left": (x) => x > 0, "sitter's right": (x) => x < 0 };
+  let n = 0;
+  for (const t of CATALOG) for (const [id, an] of Object.entries(byType(t.type).anchors(defaultParams(t.type)))) {
+    const m = /(viewer's|object's|sitter's) (left|right)/.exec(an.label);
+    if (m) { n++; assert.ok(want[m[0]](an.position[0]), `${t.type}.${id} "${an.label}" is at x = ${an.position[0]}`); }
+    assert.ok(!/\b(left|right)\b[^(]*\(\s*[+-]X\s*\)/.test(an.label) || /'s (left|right)/.test(an.label), `${t.type}.${id} "${an.label}" does not say whose left it is`);
+  }
+  assert.ok(n >= 40, `${n} labels checked`);
+  const desk = byType("desk").anchors({}), box = byType("box").anchors({});
+  assert.ok(desk.corner_fl.position[0] < 0 && /viewer's left/.test(desk.corner_fl.label), "a desk's front left corner is the one on the left of the person at +Z");
+  assert.ok(box.corner_fl.position[0] > 0 && /object's left/.test(box.corner_fl.label), "a plain box has no user: its left is its own");
 });

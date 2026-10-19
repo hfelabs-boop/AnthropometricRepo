@@ -5,6 +5,8 @@
 // pose (the worst vertex per capsule over 16 bodies, mm): limbs 13 to 32, hands and fingers 2 to 21, buttocks 22, pelvis 40, head, neck, foot, toes 30 to 36,
 // chest 55 and abdomen 58 (the corners of their boxy sections: a capsule pair is a stadium, the section is a superellipse of exponent up to 11), 70 at the groin
 // of a seated body. Tolerances are set for that. Where the exact lowest point matters (the support of a lying body) the skin sections themselves are used: lowestSkinPoint.
+// Two overlaps are not judged on capsules but on the skin sections (skinPenetrations): the upper arm against the trunk (armTorsoDepth: the shoulder joint is inside the chest
+// capsule) and a hand against the head (handHeadDepth: the head capsule is 10 mm too wide at the temples, the palm capsule twice as thick as the palm).
 // Pure: three, skeleton.js, fk.js and postures/grips.js only; no DOM. Cost on one core (Node 22, median man): proxyWorld + lowestPoint about 1 microsecond,
 // + lowestSkinPoint 17, the 621 pair checks of selfPenetrations about 60 (pose.test.mjs asserts that both stay under 0.3 ms).
 //
@@ -35,6 +37,29 @@ const SPINE = JOINTS.filter((j) => j.region).map((j) => j.id); // L5 .. L1, T12 
 const fail = (msg) => { throw new Error(`bodyProxies: ${msg}`); };
 const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
 const rr = (ring) => 0.5 * (ring.rx + ring.rz);
+
+// The skin of body.js narrows the upper arm to the measured bideltoid breadth (fitArmToDeltoid: no skin within 40 mm of the deltoid and above it reaches beyond
+// half the breadth, further down the outer edge may grow by 0.25 per unit of height, at most 12 mm, down to the elbow; a section is narrowed from the outside and
+// deepened to give back its girth). The fit's deltoid ring is up to 34 mm wider than that for a narrow shoulder, and the outer edge of the upper arm is what carries a body
+// lying on its side: without the same narrowing here the body floated up to 16 mm. Same formulas as body.js (duplicated: that module exports only buildSkin).
+const smin = (a, b, k) => { const h = Math.max(k - Math.abs(a - b), 0) / k; return Math.min(a, b) - 0.25 * k * h * h; };
+const ellipseP = (a, b) => { const h = ((a - b) / (a + b)) ** 2; return Math.PI * (a + b) * (1 + (3 * h) / (10 + Math.sqrt(4 - 3 * h))); };
+// Returns (c, rx, rz) => { c, rx, rz } for the sections of the upper arm tube of side s, or null when the tube has no deltoid ring.
+function deltoidFit(body, tube, s, yElbow) {
+  const dl = tube.rings.find((r) => r.id === "ua_deltoid");
+  if (!dl) return null;
+  const sgn = s === "L" ? 1 : -1, bid = body.report?.find?.((r) => r.id === "bideltoid_breadth" && r.kind === "measure")?.input, half = bid > 0 ? bid / 2000 : Infinity;
+  const yD = dl.c[1], outerD = Math.min(sgn * dl.c[0] + dl.rx, half);
+  return (c, rx, rz) => {
+    if (c[1] < yElbow) return { c, rx, rz };
+    const below = Math.max(yD - c[1], 0), inner = sgn * c[0] - rx, outer = sgn * c[0] + rx, limit = outerD + 0.0005 + Math.min(0.25 * Math.max(below - 0.04, 0), 0.012);
+    if (outer <= limit) return { c, rx, rz };
+    const outer2 = Math.max(smin(outer, limit, 0.008), inner + 0.6 * rx), rx2 = 0.5 * (outer2 - inner), p0 = ellipseP(rx, rz);
+    let rz2 = rz;
+    for (let i = 0; i < 4; i++) rz2 *= p0 / ellipseP(rx2, rz2);
+    return { c: [sgn * (inner + rx2), c[1], c[2]], rx: rx2, rz: Math.min(rz2, 1.3 * rz) };
+  };
+}
 
 // The straight tapered capsule that stands in for a tube (a limb segment). The rings of a tube are not on one line (a thigh bulges forward at the
 // mid-thigh, the deltoid ring lies lateral of the arm's axis), so an axis through the first and last ring centre misses the skin by the offset of the
@@ -258,9 +283,9 @@ function build(body) {
     // rolled half way onto its side) than either of them, by up to 11 mm: so SUB_RINGS sections per interval are interpolated the same way and added to the rings.
     // `tube` names the loft a ring belongs to and `u` is its position along it (the index of the ring below, plus the fraction to the next): armTorsoDepth picks the
     // sections of the upper arms and the stack of the trunk by them. `up` is the direction from the ring to the next one (the normal of the section plane).
-    const addRings = (rs, jointOf, tube) => {
+    const addRings = (rs, jointOf, tube, adjust = null) => {
       const at = loft(rs), nrm = (v) => { const l = Math.hypot(...v) || 1; return v.map((x) => x / l); };
-      const ring = (c, rx, rz, nn, f, u) => { const j = jointOf({ c }), q = P(j), n = Math.max(1.05, nn ?? 2); rings.push({ joint: j, ji: JIDX.get(j), off: [c[0] - q[0], c[1] - q[1], c[2] - q[2]], ex: f.ex, ez: f.ez, rx, rz, q: n / (n - 1), n, tube, u, ns: f.ex[2] * f.ez[0] - f.ex[0] * f.ez[2] < 0 ? -1 : 1 }); };
+      const ring = (c0, rx0, rz0, nn, f, u) => { const { c, rx, rz } = adjust ? adjust(c0, rx0, rz0) : { c: c0, rx: rx0, rz: rz0 }; const j = jointOf({ c }), q = P(j), n = Math.max(1.05, nn ?? 2); rings.push({ joint: j, ji: JIDX.get(j), off: [c[0] - q[0], c[1] - q[1], c[2] - q[2]], ex: f.ex, ez: f.ez, rx, rz, q: n / (n - 1), n, tube, u, ns: f.ex[2] * f.ez[0] - f.ex[0] * f.ez[2] < 0 ? -1 : 1 }); };
       rs.forEach((r, i) => {
         const f = frame(rs[Math.max(0, i - 1)].c, rs[Math.min(rs.length - 1, i + 1)].c);
         ring(r.c, r.rx, r.rz, r.n, f, i);
@@ -287,7 +312,7 @@ function build(body) {
     }
     addRings(body.shape.head.rings, () => "head", "head");
     for (const s of ["L", "R"]) {
-      addRings(tubes[`upper_arm_${s}`].rings, () => `shoulder_${s}`, `upper_arm_${s}`);
+      addRings(tubes[`upper_arm_${s}`].rings, () => `shoulder_${s}`, `upper_arm_${s}`, deltoidFit(body, tubes[`upper_arm_${s}`], s, P(`elbow_${s}`)[1]));
       addRings(tubes[`forearm_${s}`].rings, () => `elbow_${s}`, `forearm_${s}`);
       if (body.shape.hands?.[s]?.palm) addRings(body.shape.hands[s].palm, () => `wrist_${s}`, `palm_${s}`);
       addRings(tubes[`thigh_${s}`].rings, () => `hip_${s}`, `thigh_${s}`);
@@ -305,7 +330,15 @@ function build(body) {
     else if (r.tube === "upper_arm_R" && r.u >= 1) armRings.R.push(i);
   });
   const arm = { stack, rings: armRings, tol: { L: ARM_TORSO, R: ARM_TORSO }, buf: new Float64Array(12 * stack.length) };
-  const p = { version: 1, list, n: list.length, byId, pairs, tol, softness: soft, rings, arm, joints: body.joints, landmarks: body.landmarks, shape: body.shape };
+  // The head for the hands: its sections in the head joint's own frame, bottom to top (the head is rigid, so no pose is needed), and a dome above the top section up to the vertex
+  const hr = rings.filter((r) => r.tube === "head").sort((a, b) => a.off[1] - b.off[1]);
+  const vy = LM("vertex")[1] - P("head")[1];
+  const head = { ji: JIDX.get("head"), y: Float64Array.from(hr, (r) => r.off[1]), cx: Float64Array.from(hr, (r) => r.off[0]), cz: Float64Array.from(hr, (r) => r.off[2]), rx: Float64Array.from(hr, (r) => r.rx), rz: Float64Array.from(hr, (r) => r.rz), n: Float64Array.from(hr, (r) => r.n), top: Math.max(vy, hr.length ? hr[hr.length - 1].off[1] : 0), tol: HEAD_HAND * soft };
+  // the parts of each hand that are tested against it: the palm's sections (the palm capsule is 50 mm thick, a palm 25 mm), and the five fingers' capsules
+  const hands = { L: { palm: [], caps: [] }, R: { palm: [] , caps: [] } };
+  rings.forEach((r, i) => { if (r.tube === "palm_L") hands.L.palm.push(i); else if (r.tube === "palm_R") hands.R.palm.push(i); });
+  list.forEach((c, i) => { if (c.group === "fingers") hands[c.side].caps.push(i); });
+  const p = { version: 1, list, n: list.length, byId, pairs, tol, softness: soft, rings, arm, head, hands, joints: body.joints, landmarks: body.landmarks, shape: body.shape };
   // The reference postures of the library (ISO 7250-1 standing and sitting, T-pose) must never be rejected for what the fitted body itself does in them: a P5 body whose
   // thighs overlap by 61 mm in the neutral pose (ring half-breadths 99 + 99 mm, ring centres 138 mm apart), a 130 kg man whose belly lies on his thighs.
   // A pair that overlaps by more than its tolerance there gets the depth it has plus 6 mm: the tolerance describes soft tissue, and this body has more.
@@ -330,6 +363,10 @@ const REFERENCE_MARGIN = 0.006;
 // outline, the 5th-percentile woman's 9), and the margin is smaller than REFERENCE_MARGIN because a check on the sections of the skin has no coarse proxy to allow for.
 const ARM_TORSO = 0.05;
 const ARM_MARGIN = 0.003;
+// A hand against the head is judged on the skin as well (handHeadDepth): the head capsule is a circle of the mean of the half-breadth and half-depth (87 mm for the median man),
+// 10 mm wider than the head at the temples, and the palm capsule 25 mm thick, so a palm laid on the temple overlapped the pair by 21 to 41 mm; in front of the face the same capsule is
+// 11 mm short of the skin. 20 mm of soft tissue that may give (a hand pressed on the head, a finger in the hair), times the body-mass factor like every pair.
+const HEAD_HAND = 0.02;
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Self-collision pairs and their tolerances (metres of allowed overlap = soft tissue plus resting contact). Rules, first match wins:
@@ -342,6 +379,7 @@ const ADJACENT = [["upper_arm", "forearm"], ["forearm", "palm"], ["palm", "finge
  * Tolerance (m) for two proxies, or null when the pair is never tested (same part, or neighbours that overlap by construction). These are the
  * values for a body of body-mass index 24 or less; bodyProxies multiplies them by min(1.8, BMI / 24) because the soft tissue that gives
  * grows with the fat (a 134 kg man's belly rests on his thighs when he sits).
+ * Not tested here: the upper arm against the chest and the shoulder girdle (armTorsoDepth judges it on the skin) and a hand against the head (handHeadDepth).
  */
 export function pairTolerance(a, b) {
   const [ga, gb, sa, sb] = [a.group, b.group, a.side, b.side];
@@ -352,11 +390,12 @@ export function pairTolerance(a, b) {
   if (is(ga, gb, "head", "neck")) return null;
   if (same && ADJACENT.some(([p, q]) => is(ga, gb, p, q))) return null;
   if (is(ga, gb, "pelvis", "thigh") || is(ga, gb, "buttock", "thigh")) return null; // the thighs hang from the pelvis, both sides
-  if (is(ga, gb, "upper_arm", "shoulders") || is(ga, gb, "upper_arm", "chest")) return null; // the shoulder joint is inside the chest outline (and a wide chest is one sphere, whatever the side)
+  if (is(ga, gb, "upper_arm", "shoulders") || is(ga, gb, "upper_arm", "chest")) return null; // the shoulder joint is inside the chest outline (and a wide chest is one sphere, whatever the side): the upper arm against the trunk is judged on the skin, armTorsoDepth
   if (is(ga, gb, "neck", "upper_arm") || is(ga, gb, "neck", "forearm")) return 0.035;
   const hand = HAND.has(ga) || HAND.has(gb), torso = TRUNK.has(ga) || TRUNK.has(gb), head = ga === "head" || gb === "head";
   const leg = LEG.has(ga) || LEG.has(gb), arm = ga === "forearm" || gb === "forearm" || ga === "upper_arm" || gb === "upper_arm";
-  if (hand && (torso || head)) return 0.02; // a hand may rest on the body, not be inside it
+  if (hand && head) return null; // judged on the skin sections (handHeadDepth)
+  if (hand && torso) return 0.02; // a hand may rest on the body, not be inside it
   if (hand && leg) return 0.035; // a hand hanging against the thigh, or resting on it
   if (hand && (HAND.has(ga) && HAND.has(gb))) return 0.025; // clasped hands touch
   if (hand) return 0.03;
@@ -539,6 +578,92 @@ function sectionDepth(r, buf, o, px, py, pz, s) {
   const dx = px - buf[o] - s * buf[o + 9], dy = py - buf[o + 1] - s * buf[o + 10], dz = pz - buf[o + 2] - s * buf[o + 11];
   const a = Math.abs((dx * buf[o + 3] + dy * buf[o + 4] + dz * buf[o + 5]) / r.rx), b = Math.abs((dx * buf[o + 6] + dy * buf[o + 7] + dz * buf[o + 8]) / r.rz);
   return (1 - (a ** r.n + b ** r.n) ** (1 / r.n)) * Math.min(r.rx, r.rz);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Hands against the head, on the skin
+// depth (positive = inside, m) of a point given relative to the head joint in the neutral orientation, in the lofted sections of the head; -Infinity above the vertex or below the chin section
+function headDepth(H, x, y, z) {
+  const ys = H.y, N = ys.length;
+  if (!N || y < ys[0] || y > H.top) return -Infinity;
+  let cx, cz, rx, rz, n;
+  if (y > ys[N - 1]) { // the dome above the top section is an ellipsoid cap
+    const k = Math.sqrt(Math.max(0, 1 - ((y - ys[N - 1]) / Math.max(1e-6, H.top - ys[N - 1])) ** 2));
+    cx = H.cx[N - 1]; cz = H.cz[N - 1]; rx = H.rx[N - 1] * k; rz = H.rz[N - 1] * k; n = H.n[N - 1];
+  } else {
+    let i = 0;
+    while (i < N - 2 && ys[i + 1] < y) i++;
+    const t = Math.min(1, Math.max(0, (y - ys[i]) / Math.max(1e-9, ys[i + 1] - ys[i]))), L = (a) => a[i] + (a[i + 1] - a[i]) * t;
+    cx = L(H.cx); cz = L(H.cz); rx = L(H.rx); rz = L(H.rz); n = L(H.n);
+  }
+  if (rx < 1e-4 || rz < 1e-4) return -Infinity;
+  return (1 - (Math.abs((x - cx) / rx) ** n + Math.abs((z - cz) / rz) ** n) ** (1 / n)) * Math.min(rx, rz);
+}
+
+/**
+ * How far each part of each hand lies inside the head in a SOLVED pose (`kin`, `world` = proxyWorld of it): an array of { part: "palm_L" | "fingers_R" | "thumb_L" | ..., depth }
+ * (m, positive = inside, only the parts within reach of the head; `out` is reused). The palm is judged by the boundary of its sections (12 points each, skin on the
+ * palm side), a finger by three spheres along its capsule (knuckle, middle, and the tip pulled back by its radius, as lowestSkinPoint does: the tip landmark is on the skin)
+ * whose radius is added to the depth of their centre. The head is the loft of its sections (the same data as the skin), which is 10 mm narrower at the temples than its capsule
+ * and 11 mm deeper at the face. Cost: a few microseconds when the hands are away from the head, about 20 when one is near it.
+ */
+export function handHeadDepth(proxies, kin, world, out = []) {
+  out.length = 0;
+  const H = proxies.head, P = kin.positions, Q = kin.quaternions, j3 = 3 * H.ji, j4 = 4 * H.ji;
+  const hx = P[j3], hy = P[j3 + 1], hz = P[j3 + 2], qx = -Q[j4], qy = -Q[j4 + 1], qz = -Q[j4 + 2], qw = Q[j4 + 3];
+  const R = proxies.rings;
+  // world point -> relative to the head joint, in its neutral orientation (rotation by the conjugate quaternion) -> depth
+  const depthAt = (x, y, z) => {
+    const dx = x - hx, dy = y - hy, dz = z - hz, tx = 2 * (qy * dz - qz * dy), ty = 2 * (qz * dx - qx * dz), tz = 2 * (qx * dy - qy * dx);
+    return headDepth(H, dx + qw * tx + (qy * tz - qz * ty), dy + qw * ty + (qz * tx - qx * tz), dz + qw * tz + (qx * ty - qy * tx));
+  };
+  for (const side of ["L", "R"]) {
+    const hd = proxies.hands[side], pi = proxies.byId.get(`palm_${side}`);
+    const mx = 0.5 * (world.ax[pi] + world.bx[pi]), my = 0.5 * (world.ay[pi] + world.by[pi]), mz = 0.5 * (world.az[pi] + world.bz[pi]);
+    if (Math.hypot(mx - hx, my - hy, mz - hz) > REACH) continue; // the hand is nowhere near the head (the hand and the fingers reach 0.2 m from the middle of the palm, the head 0.15 m from its joint)
+    let palm = -Infinity;
+    for (const ri of hd.palm) {
+      const r = R[ri], rj3 = 3 * r.ji, rj4 = 4 * r.ji;
+      rotTo(Q, rj4, r.off[0], r.off[1], r.off[2]); const cx = P[rj3] + _q[0], cy = P[rj3 + 1] + _q[1], cz = P[rj3 + 2] + _q[2];
+      rotTo(Q, rj4, r.ex[0], r.ex[1], r.ex[2]); const ex = _q[0], ey = _q[1], ez_ = _q[2];
+      rotTo(Q, rj4, r.ez[0], r.ez[1], r.ez[2]); const fx = _q[0], fy = _q[1], fz = _q[2];
+      const e = 2 / r.n;
+      for (let a = 0; a < ARM_ANGLES; a++) {
+        const th = (a * 2 * Math.PI) / ARM_ANGLES, c = Math.cos(th), sn = Math.sin(th), u = r.rx * Math.sign(c) * Math.abs(c) ** e, v = r.rz * Math.sign(sn) * Math.abs(sn) ** e;
+        const d = depthAt(cx + u * ex + v * fx, cy + u * ey + v * fy, cz + u * ez_ + v * fz);
+        if (d > palm) palm = d;
+      }
+    }
+    if (palm > -Infinity) out.push({ part: `palm_${side}`, depth: palm });
+    for (const ci of hd.caps) {
+      const ax = world.ax[ci], ay = world.ay[ci], az = world.az[ci], dx = world.bx[ci] - ax, dy = world.by[ci] - ay, dz = world.bz[ci] - az, len = Math.hypot(dx, dy, dz);
+      const ra = world.ra[ci], rb = world.rb[ci], s1 = len > 1e-9 ? Math.max(0, 1 - rb / len) : 0;
+      let best = -Infinity;
+      for (const s of [0, 0.5 * s1, s1]) {
+        const d = depthAt(ax + dx * s, ay + dy * s, az + dz * s) + ra + (rb - ra) * s;
+        if (d > best) best = d;
+      }
+      if (best > -Infinity) out.push({ part: world.ids[ci], depth: best });
+    }
+  }
+  return out;
+}
+const REACH = 0.4;
+
+/**
+ * The overlaps that are judged on the skin sections rather than on capsules, in the form of selfPenetrations: [{ a, b, depth, tolerance, excess }] (ids; m), deepest excess first.
+ * The upper arm against the trunk (`a` = "upper_arm_L", `b` = "trunk", armTorsoDepth) and a hand against the head (`a` = "head", `b` = "palm_L" | "thumb_R" | ..., handHeadDepth).
+ * `kin` is solved for the pose, `world` = proxyWorld(proxies, kin). `slack` is added to every tolerance; `all: true` returns every positive depth, not only those beyond the tolerance.
+ */
+export function skinPenetrations(proxies, kin, world, { slack = 0, all = false } = {}) {
+  const out = [], arms = armTorsoDepth(proxies, kin);
+  for (const side of ["L", "R"]) {
+    const tol = proxies.arm.tol[side] + slack, depth = arms[side];
+    if (all ? depth > 0 : depth > tol) out.push({ a: `upper_arm_${side}`, b: "trunk", depth, tolerance: tol, excess: depth - tol });
+  }
+  const tol = proxies.head.tol + slack;
+  for (const h of handHeadDepth(proxies, kin, world)) if (all ? h.depth > 0 : h.depth > tol) out.push({ a: "head", b: h.part, depth: h.depth, tolerance: tol, excess: h.depth - tol });
+  return out.sort((x, y) => y.excess - x.excess);
 }
 
 /** Squared distance between two segments and the parameters of the closest points (Ericson, Real-Time Collision Detection 5.1.9). */

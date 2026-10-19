@@ -1,0 +1,471 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>contact sheet</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<!-- The renderer of tests/human3d/contact_sheet.py (docs/human3d/CONTACT_SHEETS.md): many postures x bodies x views on ONE WebGL canvas, one renderer and one rig per body,
+     composited with the labels on a 2D canvas. Driven from Python; by hand:
+       window.__sheet.prepare({ bodies: ["united-states/army/M:50"], ids: ["iso-7250-sitting"], views: ["front", "side"] })   -> { records, sheets, errors }
+       window.__sheet.render(0)                                                                                              -> PNG data URL of sheet 0
+     prepare() config: { bodies: [spec], ids?: [id], group?: name | id, all?: bool, file?: [Posture] (not registered), views: ["front","side","back","left","right","top","iso"],
+       cell: px, cols, dark, labels, fitEach, elev (deg), maxCells, quality: "low"|"high", skeleton: bool }
+     body spec: "<country>/<role>/<M|F>[:percentile]" (a populations file of /api/v1) or "stature:<mm>[:<M|F>[:<kg>]]". -->
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<style>html, body { margin: 0; background: #888; } canvas { display: block; }</style>
+<canvas id="gl" width="16" height="16"></canvas>
+<script type="module">
+import * as THREE from "three";
+import { fitBody } from "/js/human/fit.js";
+import { percentileProfile } from "/js/human/anthro.js";
+import { buildRig } from "/js/human/rig.js";
+import * as P from "/js/human/pose.js";
+import { bodyProxies, proxyWorld } from "/js/human/proxies.js";
+
+const LABEL_LINES = 5; // id + badge; category / support / view / body; message (2 lines); numbers
+const SEAT = { x0: -0.25, x1: 0.25, z0: -0.2, z1: 0.32, thick: 0.03 }; // the seat slab in the figure's own frame (anchor = centroid of the seat contacts)
+const VIEWS = { // camera direction in the figure's frame (from the target to the camera), whether the elevation applies, screen-up
+  front: { dir: [0, 0, 1], elev: true }, back: { dir: [0, 0, -1], elev: true },
+  left: { dir: [1, 0, 0], elev: true }, right: { dir: [-1, 0, 0], elev: true }, side: { dir: [1, 0, 0], elev: true },
+  top: { dir: [0, 1, 0], up: [0, 0, 1] }, iso: { dir: [0.62, 0.5, 0.78] },
+};
+const THEMES = {
+  light: { sheet: "#ecebe6", cell: "#f7f6f2", label: "#e2e0d8", edge: "#c9c7bd", text: "#1b1b19", muted: "#5b5a55", ok: "#1a7f37", warn: "#b26a00", fail: "#c62828", floor: "#77756d", poly: "#1f5fd1", com: "#d6241f", rom: "#e8590c", grid: 0xd0cec5, grid0: 0xb0aea5, bg: 0xf7f6f2 },
+  dark: { sheet: "#161615", cell: "#1d1d1b", label: "#2a2a27", edge: "#3b3b37", text: "#e8e8e4", muted: "#a3a29b", ok: "#3fb950", warn: "#d29922", fail: "#f85149", floor: "#8a8980", poly: "#6ea8ff", com: "#ff6b66", rom: "#ff922b", grid: 0x2e2e2a, grid0: 0x45453f, bg: 0x1d1d1b },
+};
+
+const canvas = document.getElementById("gl");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setClearColor(0x000000, 0);
+renderer.autoClear = false;
+const scene = new THREE.Scene();
+const hemi = new THREE.HemisphereLight(0xffffff, 0xb9b6ac, 1.35); scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffffff, 2.0); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.7); scene.add(fill);
+let grid = null, gridDark = null;
+function setGrid(dark) { // the floor grid in the colours of the theme (0.5 m squares); rebuilt only when the theme changes
+  if (gridDark === dark) return;
+  if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
+  grid = new THREE.GridHelper(8, 16, dark ? 0x4a4a44 : 0xb0aea5, dark ? 0x2e2e2a : 0xd6d4cb);
+  scene.add(grid); gridDark = dark;
+}
+const slab = new THREE.Group(); // translucent seat slab with its edges, moved and turned per cell
+{
+  const g = new THREE.BoxGeometry(SEAT.x1 - SEAT.x0, SEAT.thick, SEAT.z1 - SEAT.z0);
+  g.translate((SEAT.x0 + SEAT.x1) / 2, -SEAT.thick / 2, (SEAT.z0 + SEAT.z1) / 2);
+  const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xe0832f, transparent: true, opacity: 0.5, depthWrite: false }));
+  m.renderOrder = 5;
+  slab.add(m, new THREE.LineSegments(new THREE.EdgesGeometry(g), new THREE.LineBasicMaterial({ color: 0x8a4a10 })));
+  scene.add(slab);
+}
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 40);
+
+const STATE = { cfg: null, bodies: [], recs: [], cells: [], sheets: [], scale: 1, layout: null };
+const Y = new THREE.Vector3(0, 1, 0);
+const rad = (d) => (d * Math.PI) / 180;
+const FLOORED = (view) => view !== "top" && view !== "iso"; // views with a horizontal floor line (the others are centred on the figure)
+const mm1 = (m) => Math.round(m * 10000) / 10;
+
+// ---- bodies ------------------------------------------------------------------------------------------------------------------------
+const popCache = new Map();
+async function population(path) {
+  if (!popCache.has(path)) {
+    const r = await fetch(`/api/v1/populations/${path}.json`);
+    if (!r.ok) throw new Error(`no populations file ${path} (HTTP ${r.status}); build public/ with scripts/build_site.py or give a path like united-states/army/M`);
+    popCache.set(path, await r.json());
+  }
+  return popCache.get(path);
+}
+async function makeBody(spec, o) {
+  let profile, short, full = spec;
+  const st = /^stature:(\d+(?:\.\d+)?)(?::([MF]))?(?::(\d+(?:\.\d+)?))?$/i.exec(spec);
+  if (st) {
+    const sex = (st[2] ?? "M").toUpperCase();
+    profile = { id: spec, label: spec, sex, source: { kind: "manual" }, notes: [], measures: { stature: { value: +st[1], unit: "mm" }, ...(st[3] ? { mass: { value: +st[3], unit: "kg" } } : {}) } };
+    short = `${sex} ${st[1]} mm`;
+  } else {
+    const m = /^(.*?)(?::(\d+(?:\.\d+)?))?$/.exec(spec), path = m[1], pct = m[2] === undefined ? 50 : +m[2];
+    if (!(pct >= 1 && pct <= 99)) throw new Error(`body ${spec}: the percentile must be between 1 and 99 (the service interpolates 5..95; outside it is extrapolated)`);
+    profile = percentileProfile(await population(path), { percentile: pct });
+    const parts = path.split("/");
+    short = `${parts.slice(-2).join(" ")} P${pct}`;
+    full = `${path}:${pct}`;
+  }
+  const body = fitBody(profile); // the form (male / female / neutral) follows profile.sex
+  let skinBuilder = null, skinNote = null;
+  try { skinBuilder = (await import("/js/human/body.js")).buildSkin; if (o.failSkin) skinBuilder = () => { throw new Error("skin failure forced by the test"); }; } catch (e) { skinNote = `body.js failed to load (${e.message}): skeleton view`; }
+  const t = performance.now();
+  const rig = buildRig(body, { skinBuilder, quality: o.quality });
+  if (rig.skinError) skinNote = `the skin failed (${rig.skinError.message}): skeleton view`;
+  if (!rig.skin && !skinNote) skinNote = "no skin: skeleton view";
+  if (o.skeleton || !rig.skin) rig.setDisplay({ skin: false, skeleton: true, joints: true, axes: false });
+  rig.group.visible = false;
+  scene.add(rig.group);
+  return { spec: full, short, body, rig, skinNote, buildMs: Math.round(performance.now() - t), form: body.form, sex: profile.sex };
+}
+
+// ---- one posture on one body -------------------------------------------------------------------------------------------------------
+function viewBasis(name, heading, elev, topUp) {
+  const v = VIEWS[name];
+  if (!v) throw new Error(`unknown view "${name}" (${Object.keys(VIEWS).join(", ")})`);
+  const dir = new THREE.Vector3(...v.dir).normalize();
+  if (v.elev && elev) { dir.x *= Math.cos(rad(elev)); dir.z *= Math.cos(rad(elev)); dir.y = Math.sin(rad(elev)); }
+  const up = new THREE.Vector3(...(v.up ?? [0, 1, 0]));
+  dir.applyAxisAngle(Y, rad(heading));
+  if (name === "top" && topUp) up.set(topUp[0], 0, topUp[1]); else up.applyAxisAngle(Y, rad(heading)); // "front" is the front of the FIGURE, whatever the posture's heading
+  const right = new THREE.Vector3().crossVectors(up, dir).normalize();
+  return { dir, right, up: new THREE.Vector3().crossVectors(dir, right).normalize() };
+}
+
+function analyse(entry, B, ctx) {
+  const { posture } = entry, body = B.body;
+  const rec = { id: posture?.id ?? "?", name: posture?.name ?? "", category: posture?.category ?? "", support: posture?.support ?? "", body: B.spec, bodyShort: B.short, source: entry.from,
+    ok: false, errors: [], warnings: [], gaps: {}, balanceMargin: null, balanceChecked: false, clamped: [], shortfall: 0, seat: null, com: null, fatal: false, polygon: [], contacts: [], noteIds: [] };
+  const st = { rec, pose: null, root: null, sph: null, polyPts: [], comPt: null, slabCorners: null, B, views: ctx.views, topUp: null };
+  let ver;
+  try { ver = P.validatePosture(body, posture, { library: entry.from === "file" ? ctx.fileList : ctx.library }); }
+  catch (e) { ver = { ok: false, errors: [`validator threw: ${e.message}`], warnings: [], metrics: {} }; }
+  rec.ok = ver.ok; rec.errors = ver.errors.slice(); rec.warnings = ver.warnings.slice();
+  rec.balanceChecked = ver.metrics?.balanceMargin != null;
+  rec.balanceMargin = rec.balanceChecked ? mm1(ver.metrics.balanceMargin) : null;
+  if (entry.from === "file" && ctx.libIds.has(posture?.id)) rec.warnings.push(`id "${posture.id}" is also in the library: registering this posture would be a duplicate`);
+
+  let ex;
+  try { ex = P.expandPosture(posture); } catch (e) { rec.fatal = true; if (!rec.errors.length) rec.errors.push(e.message); return st; }
+  const cl = P.clampPose({ root: ex.root, angles: ex.angles });
+  st.pose = cl.pose;
+  rec.clamped = cl.clamped.map((c) => ({ joint: c.joint, dof: c.dof, requested: Math.round(c.requested * 10) / 10, applied: Math.round(c.applied * 10) / 10 }));
+  rec.shortfall = ex.shortfall?.length ?? 0;
+  try {
+    const support = Object.hasOwn(P.SUPPORT_CARRIERS, posture.support) ? posture.support : "feet", carriers = P.SUPPORT_CARRIERS[support];
+    const hasSeat = Object.values(carriers).includes("seat");
+    let seat = null;
+    if (hasSeat) { try { seat = P.seatHeightFor(body, posture.hints?.seat?.height ?? "popliteal"); } catch { seat = P.seatHeightFor(body); } }
+    const surfaces = hasSeat ? { floor: 0, seat } : { floor: 0 };
+    const placed = P.placePoseDetailed(body, st.pose, { carriers, surfaces });
+    st.root = placed.root; rec.seat = seat;
+    for (const [k, g] of Object.entries(placed.gaps)) rec.gaps[k] = mm1(g);
+    // support polygon and centre of mass, as the validator's balance rule builds them (touching = within 15 mm; the shins of kneeling within 30 mm)
+    const pts = [], touching = [];
+    for (const r of P.contactClearances(body, st.pose, st.root, surfaces, carriers)) {
+      if (r.point.startsWith("proxy:")) continue;
+      const lim = support === "knees" && /^shin_[LR]$/.test(r.point) ? 0.03 : 0.015;
+      rec.contacts.push({ set: r.set, id: r.point, clearance: mm1(r.clearance), touching: r.clearance <= lim });
+      if (r.clearance <= lim) { const v = P.landmarkPosition(body, st.pose, st.root, r.point); pts.push([v.x, v.y, v.z]); touching.push(r.point); }
+    }
+    const load = posture.hints?.load;
+    let masses = true;
+    try { st.comPt = P.centerOfMass(body, st.pose, st.root, new THREE.Vector3(), load).point; rec.com = [...st.comPt.toArray()].map((v) => Math.round(v * 1e4) / 1e4); } catch { masses = false; }
+    if (masses && pts.length) {
+      const b = P.balance(body, st.pose, st.root, pts, { load });
+      st.polyPts = b.hull; rec.polygon = b.hull.map(([x, z]) => [Math.round(x * 1e4) / 1e4, Math.round(z * 1e4) / 1e4]);
+      st.ownMargin = b.margin;
+    } else if (pts.length) st.polyPts = [...new Set(pts.map((p) => `${p[0]},${p[2]}`))].map((s) => s.split(",").map(Number));
+    // the capsules of the validator, for the framing: spheres of each end (conservative: the skin sticks out of them by a few cm in places)
+    const kin = P.solvePose(body, st.pose, st.root);
+    const prox = bodyProxies(body), w = proxyWorld(prox, kin);
+    const n = w.n, sph = new Float64Array(8 * n);
+    for (let i = 0; i < n; i++) {
+      sph.set([w.ax[i], w.ay[i], w.az[i], w.ra[i], w.bx[i], w.by[i], w.bz[i], w.rb[i]], 8 * i);
+    }
+    st.sph = sph;
+    if (support === "body") { // lying: a front or back view looks along the body; show it from above, head up the page
+      st.views = [...new Set(ctx.views.map((v) => (v === "front" || v === "back" ? "top" : v)))];
+      const h = kin.position("head", new THREE.Vector3()).sub(kin.position("pelvis", new THREE.Vector3())), l = Math.hypot(h.x, h.z);
+      if (l > 0.2) st.topUp = [h.x / l, h.z / l];
+    }
+    if (hasSeat && seat > 0) {
+      const h = rad(st.root.heading), c = Math.cos(h), s = Math.sin(h);
+      st.slabCorners = [[SEAT.x0, SEAT.z0], [SEAT.x1, SEAT.z0], [SEAT.x1, SEAT.z1], [SEAT.x0, SEAT.z1]].map(([x, z]) => [x * c + z * s, seat - SEAT.thick, -x * s + z * c]);
+      st.slabTop = st.slabCorners.map((p) => [p[0], seat, p[2]]);
+    }
+  } catch (e) { rec.fatal = true; rec.errors.push(`sheet: cannot place the posture: ${e.message}`); rec.ok = false; }
+  return st;
+}
+
+// screen-space extents (u right, v up, metres) of a record in a view
+function extents(st, view, elev) {
+  const { right, up } = viewBasis(view, st.root.heading, elev, st.topUp);
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  const add = (x, y, z, r = 0) => {
+    const u = x * right.x + y * right.y + z * right.z, v = x * up.x + y * up.y + z * up.z;
+    if (u - r < u0) u0 = u - r; if (u + r > u1) u1 = u + r; if (v - r < v0) v0 = v - r; if (v + r > v1) v1 = v + r;
+  };
+  const S = st.sph, pad = 0.035;
+  for (let i = 0; i < S.length; i += 8) { add(S[i], S[i + 1], S[i + 2], S[i + 3] + pad); add(S[i + 4], S[i + 5], S[i + 6], S[i + 7] + pad); }
+  add(0, 0, 0);
+  for (const p of st.slabCorners ?? []) add(...p);
+  for (const p of st.slabTop ?? []) add(...p);
+  for (const p of st.polyPts) add(p[0], 0, p[1]);
+  return { u0, u1, v0, v1 };
+}
+
+// ---- layout ------------------------------------------------------------------------------------------------------------------------
+function plan(cfg) {
+  const cell = cfg.cell, fs = Math.max(9, Math.min(14, Math.round(cell / 22))), lineH = fs + 3, labelH = LABEL_LINES * lineH + 8;
+  // postures stay together on a sheet (all bodies x views of one posture); a posture with more cells than a sheet is split
+  const groups = new Map();
+  for (const st of STATE.recs) { const k = st.index; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(st); }
+  const sheets = [];
+  let cur = null;
+  for (const members of groups.values()) {
+    const cells = members.flatMap((st) => st.views.map((view) => ({ st, view })));
+    if (!cur || (cur.cells.length + cells.length > cfg.maxCells && cells.length <= cfg.maxCells)) { cur = { cells: [] }; sheets.push(cur); }
+    for (const c of cells) { if (cur.cells.length === cfg.maxCells) { cur = { cells: [] }; sheets.push(cur); } cur.cells.push(c); }
+  }
+  sheets.forEach((sh, i) => {
+    sh.index = i; sh.cols = Math.min(cfg.cols, sh.cells.length); sh.rows = Math.ceil(sh.cells.length / sh.cols);
+    sh.width = sh.cols * cell; sh.height = sh.rows * (cell + labelH);
+  });
+  return { cell, fs, lineH, labelH, sheets };
+}
+
+// ---- prepare -----------------------------------------------------------------------------------------------------------------------
+async function prepare(cfg0) {
+  const t0 = performance.now();
+  const cfg = { bodies: ["united-states/army/M:50"], views: ["front", "side"], cell: 240, cols: 4, dark: false, labels: false, fitEach: false, elev: 10, maxCells: 12, quality: "low", skeleton: false, ...cfg0 };
+  cfg.cell = Math.max(120, Math.round(cfg.cell)); cfg.cols = Math.max(1, Math.round(cfg.cols)); cfg.maxCells = Math.max(1, Math.round(cfg.maxCells));
+  for (const v of cfg.views) if (!VIEWS[v]) throw new Error(`unknown view "${v}" (${Object.keys(VIEWS).join(", ")})`);
+  STATE.cfg = cfg;
+  // the library (a broken group file must not stop a sheet of drafted postures)
+  let library = [], categories = P.CATEGORIES, libraryError = null;
+  try { library = (await import("/js/human/postures.js")).POSTURES.slice(); } catch (e) { libraryError = e.message; }
+  const libIds = new Set(library.map((p) => p.id));
+  const sel = [], problems = [];
+  const push = (p, from) => sel.push({ posture: p, from });
+  if (cfg.ids?.length) for (const id of cfg.ids) { const p = library.find((x) => x.id === id); if (p) push(p, "library"); else problems.push(`unknown posture id "${id}"${libraryError ? ` (the library did not load: ${libraryError})` : ""}`); }
+  if (cfg.group) {
+    const g = String(cfg.group).toLowerCase(), cat = categories.find((c) => c.id === g || c.name.toLowerCase() === g);
+    if (!cat) problems.push(`unknown group "${cfg.group}" (${categories.map((c) => c.name).join(", ")})`);
+    else for (const p of library) if (p.category === cat.name && !sel.some((s) => s.posture === p)) push(p, "library");
+  }
+  if (cfg.all) for (const p of library) if (!sel.some((s) => s.posture === p)) push(p, "library");
+  const fileList = Array.isArray(cfg.file) ? cfg.file : [];
+  for (const p of fileList) push(p, "file");
+  if (problems.length) return { errors: problems, records: [], sheets: [] };
+  if (!sel.length) return { errors: ["no postures selected (use --ids, --group, --all or --file)"], records: [], sheets: [] };
+  // bodies
+  for (const b of STATE.bodies) { scene.remove(b.rig.group); b.rig.dispose(); }
+  STATE.bodies = [];
+  for (const spec of cfg.bodies) STATE.bodies.push(await makeBody(spec, cfg));
+  const shorts = STATE.bodies.map((b) => b.short);
+  STATE.bodies.forEach((b) => { if (shorts.filter((s) => s === b.short).length > 1) b.short = b.spec; });
+  // analysis
+  STATE.recs = [];
+  const ctx = { library, libIds, fileList, views: cfg.views };
+  const tA = performance.now();
+  sel.forEach((entry, index) => STATE.bodies.forEach((B, bi) => { const st = analyse(entry, B, ctx); st.index = index; st.bodyIndex = bi; STATE.recs.push(st); }));
+  const analyseMs = Math.round(performance.now() - tA);
+  // framing: a common scale over every cell (or one per cell with fitEach)
+  const lay = plan(cfg);
+  const inner = cfg.cell - 2 * Math.round(0.04 * cfg.cell);
+  // common frame: the widest figure, and the largest extent above and below the floor line through the anchor (v = 0: a point nearer to an elevated camera is lower on the screen)
+  let W = 0.5, up = 0.5, down = 0, Hfree = 0;
+  for (const st of STATE.recs) {
+    if (st.rec.fatal || !st.sph) continue;
+    for (const v of st.views) {
+      const e = extents(st, v, cfg.elev);
+      st.ext ??= {}; st.ext[v] = e; W = Math.max(W, e.u1 - e.u0);
+      if (FLOORED(v)) { up = Math.max(up, e.v1); down = Math.max(down, -e.v0); } else Hfree = Math.max(Hfree, e.v1 - e.v0);
+    }
+  }
+  const H = Math.max(up + down, Hfree);
+  STATE.scale = Math.min(inner / W, inner / H); STATE.down = down;
+  STATE.layout = lay;
+  STATE.sheets = lay.sheets;
+  const records = STATE.recs.map((st) => ({ ...st.rec, sheet: lay.sheets.findIndex((s) => s.cells.some((c) => c.st === st)), views: st.views }));
+  return {
+    errors: [], records, libraryError, library: { count: library.length },
+    sheets: lay.sheets.map((s) => ({ index: s.index, cells: s.cells.length, cols: s.cols, rows: s.rows, width: s.width, height: s.height, labelHeight: lay.labelH, cell: cfg.cell })),
+    scalePxPerM: Math.round(STATE.scale * 10) / 10, widestM: Math.round(W * 1000) / 1000, tallestM: Math.round(H * 1000) / 1000,
+    bodies: STATE.bodies.map((b) => ({ spec: b.spec, label: b.short, form: b.form, sex: b.sex, stature: b.body.stature, mass: b.body.mass, buildMs: b.buildMs, note: b.skinNote })),
+    timing: { prepareMs: Math.round(performance.now() - t0), analyseMs },
+  };
+}
+
+// ---- drawing -----------------------------------------------------------------------------------------------------------------------
+function ellipsize(g, text, maxW) {
+  if (g.measureText(text).width <= maxW) return text;
+  let lo = 0, hi = text.length;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (g.measureText(text.slice(0, mid) + "…").width <= maxW) lo = mid; else hi = mid - 1; }
+  return text.slice(0, lo) + "…";
+}
+function wrap(g, text, maxW, maxLines) {
+  const words = text.split(/\s+/), lines = [];
+  let line = "";
+  for (let i = 0; i < words.length; i++) {
+    const t = line ? `${line} ${words[i]}` : words[i];
+    if (g.measureText(t).width <= maxW || !line) line = t;
+    else { lines.push(line); line = words[i]; if (lines.length === maxLines - 1) { line = words.slice(i).join(" "); break; } }
+  }
+  lines.push(line);
+  return lines.slice(0, maxLines).map((l, i, a) => (i === a.length - 1 ? ellipsize(g, l, maxW) : l));
+}
+const sgn = (v) => (v > 0 ? "+" : "") + Math.round(v);
+
+function drawLabel(g, th, x, y, w, cellInfo, lay) {
+  const { st, view } = cellInfo, r = st.rec, { fs, lineH, labelH } = lay, pad = 6, inW = w - 2 * pad;
+  g.fillStyle = th.label; g.fillRect(x, y, w, labelH);
+  g.textBaseline = "top";
+  let ty = y + 4;
+  // line 1: id and the verdict badge
+  const nWarn = r.warnings.length, bad = !r.ok;
+  const badge = bad ? "FAIL" : nWarn ? `OK · ${nWarn} warn` : "OK", bcol = bad ? th.fail : nWarn ? th.warn : th.ok;
+  g.font = `600 ${fs - 1}px system-ui, "DejaVu Sans", sans-serif`;
+  const bw = g.measureText(badge).width + 10;
+  g.fillStyle = bcol; g.beginPath(); g.roundRect(x + w - pad - bw, ty - 1, bw, lineH, 3); g.fill();
+  g.fillStyle = "#fff"; g.fillText(badge, x + w - pad - bw + 5, ty + 1);
+  g.font = `700 ${fs + 1}px system-ui, "DejaVu Sans", sans-serif`; g.fillStyle = th.text;
+  g.fillText(ellipsize(g, r.id, inW - bw - 6), x + pad, ty);
+  ty += lineH;
+  // line 2: category / support on the left, view and body on the right
+  g.font = `${fs - 1}px system-ui, "DejaVu Sans", sans-serif`; g.fillStyle = th.muted;
+  const right = `${view} · ${r.bodyShort}`, rw = Math.min(g.measureText(right).width, inW * 0.62);
+  g.textAlign = "right"; g.fillText(ellipsize(g, right, rw), x + w - pad, ty);
+  g.textAlign = "left"; g.fillText(ellipsize(g, [r.category, r.support].filter(Boolean).join(" · "), inW - rw - 8), x + pad, ty);
+  ty += lineH;
+  // lines 3-4: the first error, else the first warning
+  g.font = `${fs}px system-ui, "DejaVu Sans", sans-serif`;
+  const msg = r.errors[0] ?? r.warnings[0], more = r.errors.length ? r.errors.length - 1 : r.warnings.length - 1;
+  if (msg) {
+    g.fillStyle = r.errors.length ? th.fail : th.warn;
+    const lines = wrap(g, msg + (more > 0 ? `  (+${more} more)` : ""), inW, 2);
+    lines.forEach((l, i) => g.fillText(l, x + pad, ty + i * lineH));
+  } else { g.fillStyle = th.muted; g.fillText("no errors or warnings", x + pad, ty); }
+  ty += 2 * lineH;
+  // line 5: the numbers
+  g.font = `${fs - 1}px ui-monospace, "DejaVu Sans Mono", monospace`; g.fillStyle = th.text;
+  const gaps = Object.entries(r.gaps).map(([k, v]) => `${k} ${Math.abs(v) < 0.05 ? 0 : sgn(v)}`).join(" ");
+  const bal = r.balanceMargin != null ? `bal ${sgn(r.balanceMargin)}` : st.ownMargin != null ? `bal (${sgn(st.ownMargin * 1000)})` : "bal n/a";
+  const nums = `gap ${gaps || "-"} · ${bal} mm`;
+  const rom = r.clamped.length || r.shortfall ? `ROM ×${r.clamped.length + r.shortfall}` : "";
+  const romW = rom ? g.measureText(rom).width + 4 : 0;
+  g.fillText(ellipsize(g, nums, inW - romW), x + pad, ty);
+  if (rom) { g.fillStyle = th.rom; g.font = `700 ${fs - 1}px ui-monospace, "DejaVu Sans Mono", monospace`; g.textAlign = "right"; g.fillText(rom, x + w - pad, ty); g.textAlign = "left"; }
+}
+
+// 2D overlays of one cell, drawn with the projection of the camera the figure was rendered with
+function overlays(g, th, gx, gy, cell, D, rig, cfg, lay) {
+  const { st } = D.c, r = st.rec, pm = D.proj.clone(), mi = D.view.clone(), v = new THREE.Vector3();
+  const pt = (x, y, z) => { v.set(x, y, z).applyMatrix4(mi).applyMatrix4(pm); return [gx + (v.x * 0.5 + 0.5) * cell, gy + (1 - (v.y * 0.5 + 0.5)) * cell]; };
+  return {
+    under() { // the floor: one line through the anchor across the whole cell (not in the views from above)
+      if (!FLOORED(D.c.view)) return;
+      const [, fy] = pt(0, 0, 0);
+      g.strokeStyle = th.floor; g.lineWidth = 1.5; g.beginPath(); g.moveTo(gx, fy); g.lineTo(gx + cell, fy); g.stroke();
+    },
+    over() {
+      g.lineJoin = "round";
+      // support polygon on the floor, centre of mass and plumb line
+      if (st.polyPts.length) {
+        g.beginPath();
+        st.polyPts.forEach((p, i) => { const [x, y] = pt(p[0], 0.002, p[1]); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+        if (st.polyPts.length > 2) { g.closePath(); g.fillStyle = th.poly + "30"; g.fill(); }
+        g.strokeStyle = th.poly; g.lineWidth = 2; g.stroke();
+      }
+      if (st.comPt) {
+        const [fx, fy] = pt(st.comPt.x, 0.002, st.comPt.z), [cx, cy] = pt(st.comPt.x, st.comPt.y, st.comPt.z);
+        g.strokeStyle = th.com; g.lineWidth = 1; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(cx, cy); g.lineTo(fx, fy); g.stroke(); g.setLineDash([]);
+        g.lineWidth = 1.5; g.beginPath(); g.arc(cx, cy, 3.5, 0, 7); g.stroke();
+        g.fillStyle = th.com; g.beginPath(); g.arc(fx, fy, 4.5, 0, 7); g.fill();
+        g.strokeStyle = th.cell; g.lineWidth = 1; g.stroke();
+      }
+      // ROM clamps: a numbered ring on each clamped joint; with --labels a legend in the corner says which and by how much
+      g.font = `700 ${lay.fs - 2}px system-ui, "DejaVu Sans", sans-serif`; g.textBaseline = "middle"; g.textAlign = "center";
+      const seen = [];
+      for (const c of r.clamped) {
+        if (seen.includes(c.joint)) continue;
+        seen.push(c.joint);
+        const w = rig.jointWorld(c.joint), [x, y] = pt(w.x, w.y, w.z);
+        g.strokeStyle = th.rom; g.lineWidth = 2.5; g.beginPath(); g.arc(x, y, 7, 0, 7); g.stroke();
+        g.fillStyle = th.rom; g.fillText(String(seen.length), x, y + 0.5);
+      }
+      g.textAlign = "left";
+      if (cfg.labels) {
+        g.font = `600 ${lay.fs - 1}px system-ui, "DejaVu Sans", sans-serif`;
+        let ly = gy + 12;
+        for (const c of r.clamped) { const n = seen.indexOf(c.joint) + 1; g.fillStyle = th.rom; g.fillText(`${n} ${c.joint} ${c.dof} ${c.requested}→${c.applied}`, gx + 6, ly); ly += lay.lineH; if (ly > gy + cell * 0.45) break; }
+      }
+      if (cfg.labels) { // the contacts that carry the weight
+        for (const c of r.contacts.filter((q) => q.touching)) {
+          const w = rig.landmarkWorld(c.id), [x, y] = pt(w.x, w.y, w.z);
+          g.fillStyle = th.poly; g.beginPath(); g.arc(x, y, 2.5, 0, 7); g.fill();
+        }
+      }
+      g.textBaseline = "top";
+      // scale bar: 0.5 m
+      const bar = D.scale * 0.5, bx = gx + cell - 8 - bar, by = gy + 10;
+      g.strokeStyle = th.muted; g.fillStyle = th.muted; g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + bar, by); g.moveTo(bx, by - 3); g.lineTo(bx, by + 3); g.moveTo(bx + bar, by - 3); g.lineTo(bx + bar, by + 3); g.stroke();
+      g.font = `${lay.fs - 2}px system-ui, "DejaVu Sans", sans-serif`; g.textAlign = "right"; g.fillText("0.5 m", bx + bar, by + 5); g.textAlign = "left";
+    },
+  };
+}
+
+function render(index) {
+  const cfg = STATE.cfg, lay = STATE.layout, sh = STATE.sheets[index], th = THEMES[cfg.dark ? "dark" : "light"], cell = lay.cell, m = Math.round(0.04 * cell);
+  if (!sh) throw new Error(`no sheet ${index}`);
+  const inner = cell - 2 * m;
+  if (canvas.width !== sh.width || canvas.height !== sh.height) renderer.setSize(sh.width, sh.height, false);
+  renderer.setScissorTest(true); renderer.setViewport(0, 0, sh.width, sh.height); renderer.setScissor(0, 0, sh.width, sh.height); renderer.clear();
+  const out = document.createElement("canvas"); out.width = sh.width; out.height = sh.height;
+  const g = out.getContext("2d");
+  g.fillStyle = th.sheet; g.fillRect(0, 0, sh.width, sh.height);
+  hemi.groundColor.set(cfg.dark ? 0x30302c : 0xb9b6ac); hemi.intensity = cfg.dark ? 1.1 : 1.35; key.intensity = cfg.dark ? 1.7 : 2.0;
+  setGrid(!!cfg.dark);
+  const draws = sh.cells.map((c, i) => {
+    const gx = (i % sh.cols) * cell, gy = Math.floor(i / sh.cols) * (cell + lay.labelH) + lay.labelH;
+    g.fillStyle = th.cell; g.fillRect(gx, gy, cell, cell);
+    const st = c.st, D = { c, gx, gy, cam: false };
+    if (st.rec.fatal || !st.ext?.[c.view]) return D;
+    // camera: orthographic, looking at the figure's frame. Common scale: every cell has the same pixels per metre and the floor line
+    // through the anchor on the same baseline; --fit-each: each cell is fitted to its own figure and centred.
+    const e = st.ext[c.view], b = viewBasis(c.view, st.root.heading, cfg.elev, st.topUp);
+    const scale = cfg.fitEach ? Math.min(inner / (e.u1 - e.u0), inner / (e.v1 - e.v0)) : STATE.scale;
+    const uc = (e.u0 + e.u1) / 2, vc = cfg.fitEach || !FLOORED(c.view) ? (e.v0 + e.v1) / 2 : (cell / 2 - m) / scale - STATE.down;
+    const target = b.right.clone().multiplyScalar(uc).addScaledVector(b.up, vc), hw = cell / (2 * scale);
+    camera.left = -hw; camera.right = hw; camera.top = hw; camera.bottom = -hw; camera.updateProjectionMatrix();
+    camera.up.copy(b.up); camera.position.copy(target).addScaledVector(b.dir, 10); camera.lookAt(target); camera.updateMatrixWorld(true);
+    Object.assign(D, { cam: true, b, scale, proj: camera.projectionMatrix.clone(), view: camera.matrixWorldInverse.clone(), camPos: camera.position.clone(), quat: camera.quaternion.clone(), hw });
+    D.o = overlays(g, th, gx, gy, cell, D, STATE.bodies[st.bodyIndex].rig, cfg, lay);
+    D.o.under();
+    return D;
+  });
+  let last = null;
+  for (const D of draws) {
+    if (!D.cam) continue;
+    const { c, gx, gy } = D, st = c.st, B = STATE.bodies[st.bodyIndex];
+    if (st !== last) { // the same posture in the next view needs no new pose
+      for (const bb of STATE.bodies) bb.rig.group.visible = bb === B;
+      B.rig.setPose({ root: st.root, angles: st.pose.angles }, { clamp: false });
+      last = st;
+    }
+    camera.left = -D.hw; camera.right = D.hw; camera.top = D.hw; camera.bottom = -D.hw; camera.updateProjectionMatrix();
+    camera.up.copy(D.b.up); camera.position.copy(D.camPos); camera.quaternion.copy(D.quat); camera.updateMatrixWorld(true);
+    key.position.copy(D.b.dir).multiplyScalar(4).addScaledVector(D.b.up, 3).addScaledVector(D.b.right, -2.5);
+    fill.position.copy(D.b.dir).multiplyScalar(2).addScaledVector(D.b.up, 1).addScaledVector(D.b.right, 3);
+    slab.visible = !!st.slabCorners;
+    if (slab.visible) { slab.position.set(0, st.rec.seat, 0); slab.rotation.y = rad(st.root.heading); }
+    grid.visible = cfg.elev > 2 || c.view === "top" || c.view === "iso";
+    grid.rotation.y = rad(st.root.heading); // squares line up with the figure's own axes
+    const y = sh.height - (gy + cell);
+    renderer.setViewport(gx, y, cell, cell); renderer.setScissor(gx, y, cell, cell); renderer.clear();
+    renderer.render(scene, camera);
+    g.drawImage(canvas, gx, gy, cell, cell, gx, gy, cell, cell); // the buffer is top-down in image space; the GL viewport above is bottom-up
+    D.o.over();
+  }
+  for (const bb of STATE.bodies) bb.rig.group.visible = false;
+  for (const D of draws) {
+    const { c, gx, gy } = D;
+    const r = c.st.rec, bad = !r.ok; // a failing cell gets a red frame, one with warnings an amber one: they can be found at a glance in a sheet of twelve
+    g.strokeStyle = bad ? th.fail : r.warnings.length ? th.warn : th.edge; g.lineWidth = bad || r.warnings.length ? 3 : 1;
+    g.strokeRect(gx + g.lineWidth / 2, gy + g.lineWidth / 2, cell - g.lineWidth, cell - g.lineWidth);
+    if (!D.cam) { g.fillStyle = th.fail; g.font = `700 ${lay.fs + 2}px system-ui, "DejaVu Sans", sans-serif`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("no figure", gx + cell / 2, gy + cell / 2); g.textAlign = "left"; g.textBaseline = "top"; }
+    drawLabel(g, th, gx, gy - lay.labelH, cell, c, lay);
+  }
+  return out.toDataURL("image/png");
+}
+
+window.__sheet = { prepare, render, STATE, THREE };
+window.__ready = true;
+</script>

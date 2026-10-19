@@ -774,6 +774,86 @@ def test_remember_this_scene_is_opt_in(chromium, server):
         del state
 
 
+SCENE_WITH_MEASUREMENTS = {
+    "app": "digital-human-scene", "version": 1, "objects": [{"id": "o1", "type": "monitor", "position": [0, 0, 1.5]}, {"id": "o2", "type": "stool", "position": [0.8, 0, 1.0]}],
+    "measurements": [{"id": "m1", "kind": "height", "a": {"kind": "world", "p": [0, 1.5, 0]}, "label": "Remembered"},
+                     {"id": "m2", "kind": "distance", "a": {"kind": "landmark", "id": "eye_mid"}, "b": {"kind": "object", "id": "o1", "anchor": "screen_centre"}, "label": "Eye to screen"}],
+    "snap": {"gridMm": 0, "angleDeg": 0},
+}
+
+
+def _with_stored_scene(chromium, server, scene):
+    cm = make_session(chromium, server)
+    s = cm.__enter__()
+    s.page.context.add_init_script("(st => { try { if (!sessionStorage.getItem('seeded')) { sessionStorage.setItem('seeded', '1'); for (const [k, v] of Object.entries(st)) localStorage.setItem(k, v); } } catch (e) {} })("
+                                   + json.dumps({"hm-scene": json.dumps(scene), "hm-scene-remember": "1"}) + ")")
+    return cm, s
+
+
+def test_remember_this_scene_brings_back_the_measurements_and_keeps_them_stored(chromium, server):
+    """The sandbox restores the stored scene before the measure module has registered its section: the measurements must come back, and the stored copy must keep them."""
+    cm, s = _with_stored_scene(chromium, server, SCENE_WITH_MEASUREMENTS)
+    try:
+        s.open("scene")
+        s.settle(1500)  # the autosave that follows the restore
+        items = s.js(f"async () => (await {MS}).items.map((i) => i.label)")
+        assert items == ["Remembered", "Eye to screen"], items
+        stored = json.loads(s.js("localStorage.getItem('hm-scene')"))
+        assert len(stored["objects"]) == 2 and len(stored["measurements"]) == 2, "the autosave did not overwrite the measurements"
+        s.page.reload()
+        s.page.wait_for_function("window.__human && window.__human.state.rig", timeout=120000)
+        s.tab("scene")
+        s.settle(1200)
+        assert s.js(f"async () => (await {MS}).items.length") == 2
+        assert not s.errors(), s.errors()
+    finally:
+        cm.__exit__(None, None, None)
+
+
+def test_a_huge_numeric_id_in_the_remembered_scene_does_not_freeze_the_tab(chromium, server):
+    scene = {"version": 1, "objects": [{"type": "box", "id": "o99999999999999999999"}, {"type": "box"}, {"type": "box"}],
+             "measurements": [{"kind": "height", "id": "m" + "9" * 30, "a": {"kind": "world", "p": [0, 1, 0]}}, {"kind": "height", "a": {"kind": "world", "p": [0, 2, 0]}}]}
+    cm, s = _with_stored_scene(chromium, server, scene)
+    try:
+        s.open("scene")
+        ids = [o["id"] for o in s.objects()]
+        assert len(ids) == 3 and len(set(ids)) == 3, ids
+        s.js(f"async () => {{ const sb = await {SB}; sb.add('box'); sb.add('box'); }}")
+        assert len({o["id"] for o in s.objects()}) == 5
+        assert s.js(f"async () => new Set((await {MS}).items.map((i) => i.id)).size") == 2
+    finally:
+        cm.__exit__(None, None, None)
+
+
+def test_the_last_edit_is_saved_when_the_page_is_put_away_within_the_autosave_delay(s):
+    r = s.js(f"""async () => {{ const sb = await {SB}; sb.setRemember(true); const o = sb.add('box', {{ position: [0, 0, 2] }}); sb.saveLocal();
+        await new Promise((r) => setTimeout(r, 900));
+        sb.move(o.id, {{ x: 1.25 }});  // less than 600 ms before the page goes
+        const before = JSON.parse(localStorage.getItem('hm-scene')).objects[0].position[0];
+        window.dispatchEvent(new Event('pagehide'));
+        return {{ before, after: JSON.parse(localStorage.getItem('hm-scene')).objects[0].position[0] }}; }}""")
+    assert r == {"before": 0, "after": 1.25}, r
+
+
+def test_hover_over_an_object_behind_the_figure_does_not_run_a_skinned_ray_test_per_mouse_event(s):
+    """Sweeping the mouse over the body with a crate behind it: the skinned ray test (about 10 ms) runs at most about every 30 ms, not for every pointer move."""
+    r = s.js(f"""async () => {{
+      const sb = await {SB}, vp = window.__human.viewport, V = vp.camera.position.constructor;
+      sb.add('crate', {{ position: [0, 0, -0.6], params: {{ width: 1.2, height: 1.5, depth: 0.4 }} }});
+      vp.requestRender(); await new Promise((r) => setTimeout(r, 300));
+      const skin = window.__human.ctx.getRig().skin, orig = skin.raycast.bind(skin); let n = 0;
+      skin.raycast = (...a) => {{ n++; return orig(...a); }};
+      const rc = vp.canvas.getBoundingClientRect(), p = vp.project(new V(0, 1.2, 0)), t0 = performance.now(); let events = 0;
+      while (performance.now() - t0 < 1200) {{
+        vp.canvas.dispatchEvent(new PointerEvent('pointermove', {{ clientX: rc.left + p.x + (events % 20) - 10, clientY: rc.top + p.y, buttons: 0, pointerType: 'mouse', bubbles: true }}));
+        events++; await new Promise((r) => setTimeout(r, 3));
+      }}
+      return {{ events, tests: n, seconds: (performance.now() - t0) / 1000 }};
+    }}""")
+    assert r["events"] > 100
+    assert r["tests"] <= r["seconds"] / 0.03 + 3, r
+
+
 def test_picking_tool_snaps_and_measures_in_the_view(s):
     """Click two points in the 3D view with the Distance tool: they snap to anchors; Height and Angle tools; Escape; hide, rename, delete."""
     p = s.page

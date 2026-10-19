@@ -1338,6 +1338,26 @@ def test_the_shoulder_half_width_edit_is_kept_for_a_profile_with_an_arm_span(sp)
     assert not sp.errors()
 
 
+def test_a_zero_or_negative_shoulder_offset_is_refused_with_the_reason_a_positive_one_is_applied(sp):
+    sp.open()
+    p = sp.page
+    p.get_by_label("Search dimensions").fill("ahead of its standard")
+    row(sp, "shoulder_protraction").click()
+    before = sp.profile()["id"]
+    edit = p.locator(".hm-pf-dimdetail input.hm-pf-edit")
+    for v in ("-20", "0"):
+        edit.fill(v)
+        p.get_by_role("button", name="Apply").click()
+        msg = p.locator(".hm-pf-dimdetail .hm-pf-msg").inner_text()
+        assert "zero or less" in msg and "-80 to 80 mm" in msg and "between 0 and 5 metres" not in msg, msg
+        assert sp.profile()["id"] == before, "nothing is stored for an edit that cannot be applied"
+    edit.fill("20")
+    p.get_by_role("button", name="Apply").click()
+    wait_idle(sp)
+    assert abs(sp.js("window.__human.ctx.getBody().dims.find(d => d.id === 'shoulder_protraction').value * 1000") - 20) < 0.2
+    assert not sp.errors()
+
+
 def test_an_extreme_girth_is_held_and_explained_not_reported_as_ignored(sp):
     sp.open()
     for mm in ("4000", "50"):
@@ -1458,4 +1478,176 @@ def test_the_skeleton_rows_are_not_redrawn_for_every_pose_frame(s):
     p.wait_for_function("[...document.querySelectorAll('.hm-sk-tree')].some((t) => t.textContent.includes('flex 40'))", timeout=10000)
     same = s.js("window.__chips.filter((c) => c.isConnected).length")
     assert same == n, "the status chips are the same elements: only the angle text changed"
+    assert not s.errors()
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------- verifier round 2
+ACTIVE_KEY = "(() => { const e = document.activeElement; return e.dataset.focusKey || e.id || e.tagName; })()"
+
+
+def test_the_keyboard_focus_stays_on_the_control_in_the_individual_source(chromium, server):
+    """The whole Individual view is rebuilt after every action; the buttons have no id, so the focus used to fall to <body> (a keyboard user restarted from the top)."""
+    with make_session(chromium, server, width=480, height=900) as s:
+        open_demo(s)
+        p = s.page
+        s.source("Individual")
+        p.wait_for_selector(".hm-pf-view select")
+        # method buttons
+        p.focus("button[data-focus-key='method:list']")
+        p.keyboard.press("Enter")
+        p.wait_for_selector(".hm-pf-person")
+        assert s.js(ACTIVE_KEY) == "method:list"
+        # pager: Next, Next ... up to the last page, where Next is disabled and the focus moves to Previous
+        p.focus("button[data-focus-key='pager:next']")
+        for page_no in range(2, 7):
+            p.keyboard.press("Enter")
+            p.wait_for_function(f"document.querySelector('.hm-pf-pager').innerText.includes('Page {page_no} of 6')")
+            expected = "pager:next" if page_no < 6 else "pager:prev"
+            assert s.js(ACTIVE_KEY) == expected, (page_no, s.js(ACTIVE_KEY))
+        p.keyboard.press("Enter")
+        p.wait_for_function("document.querySelector('.hm-pf-pager').innerText.includes('Page 5 of 6')")
+        assert s.js(ACTIVE_KEY) == "pager:prev"
+        # a person chosen with the keyboard: the same button keeps the focus
+        p.focus("button[data-focus-key='person:1087']")
+        p.keyboard.press("Enter")
+        p.wait_for_function("window.__demo.ctx.getProfile().source.subject_key === 1087")
+        demo_built(s)
+        assert s.js(ACTIVE_KEY) == "person:1087"
+        # closest match and random
+        p.focus("button[data-focus-key='method:closest']")
+        p.keyboard.press("Enter")
+        p.focus("button[data-focus-key='closest']")
+        p.keyboard.press("Enter")
+        p.wait_for_function("document.querySelector('.hm-pf-msg-ok')?.innerText.startsWith('Closest')")
+        demo_built(s)
+        assert s.js(ACTIVE_KEY) == "closest"
+        p.focus("button[data-focus-key='method:random']")
+        p.keyboard.press("Enter")
+        p.focus("button[data-focus-key='random']")
+        p.keyboard.press("Enter")
+        p.wait_for_function("document.querySelector('.hm-pf-msg-ok')?.innerText.startsWith('Showing person')")
+        demo_built(s)
+        assert s.js(ACTIVE_KEY) == "random"
+        assert not s.errors()
+
+
+def test_a_person_can_be_chosen_by_the_survey_number(chromium, server):
+    """DESIGN.md 3.1: individuals are chosen by an id (as well as by closeness to a stature and mass)."""
+    with make_session(chromium, server, width=480, height=900) as s:
+        open_demo(s)
+        p = s.page
+        ctx = "window.__demo.ctx"
+        s.source("Individual")
+        p.wait_for_selector(".hm-pf-view select")
+        p.get_by_role("button", name="By number", exact=True).click()
+        field = V(p).get_by_label("Number of the person in the survey")
+        for bad in ("", "abc", "0", "-4", "12.5"):
+            field.fill(bad)
+            field.press("Enter")
+            assert "whole number above zero" in p.locator(".hm-pf-view .hm-pf-msg-error").inner_text(), bad
+            assert p.locator(".hm-pf-view .hm-pf-msg-error").get_attribute("role") == "alert"
+        field.fill("999999")
+        field.press("Enter")
+        p.wait_for_function("document.querySelector('.hm-pf-view .hm-pf-msg-error')?.innerText.includes('not in the database')")
+        field.fill("#1100")
+        field.press("Enter")
+        p.wait_for_function(f"{ctx}.getProfile().source.subject_key === 1100")
+        demo_built(s)
+        assert "Showing person #1100" in p.locator(".hm-pf-view .hm-pf-msg-ok").inner_text()
+        assert s.js(ACTIVE_KEY) == "hm-pf-inum-" + s.js("document.activeElement.id.split('-').pop()") or s.js("document.activeElement.type") == "text", "the focus stays in the field"
+        assert V(p).get_by_label("Number of the person in the survey").input_value() == "#1100", "what was typed stays"
+        assert not s.errors()
+
+
+def test_pressing_apply_on_an_unchanged_value_is_not_an_edit(s):
+    s.open()
+    p = s.page
+    row(s, "hand_length").click()
+    before = s.profile()
+    inp = V(p).get_by_label("Set this dimension to")
+    p.get_by_role("button", name="Apply").click()
+    assert "already uses" in p.locator(".hm-pf-dimdetail .hm-pf-msg").inner_text()
+    inp.press("Enter")
+    p.wait_for_timeout(400)
+    assert s.profile()["id"] == before["id"] and s.profile()["measures"]["hand_length"] == before["measures"]["hand_length"]
+    assert "edited" not in s.profile()["label"]
+    assert s.js("document.querySelector('.hm-pf-dimdetail').innerText").count("Revert") == 0, "nothing to revert"
+    # a different value still works, and the same text again afterwards is the new value (no edit)
+    inp.fill("201")
+    inp.press("Enter")
+    wait_idle(s)
+    assert s.profile()["measures"]["hand_length"][0] == 201 and s.profile()["label"].endswith("(edited)")
+    after = s.profile()["id"]
+    V(p).get_by_label("Set this dimension to").press("Enter")
+    p.wait_for_timeout(400)
+    assert s.profile()["id"] == after
+    assert not s.errors()
+
+
+def test_the_result_of_an_edit_is_shown_next_to_the_apply_button_even_when_the_status_line_is_hidden(sp):
+    sp.open()
+    p = sp.page
+    p.locator("summary", has_text="Who is the figure?").click()  # closed: the status line is display:none
+    assert not sp.js("document.querySelector('.hm-pf-status').offsetParent")
+    edit_dimension(sp, "upper_arm_length", "600")
+    res = p.locator(".hm-pf-dimdetail .hm-pf-result")
+    assert res.count() == 1
+    assert "was held to" in res.inner_text() and res.get_attribute("role") == "alert"
+    box, apply_box = res.bounding_box(), p.locator(".hm-pf-dimdetail").get_by_role("button", name="Apply").bounding_box()
+    assert abs(box["y"] - apply_box["y"]) < 120, "next to the Apply button, not far above"
+    panel = p.locator(".hm-panels").bounding_box()
+    assert panel["y"] <= box["y"] and box["y"] + box["height"] <= panel["y"] + panel["height"], "visible in the scrolled panel"
+    sp.shot("edit-result", ".hm-panels")
+    # it describes that body only: a new edit, a revert, or another profile clears it
+    inp = p.locator(".hm-pf-dimdetail input.hm-pf-edit")
+    inp.fill("-3")
+    inp.press("Enter")
+    assert p.locator(".hm-pf-dimdetail .hm-pf-result").count() == 0
+    inp.fill("320")
+    inp.press("Enter")
+    wait_idle(sp)
+    assert p.locator(".hm-pf-dimdetail .hm-pf-result").count() == 0, "applied as typed: nothing to explain"
+    assert not sp.errors()
+
+
+def test_the_unapplied_edit_is_explained_next_to_the_row_with_a_shell_that_drops_it(s):
+    s.open()
+    p = s.page
+    edit_dimension(s, "femur_length", "430")
+    res = p.locator(".hm-pf-dimdetail .hm-pf-result")
+    assert "did not apply this edit" in res.inner_text()
+    assert not s.errors()
+
+
+def test_a_pooled_population_has_a_short_name_not_one_cut_in_the_middle_of_a_country(s):
+    s.open()
+    p = s.page
+    p.wait_for_selector(".hm-pf-view select")
+    slug = s.js("""async () => { const idx = await (await fetch('api/v1/index.json')).json(); return idx.populations.map((x) => x.country_id).find((id) => id.length > 120); }""")
+    p.select_option(".hm-pf-view select >> nth=0", slug)
+    p.wait_for_function(f"window.__human.state.profile.source.country_id === {json.dumps(slug[:100])}", timeout=60000)
+    s.built()
+    label = s.profile()["label"]
+    assert label.startswith("Multiple (15 countries) · "), label
+    assert "Hon ·" not in label and "Hon ·" not in p.locator(".hm-pf-name").inner_text() and "Multiple (15 countries)" in p.locator(".hm-pf-status").inner_text()
+    assert p.locator(".hm-pf-view select >> nth=0").locator("option:checked").inner_text() == "Multiple (15 countries)"
+    assert "Pooled sample of Bolivia, Brazil" in p.locator(".hm-pf-view").inner_text() and "Venezuela" in p.locator(".hm-pf-view").inner_text()
+    assert not s.errors()
+
+
+def test_an_ignored_body_form_is_not_announced_to_the_person_as_the_figure(s):
+    """The shell of the repository may drop the form: then the panel must not name the figure by the form it does not have, and must say how to clear the message."""
+    s.open()
+    p = s.page
+    p.locator("summary", has_text="Body form").click()
+    p.get_by_role("button", name="Female", exact=True).click()
+    p.wait_for_function("window.__human.state.notices.some(n => n.id === 'profile-extras')", timeout=30000)
+    s.built()
+    note = s.js("window.__human.state.notices.find(n => n.id === 'profile-extras').text")
+    if s.js("window.__human.ctx.getBody().form") == "female":
+        pytest.skip("this shell passes the form on: nothing is ignored")
+    assert "Choose Auto under Body form" in note and "Revert the edit" not in note
+    assert "female form" not in p.locator(".hm-pf-name").inner_text() and "female form" not in p.locator(".hm-pf-status").inner_text()
+    p.get_by_role("button", name="Auto").click()
+    p.wait_for_function("!window.__human.state.notices.some(n => n.id === 'profile-extras')", timeout=30000)
     assert not s.errors()

@@ -11,7 +11,7 @@
 //   fitBody(profile, { form: profile.form ?? formOf(profile), overrides: profile.overrides })
 import { h, toast, download, fmtInt } from "../../util.js";
 import * as anthro from "../anthro.js";
-import { DIM_DEFS, evaluateMeasures } from "../fit.js";
+import { DIM_DEFS, evaluateMeasures, fitBody } from "../fit.js";
 import { section, segmented, sliderRow, notice, nextId, toUnit, fromUnit, unitDigits, fmtLength, UNIT_LABEL } from "../ui.js";
 import { ensureStyles, showLandmark, statusChip } from "./skeleton.js";
 
@@ -114,6 +114,24 @@ export function selectionOfProfile(profile, index) {
     if (c) { country = c.id; role = resolveSourceId(c.roles, role)?.id ?? role; }
   }
   return { country, role, sex: s.sex, percentile: Number(s.percentile) || 50, scaling: s.scaling === "proportional" ? "proportional" : "percentile", reliability: level, survey: s.survey ? "latest" : "combined" };
+}
+
+/**
+ * A pooled sample is named after its member countries ("Multiple: Bolivia, Brazil, ... Venezuela"): too long for a label, and anthro.percentileProfile cuts the
+ * label it builds at 100 characters, in the middle of a name. "Multiple (15 countries)" says the same in a line; any other name is returned as it is.
+ */
+export function shortCountry(name) {
+  const m = /^Multiple:\s*(.+)$/i.exec(String(name ?? "").trim());
+  if (!m) return String(name ?? "");
+  const n = m[1].split(",").map((x) => x.trim()).filter(Boolean).length;
+  return n > 1 ? `Multiple (${n} countries)` : String(name).trim();
+}
+/** The profile with the (cut) country at the start of its label replaced by the short name of a pooled sample; any other profile is returned as it is. */
+export function tidyPopulationLabel(profile, entry) {
+  const full = String(entry?.country ?? ""), short = shortCountry(full);
+  if (!profile || short === full || typeof profile.label !== "string") return profile;
+  const cut = full.replace(/\s+/g, " ").trim().slice(0, 100); // what anthro.cleanText wrote into the label
+  return profile.label.startsWith(cut) ? { ...profile, label: short + profile.label.slice(cut.length) } : profile;
 }
 
 const LAST_KEY = "hm-profile-last";
@@ -306,6 +324,15 @@ export function countEdits(profile) {
 }
 /** A note or message with its first letter in capitals ("the model's arm hangs..." -> "The model's arm hangs..."). */
 export const capFirst = (t) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
+/**
+ * The name to show for the figure on the stage: the profile's label, without " · female form" when the body was built in another form (a shell that does not
+ * pass the form on): the label must not say what the figure is not.
+ */
+export function shownLabel(profile, body) {
+  const label = String(profile?.label ?? "");
+  if (profile?.form && body?.form && body.form !== profile.form && (body.profileId == null || body.profileId === profile.id)) return label.replace(` · ${profile.form} form`, "");
+  return label;
+}
 /** Two profiles the fitter would turn into the same body (same id, form and overrides). */
 export function sameProfile(a, b) {
   return !!a && !!b && a.id === b.id && (a.form ?? null) === (b.form ?? null) && JSON.stringify(a.overrides ?? {}) === JSON.stringify(b.overrides ?? {});
@@ -318,6 +345,20 @@ const LIMIT_MM = 5000;
 export function bandText(lo, hi) {
   const f = (m) => fmtLength(m * 1000, "mm", { suffix: false });
   return lo != null && hi != null ? `${f(lo)} to ${f(hi)} mm` : lo != null ? `at least ${f(lo)} mm` : hi != null ? `at most ${f(hi)} mm` : "range of a person";
+}
+let signedOk;
+/**
+ * Whether fitBody takes an override of zero or less (fit.js resolve() reads only `ov > 0`, although the plausible band of the shoulder protraction is -80 to +80 mm).
+ * Probed once on a small body, so that nothing here has to change on the day fit.js learns it.
+ */
+export function fitTakesSignedOverrides() {
+  if (signedOk === undefined) {
+    try {
+      const b = fitBody(anthro.manualProfile({ sex: "M", stature: 1750 }), { overrides: { shoulder_protraction: -0.02 } });
+      signedOk = Math.abs((b.dims.find((d) => d.id === "shoulder_protraction")?.value ?? NaN) + 0.02) < 1e-6;
+    } catch { signedOk = false; }
+  }
+  return signedOk;
 }
 /**
  * The profile with the dimension set to `value` (in `unit`: mm, cm, m or in; kg or lb for the mass). Throws an Error with a plain message when it cannot.
@@ -340,6 +381,9 @@ export function editDimension(profile, row, value, unit = row.kind === "kg" ? "k
     const mayBeNegative = lo != null && lo < 0; // a signed offset (the shoulder protraction): zero and negative values are real
     if (Math.abs(mm) > LIMIT_MM) throw new Error("A dimension of a person is between 0 and 5 metres.");
     if (!mayBeNegative && !(mm > 0)) throw new Error(`${name} must be more than zero.`);
+    // a signed offset is a real thing, but a fitter that drops it would also skip its own solver for the dimension and leave the figure with a value nobody
+    // asked for: refuse with the reason instead of storing an edit that does nothing
+    if (mayBeNegative && !(mm > 0) && !fitTakesSignedOverrides()) throw new Error(`The model cannot use a value of zero or less for “${name}” yet (the fitting module ignores it, so the figure would not change). Enter a value above zero (the range is ${bandText(lo, hi)}) or leave it as it is.`);
     // a measure outside the plausible band would be refused by the model (it falls back to another route) while the profile, and its export, keep the value
     if (ed.kind === "measure" && row.id !== "stature" && ((lo != null && mm < lo * 1000) || (hi != null && mm > hi * 1000))) {
       throw new Error(`${name} of ${fmtLength(mm, "mm")} is outside the ${bandText(lo, hi)} that the model accepts for this dimension.`);
@@ -421,7 +465,12 @@ export function extrasNotice(profile, body) {
   const shellDrops = missing.includes("the body form") ? rest.length > 0 : rest.length > 0 && rest.length === all.filter((id) => !signed.includes(id)).length;
   if (rest.length) bits.push(shellDrops ? "the dimension edits" : `your edit of ${rest.slice(0, 3).map((id) => labelOfDim(body, id)).join(", ")}${rest.length > 3 ? ` and ${rest.length - 3} more` : ""}`);
   let text = "";
-  if (bits.length) text = `The model ignored ${bits.join(" and ")}${shellDrops ? ": this build of the Digital human view passes only the measures of the profile to the fitting module. Edit the measures instead (for example the stature) or ask for the update." : ": the fitting module did not use it for the profile in use. Revert the edit to clear this message."}`;
+  if (bits.length) {
+    text = `The model ignored ${bits.join(" and ")}${shellDrops ? ": this build of the Digital human view passes only the measures of the profile to the fitting module. Edit the measures instead (for example the stature) or ask for the update." : ": the fitting module did not use it for the profile in use."}`;
+    // a form has no edit to revert: the way back is the Auto choice of the Body form control
+    if (missing.includes("the body form")) text += " Choose Auto under Body form to go back to the form the profile's sex gives.";
+    if (rest.length && !shellDrops) text += " Revert the edit to clear this message.";
+  }
   if (signed.length) text += `${text ? " " : ""}The fitting module does not take a value of zero or less for ${signed.map((id) => labelOfDim(body, id)).join(", ")} yet, so that edit was not applied. Revert it to get the earlier shape back.`;
   return text;
 }
@@ -590,6 +639,7 @@ async function mount(container, ctx) {
   let formChoice = ctx.getProfile()?.form ?? null;
   const dimState = { filter: "all", query: "", open: null };
   let src = initial ? "population" : (({ individual: "individual", import: "import", manual: "manual", population: "population" })[ctx.getProfile()?.source?.kind] ?? "population");
+  let editResult = null; // what the model did with the last dimension edit, shown in the row it was made in: { rowId, profileId, level, text }
   let poseRows = null; // fit report rows evaluated in the current pose (id -> row), or null
   let rows = []; // dimension rows of the current body
 
@@ -611,7 +661,7 @@ async function mount(container, ctx) {
   function showBuilt(fallbackLabel) {
     const cur = ctx.getProfile(), b = ctx.getBody();
     const miss = cur && b && (b.profileId == null || b.profileId === cur.id) ? verifyExtras(cur, b) : [];
-    const label = cur?.label ?? fallbackLabel;
+    const label = (cur ? shownLabel(cur, b) : null) ?? fallbackLabel;
     if (miss.length) setStatus("warn", `Showing ${label}, but the model did not apply ${miss.join(" and ")} (the message above the 3D view says why).`);
     else setStatus("ok", `Showing ${label}`);
   }
@@ -623,7 +673,7 @@ async function mount(container, ctx) {
   const current = el("div", "hm-pf-card", curName, curFacts, curMeter, curMeterText);
   function renderCurrent() {
     const p = ctx.getProfile(), b = ctx.getBody();
-    curName.textContent = p?.label ?? "Loading the profile…";
+    curName.textContent = (p ? shownLabel(p, b) : null) ?? "Loading the profile…";
     const facts = [];
     if (b) {
       facts.push(h("span", {}, "Stature ", h("b", {}, ctx.fmt(b.stature * 1000))), h("span", {}, "Mass ", h("b", {}, fmtKg(b.mass))), h("span", {}, "Form ", h("b", {}, b.form)));
@@ -659,7 +709,7 @@ async function mount(container, ctx) {
   let index = null, indexState = "idle", popGen = 0, popTimer = 0, popEntry = null;
   const ids = { country: nextId("hm-pf-country"), role: nextId("hm-pf-role"), sex: nextId("hm-pf-sex"), rel: nextId("hm-pf-rel") };
   const selCountry = h("select", { class: "input", id: ids.country }), selRole = h("select", { class: "input", id: ids.role }), selSex = h("select", { class: "input", id: ids.sex });
-  const popHint = el("p", "hm-pf-hint small muted");
+  const popHint = el("p", "hm-pf-hint small muted"), poolNote = el("p", "small muted");
   const sliderHost = el("div", "hm-pf-slider");
   const quick = [5, 50, 95].map((v) => h("button", { type: "button", class: "btn small", "aria-pressed": "false", title: `Percentile ${v}`, onclick: () => setPercentile(v, true) }, `P${v}`));
   const extToggle = h("input", { type: "checkbox", id: nextId("hm-pf-ext") });
@@ -691,14 +741,17 @@ async function mount(container, ctx) {
   extToggle.addEventListener("change", () => { pop.extended = extToggle.checked; buildSlider(); schedulePop(0); });
 
   function fillSelect(sel, items, value) {
-    sel.replaceChildren(...items.map((it) => h("option", { value: it.id }, it.name ?? it.label)));
+    sel.replaceChildren(...items.map((it) => h("option", { value: it.id, title: it.title ?? null }, it.name ?? it.label)));
     sel.value = value ?? "";
   }
   function renderPopulationChoices() {
     const o = populationOptions(index, pop);
     Object.assign(pop, o.sel);
     popEntry = o.entry;
-    fillSelect(selCountry, o.countries, pop.country);
+    fillSelect(selCountry, o.countries.map((c) => ({ id: c.id, name: shortCountry(c.name), title: shortCountry(c.name) === c.name ? null : c.name })), pop.country);
+    const full = String(popEntry?.country ?? "");
+    poolNote.textContent = shortCountry(full) === full ? "" : `Pooled sample of ${full.replace(/^Multiple:\s*/i, "")}.`; // the short name hides the members
+    poolNote.hidden = !poolNote.textContent;
     fillSelect(selRole, o.roles, pop.role);
     fillSelect(selSex, o.sexes, pop.sex);
     const hint = populationHint(popEntry);
@@ -745,7 +798,7 @@ async function mount(container, ctx) {
       el("div", "field", h("label", { for: ids.country }, "Country"), selCountry),
       el("div", "field", h("label", { for: ids.role }, "Branch or role"), selRole),
       el("div", "field", h("label", { for: ids.sex }, "Sex"), selSex),
-      popHint,
+      poolNote, popHint,
       sliderHost, el("div", "hm-pf-quick", el("span", "small muted", "Quick:"), quick, h("label", { class: "hm-pf-check small", for: extToggle.id }, extToggle, "Extended 1 to 99 (extrapolated)")),
       h("fieldset", { class: "hm-pf-fieldset" }, h("legend", {}, "How to scale"), radios.map((r) => r.el)),
       el("div", "field", h("label", { for: ids.rel }, "Reliability filter"), selRel, relHint),
@@ -774,7 +827,7 @@ async function mount(container, ctx) {
     if (!popEntry || disposed) return;
     const my = ++popGen, entry = popEntry, opts = { percentile: pop.percentile, scaling: pop.scaling, minReliability: pop.reliability, meanStature: true };
     const latest = pop.survey === "latest" && entry.has_latest;
-    setStatus("busy", [h("span", { class: "spinner", "aria-hidden": "true" }), ` Loading ${entry.country} · ${entry.role}…`]);
+    setStatus("busy", [h("span", { class: "spinner", "aria-hidden": "true" }), ` Loading ${shortCountry(entry.country)} · ${entry.role}…`]);
     let profile, file;
     try {
       file = await anthro.loadPopulation(entry, { latest });
@@ -785,7 +838,7 @@ async function mount(container, ctx) {
     }
     if (my !== popGen || disposed) return;
     try {
-      profile = anthro.percentileProfile(file, opts);
+      profile = tidyPopulationLabel(anthro.percentileProfile(file, opts), entry);
     } catch (e) { // the data cannot give this profile (no stature to scale by): another choice is needed, not another try
       setStatus("error", `${msgOf(e)}. Choose another way to scale or another reliability level.`);
       return;
@@ -804,8 +857,8 @@ async function mount(container, ctx) {
   // =====================================================================================================================
   // source: individual (the in-browser database)
   const indView = el("div", "hm-pf-view");
-  const ind = { closest: { stature: null, mass: null }, state: "idle", filters: null, sel: { dataset: null, sex: null, branch: null }, method: "closest", page: 0, total: 0, listRows: [], gen: 0, message: null, error: null };
-  const iids = { ds: nextId("hm-pf-ds"), sex: nextId("hm-pf-isex"), br: nextId("hm-pf-br"), st: nextId("hm-pf-ist"), ms: nextId("hm-pf-ims") };
+  const ind = { closest: { stature: null, mass: null }, number: "", state: "idle", filters: null, sel: { dataset: null, sex: null, branch: null }, method: "closest", page: 0, total: 0, listRows: [], gen: 0, message: null, error: null };
+  const iids = { ds: nextId("hm-pf-ds"), sex: nextId("hm-pf-isex"), br: nextId("hm-pf-br"), st: nextId("hm-pf-ist"), ms: nextId("hm-pf-ims"), num: nextId("hm-pf-inum") };
   async function loadFilters() {
     ind.state = "loading";
     renderIndividual();
@@ -880,6 +933,12 @@ async function mount(container, ctx) {
       if (r) await useSubject(r.subject_key);
     } catch (e) { if (my === ind.gen) { ind.message = { level: "error", text: msgOf(e) }; renderIndividual(); } }
   }
+  async function findByNumber() {
+    const text = String(ind.number ?? "").trim().replace(/^#/, "");
+    if (!/^\d{1,9}$/.test(text) || Number(text) < 1) { ind.message = { level: "error", text: "Enter the number as a whole number above zero, for example 3045 (the number after the # in the list)." }; renderIndividual(); return; }
+    ind.message = null;
+    await useSubject(Number(text));
+  }
   function renderIndividual() {
     if (ind.state === "idle") { indView.replaceChildren(); return; }
     if (ind.state === "loading") {
@@ -890,7 +949,8 @@ async function mount(container, ctx) {
       indView.replaceChildren(notice(`The database could not be loaded (${ind.error}). The population, import and manual sources work without it.`, { level: "warn" }), h("p", {}, retryBtn(loadFilters)));
       return;
     }
-    const focusId = document.activeElement?.id, listScroll = indView.querySelector(".hm-pf-people")?.scrollTop ?? 0;
+    // the whole view is rebuilt: put the keyboard focus back on the same control (by id, or by data-focus-key for the buttons that have none)
+    const act = indView.contains(document.activeElement) ? document.activeElement : null, focusId = act?.id, focusKey = act?.dataset?.focusKey, listScroll = indView.querySelector(".hm-pf-people")?.scrollTop ?? 0;
     const o = subjectOptions(ind.filters, ind.sel);
     ind.sel = o.sel;
     const sel = (id, items, value, label, onChange, extra) => {
@@ -905,8 +965,9 @@ async function mount(container, ctx) {
     ];
     if (o.branches.length) parts.push(sel(iids.br, o.branches.map((b) => ({ id: b.id, name: `${b.id} (${fmtInt(b.n)})` })), o.sel.branch ?? "", "Branch", (v) => { ind.sel = { ...ind.sel, branch: v || null }; ind.page = 0; refreshCount(); renderIndividual(); }, h("option", { value: "" }, "Any branch")));
     parts.push(el("p", "small muted", `${fmtInt(ind.total || o.n)} people with a stature in this group. People stay anonymous: only the survey's own number is shown.`));
-    const seg = segmented({ label: "How to choose a person", value: ind.method, options: [{ value: "closest", label: "Closest match" }, { value: "list", label: "From a list" }, { value: "random", label: "Random" }],
+    const seg = segmented({ label: "How to choose a person", value: ind.method, options: [{ value: "closest", label: "Closest match" }, { value: "list", label: "From a list" }, { value: "number", label: "By number", title: "The survey's own number of a person, as shown in the list" }, { value: "random", label: "Random" }],
       onChange: (v) => { ind.method = v; ind.message = null; if (v === "list") loadPage(0); else renderIndividual(); } });
+    for (const b of seg.el.querySelectorAll("button")) b.dataset.focusKey = `method:${b.dataset.value}`;
     parts.push(seg.el);
     if (ind.method === "closest") {
       const cur = ctx.getBody();
@@ -917,21 +978,36 @@ async function mount(container, ctx) {
       parts.push(el("div", "hm-pf-two",
         el("div", "field", h("label", { for: iids.st }, `Stature (${UNIT_LABEL[ctx.units]})`), stIn),
         el("div", "field", h("label", { for: iids.ms }, "Mass (kg), optional"), msIn)),
-        h("button", { type: "button", class: "btn primary small", onclick: findClosest }, "Find the closest person"));
+        h("button", { type: "button", class: "btn primary small", "data-focus-key": "closest", onclick: findClosest }, "Find the closest person"));
+    } else if (ind.method === "number") {
+      const numIn = h("input", { class: "input", id: iids.num, type: "text", inputmode: "numeric", autocomplete: "off", placeholder: "3045", value: ind.number });
+      numIn.addEventListener("input", () => { ind.number = numIn.value; });
+      parts.push(h("form", { class: "hm-pf-form", novalidate: true, onsubmit: (e) => { e.preventDefault(); findByNumber(); } },
+        el("div", "field", h("label", { for: iids.num }, "Number of the person in the survey"), numIn),
+        h("button", { type: "submit", class: "btn primary small", "data-focus-key": "number" }, "Show this person"),
+        el("p", "small muted", "The number after the # in the list. It works for any survey of the database; the survey, sex and branch above only matter for the other ways to choose.")));
     } else if (ind.method === "random") {
-      parts.push(h("button", { type: "button", class: "btn primary small", disabled: ind.total ? null : true, onclick: pickRandom }, "Pick a random person"));
+      parts.push(h("button", { type: "button", class: "btn primary small", "data-focus-key": "random", disabled: ind.total ? null : true, onclick: pickRandom }, "Pick a random person"));
     } else {
       const pi = pageInfo(ind.total, ind.page);
       parts.push(el("p", "small muted", ind.total ? `Shortest first. Showing ${fmtInt(pi.from)} to ${fmtInt(pi.to)} of ${fmtInt(pi.total)}.` : "Nobody in this group."),
-        h("ul", { class: "hm-pf-people", "aria-label": "People in this group" }, ind.listRows.map((r) => h("li", {}, h("button", { type: "button", class: "hm-pf-person", onclick: () => useSubject(r.subject_key) }, subjectLabel(r, ctx.units), r.branch ? h("span", { class: "small muted" }, ` · ${r.branch}`) : null)))),
-        el("div", "hm-pf-pager", h("button", { type: "button", class: "btn small", disabled: pi.hasPrev ? null : true, onclick: () => loadPage(pi.page - 1) }, "Previous"),
-          el("span", "small", `Page ${fmtInt(pi.page + 1)} of ${fmtInt(pi.pages)}`), h("button", { type: "button", class: "btn small", disabled: pi.hasNext ? null : true, onclick: () => loadPage(pi.page + 1) }, "Next")));
+        h("ul", { class: "hm-pf-people", "aria-label": "People in this group" }, ind.listRows.map((r) => h("li", {}, h("button", { type: "button", class: "hm-pf-person", "data-focus-key": `person:${r.subject_key}`, onclick: () => useSubject(r.subject_key) }, subjectLabel(r, ctx.units), r.branch ? h("span", { class: "small muted" }, ` · ${r.branch}`) : null)))),
+        el("div", "hm-pf-pager", h("button", { type: "button", class: "btn small", "data-focus-key": "pager:prev", disabled: pi.hasPrev ? null : true, onclick: () => loadPage(pi.page - 1) }, "Previous"),
+          el("span", "small", `Page ${fmtInt(pi.page + 1)} of ${fmtInt(pi.pages)}`), h("button", { type: "button", class: "btn small", "data-focus-key": "pager:next", disabled: pi.hasNext ? null : true, onclick: () => loadPage(pi.page + 1) }, "Next")));
     }
     if (ind.message) parts.push(h("p", { class: `small hm-pf-msg hm-pf-msg-${ind.message.level}`, role: ind.message.level === "error" ? "alert" : "status" }, ind.message.text));
     indView.replaceChildren(...parts);
     const list = indView.querySelector(".hm-pf-people");
     if (list) list.scrollTop = listScroll; // clicking a person must not throw the list back to the top
     if (focusId) indView.querySelector(`#${CSS.escape(focusId)}`)?.focus();
+    else if (focusKey) {
+      // a pager button that is disabled now (the last page was reached) hands the focus to the other one, so that the keyboard user stays at the pager
+      const chain = focusKey === "pager:next" ? [focusKey, "pager:prev"] : focusKey === "pager:prev" ? [focusKey, "pager:next"] : [focusKey];
+      for (const k of chain) {
+        const target = indView.querySelector(`[data-focus-key="${CSS.escape(k)}"]`);
+        if (target && !target.disabled) { target.focus(); break; }
+      }
+    }
   }
 
   // =====================================================================================================================
@@ -1114,7 +1190,7 @@ async function mount(container, ctx) {
   const chipEls = new Map(chipDefs.map(([k, label]) => [k, h("button", { type: "button", class: "hm-chip hm-pf-fchip", "aria-pressed": k === "all" ? "true" : "false", dataset: { filter: k }, onclick: () => { dimState.filter = k; renderDims(); } }, label)]));
   const dimList = el("div", "hm-pf-dims");
   const dimSummary = el("p", "small muted hm-pf-dimsum");
-  const revertAllBtn = h("button", { type: "button", class: "btn small", hidden: true, "data-focus-key": "revertall", onclick: () => { if (editNote) showBuilt(); submit(revertAll(ctx.getProfile())); } }, "Revert all edits");
+  const revertAllBtn = h("button", { type: "button", class: "btn small", hidden: true, "data-focus-key": "revertall", onclick: () => { editResult = null; if (editNote) showBuilt(); submit(revertAll(ctx.getProfile())); } }, "Revert all edits");
   const dimLegend = el("p", "small muted", "Measured: the value is a measure of the profile (or typed by you). Derived: computed from measures with a documented relation. Estimated: no measure, so the model uses a typical value for the stature, mass and sex. Select a row to see where it came from and to edit it; the 3D view shows what it moves.");
   dimSearch.addEventListener("input", () => { dimState.query = dimSearch.value; renderDims(); });
 
@@ -1158,6 +1234,8 @@ async function mount(container, ctx) {
       const [lo, hi] = row.band;
       if (lo != null && hi != null) add("Plausible range", `${ctx.fmt(lo * 1000)} to ${ctx.fmt(hi * 1000)}`);
       else if (lo != null || hi != null) add("Plausible range", lo != null ? `at least ${ctx.fmt(lo * 1000)}; the upper limit follows from the other dimensions` : `at most ${ctx.fmt(hi * 1000)}`);
+      // said before the person types: the value shown may itself be one the fitting module cannot take back
+      if (lo != null && lo < 0 && !fitTakesSignedOverrides()) add("Limit", "Only values above zero can be applied for now: the fitting module ignores an offset of zero or less.");
     }
     parts.push(dl);
 
@@ -1170,25 +1248,38 @@ async function mount(container, ctx) {
         value: kg ? Number(row.value.toFixed(1)) : Number(toUnit(row.mm, u).toFixed(unitDigits(u) + (u === "mm" ? 1 : 0))) });
       const msg = el("div", "small hm-pf-msg hm-pf-msg-error");
       msg.setAttribute("role", "alert");
+      const say = (text, kind = "error") => { msg.className = `small hm-pf-msg hm-pf-msg-${kind}`; msg.setAttribute("role", kind === "error" ? "alert" : "status"); msg.textContent = text; };
+      const shown = parseNumber(input.value); // what the field was filled with (rounded to the display): typing it again is no edit
+      // what the model did with the last edit of this row, next to the field that was edited (the status line is far above, and gone when its section is closed)
+      const res = editResult && editResult.rowId === row.id && editResult.profileId === ctx.getProfile()?.id ? editResult : null;
+      const result = res ? h("div", { class: `small hm-pf-result hm-pf-result-${res.level}`, role: res.level === "warn" ? "alert" : "status" }, res.text) : null;
       const apply = async () => {
-        msg.textContent = "";
+        say("");
         if (editNote) showBuilt(); // the result of the previous edit is not the result of this one
         const v = parseNumber(input.value);
-        if (!Number.isFinite(v)) { msg.textContent = "Enter a number."; return; }
+        if (!Number.isFinite(v)) { say("Enter a number."); return; }
+        // the field is rounded (a tenth of a centimetre is a millimetre): sending the same text back would store a change of up to half a millimetre as an edit
+        if (v === shown) { say("This is the value the model already uses. Type a different value to change it.", "info"); return; }
         let next;
-        try { next = editDimension(ctx.getProfile(), row, v, kg ? "kg" : u); } catch (e) { msg.textContent = e.message; return; }
+        try { next = editDimension(ctx.getProfile(), row, v, kg ? "kg" : u); } catch (e) { say(e.message); return; }
         dimState.open = row.id;
-        const res = await submit(next);
+        editResult = null;
+        const done = await submit(next);
         const b = ctx.getBody(), cur = ctx.getProfile();
-        if (disposed || res?.ok === false || !b || (b.profileId != null && b.profileId !== cur?.id)) return;
+        if (disposed || done?.ok === false || !b || (b.profileId != null && b.profileId !== cur?.id)) return;
         // say what the model did with the value when it is not what was typed (held at an edge, not applied, built another way)
         const ex = explainEdit(row, kg ? v : fromUnit(v, u), b, u);
-        if (ex) { setStatus(ex.level === "info" ? "ok" : "warn", ex.text); editNote = true; }
+        if (ex) {
+          setStatus(ex.level === "info" ? "ok" : "warn", ex.text);
+          editNote = true;
+          editResult = { rowId: row.id, profileId: cur.id, level: ex.level === "info" ? "info" : "warn", text: ex.text };
+          renderDims();
+        }
       };
       input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); apply(); } });
       parts.push(el("div", "hm-pf-editor", h("label", { for: id, class: "small" }, `Set ${kg ? "the mass" : "this dimension"} to`), el("div", "hm-pf-editrow", input, el("span", "hm-unit", kg ? "kg" : UNIT_LABEL[u]),
         h("button", { type: "button", class: "btn primary small", "data-focus-key": `apply:${row.id}`, onclick: apply }, "Apply"),
-        row.edited ? h("button", { type: "button", class: "btn small", "data-focus-key": `revert:${row.id}`, onclick: async () => { dimState.open = row.id; if (editNote) showBuilt(); await submit(revertDimension(ctx.getProfile(), row)); } }, "Revert") : null), msg,
+        row.edited ? h("button", { type: "button", class: "btn small", "data-focus-key": `revert:${row.id}`, onclick: async () => { dimState.open = row.id; editResult = null; if (editNote) showBuilt(); await submit(revertDimension(ctx.getProfile(), row)); } }, "Revert") : null), msg, result,
         ed.kind === "measure" ? el("div", "small muted", `Stored as the profile measure “${niceLabel(ed.key)}”.`) : el("div", "small muted", "Applied to the model; the profile's measures stay as they are.")));
     } else if (ed.kind === "derived") {
       parts.push(el("div", "hm-pf-editor", el("div", "small muted", ed.why), el("div", "hm-pf-fromlinks", ed.from.map((id2) => {
@@ -1330,6 +1421,7 @@ async function mount(container, ctx) {
   }
   offs.push(ctx.on("profile", (p) => {
     note(p);
+    if (editResult && p?.id !== editResult.profileId) editResult = null; // it described the body of another profile
     formChoice = p?.form ?? (formChoice && formChoice === defaultForm(p) ? formChoice : null); // an explicit choice that equals the default is not stored in the profile
     const sel = selectionOfProfile(p, index);
     // a population profile that came from somewhere else (not from these controls): put the controls back. When it is what the controls already say, leave

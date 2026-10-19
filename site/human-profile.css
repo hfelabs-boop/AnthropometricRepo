@@ -66,6 +66,11 @@
 .hm-pf-formseg button { flex: 1; padding: 6px 4px; }
 .hm-pf-msg-ok { color: var(--good); }
 .hm-pf-msg-error { color: var(--bad); }
+.hm-pf-msg-info { color: var(--text-2); }
+/* the outcome of a dimension edit, under the field that was edited: warn = the model held or dropped the value, info = built within a hair of it */
+.hm-pf-result { padding: 6px 8px; border-radius: 8px; border-left: 3px solid currentColor; overflow-wrap: anywhere; }
+.hm-pf-result-warn { color: var(--warn); background: var(--chip-warn-bg); }
+.hm-pf-result-info { color: var(--text-2); background: var(--surface-2, transparent); }
 .hm-pf-msg:empty { display: none; }
 
 .hm-pf-status { min-height: 1.4em; color: var(--text-2); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; overflow-wrap: anywhere; }

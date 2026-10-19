@@ -618,6 +618,12 @@ export default {
     updateHistory();
     syncSnap();
 
+    // "Remember this scene" saves 600 ms after an edit; a page that is closed or put away before that must not lose the edit (the tab being left is flushed by the sandbox's dispose)
+    const flushSave = () => { sandbox.flushSave(); };
+    const onVisibility = () => { if (document.visibilityState === "hidden") flushSave(); };
+    window.addEventListener("pagehide", flushSave);
+    document.addEventListener("visibilitychange", onVisibility);
+
     return {
       onShow() {
         sandbox.setInteraction({ pick: true, drag: true, gizmo: true });
@@ -634,6 +640,8 @@ export default {
       },
       dispose() {
         for (const f of offs.splice(0)) f();
+        window.removeEventListener("pagehide", flushSave);
+        document.removeEventListener("visibilitychange", onVisibility);
         if (raf && typeof cancelAnimationFrame === "function") cancelAnimationFrame(raf);
         placeMO?.disconnect();
         dock.dispose();

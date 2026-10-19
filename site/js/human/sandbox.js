@@ -23,6 +23,7 @@ export const MAX_COORD = 1000; // metres: no object is placed further out than t
 export const GRID_STEPS_MM = Object.freeze([0, 5, 10, 25, 50, 100]);
 export const ANGLE_STEPS = Object.freeze([0, 5, 15, 45, 90]);
 const STORE_KEY = "hm-scene", REMEMBER_KEY = "hm-scene-remember";
+const SECTIONS = Object.freeze(["measurements", "human"]); // the sections of a scene file that other modules own
 
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const fin = (v) => typeof v === "number" && Number.isFinite(v);
@@ -296,13 +297,18 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
   let seq = 0, selectedId = null, hoverId = null, disposed = false, gizmoMode = "translate", showNames = false, remember = false, floorLimit = 0;
   const snap = { gridMm: 0, angleDeg: 0 };
   const serializers = new Map();
+  // Sections of a loaded scene whose module has not registered its serializer yet (the sandbox is created, and the remembered scene restored, before the
+  // measure module exists): kept until it registers, and written back with the scene meanwhile, so a restore never loses or overwrites them.
+  const pendingSections = new Map();
 
   const render = () => viewport.requestRender?.();
   const emitScene = (op, extra = {}) => emitCtx("scene", { op, ...extra });
 
   // ---- objects ----------------------------------------------------------------------------------------------------
   const newId = () => { let id; do { id = `o${++seq}`; } while (objects.has(id)); return id; };
-  const noteId = (id) => { const m = /^o(\d+)$/.exec(id); if (m) seq = Math.max(seq, Number(m[1])); };
+  // `seq` follows the numbers in ids that came from a file, but only up to 9 digits: ID_RE lets "o" + 39 digits through, and above 2^53 `++seq` no longer
+  // changes the number, so newId() would repeat one id for ever (a scene file, or the remembered scene, would freeze the page)
+  const noteId = (id) => { const m = /^o(\d{1,9})$/.exec(id); if (m) seq = Math.max(seq, Number(m[1])); };
   const uniqueName = (spec) => {
     const used = new Set([...objects.values()].map((o) => o.name));
     if (!used.has(spec.name)) return spec.name;
@@ -845,7 +851,10 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
   function onPointerUp() { if (drag) cancelDrag(); }
   // a cancelled pointer (the browser took the touch over for scrolling, a call came in) sends no pointerup: end the drag here, so that the orbit controls and the undo group are not left stuck
   const onPointerCancel = () => cancelDrag();
-  let hoverEv = null, hoverQueued = false;
+  // The hover pick runs at most every HOVER_GAP ms, and never takes more than a quarter of the time: with the figure's skin in the way one pick costs about 10 ms
+  // (a skinned ray test of ~19k triangles) and a mouse reports far more often than that, so the gap grows to 4 times what the last pick cost.
+  const HOVER_GAP = 30;
+  let hoverEv = null, hoverQueued = false, hoverLast = -Infinity, hoverCost = 0;
   function scheduleHover(ev) {
     if (!inputOn() || !pickEnabled || ev.buttons || ev.pointerType === "touch") return;
     hoverEv = ev;
@@ -853,12 +862,14 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     hoverQueued = true;
     later(() => {
       hoverQueued = false;
+      hoverLast = now();
       if (disposed || !hoverEv || drag) return;
       const h = pickAt(hoverEv.clientX, hoverEv.clientY);
+      hoverCost = now() - hoverLast;
       hover(h?.obj.id ?? null);
       const want = !!h && !h.obj.locked && !h.obj.attachedTo;
       if (want !== cursorOwned) { cursorOwned = want; viewport.setCursor?.(want ? "move" : "grab"); }
-    }, 0);
+    }, Math.max(0, Math.max(HOVER_GAP, 4 * hoverCost) - (now() - hoverLast)));
   }
   function onClick(ev) {
     if (ev.handled || !inputOn() || !pickEnabled) return;
@@ -1060,14 +1071,25 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
   function toJSON() { return { app: SCENE_APP, version: SCENE_VERSION, objects: serializeAll(), snap: { ...snap } }; }
   /** Register another module's section of the scene file: toJSON() -> value, fromJSON(value, { merge }). Returns an unregister function. */
   function registerSerializer(key, ser) {
-    if (!["measurements", "human"].includes(key)) throw new RangeError(`registerSerializer: unknown section "${key}" (measurements, human)`);
+    if (!SECTIONS.includes(key)) throw new RangeError(`registerSerializer: unknown section "${key}" (measurements, human)`);
     serializers.set(key, ser);
-    return () => { if (serializers.get(key) === ser) serializers.delete(key); };
+    if (pendingSections.has(key)) { // the scene was loaded before this module existed: hand it its section now
+      const v = pendingSections.get(key);
+      pendingSections.delete(key);
+      try { ser.fromJSON(v, { merge: false }); } catch (e) { console.error(`sandbox: restoring "${key}" failed:`, e); }
+    }
+    return () => {
+      if (serializers.get(key) !== ser) return;
+      // the module goes away (its panel closed) but the scene stays: keep its section so that the next save does not drop it
+      try { const v = ser.toJSON(); if (v !== undefined) pendingSections.set(key, JSON.parse(JSON.stringify(v))); } catch { /* nothing to keep */ }
+      serializers.delete(key);
+    };
   }
   /** The whole scene file: objects plus the sections other modules registered (measurements, human). */
   function toSceneFile() {
     const f = toJSON();
     for (const [k, s] of serializers) { try { const v = s.toJSON(); if (v !== undefined) f[k] = v; } catch (e) { console.error(`sandbox: saving "${k}" failed:`, e); } }
+    for (const [k, v] of pendingSections) if (!serializers.has(k)) f[k] = v;
     return f;
   }
   // The sections of other modules as plain data (a deep copy) and back: what Undo / Redo of "Open scene" hands back
@@ -1101,6 +1123,13 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
         const has = Object.hasOwn(v.extras, k);
         if (!has && merge) continue;
         try { s.fromJSON(has ? v.extras[k] : undefined, { merge }); } catch (e) { warnings.push(`The "${k}" section of the file could not be read (${String(e?.message ?? e).slice(0, 100)}).`); }
+      }
+      for (const k of SECTIONS) { // the sections whose module is not there yet wait for it (see pendingSections)
+        if (serializers.has(k)) continue;
+        const has = Object.hasOwn(v.extras, k), old = pendingSections.get(k);
+        if (!has) { if (!merge) pendingSections.delete(k); }
+        else if (merge && Array.isArray(old) && Array.isArray(v.extras[k])) pendingSections.set(k, [...old, ...v.extras[k]]);
+        else if (!merge || old === undefined) pendingSections.set(k, v.extras[k]);
       }
       emitScene("load", { added });
       if (before) { const after = sectionsSnapshot(); if (JSON.stringify(before) !== JSON.stringify(after)) groupExt = { before, after }; } // Undo brings the old measurements back with the old objects
@@ -1137,6 +1166,12 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     const st = store();
     if (!st || !remember) return false;
     try { const text = JSON.stringify(toSceneFile()); if (text.length > MAX_TEXT) return false; st.setItem(STORE_KEY, text); return true; } catch { return false; }
+  }
+  /** Write the autosave that is still waiting for its 600 ms now (the page is being hidden, the tab is left). Returns true when something was written. */
+  function flushSave() {
+    if (!cancelSave) return false;
+    cancelSave(); cancelSave = null;
+    return saveLocal();
   }
   /** Load the remembered scene when the opt-in flag is set. Returns { ok, added } or null. */
   function restore() {
@@ -1183,8 +1218,8 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
   function dispose() {
     if (disposed) return;
     cancelDrag();
+    flushSave(); // an edit less than 600 ms old is not lost when the tab is left
     disposed = true;
-    cancelSave?.();
     for (const f of unsubs.splice(0)) { try { f(); } catch { /* already gone */ } }
     viewport.detachGizmo?.();
     for (const o of [...objects.values()]) destroyObject(o);
@@ -1192,6 +1227,7 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     viewport.removeLabelSource?.("sandbox");
     registry.delete(viewport);
     serializers.clear();
+    pendingSections.clear();
   }
 
   const sandbox = {
@@ -1215,7 +1251,7 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     move, rotate, nudge, dropToFloor, dropToSurface,
     select, hover, setGizmoMode, setSnap, setShowNames,
     undo, redo, beginGroup, endGroup, grouped,
-    toJSON, toSceneFile, fromJSON, applyTemplate, registerSerializer, saveLocal, restore, setRemember,
+    toJSON, toSceneFile, fromJSON, applyTemplate, registerSerializer, saveLocal, flushSave, restore, setRemember,
     attach, detach, updateAttached,
     anchorWorld, anchorNormalWorld, anchorsWorld, localToWorld, worldToLocal, supportsWorld, gripsWorld, bounds, frameObjects, pickAt,
     onKey, snapValue: (v) => snapValue(v, snap.gridMm),

@@ -823,20 +823,27 @@ test("an extreme girth is applied (held in its range): no 'ignored the edits' no
   }
 });
 
-test("a signed offset (the shoulder protraction) takes zero and negative values; the others say what is wrong", () => {
+test("a signed offset (the shoulder protraction): zero and negative values are accepted only when the fitter takes them; otherwise refused with the reason, nothing stored", () => {
   const prof = profiles.manual, body = fitWith(prof), row = rowOf(body, prof, "shoulder_protraction");
   assert.ok(row.band[0] < 0, "its plausible band is signed");
-  for (const mm of [-20, 0, -80, 20]) assert.deepEqual(P.editDimension(prof, row, mm).overrides, { shoulder_protraction: mm / 1000 });
+  assert.equal(typeof P.fitTakesSignedOverrides(), "boolean");
+  for (const mm of [20, 0.5]) assert.deepEqual(P.editDimension(prof, row, mm).overrides, { shoulder_protraction: mm / 1000 });
+  for (const mm of [-20, 0, -80]) {
+    if (P.fitTakesSignedOverrides()) assert.deepEqual(P.editDimension(prof, row, mm).overrides, { shoulder_protraction: mm / 1000 });
+    else assert.throws(() => P.editDimension(prof, row, mm), /cannot use a value of zero or less for “Glenohumeral centre ahead of its standard place” yet .*range is -80 to 80 mm/);
+  }
   assert.throws(() => P.editDimension(prof, row, 6000), /between 0 and 5 metres/);
   const femur = rowOf(body, prof, "femur_length");
   for (const bad of [0, -3]) assert.throws(() => P.editDimension(prof, femur, bad), /must be more than zero/);
   assert.throws(() => P.editDimension(prof, rowOf(body, prof, "mass"), 0), /Body mass must be more than zero/);
-  // a fitter that ignores a value of zero or less is reported as that, not as a shell that drops everything
-  const p1 = P.editDimension(prof, row, -20), b1 = fitWith(p1);
-  assert.deepEqual(P.unappliedOverrides(p1, b1), ["shoulder_protraction"]);
-  const text = P.extrasNotice(p1, b1);
-  assert.match(text, /does not take a value of zero or less for “Glenohumeral centre ahead of its standard place”/);
-  assert.doesNotMatch(text, /this build of the Digital human view/);
+  // a profile that already carries such a value (an older save, another fitter) is reported as that, not as a shell that drops everything
+  const p1 = { ...prof, overrides: { shoulder_protraction: -0.02 } }, b1 = fitWith(p1);
+  if (!P.fitTakesSignedOverrides()) {
+    assert.deepEqual(P.unappliedOverrides(p1, b1), ["shoulder_protraction"]);
+    const text = P.extrasNotice(p1, b1);
+    assert.match(text, /does not take a value of zero or less for “Glenohumeral centre ahead of its standard place”/);
+    assert.doesNotMatch(text, /this build of the Digital human view/);
+  }
 });
 
 test("explainEdit: held at an edge, not applied, or built another way; null when the value is what was typed", () => {
@@ -896,4 +903,40 @@ test("dimensionJoints follows an edit of a derived dimension to the one it is ap
   assert.ok(S.dimensionJoints("gh_halfwidth").includes("thumb_cmc_L"), "an arm that tilts differently carries the hand");
   assert.ok(S.dimensionJoints("femur_length").includes("C3") && S.dimensionJoints("hip_height").includes("head"), "a longer thigh leaves less stature for the neck");
   assert.ok(S.dimensionJoints("l5_above_hip").includes("clavicle_L"));
+});
+
+// ------------------------------------------------------------------------------------------------------------------ verifier round 2
+test("a pooled sample is named in a line, not cut in the middle of a country (the label anthro writes is cut at 100 characters)", () => {
+  assert.equal(P.shortCountry("Multiple: Bolivia, Brazil, Colombia"), "Multiple (3 countries)");
+  assert.equal(P.shortCountry("United States"), "United States");
+  assert.equal(P.shortCountry("Multiple: Chile"), "Multiple: Chile", "one member is a name, not a pool");
+  assert.equal(P.shortCountry(undefined), "");
+  const full = "Multiple: Bolivia, Brazil, Colombia, Chile, Dominican Republic, Ecuador, El Salvador, Guatemala, Honduras, Nicaragua, Panama, Paraguay, Peru, Uruguay, Venezuela";
+  const prof = anthro.percentileProfile({ population: { country: full, country_id: "multiple-x", role: "Recruits/trainees", role_id: "recruits", sex: "M" }, measures: [{ key: "stature", unit: "mm", reliability: "high", percentiles: { p5: 1650, p50: 1750, p95: 1850 } }] }, { percentile: 50 });
+  assert.match(prof.label, /Hon · Recruits\/trainees · /, "anthro cuts the name mid-word (the defect this works around)");
+  const t = P.tidyPopulationLabel(prof, { country: full });
+  assert.equal(t.label, "Multiple (15 countries) · Recruits/trainees · men · P50");
+  assert.equal(prof.label.startsWith("Multiple: Bolivia"), true, "the profile it was given is not changed");
+  assert.equal(P.tidyPopulationLabel(prof, { country: "Peru" }), prof, "other names are left alone");
+  assert.equal(P.tidyPopulationLabel(prof, { country: "Multiple: Spain, Italy" }), prof, "a label that does not start with the name is left alone");
+  assert.equal(P.tidyPopulationLabel(null, { country: full }), null);
+});
+
+test("the notice for an ignored body form tells the person to choose Auto, not to revert an edit that does not exist", () => {
+  const prof = P.finalizeProfile(profiles.manual, { form: "female" }), body = fitBody(prof, { form: "male" }); // a shell that drops the form
+  assert.equal(body.form, "male");
+  const text = P.extrasNotice(prof, body);
+  assert.match(text, /^The model ignored the body form: /);
+  assert.match(text, /Choose Auto under Body form/);
+  assert.doesNotMatch(text, /Revert the edit/);
+  // an edit the fitter dropped on its own keeps the old advice
+  const row = rowOf(bodies.manual, profiles.manual, "ring_waist"), edited = P.editDimension(profiles.manual, row, row.mm * 1.3);
+  const t2 = P.extrasNotice({ ...edited, overrides: { ...edited.overrides, femur_length: 0.43 } }, fitBody(edited, { overrides: { femur_length: 0.43 } }));
+  if (t2) assert.doesNotMatch(t2, /Choose Auto/);
+  // the figure on the stage is not called by a form it does not have
+  assert.match(prof.label, / · female form$/);
+  assert.doesNotMatch(P.shownLabel(prof, body), /female form/);
+  assert.equal(P.shownLabel(prof, { ...body, profileId: "another" }), prof.label, "a body of another profile says nothing about this label");
+  assert.equal(P.shownLabel(prof, fitBody(prof, { form: "female" })), prof.label, "applied: the label stands");
+  assert.equal(P.shownLabel(null, body), "");
 });

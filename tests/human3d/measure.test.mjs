@@ -229,8 +229,12 @@ test("view: eye to a display, the angle below the horizontal, the size the scree
   near(e.view.distance, 0.6, 1e-9); near(e.view.declination, 0, 1e-9); near(e.view.visualH, 47.76, 0.01); near(e.view.visualV, 27.97, 0.01); near(e.view.incidence, 0, 1e-6); assert.deepEqual(e.view.zone, { distance: "within", declination: "within" });
   // the viewing normal of a tilted screen: looking from the level of the centre, the incidence equals the tilt
   sb.setParam(m2.id, "tilt", 10); near(ms.evaluate(exact).view.incidence, 10, 1e-4, "anchor normals are stored to 6 decimals");
-  // a side screen of the triple array has no known size
-  const tri = sb.add("triple_monitor", { position: [-3, 0, 0], yaw: 180 }), side = ms.add({ kind: "view", a: { kind: "world", p: [-3, 1.15, -1] }, b: objRef(tri.id, "left_screen") }), s = ms.evaluate(side); assert.ok(s.ok); assert.equal(s.view.visualH, null);
+  // the side screens of the triple array have edge anchors of their own, so their width and visual angle are known (the width of one 24-inch 16:9 screen is 0.5313 m)
+  const tri = sb.add("triple_monitor", { position: [-3, 0, 0], yaw: 180 }), side = ms.add({ kind: "view", a: { kind: "world", p: [-3, 1.15, -1] }, b: objRef(tri.id, "left_screen") }), s = ms.evaluate(side); assert.ok(s.ok);
+  near(s.view.width, 0.5313, 1e-3, "side screen width"); near(s.view.height, 0.2989, 1e-3, "side screen height"); assert.ok(s.view.visualH > 20 && s.view.visualV > 10);
+  for (const anchor of ["screen_centre", "right_screen"]) { const r = ms.evaluate(ms.add({ kind: "view", a: { kind: "world", p: [-3, 1.15, -1] }, b: objRef(tri.id, anchor) })); near(r.view.width, 0.5313, 1e-3, `${anchor} width`); assert.ok(r.view.visualH > 20); }
+  // a point that is not a display has no size
+  const crate = sb.add("box", { position: [5, 0, 0] }), plain = ms.evaluate(ms.add({ kind: "view", a: { kind: "world", p: [5, 1.15, -1] }, b: objRef(crate.id, "top_centre") })); assert.ok(plain.ok); assert.equal(plain.view.visualH, null);
   assert.ok(ms.displayOptions().some((o) => o.ref.anchor === "screen_centre" && o.label === "Monitor: Screen centre"));
   assert.ok(ms.displayOptions().some((o) => o.ref.anchor === "left_screen")); assert.equal(ms.displayOptions()[0].ref.anchor, "screen_centre");
   assert.match(ms.exportRows().find((x) => x.id === exact.id).notes, /declination -?\d/);

@@ -111,6 +111,8 @@ export function cleanRef(r) {
   }
   return null;
 }
+/** The display points a viewing check can take the screen size from -> the prefix of their edge anchors (catalog.js). */
+const EDGE_BASE = Object.freeze({ screen_centre: "", glass_centre: "", panel_centre: "", left_screen: "left_screen_", right_screen: "right_screen_" });
 const KIND_POINTS = { distance: ["a", "b"], height: ["a"], angle: ["a", "b", "c"], view: ["a", "b"] };
 const THEME_FALLBACK = { accent: 0x2a78d6, bad: 0xb3261e, good: 0x0f7a2e, text: 0x888888, text3: 0x888888 };
 
@@ -247,8 +249,10 @@ export function createMeasure({ viewport, ctx, sandbox, scheduler } = {}) {
         const edges = {}, ref = item.b;
         let normal = null;
         if (ref.kind === "object" && sandbox) {
-          if (/^(screen_centre|glass_centre|panel_centre)$/.test(ref.anchor ?? "")) {
-            for (const [k, id] of [["left", "left_edge"], ["right", "right_edge"], ["top", "top_edge"], ["bottom", "bottom_edge"]]) { const p = sandbox.anchorWorld(ref.id, id, new THREE.Vector3()); if (p) edges[k] = p; }
+          // the edge anchors of a display point: "top_edge" for the centre of a screen, "left_screen_top_edge" for the left side screen of a triple monitor
+          const edgeBase = Object.hasOwn(EDGE_BASE, ref.anchor ?? "") ? EDGE_BASE[ref.anchor] : undefined;
+          if (edgeBase !== undefined) {
+            for (const k of ["left", "right", "top", "bottom"]) { const p = sandbox.anchorWorld(ref.id, `${edgeBase}${k}_edge`, new THREE.Vector3()); if (p) edges[k] = p; }
           }
           if (ref.anchor !== undefined) normal = sandbox.anchorNormalWorld(ref.id, ref.anchor, new THREE.Vector3());
         }
@@ -268,13 +272,15 @@ export function createMeasure({ viewport, ctx, sandbox, scheduler } = {}) {
     while (items.some((i) => i.label === `${base} ${n}`)) n++;
     return `${base} ${n}`;
   };
+  // `seq` follows the numbers in ids that came from a file, but only up to 9 digits: above 2^53 `++seq` would no longer change it and the loop below would never end
+  const noteId = (id) => { const m = /^m(\d{1,9})$/.exec(id); if (m) seq = Math.max(seq, Number(m[1])); };
   const nextId = () => { let id; do { id = `m${++seq}`; } while (items.some((i) => i.id === id)); return id; };
   /** Add { kind, a, b?, c?, label?, color? }. Returns the item, or null (invalid points, or MAX_ITEMS reached). */
   function add(spec, { silent = false } = {}) {
     if (!isObj(spec) || !KINDS.includes(spec.kind) || items.length >= MAX_ITEMS) return null;
     const item = { id: spec.id && !items.some((i) => i.id === spec.id) ? spec.id : nextId(), kind: spec.kind };
     for (const k of KIND_POINTS[spec.kind]) { const r = cleanRef(spec[k]); if (!r) return null; item[k] = r; }
-    const m = /^m(\d+)$/.exec(item.id); if (m) seq = Math.max(seq, Number(m[1]));
+    noteId(item.id);
     item.label = typeof spec.label === "string" && spec.label.trim() ? spec.label.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 80) : defaultName(spec.kind);
     item.color = COLOR_TOKENS.includes(spec.color) ? spec.color : COLOR_TOKENS[colorIdx++ % COLOR_TOKENS.length];
     item.visible = spec.visible !== false;
@@ -599,7 +605,7 @@ export function createMeasure({ viewport, ctx, sandbox, scheduler } = {}) {
   function displayOptions() {
     const out = [];
     if (!sandbox) return out;
-    for (const o of sandbox.objects.values()) for (const [id, a] of Object.entries(o._anchors)) if (/^(screen_centre|glass_centre|panel_centre|left_screen|right_screen)$/.test(id)) out.push({ key: `object:${o.id}:${id}`, label: `${o.name}: ${a.label}`, ref: { kind: "object", id: o.id, anchor: id } });
+    for (const o of sandbox.objects.values()) for (const [id, a] of Object.entries(o._anchors)) if (Object.hasOwn(EDGE_BASE, id)) out.push({ key: `object:${o.id}:${id}`, label: `${o.name}: ${a.label}`, ref: { kind: "object", id: o.id, anchor: id } });
     return out.sort((x, y) => (x.key.endsWith(":screen_centre") ? 0 : 1) - (y.key.endsWith(":screen_centre") ? 0 : 1));
   }
   /** Find an option from text typed in a search box: exact text, else exact label, else the one option whose text contains it (case-insensitive). */
