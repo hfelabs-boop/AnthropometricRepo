@@ -256,9 +256,8 @@ export default {
 
     const verdict = h("p", { class: "hm-an-verdict", id: ids.verdict, role: "status", "aria-live": "polite", "aria-atomic": "true" }, "Waiting for the model to be built.");
     const copyBtn = h("button", { type: "button", class: "btn small", title: "Copy a plain-text summary of the profile, posture, key angles, scene and measurements", onclick: () => copySummary() }, "Copy summary");
-    const copyNote = h("span", { class: "small muted hm-an-copynote", "aria-hidden": "true" });
+    const copyNote = h("p", { class: "small muted hm-an-copynote" });
     const head = h("div", { class: "hm-an-head" }, h("h2", { class: "hm-panel-title" }, "Analysis"), copyBtn);
-    const sr = h("p", { class: "sr-only", role: "status", "aria-live": "polite" });
 
     const postureBox = h("div", { class: "hm-an-posture" });
     const angleTable = h("table", { class: "data hm-an-table" });
@@ -271,7 +270,7 @@ export default {
     const modelBox = h("div", { class: "hm-an-model small" });
 
     const sec = (title, body, open = true) => h("details", { class: "hm-an-sec", open: open ? true : null }, h("summary", {}, title), h("div", { class: "hm-an-body" }, body));
-    const root = h("div", { class: "hm-an" }, head, verdict, copyNote, sr,
+    const root = h("div", { class: "hm-an" }, head, verdict, copyNote,
       sec("Posture", postureBox),
       sec("Joint angles and ISO 11226 indications", [
         h("p", { class: "small muted" }, "Chips are indications from a simplified model for postures held longer than 4 seconds, not a risk assessment."),
@@ -290,14 +289,12 @@ export default {
       const k = JSON.stringify(key);
       if (sigs.get(box) === k) return;
       sigs.set(box, k);
-      const kids = build();
-      if (box.tagName === "TABLE") box.replaceChildren(...kids); else box.replaceChildren(...[].concat(kids));
+      const kids = [].concat(build()).filter((k) => k != null && k !== false);
+      box.replaceChildren(...kids);
     }
     const cell = (c) => {
       if (!c || c.value == null) return h("td", { class: "num" }, "—");
-      const bits = [h("span", { class: "hm-an-val" }, deg(c.value))];
-      if (c.severity) bits.push(" ", chip(c.severity));
-      return h("td", { class: "num", "data-sev": c.severity ?? "none" }, bits);
+      return h("td", { class: "num", "data-sev": c.severity ?? "none" }, h("span", { class: "hm-an-val" }, deg(c.value)), c.severity ? chip(c.severity) : null);
     };
     function draw(d) {
       if (!d.ready) { if (verdict.textContent !== d.verdict) verdict.textContent = d.verdict; return; }
@@ -349,7 +346,7 @@ export default {
         const row = (name, angle, bands, idx, extra) => h("tr", {}, h("th", { scope: "row" }, name), h("td", { class: "num" }, deg(angle)), h("td", {}, band(bands, idx)), h("td", { class: "small" }, extra || ""));
         const mods = (o, keys) => keys.filter(([k]) => o[k]).map(([, t]) => t).join(", ");
         return [
-          h("table", { class: "data hm-an-table" },
+          h("div", { class: "hm-an-scroll" }, h("table", { class: "data hm-an-table" },
             h("caption", { class: "sr-only" }, "REBA angle bands of the figure: the angle and the band it falls in, no score"),
             h("thead", {}, h("tr", {}, h("th", { scope: "col" }, "Segment"), h("th", { scope: "col", class: "num" }, "Angle"), h("th", { scope: "col" }, "Band"), h("th", { scope: "col" }, "Modifiers"))),
             h("tbody", {},
@@ -361,7 +358,7 @@ export default {
                 row(`Wrist (${SIDE_WORD[s]})`, rb.wrist[s].angle, REBA_BANDS.wrist, rb.wrist[s].bandIndex, mods(rb.wrist[s], [["deviated", "deviated"], ["twisted", "twisted"]])),
               ]),
               ...["L", "R"].map((s) => row(`Knee (${SIDE_WORD[s]})`, rb.legs[s].flexion, REBA_BANDS.legs, rb.legs.seated ? null : rb.legs[s].bandIndex, rb.legs.seated ? "seated: knees are not scored" : ""))),
-          ),
+          )),
           h("p", { class: "small muted" }, `Legs: ${rb.legs.support}. ${rb.source}. Bands as in the REBA worksheets; the modifiers' thresholds are this tool's (approx.).`),
         ];
       });
@@ -429,10 +426,9 @@ export default {
         const text = X.summaryText(inp, rows);
         const ok = await writeClipboard(text);
         const msg = ok ? "Summary copied." : "The browser would not copy. Select the text in the export tab instead.";
-        sr.textContent = ""; setTimeout(() => { sr.textContent = msg; }, 30);
-        copyNote.textContent = msg; copyNote.removeAttribute("aria-hidden");
-        setTimeout(() => { copyNote.textContent = ""; copyNote.setAttribute("aria-hidden", "true"); }, 2500);
-        if (!ok) toast(msg);
+        toast(msg); // the site's toast is a status message: it is the one announcement of the result (the headline verdict is the only live region of the panel)
+        copyNote.textContent = msg;
+        setTimeout(() => { copyNote.textContent = ""; }, 2500);
         root.dataset.copied = ok ? "1" : "0";
         root.__summary = text; // read by the browser test
       } catch (e) {

@@ -58,7 +58,11 @@
 .hm-an-table { font-size: .82rem; }
 .hm-an-table th, .hm-an-table td { padding: 5px 6px; }
 .hm-an-table tbody th { font-weight: 500; color: var(--text); }
-.hm-an-table td.num { white-space: nowrap; }
+.hm-an-table td.num { white-space: normal; }
+.hm-an-table td.num .hm-an-chip { display: block; width: fit-content; margin: 2px 0 0 auto; white-space: normal; text-align: center; }
+.hm-an-table tbody th { width: 34%; min-width: 5.2em; overflow-wrap: break-word; }
+.hm-an-table td.num { min-width: 3.6em; }
+.hm-an-table td[colspan] .hm-an-chip { display: inline-block; margin: 0 0 0 4px; }
 .hm-an-val { font-variant-numeric: tabular-nums; font-weight: 600; }
 .hm-an-chip { font-size: .7rem; padding: 0 6px; vertical-align: 1px; }
 .hm-an-notes, .hm-an-gaps, .hm-an-reach { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; color: var(--text-2); }

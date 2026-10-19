@@ -268,6 +268,7 @@ export function createPlacer({ ctx, sandbox, editor, ik, metrics = null, schedul
     if (!d || !d.pending) return;
     const p = d.pending;
     d.pending = null;
+    d.moved = true;
     try { editor.setAnchor({ x: d.a0.x + p.x - d.grab.x, z: d.a0.z + p.z - d.grab.z }, { record: false }); } catch (e) { console.warn("placer: drag failed:", e); }
     emit("drag");
   };
@@ -277,8 +278,9 @@ export function createPlacer({ ctx, sandbox, editor, ik, metrics = null, schedul
     if (!d) return;
     S.floorDrag = null;
     if (dragRaf) { (scheduler?.cancelFrame ?? globalThis.cancelAnimationFrame)?.(dragRaf); dragRaf = null; }
-    if (commit && d.pending) { try { editor.setAnchor({ x: d.a0.x + d.pending.x - d.grab.x, z: d.a0.z + d.pending.z - d.grab.z }, { record: false }); } catch { /* gone */ } }
+    if (commit && d.pending) { d.moved = true; try { editor.setAnchor({ x: d.a0.x + d.pending.x - d.grab.x, z: d.a0.z + d.pending.z - d.grab.z }, { record: false }); } catch { /* gone */ } }
     if (!commit) { try { editor.setAnchor({ x: d.a0.x, z: d.a0.z }, { record: false }); } catch { /* gone */ } }
+    if (d.moved) editor.commit("Move the figure", "floor-drag"); // setAnchor without record leaves the gesture clean: this is the one step
     d.gesture.end();
     releaseOrbit();
     viewport.setCursor?.("grab");
@@ -385,7 +387,7 @@ export function createPlacer({ ctx, sandbox, editor, ik, metrics = null, schedul
       res = seatReport();
     } catch (e) { g.end(); return fail(`Could not sit on ${obj.name}: ${e.message}`); } finally { g.end(); }
     emit();
-    return { ok: true, report: res, message: `Sitting on ${obj.name}. ${res.messages.join(" ")}`.trim() };
+    return { ok: true, report: res, headline: `Sitting on ${obj.name}.`, message: `Sitting on ${obj.name}. ${res.messages.join(" ")}`.trim() };
   }
   /** The seat height (surface at its centre) that puts the lowest seat contact of the CURRENT pose at `level` metres. */
   function setSeatSurface(objectId, level, what) {
@@ -396,12 +398,15 @@ export function createPlacer({ ctx, sandbox, editor, ik, metrics = null, schedul
     const ps = byType(obj.type).params.find((p) => p.key === key), want = obj.params[key] + (level - sup.y);
     const next = normalizeParams(obj.type, { ...obj.params, [key]: want })[key];
     const clamped = Math.abs(next - want) > 1e-6;
-    if (Math.abs(next - obj.params[key]) > 1e-9) sandbox.setParam(objectId, key, next);
+    if (Math.abs(next - obj.params[key]) > 1e-9) {
+      sandbox.setParam(objectId, key, next);
+      editor.commit("Adjust the seat height"); // the figure followed the seat (editor.syncChair); this keeps the editor's history in step with it
+    }
     const report = seatReport();
     const pname = ps.label.split(" (")[0].toLowerCase();
     const msg = clamped ? `The ${pname} of ${obj.name} can only go ${next < want ? "up" : "down"} to ${fmtMm(next)}, ${fmtMm(Math.abs(want - next))} short of what ${what} needs.` : `The ${pname} of ${obj.name} is now ${fmtMm(next)}.`;
     emit();
-    return { ok: true, clamped, param: key, from: obj.params[key], to: next, wanted: want, report, message: `${msg} ${report.messages.join(" ")}`.trim() };
+    return { ok: true, clamped, param: key, from: obj.params[key], to: next, wanted: want, report, headline: msg, message: `${msg} ${report.messages.join(" ")}`.trim() };
   }
   /** Set the seat height so that this body's popliteal rule holds (pose.js seatHeightFor: the ISO 7250-1 posture rests its soles on the floor). */
   function adjustSeatToBody(objectId = editor.place.seat.objectId) {
@@ -791,7 +796,7 @@ export function createPlacer({ ctx, sandbox, editor, ik, metrics = null, schedul
 // ---------------------------------------------------------------------------------------------------------------------
 // one placer per viewport, like the sandbox and the editor
 const registry = new WeakMap();
-/** The placer of a ctx's viewport (created with the editor, the sandbox and the modules it needs; async because ik.js and the editor are loaded on demand). */
+/** The placer of a ctx's viewport (created with the editor, the sandbox and the modules it needs; async because ik.js and the editor are loaded on demand). Pair with releasePlace(). */
 export async function placeFor(ctx) {
   const vp = ctx.viewport;
   let p = registry.get(vp);
@@ -806,6 +811,9 @@ export async function placeFor(ctx) {
   return p;
 }
 export const peekPlace = (vpOrCtx) => registry.get(vpOrCtx?.viewport ?? vpOrCtx) ?? null;
+/** Count a user of the shared placer (acquirePlace is placeFor plus a count); the last releasePlace disposes it. */
+export async function acquirePlace(ctx) { const p = await placeFor(ctx); p.refs = (p.refs ?? 0) + 1; return p; }
+export function releasePlace(ctx) { const p = peekPlace(ctx); if (p && (p.refs = (p.refs ?? 1) - 1) <= 0) p.dispose(); }
 
 // ---------------------------------------------------------------------------------------------------------------------
 // the controls (DOM). Styles: site/human-analysis.css (prefix hm-pl-).
@@ -861,7 +869,7 @@ export function mountPlace(container, ctx) {
     box.replaceChildren();
     if (!res) return;
     const level = !res.ok ? "warn" : res.reachable === false ? "warn" : "info";
-    box.append(notice(res.message, { level }), ...extra);
+    box.append(notice(res.headline ?? res.message, { level }), ...extra);
     say(res.message);
   };
   const needs = (fn) => (...a) => { if (!placer) { say("The controls are still loading."); return; } try { return fn(...a); } catch (e) { console.error("place:", e); const m = `That did not work: ${String(e?.message ?? e).slice(0, 160)}`; say(m); ctx.toast?.(m); } };
@@ -976,8 +984,8 @@ export function mountPlace(container, ctx) {
   }
   let seatedPostures = null;
   function postureItems() {
-    if (!seatedPostures) return [{ value: "current", label: "Keep the posture (seated upright if standing)" }];
-    return [{ value: "current", label: "Keep the posture (seated upright if standing)" }, ...seatedPostures];
+    const keep = { value: "current", label: "Keep the current posture" };
+    return seatedPostures ? [keep, ...seatedPostures] : [keep];
   }
   function refresh() {
     frame = 0;
@@ -1017,7 +1025,8 @@ export function mountPlace(container, ctx) {
       pelvisBox.disabled = placer.spot().mode !== "floor";
       // posture prop
       const pp = placer.postureProp();
-      propText.textContent = pp ? `${pp.posture.name} uses ${pp.prop.name.toLowerCase()} (${pp.prop.role === "held" ? "held in the hands" : "something to lean on or hold"}).${pp.prop.note ? ` ${pp.prop.note.charAt(0).toUpperCase()}${pp.prop.note.slice(1)}.` : ""}` : "The posture on the figure does not use an object. Choose a posture such as Holding a crate in the Posture tab.";
+      const note = pp?.prop.note.trim().replace(/\.+$/, "");
+      propText.textContent = pp ? `${pp.posture.name} uses ${pp.prop.name.toLowerCase()} (${pp.prop.role === "held" ? "held in the hands" : "something to sit on, lean on or hold"}).${note ? ` ${note.charAt(0).toUpperCase()}${note.slice(1)}.` : ""}` : "The posture on the figure does not use an object. Choose a posture such as Holding a crate in the Posture tab.";
       propBtn.disabled = !pp;
       // reach
       const targets = placer.reachTargets();
@@ -1025,9 +1034,9 @@ export function mountPlace(container, ctx) {
       reachBtn.disabled = !targets.length;
       envChip.setPressed(placer.envelopeOn);
       // sight
-      const ds = placer.displays(), pick = sel && !ds.some((d) => d.id === sel.id) ? [{ id: sel.id, name: sel.name }] : [];
-      fillSelect(dispSel, [...ds, ...pick].length ? [...ds, ...pick].map((d) => ({ value: d.id, label: d.name })) : [{ value: "", label: "No display in the scene" }]);
-      if (sel && !chosen.disp && [...ds, ...pick].some((d) => d.id === sel.id)) dispSel.value = sel.id;
+      const ds = placer.displays(), pick = sel && !ds.some((d) => d.id === sel.id) ? [{ id: sel.id, name: `${sel.name} (selected)` }] : [], all = [...ds, ...pick];
+      fillSelect(dispSel, all.length ? all.map((d) => ({ value: d.id, label: d.name })) : [{ value: "", label: "No display in the scene" }]);
+      if (!chosen.disp && all.length) dispSel.value = (sel && ds.some((d) => d.id === sel.id) ? sel.id : ds[0]?.id) ?? sel?.id ?? all[0].id;
       lookBtn.disabled = viewBtn.disabled = !dispSel.value;
       const v = dispSel.value ? placer.viewOf(dispSel.value) : null;
       const sf = v ? [`Distance eye to display: ${fmtLength(mm(v.distance), unit())}; centre ${f1(Math.abs(v.declination))}° ${v.declination >= 0 ? "below" : "above"} the horizontal.`, ...(v.visualH != null ? [`It fills ${f1(v.visualH)}° across${v.visualV != null ? ` and ${f1(v.visualV)}° high` : ""}.`] : []), ...(v.incidence != null ? [`The line of sight is ${f1(v.incidence)}° off the screen normal.`] : [])] : ["Choose a display to see the distance and visual angle."];
@@ -1041,8 +1050,8 @@ export function mountPlace(container, ctx) {
   for (const [k, sel] of [["seat", seatSel], ["obj", objSel], ["disp", dispSel]]) sel.addEventListener("change", () => { chosen[k] = true; sig.delete(gripSel); schedule(); });
 
   const ready = (async () => {
-    placer = await placeFor(ctx);
-    if (disposed) return;
+    placer = await acquirePlace(ctx);
+    if (disposed) { releasePlace(ctx); placer = null; return; }
     const ed = peekEditorRef();
     if (ed) ed.refs = (ed.refs ?? 0) + 1;
     offs.push(placer.onChange(() => schedule()));
@@ -1066,9 +1075,11 @@ export function mountPlace(container, ctx) {
       disposed = true;
       if (frame) cancelAnimationFrame(frame);
       for (const f of offs.splice(0)) { try { f(); } catch { /* gone */ } }
-      try { placer?.dispose(); } catch { /* gone */ }
+      const had = placer;
+      if (had) { try { had.setFloorDrag(false); had.showEnvelope(false); } catch { /* gone */ } }
       const ed = peekEditorRef();
-      if (ed && placer && (ed.refs = (ed.refs ?? 1) - 1) <= 0) { try { ed.dispose(); } catch { /* gone */ } }
+      if (had) releasePlace(ctx);
+      if (ed && had && (ed.refs = (ed.refs ?? 1) - 1) <= 0) { try { ed.dispose(); } catch { /* gone */ } }
       root.remove();
       releaseSandbox(ctx);
     },

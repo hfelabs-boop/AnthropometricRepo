@@ -12,6 +12,7 @@ import { sliderRow, section, segmented, chipButton, emptyState, notice, nextId, 
 import { CATALOG, CATEGORIES, byType, SWATCHES, buildObject, disposeObject } from "../catalog.js";
 import { acquireSandbox, releaseSandbox, TEMPLATES, GRID_STEPS_MM, ANGLE_STEPS, MAX_OBJECTS, MAX_TEXT } from "../sandbox.js";
 import { acquireMeasure, releaseMeasure } from "../measure.js";
+import { mountPlace } from "../place.js";
 
 const CSS_URL = new URL("../../../human-scene.css", import.meta.url).href;
 
@@ -552,6 +553,7 @@ export default {
     // ---- place the human (another module renders into this container) ----------------------------------------------------------------------------------------------
     const placeSection = section("Place the human", [sandbox.placeContainer ?? h("div", { id: "hm-place-human", class: "hm-place" })], { open: true, className: "hm-sc-place" });
     const placeEl = placeSection.querySelector("#hm-place-human");
+    const placeMount = placeEl ? mountPlace(placeEl, ctx) : null;   // sit on a chair, grab with IK, reach checks (place.js)
     const checkPlace = () => { placeSection.hidden = !placeEl || placeEl.childElementCount === 0; };
     const placeMO = typeof MutationObserver !== "undefined" ? new MutationObserver(checkPlace) : null;
     placeMO?.observe(placeEl, { childList: true });
@@ -644,6 +646,7 @@ export default {
         document.removeEventListener("visibilitychange", onVisibility);
         if (raf && typeof cancelAnimationFrame === "function") cancelAnimationFrame(raf);
         placeMO?.disconnect();
+        placeMount?.dispose();
         dock.dispose();
         dropThumbRequests(owner);
         sandbox.setInteraction({ pick: false, drag: false, gizmo: false });
