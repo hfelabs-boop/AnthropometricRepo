@@ -669,7 +669,12 @@ async function build(undo) {
   updateStatus();
   renderNotices();
   renderInspector();
-  tabs.select(PANELS[0].id);
+  // ?panel=<id> in the address selects that panel (the top navigation's "Postures" link uses ?panel=posture); the hash is followed while open.
+  const panelFromHash = () => { const id = new URLSearchParams(location.hash.split("?")[1] ?? "").get("panel"); return PANELS.some((p) => p.id === id) ? id : null; };
+  tabs.select(panelFromHash() ?? PANELS[0].id);
+  const onHashPanel = () => { const id = panelFromHash(); if (id && id !== activeTab && !disposed) tabs.select(id); };
+  window.addEventListener("hashchange", onHashPanel);
+  disposers.push(() => window.removeEventListener("hashchange", onHashPanel));
   if (!stylesOk) stylesNotice();
   updateFades();
   if (!shown) viewport.setActive(false);

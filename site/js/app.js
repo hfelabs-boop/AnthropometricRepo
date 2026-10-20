@@ -32,7 +32,9 @@ async function route() {
   if (current && current !== view && inits[current]) (await inits[current].catch(() => null))?.onHide?.();   // views that animate stop while hidden
   current = view;
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== view;
-  $$(".tab").forEach(t => { if (t.dataset.view === view) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current"); });
+  // A nav link may carry data-panel (the Postures link is #/human?panel=posture): it is current only for that panel.
+  const panel = readHash().params.get("panel");
+  $$(".tab").forEach(t => { if (t.dataset.view === view && (t.dataset.panel ? t.dataset.panel === panel : !panel || view !== "human")) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current"); });
   closeSidebars();
   document.title = `${{ catalog: "Survey catalog", explore: "Explore data", compare: "By country & role", human: "Digital human", sql: "SQL console", measures: "Measures", tables: "Tables", papers: "Papers", about: "About" }[view]} · Military Anthropometric Surveys`;
   if (view === "catalog" && !inits.catalog) inits.catalog = Promise.resolve(initCatalog(catalogData, papersData));

@@ -1131,6 +1131,7 @@ export function createEditor(options = {}) {
   };
   /** The seat height now in metres (null when the carriers have no seat). */
   function currentSeatHeight() {
+    if (!getRig()) return null; // before the figure exists there is no seat to read: the panel waits for it instead of throwing
     const r = rig();
     return Object.values(carriersOf()).includes("seat") ? seatHeightOf(S.place, r) : null;
   }
