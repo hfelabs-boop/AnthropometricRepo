@@ -31,7 +31,7 @@
 import * as THREE from "three";
 import { h, toast, download } from "../util.js";
 import { createViewport, VIEW_ORDER, VIEW_PRESETS } from "./viewport.js";
-import { createStore, createPipeline, loadDefaultProfile, withTimeout, loadPrefs, savePrefs, prefsDisplay, impliedXray, LENGTH_UNITS } from "./state.js";
+import { createStore, createPipeline, loadDefaultProfile, withTimeout, loadPrefs, savePrefs, prefsDisplay, impliedXray, LENGTH_UNITS, SKIN_STYLES } from "./state.js";
 import { chipButton, segmented, roving, tablist, notice, emptyState, icon, fmtLength, UNIT_LABEL } from "./ui.js";
 import { JOINT_BY_ID, BONE_BY_ID, GROUPS } from "./skeleton.js";
 
@@ -56,6 +56,7 @@ const DISPLAY_TOGGLES = [
 const MODEL_NOTES = [
   "Rigid links: the skeleton is a set of rigid segments between approximate joint centres, estimated from external measurements. Real joint centres differ by a few centimetres.",
   "Ranges of motion are rounded textbook values for healthy adults, widened in places so that deep squats and floor sitting can be shown. They are not clinical limits.",
+  "The realistic skin is the Blender Studio Human Base Mesh (CC0) of the body's sex, rigged to this skeleton and scaled to the body's segment lengths, girths, head, hand and foot sizes. Its shape between the measured sections is that one person's, not the profile's; the Mannequin switch shows the shape built from the fitted sections alone.",
   "There is no soft-tissue model: the skin follows the bones but does not compress, bulge or fold, so contact with seats and objects is approximate.",
   "There is no strength, fatigue, comfort or injury model. This is a visualisation for design studies, not a safety or certification tool.",
   "Population profiles are boundary cases: a P95 body takes the 95th percentile of every measure on its own, which no real person has. Measures a survey does not publish are estimated from stature and mass and are marked as estimated.",
@@ -150,9 +151,13 @@ async function build(undo) {
   for (const [key, label, title] of DISPLAY_TOGGLES) {
     toggleBtns[key] = chipButton({ label, title, toggle: true, pressed: state.display[key], onClick: () => ctx.setDisplay({ [key]: !state.display[key] }) });
   }
+  const styleSeg = segmented({ label: "Skin style", value: state.skinStyle, onChange: (v) => ctx.setSkinStyle(v), options: [
+    { value: "realistic", label: "Realistic", title: "A realistic body (Blender Studio Human Base Meshes, CC0) fitted to the profile's measurements" },
+    { value: "mannequin", label: "Mannequin", title: "The procedural mannequin, built from the fitted body's sections" },
+  ] });
   const viewGroup = h("div", { class: "hm-group", role: "toolbar", "aria-label": "Camera view" }, viewSeg, fitBtn);
   const toolGroup = h("div", { class: "hm-group", role: "toolbar", "aria-label": "Units and tools" }, unitsSeg.el, shotBtn, helpBtn);
-  const dispGroup = h("div", { class: "hm-group", role: "toolbar", "aria-label": "Display options" }, Object.values(toggleBtns));
+  const dispGroup = h("div", { class: "hm-group", role: "toolbar", "aria-label": "Display options" }, Object.values(toggleBtns), styleSeg.el);
   const [, , dispRoving] = [viewGroup, toolGroup, dispGroup].map((g) => roving(g, { selector: "button" }));
   const busyText = h("span", {}, "Building the model…");
   const busyEl = h("div", { class: "hm-busy", role: "status", hidden: true }, h("div", {}, h("div", { class: "spinner" }), busyText));
@@ -222,6 +227,7 @@ async function build(undo) {
       setUnits(u) { store.setUnits(u); },
       fmt: (mm, o) => fmtLength(mm, state.units, o),
       setDisplay(partial) { store.setDisplay(partial); },
+      setSkinStyle(v) { if (v !== state.skinStyle && SKIN_STYLES.includes(v)) { state.skinStyle = v; styleSeg.set(v); store.emit("skinStyle", v); pipeline.rebuild(); } },
       setQuality(q) { if (q !== state.quality) { state.quality = state.qualityChoice = q; viewport.setQuality(q); store.emit("quality", q); pipeline.rebuild(); } },
       setView, frame: frameFigure,
       setVerdict(v) { if (state.postureVerdict !== v) { state.postureVerdict = v ?? null; store.emit("verdict", state.postureVerdict); } },
@@ -263,7 +269,7 @@ async function build(undo) {
   // (a fetch error also comes from a body.js whose own imports are broken, or from a network failure).
   let skinMissing = false, skinProblem = null;
   const fetchFailure = (e) => e instanceof TypeError && /fetch|import|module script/i.test(e.message);
-  async function loadSkinBuilder() {
+  async function loadMannequin() {
     if (skinMissing) return undefined;
     try {
       const m = await loadModule("body");
@@ -278,6 +284,29 @@ async function build(undo) {
       return undefined;
     }
   }
+  // The realistic skin needs realskin.js and the mesh of the body's sex (about 1.3 MB, fetched once). When either fails the mannequin is shown instead,
+  // with a notice; the next build tries again.
+  async function loadSkinBuilder(body) {
+    if (state.skinStyle === "realistic") {
+      try {
+        const m = await loadModule("realskin");
+        const asset = await m.loadRealSkin(m.skinSexOf(body));
+        store.dismissNotice("realskin");
+        const fallback = await loadMannequin();
+        return (b, bones, opts) => {
+          try { return m.buildRealSkin(asset, b, bones, opts); } catch (e) {
+            if (!fallback) throw e;
+            console.warn("Digital human: the realistic skin does not fit this body, showing the mannequin:", e);
+            return fallback(b, bones, opts); // a body without the landmarks or sections the fitting reads (a generic body, an import)
+          }
+        };
+      } catch (e) {
+        console.warn("Digital human: the realistic skin could not be loaded, showing the mannequin:", e);
+        store.addNotice({ id: "realskin", level: "warn", text: `The realistic skin could not be loaded (${msg(e)}). Showing the mannequin instead.` });
+      }
+    } else store.dismissNotice("realskin");
+    return loadMannequin();
+  }
   const deps = {
     async fit(profile) {
       const m = await loadModule("fit").catch(() => { throw new Error("the fitting module (fit.js) is not available"); });
@@ -290,7 +319,7 @@ async function build(undo) {
     },
     async buildRig(body, { quality }) {
       const m = await loadModule("rig").catch(() => { throw new Error("the rig module (rig.js) is not available"); });
-      return m.buildRig(body, { skinBuilder: await loadSkinBuilder(), skeleton: true, quality });
+      return m.buildRig(body, { skinBuilder: await loadSkinBuilder(body), skeleton: true, quality });
     },
     async swap(rig, previous) {
       let pose = null, grounded = false, lift = 0;
@@ -401,6 +430,7 @@ async function build(undo) {
   });
   store.on("units", (u) => { unitsSeg.set(u); updateStatus(); renderInspector(); persist(); });
   store.on("quality", () => { updateStatus(); persist(); });
+  store.on("skinStyle", () => persist());
   store.on("profile", () => updateStatus());
   store.on("posture", () => updateStatus());
   store.on("verdict", () => updateStatus());
