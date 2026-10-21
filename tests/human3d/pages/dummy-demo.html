@@ -1,0 +1,40 @@
+<!doctype html><meta charset="utf-8"><title>dummy demo</title>
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<style>body{margin:0;background:#f6f6f4}canvas{display:block}</style>
+<canvas id="c" width="900" height="900"></canvas>
+<script type="module">
+import * as THREE from "three";
+import { fitBody } from "/js/human/fit.js";
+import { percentileProfile } from "/js/human/anthro.js";
+import { buildRig } from "/js/human/rig.js";
+const pop = await (await fetch("/api/v1/populations/united-states/army/M.json")).json();
+const body = fitBody(percentileProfile(pop, { percentile: 50 }));
+const rig = buildRig(body, { skeleton: false });
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById("c"), antialias: true });
+r.setClearColor(0xf6f6f4); const s = new THREE.Scene();
+s.add(new THREE.HemisphereLight(0xffffff, 0x667788, 1.6)); const d = new THREE.DirectionalLight(0xffffff, 1.8); d.position.set(2, 4, 3); s.add(d);
+const grid = new THREE.GridHelper(4, 16, 0xcccccc, 0xe4e4e0); s.add(grid);
+const mat = new THREE.MeshStandardMaterial({ color: 0xd9d4cc, roughness: .55 });
+const matJ = new THREE.MeshStandardMaterial({ color: 0x2a78d6, roughness: .5 });
+// capsule per bone; radius from the fitted section rings where there is one, else a table
+const R = { head: .095, C: .055, T: .085, L: .095, pelvis: .12, clavicle: .05, shoulder: .052, elbow: .042, forearm: .038, wrist: .03, hip: .082, knee: .062, ankle: .045, mtp: .03 };
+const rad = (id) => { const k = Object.keys(R).find(k => id.startsWith(k)); return k ? R[k] : .012; };
+const a = new THREE.Vector3(), b = new THREE.Vector3();
+for (const [id, bone] of rig.bones) {
+  const parent = bone.parent; if (!parent || !parent.isBone) continue;
+  bone.getWorldPosition(a); parent.getWorldPosition(b);
+  const len = a.distanceTo(b); if (len < .01) continue;
+  const rr = Math.min(rad(id), len * .9);
+  const g = new THREE.CapsuleGeometry(rr, Math.max(0, len - 2 * rr * .2), 6, 14);
+  const m = new THREE.Mesh(g, /thumb|index|middle|ring|little|eye|jaw/.test(id) ? mat : mat);
+  m.position.copy(a).add(b).multiplyScalar(.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+  s.add(m);
+  if (/^(shoulder|elbow|wrist|hip|knee|ankle)_/.test(id)) { const j = new THREE.Mesh(new THREE.SphereGeometry(rr * 1.05, 16, 12), matJ); j.position.copy(a); s.add(j); }
+}
+// head as an ellipsoid at the head joint
+const hb = rig.bones.get("head"); hb.getWorldPosition(a);
+const head = new THREE.Mesh(new THREE.SphereGeometry(.1, 24, 18), mat); head.scale.set(.78, 1.05, .95); head.position.copy(a).add(new THREE.Vector3(0, .09, .01)); s.add(head);
+const cam = new THREE.PerspectiveCamera(30, 1, .1, 20); cam.position.set(1.6, 1.3, 3.2); cam.lookAt(0, .95, 0);
+r.render(s, cam); window.__ready = true;
+</script>
