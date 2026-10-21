@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ui helpers demo</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/human.css">
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+</head>
+<body style="padding:16px; max-width: 420px">
+<!-- Demo / test page of ui.js: slider rows, sections, badges, notices, segmented control, tab list. Events are logged in window.log. -->
+<div id="root"></div>
+<script type="module">
+import { sliderRow, section, badge, notice, emptyState, segmented, tablist, roving, chipButton, comingSoon, fmtLength } from "/js/human/ui.js";
+const log = (window.log = []);
+const root = document.getElementById("root");
+const sl = sliderRow({ label: "Elbow flexion", min: -5, max: 150, step: 0.5, value: 20, unit: "°", hint: "0 = straight",
+  onInput: (v) => log.push(["input", v]), onChange: (v) => log.push(["change", v]) });
+const mm = sliderRow({ label: "Stature", min: 1400, max: 2100, step: 1, value: 1755, unit: "mm", onChange: (v) => log.push(["stature", v]) });
+const seg = segmented({ label: "Units", options: [{ value: "mm", label: "mm" }, { value: "cm", label: "cm" }], value: "mm", onChange: (v) => log.push(["seg", v]) });
+const tl = tablist({ label: "Demo tabs", tabs: [{ id: "a", label: "Alpha" }, { id: "b", label: "Beta" }, { id: "c", label: "Gamma" }], onSelect: (id) => log.push(["tab", id]), idPrefix: "demo" });
+const sec = section("Spine", [sl.el, mm.el], { open: true, count: 2 });
+const closed = section("Hands", h2("p", "hidden until opened"), { open: false });
+function h2(tag, text) { const e = document.createElement(tag); e.textContent = text; return e; }
+const chip = chipButton({ label: "Joints", toggle: true, pressed: false, onClick: (e, el) => { el.setPressed(el.getAttribute("aria-pressed") !== "true"); log.push(["chip", el.getAttribute("aria-pressed")]); } });
+const dismissed = notice("Something happened", { level: "warn", onDismiss: () => log.push(["dismiss"]) });
+root.append(tl.el, sec, closed, badge("measured", "good"), badge("estimated", "warn"), emptyState("Nothing here", "Add something."), dismissed, seg.el, chip);
+const soon = document.createElement("div"); root.append(soon);
+const live = { on: (evt, fn) => { window.__fire = fn; return () => log.push(["off", evt]); } };
+window.__soon = comingSoon(soon, { title: "Demo", blurb: "A stub.", ctx: live, live: () => "live " + (window.__n = (window.__n || 0) + 1) });
+window.__ui = { sl, mm, seg, tl, chip, fmtLength };
+window.__ready = true;
+</script>
+</body>
+</html>

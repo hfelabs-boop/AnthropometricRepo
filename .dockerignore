@@ -1,0 +1,7 @@
+.git
+public
+reports
+data
+site
+docs
+**/__pycache__

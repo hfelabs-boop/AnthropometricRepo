@@ -1,0 +1,276 @@
+// Posture group "Kneeling & squatting" (ids kneel-*). Postures low to the ground: the squats from a quarter squat to the full squat (heels down, knees apart, on
+// the balls of the feet, forearms on the thighs, the plumber's squat bent over the work), the half-kneeling lunge and the side lunge, kneeling on both knees (toes
+// tucked, insteps down), and the postures on all fours: hands and knees, bear crawl, and the two ends of a push-up.
+// How the numbers were made: the sagittal angles by hand from the descriptions of the postures (hip and knee flexion of the squats and lunges after Hemmerich et al.
+// 2006 and Schoenfeld 2010, quoted from memory and marked "approx."), the ankle so that the soles are flat (dorsiflexion = knee flexion - hip flexion + pelvis tilt, plus
+// the inversion that the hip abduction needs), then a numerical search (Nelder-Mead on the angles that the description leaves open, with the penalties of validatePosture
+// and the measures of metrics.js as the objective) on the 5th-percentile woman, the median man, the 95th-percentile man, a stature-only 1.70 m man, the real heavy man
+// (database subject 8010), eight of the 176 population medians with the most different proportions and every median that still failed, then rounded to whole degrees,
+// checked by eye on contact sheets (tests/human3d/contact_sheet.py) and on all 176 medians (no failure). Semantic tests: tests/human3d/postures-kneeling-locomotion.test.mjs.
+// What the model cannot do with fixed angles, and what was done about it. The thigh, shank, arm and trunk lengths of the test bodies do not scale together: when two
+// supports must meet the floor (a rear knee and a front foot, hands and knees, hands and feet) the same angles leave one of them 30 to 100 mm too high or too low for another
+// body. hints.contactTolerance is not used (a 40 mm tolerance would not have covered the spread either: front foot against rear knee 104 mm over 37 bodies at the best hip and
+// knee angles tried, hands against knees or toes 5 to 95 mm). So (1) the squats, the side lunge and kneeling on the knees, which have ONE chain to the floor, touch for every
+// body; (2) the half-kneeling lunge is placed by the front foot, which is flat on the floor for every body, and the rear knee, which hovers 0.01 to 0.12 m above the floor
+// (the median man 0.07 m, the 5th-percentile woman 0.02 m); (3) the postures on all fours declare hints.externalSupport (the hands, which carry part of the weight and are
+// closed on the real floor by the sandbox with IK) and are tuned so that nothing sinks into the floor for any body: the palms float 0 to 50 mm for all but the heaviest
+// bodies (95 mm for the heavy man). Half-kneeling on the knee with the other foot flat, the low crawl on the forearms and knees and the forward lunge with the rear toes on the
+// floor are NOT here for that reason (measured: the foot or the elbow was 100 to 170 mm off the floor for part of the bodies, or sank); the low crawl is listed in the Military group.
+// Each entry is a Posture (typedef in ../pose.js, DESIGN.md 2.4); ../postures.js collects the 13 groups. Rules and checklist for authors: docs/human3d/POSTURES.md
+// and POSE.md. Their `category` must be "Kneeling & squatting". Left/right: the one-sided postures put the right foot forward and the left knee down or the left leg out
+// (right-handed convention); pose.js mirrorPose gives the other side.
+
+const FEET = ["heel_sole_L", "heel_sole_R", "ball_sole_medial_L", "ball_sole_medial_R", "ball_sole_lateral_L", "ball_sole_lateral_R"];
+
+export default [
+  {
+    id: "kneel-squat-quarter",
+    name: "Quarter squat (athletic ready)",
+    category: "Kneeling & squatting",
+    tags: ["squat", "quarter-squat", "ready", "feet-flat", "symmetric", "static"],
+    description: "Knees bent about 45 degrees, hips pushed back, trunk leaned forward about 30 degrees and the arms held forward for balance, feet flat and shoulder-width apart. The athletic ready position, the first part of a lift or a jump, and a posture of tool use at knee-to-hip height.",
+    source: "illustrative; knee flexion 40-50 deg is the usual definition of a quarter squat (Schoenfeld 2010, J Strength Cond Res 24:3497, approx.)",
+    support: "feet",
+    root: { flex: 23 },
+    spine: { lumbar: [5, 0, 0], thoracic: [5, 0, 0], cervical: [-8, 0, 0] },
+    joints: { hip_LR: [60, 0, 0], knee_LR: [45, 0], ankle_LR: [8, 0, 0], shoulder_LR: [40, 10, 0], elbow_LR: [20], head: [-4, 0, 0] },
+    grips: { L: "relaxed", R: "relaxed" },
+    contacts: FEET,
+  },
+  {
+    id: "kneel-squat-half",
+    name: "Half squat (thighs horizontal)",
+    category: "Kneeling & squatting",
+    tags: ["squat", "half-squat", "parallel", "feet-flat", "symmetric", "static"],
+    description: "A parallel squat: thighs about horizontal, knees bent about 110 degrees, heels down, the trunk leaned forward about 35 degrees (hip to C7) with the back straight and the arms held forward. The depth used for sitting without a seat, for low work and as the standard test depth of squat lifts.",
+    source: "illustrative; thighs parallel to the floor is the standard 'parallel squat' depth (Schoenfeld 2010, J Strength Cond Res 24:3497, approx.)",
+    support: "feet",
+    root: { flex: 26 },
+    spine: { lumbar: [11, 0, 0], thoracic: [11, 0, 0], cervical: [-10, 0, 0] },
+    joints: { hip_LR: [109, 0, 0], knee_LR: [108, 0], ankle_LR: [25, 0, 0], shoulder_LR: [78, 3, 0], elbow_LR: [15], head: [-5, 0, 0] },
+    grips: { L: "relaxed", R: "relaxed" },
+    contacts: FEET,
+  },
+  {
+    id: "kneel-squat-deep",
+    name: "Deep squat (heels down)",
+    category: "Kneeling & squatting",
+    tags: ["squat", "deep-squat", "full-squat", "heels-down", "feet-flat", "symmetric", "static"],
+    description: "A full squat with the buttocks close to the heels, heels flat on the floor, hips and knees flexed to the limit, the trunk leaned forward and the arms held forward to bring the weight over the feet. The rest and work position of many people who squat instead of sit; it needs about 30 degrees of ankle dorsiflexion.",
+    source: "Hemmerich et al. 2006 (J Orthop Res 24:770) and Schoenfeld 2010 (J Strength Cond Res 24:3497) for the range of motion (deep flexion: knee about 140-155 deg, ankle dorsiflexion 25-35 deg; from memory, approx.); the arms-forward counterbalance is illustrative",
+    support: "feet",
+    root: { flex: 10 },
+    spine: { lumbar: [14, 0, 0], thoracic: [23, 0, 0], cervical: [-10, 0, 0] },
+    joints: { hip_LR: [124, 10, 0], knee_LR: [140, 0], ankle_LR: [26, 10, 0], shoulder_LR: [96, 10, 0], elbow_LR: [15], head: [-5, 0, 0] },
+    grips: { L: "relaxed", R: "relaxed" },
+    contacts: FEET,
+  },
+  {
+    id: "kneel-squat-wide",
+    name: "Deep squat, knees apart (garland)",
+    category: "Kneeling & squatting",
+    tags: ["squat", "deep-squat", "wide-stance", "toes-out", "symmetric", "static"],
+    description: "A full squat with the feet wide apart and turned out about 15 degrees, the knees pushed outward over the feet, the trunk leaning forward about 20 degrees between the thighs and the hands together in front of the chest. The resting squat of daily life in many regions, and a way to work at floor level with the weight carried low and steady.",
+    source: "illustrative; hip abduction 19 deg and external rotation 14 deg of the thighs after the squat variants described in Hemmerich et al. 2006 (J Orthop Res 24:770, approx.)",
+    support: "feet",
+    root: { flex: 10 },
+    spine: { lumbar: [10, 0, 0], thoracic: [10, 0, 0], cervical: [-8, 0, 0] },
+    joints: { hip_LR: [121, 19, -12], knee_LR: [143, 0], ankle_LR: [32, 1, 0], shoulder_LR: [70, 8, 26], elbow_LR: [105], head: [-4, 0, 0] },
+    grips: { L: "relaxed", R: "relaxed" },
+    contacts: FEET,
+  },
+  {
+    id: "kneel-squat-heels-up",
+    name: "Squat on the balls of the feet",
+    category: "Kneeling & squatting",
+    tags: ["squat", "heels-up", "balls-of-feet", "crouch", "symmetric", "static"],
+    description: "A deep squat with the heels lifted by 0.1 m or more and the weight on the balls of the feet, the buttocks just above the heels, the trunk leaned forward and the forearms resting on the thighs. The catcher's crouch and the posture of picking, planting and inspecting at ground level when the ankles are too stiff for heels-down.",
+    source: "illustrative; heel-up squat with the metatarsophalangeal joints dorsiflexed about 40 deg, a common alternative to the heels-down squat (Hemmerich et al. 2006, J Orthop Res 24:770, approx.)",
+    support: "feet",
+    root: { flex: 15 },
+    spine: { lumbar: [11, 0, 0], thoracic: [7, 0, 0], cervical: [-10, 0, 0] },
+    joints: { hip_LR: [112, 0, 0], knee_LR: [135, 0], ankle_LR: [-18, 0, 0], mtp_LR: [53], shoulder_LR: [33, 6, 0], elbow_LR: [90], head: [-5, 0, 0] },
+    grips: { L: "relaxed", R: "relaxed" },
+    contacts: ["ball_sole_medial_L", "ball_sole_medial_R"],
+  },
+  {
+    id: "kneel-squat-elbows-on-knees",
+    name: "Squat, forearms resting on the thighs",
+    category: "Kneeling & squatting",
+    tags: ["squat", "inspect", "rest", "forearms-on-thighs", "symmetric", "static"],
+    description: "A low squat with the trunk leaned forward about 35 degrees and the elbows resting on the middle of the thighs, hands by the knees, head forward. Used to inspect, read or work with the hands just in front of the knees, and as a resting position that takes the weight off the arms.",
+    source: "illustrative; hips about 110 and knees about 130 deg of flexion, within the range of a deep squat (Hemmerich et al. 2006, J Orthop Res 24:770, approx.)",
+    support: "feet",
+    root: { flex: 16 },
+    spine: { lumbar: [11, 0, 0], thoracic: [18, 0, 0], cervical: [-8, 0, 0] },
+    joints: { hip_LR: [112, 6, 0], knee_LR: [131, 0], ankle_LR: [35, 6, 0], shoulder_LR: [23, 5, 0], elbow_LR: [98], forearm_LR: [-4], head: [-6, 0, 0] },
+    grips: { L: "relaxed", R: "relaxed" },
+    contacts: FEET,
+  },
+  {
+    id: "kneel-squat-plumber",
+    name: "Plumber's squat (working low in front)",
+    category: "Kneeling & squatting",
+    tags: ["squat", "work", "trunk-forward", "one-hand", "asymmetric", "static"],
+    description: "A deep squat with the trunk bent far forward over the thighs, the right arm reaching forward and down to a fixture at floor level, the left hand braced on the left knee. The posture of plumbers, installers and mechanics working under a sink, behind a toilet or low in a cabinet.",
+    source: "illustrative; trunk about 55 deg from vertical is in the 'not recommended' band of ISO 11226 (over 60 deg) only for long holds; squat depth after Hemmerich et al. 2006 (J Orthop Res 24:770, approx.)",
+    support: "feet",
+    root: { flex: 33 },
+    spine: { lumbar: [16, 0, 0], thoracic: [22, 0, 0], cervical: [-8, 0, 0] },
+    joints: {
+      hip_LR: [120, 8, 0], knee_LR: [122, 0], ankle_LR: [35, 8, 0], shoulder_R: [66, 11, 0], elbow_R: [30], shoulder_L: [9, 8, 0], elbow_L: [102],
+      head: [-12, 0, 0],
+    },
+    grips: { L: "relaxed", R: "power" },
+    contacts: FEET,
+    hints: {
+      prop: { type: "wrench", role: "held", grips: { R: "handle" }, note: "a wrench or a pipe fitting at floor level, about 0.35 m in front of the toes" },
+    },
+  },
+  {
+    id: "kneel-half-lunge",
+    name: "Half-kneeling lunge (left knee just off the floor)",
+    category: "Kneeling & squatting",
+    tags: ["lunge", "half-kneeling", "one-knee", "stride", "asymmetric", "legs", "dynamic"],
+    description: "The low end of a long step forward, and the half-kneeling position with the knee held off the floor: the right foot flat in front with the thigh about horizontal and the shin vertical, the left thigh leaning back about 25 degrees with the knee 0.02 to 0.12 m above the floor (it depends on the leg length) and the shin lying back, trunk upright, arms relaxed. For work at knee level, aiming, drills, and the start or end of getting up from the floor.",
+    source: "illustrative; front hip and knee flexed about 80 and 105 deg, rear hip extended 20 deg and rear knee flexed 70 deg (the half-kneeling and lunge end positions of exercise science, approx.); the rear knee cannot touch the floor for every body with fixed angles (the front foot and the rear knee are two chains of different proportions), so it floats by up to 0.12 m for the long-legged test bodies",
+    support: "feet",
+    root: { flex: 7 },
+    spine: { lumbar: [-2, 0, 0], thoracic: [0, 0, 0] },
+    joints: {
+      hip_R: [82, 0, 0], knee_R: [107, 0], ankle_R: [32, 0, 0], hip_L: [-20, 0, 0], knee_L: [69, 0], ankle_L: [-12, 0, 0], mtp_L: [49],
+      head: [0, 0, 0], shoulder_LR: [8, 6, 0], elbow_LR: [25],
+    },
+    grips: { L: "relaxed", R: "relaxed" },
+    contacts: ["heel_sole_R", "ball_sole_medial_R", "ball_sole_lateral_R"],
+    hints: { dynamic: true },
+  },
+  {
+    id: "kneel-lunge-side",
+    name: "Side lunge (left knee bent)",
+    category: "Kneeling & squatting",
+    tags: ["lunge", "side-step", "wide-stance", "asymmetric", "legs", "static"],
+    description: "A wide step to the side: the left hip and knee flexed with the weight over the left foot, the right leg straight and abducted with its foot flat, trunk leaned forward about 35 degrees and the hands clasped in front. The end position of a lateral lunge and of a sideways reach to the floor or a low shelf from a wide base.",
+    source: "illustrative; abduction of the straight leg about 25 deg (hip range 0-45 deg)",
+    support: "feet",
+    root: { flex: 31 },
+    spine: { lumbar: [5, 0, 0], thoracic: [6, 0, 0], cervical: [-6, 0, 0] },
+    joints: {
+      hip_L: [68, 7, 0], knee_L: [60, 0], ankle_L: [23, 7, 0], hip_R: [31, 34, 0], knee_R: [0, 0], ankle_R: [4, 35, 0], shoulder_LR: [68, 8, 0],
+      elbow_LR: [58], head: [-4, 0, 0],
+    },
+    grips: { L: "relaxed", R: "relaxed" },
+    contacts: FEET,
+  },
+  {
+    id: "kneel-upright-toes",
+    name: "Upright kneeling, toes tucked",
+    category: "Kneeling & squatting",
+    tags: ["kneeling", "two-knees", "upright", "toes-tucked", "symmetric", "static"],
+    description: "Kneeling on both knees with the thighs vertical, the trunk upright and the toes tucked under so that the heels point up, hands resting at the sides of the thighs. The posture of kneeling at a low bench or console, of prayer and ceremony, and the position from which one stands up quickest.",
+    source: "illustrative; hips neutral, knees about 95 deg flexed (the shins rise a little behind the knees), metatarsophalangeal joints dorsiflexed about 70 deg (toes-tucked kneeling)",
+    support: "knees+toes",
+    root: { flex: 3 },
+    joints: {
+      hip_LR: [-2, 0, 0], knee_LR: [93, 0], ankle_LR: [-2, 0, 0], mtp_LR: [68], shoulder_LR: [0, 6, 19], elbow_LR: [13], forearm_LR: [-1],
+      head: [0, 0, 0],
+    },
+    grips: { L: "relaxed", R: "relaxed" },
+    hints: {
+      externalSupport: "hands on the thighs",
+      prop: { type: "floor_tile", params: { size: 1, thickness: 0.02 }, role: "support", note: "a kneeling pad under the knees and toes (its top is the floor of the posture)" },
+    },
+  },
+  {
+    id: "kneel-upright-instep",
+    name: "Upright kneeling, insteps on the floor",
+    category: "Kneeling & squatting",
+    tags: ["kneeling", "two-knees", "upright", "instep", "two-hand", "symmetric", "static"],
+    description: "Kneeling on both knees and shins with the insteps down, thighs nearly vertical, trunk upright and the hands in front of the body at waist level. The posture of kneeling at a low table, of floor-level assembly, of ceremony and of weapon or tool work with the weight carried through the shins.",
+    source: "illustrative; shins and insteps on the floor need about 55 deg of ankle plantar flexion (range of motion of skeleton.js), kneeling postures after ISO 11226 3.1 (to be avoided for long holding)",
+    support: "knees",
+    root: { flex: 0 },
+    joints: { hip_LR: [5, 0, 0], knee_LR: [95, 0], ankle_LR: [-55, 0, 0], shoulder_LR: [40, 6, 0], elbow_LR: [90], head: [0, 0, 0] },
+    grips: { L: "relaxed", R: "relaxed" },
+  },
+  {
+    id: "kneel-quadruped",
+    name: "On hands and knees (quadruped)",
+    category: "Kneeling & squatting",
+    tags: ["quadruped", "hands-and-knees", "all-fours", "floor", "symmetric", "static"],
+    description: "Supported on both hands and both knees, hips above the knees and shoulders above the hands, back horizontal, arms almost straight, head raised to look forward. The start position of crawling and of floor-level tasks such as cleaning, laying tiles or looking under equipment.",
+    source: "illustrative; hips bent about 90 deg, knees about 120 deg (the shins rise a little behind the knees because the rigid foot cannot lie flat on the floor), arms near vertical (the quadruped position of exercise and rehabilitation, approx.)",
+    support: "hands-knees",
+    root: { flex: 81 },
+    spine: { lumbar: [3, 0, 0], thoracic: [4, 0, 0], cervical: [-8, 0, 0] },
+    joints: {
+      hip_LR: [90, 0, 0], knee_LR: [118, 0], ankle_LR: [-59, 0, 0], shoulder_LR: [119, 3, 0], elbow_LR: [6], wrist_LR: [-45, 0], forearm_LR: [90],
+      head: [-10, 0, 0],
+    },
+    grips: { L: "flat", R: "flat" },
+    hints: {
+      externalSupport: "hands on the floor",
+      prop: { type: "floor_tile", params: { size: 1, thickness: 0.02 }, role: "support", note: "the floor under the hands and knees (the figure is placed by its knees; the sandbox closes the hands on the floor)" },
+    },
+  },
+  {
+    id: "kneel-bear-crawl",
+    name: "Bear crawl (hands and feet, knees off the floor)",
+    category: "Kneeling & squatting",
+    tags: ["crawl", "bear-crawl", "hands-feet", "hips-high", "symmetric", "dynamic"],
+    description: "Supported on the hands and the balls of the feet with the knees bent about 110 degrees and held 0.06 to 0.1 m off the floor, hips about level with the shoulders, arms almost straight. A low, fast way of moving on all fours; also a training and a rescue position for crossing a low space.",
+    source: "illustrative; hips flexed about 100 deg, knees about 105 deg, knee clearance of about 0.1 m",
+    support: "hands-feet",
+    root: { flex: 85 },
+    spine: { cervical: [-23, 0, 0] },
+    joints: {
+      hip_LR: [101, 0, 0], knee_LR: [106, 0], ankle_LR: [14, 0, 0], mtp_LR: [45], shoulder_LR: [95, 3, 0], elbow_LR: [20], wrist_LR: [-66, 0],
+      forearm_LR: [35], head: [-10, 0, 0],
+    },
+    grips: { L: "flat", R: "flat" },
+    hints: {
+      dynamic: true, externalSupport: "hands on the floor",
+      prop: { type: "floor_tile", params: { size: 1, thickness: 0.02 }, role: "support", note: "the floor under the hands and feet (the figure is placed by its feet; the sandbox closes the hands on the floor)" },
+    },
+  },
+  {
+    id: "kneel-plank",
+    name: "Push-up position, arms straight (high plank)",
+    category: "Kneeling & squatting",
+    tags: ["push-up", "plank", "hands-feet", "front-support", "symmetric", "static"],
+    description: "Supported on the hands and the toes with the body straight from heels to shoulders, sloping about 14 degrees to the floor, arms straight under the shoulders and the head in line. The top of a push-up and the posture of pushing up from, or lowering to, the floor in training, in a drill and in a rescue.",
+    source: "illustrative; straight line from ankle to shoulder at about 14 deg to the floor (the usual push-up geometry)",
+    support: "hands-feet",
+    root: { flex: 76 },
+    spine: { cervical: [-15, 0, 0] },
+    joints: {
+      hip_LR: [7, 0, 0], ankle_LR: [-38, 0, 0], mtp_LR: [67], shoulder_LR: [103, 3, 0], elbow_LR: [0], wrist_LR: [-63, 0], forearm_LR: [75],
+      head: [-6, 0, 0],
+    },
+    grips: { L: "flat", R: "flat" },
+    hints: {
+      externalSupport: "hands on the floor",
+      prop: { type: "floor_tile", params: { size: 1, thickness: 0.02 }, role: "support", note: "the floor under the hands and feet (the figure is placed by its feet; the sandbox closes the hands on the floor)" },
+    },
+  },
+  {
+    id: "kneel-pushup-down",
+    name: "Push-up position, lowered",
+    category: "Kneeling & squatting",
+    tags: ["push-up", "plank", "hands-feet", "front-support", "symmetric", "static"],
+    description: "The low point of a push-up: elbows bent about 100 degrees and pointing out and back, the chest about 0.3 m above the floor, the body still straight from heels to shoulders, hands under the shoulders, head in line. Used to check the clearance and the strength demand of floor-level work and of the standard fitness test.",
+    source: "illustrative; elbows about 100 deg at the bottom of the push-up, shoulder abduction about 45 deg",
+    support: "hands-feet",
+    root: { flex: 81 },
+    spine: { cervical: [-14, 0, 0] },
+    joints: {
+      hip_LR: [2, 0, 0], ankle_LR: [-34, 0, 0], mtp_LR: [72], shoulder_LR: [12, 43, 0], elbow_LR: [102], wrist_LR: [-61, 0], forearm_LR: [77],
+      head: [-6, 0, 0],
+    },
+    grips: { L: "flat", R: "flat" },
+    hints: {
+      externalSupport: "hands on the floor",
+      prop: { type: "floor_tile", params: { size: 1, thickness: 0.02 }, role: "support", note: "the floor under the hands and feet (the figure is placed by its feet; the sandbox closes the hands on the floor)" },
+    },
+  },
+];

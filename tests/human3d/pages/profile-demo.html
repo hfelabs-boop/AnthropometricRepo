@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<base href="/"><!-- the data files (api/v1, db/) are relative to the site root, as on the real page -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>profile and skeleton panels demo</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/human.css">
+<script>if (!/fakedb=1/.test(location.search)) document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"><\/script>'); /* the in-browser database, as on the real page */</script>
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<style>
+  body { padding: 12px; }
+  .demo { display: grid; gap: 12px; align-items: start; max-width: 1100px; }
+  .demo.wide { grid-template-columns: 330px minmax(0, 1fr) 280px; }
+  #log { font: 12px/1.4 var(--mono); color: var(--text-2); max-height: 160px; overflow: auto; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<!-- Demo / test page of profile.js and skeleton.js without the shell or WebGL: a fake ctx that builds real bodies (fit.js, with the form and overrides the
+     shell is asked to pass on) and real rigs without a skin. URL: ?panel=profile|skeleton|both  &w=360 (width of the panel column in px)  &units=mm|cm|in
+     &fakedb=1 answers the Individual source from 200 invented people (no sql.js, no 5 MB download): the same SQL anthro.js sends, answered by a few regular expressions.
+     window.__demo = { ctx, panels, events, insp, rebuilds, queries } and window.__ready. -->
+<div class="demo" id="demo"><aside class="hm-left panel" id="left" style="min-width:0"><div class="hm-panels"><div class="hm-panel-body" id="host"></div></div></aside><aside class="hm-inspector panel" id="inspector" hidden><div class="hm-inspector-head"><h2 id="insp-title">Inspector</h2></div><div class="hm-inspector-body" id="insp-body"></div></aside></div>
+<pre id="log"></pre>
+<script type="module">
+import { fitBody } from "/js/human/fit.js";
+import { buildRig } from "/js/human/rig.js";
+import { fmtLength } from "/js/human/ui.js";
+import { percentileProfile, loadIndex, loadPopulation } from "/js/human/anthro.js";
+
+const q = new URLSearchParams(location.search);
+const which = q.get("panel") || "profile", width = Number(q.get("w")) || 320;
+document.getElementById("left").style.width = `${width}px`;
+if (which === "both") document.getElementById("demo").classList.add("wide");
+const logEl = document.getElementById("log");
+const events = [];
+const handlers = new Map();
+const on = (e, f) => { if (!handlers.has(e)) handlers.set(e, new Set()); handlers.get(e).add(f); return () => handlers.get(e).delete(f); };
+const emit = (e, d) => { events.push(e); for (const f of [...(handlers.get(e) ?? [])]) { try { f(d); } catch (err) { console.error(err); } } };
+const state = { profile: null, body: null, rig: null, selection: null, units: q.get("units") || "mm", display: { skin: true, skeleton: false, joints: false, labels: false, landmarks: false, com: false, xray: false, grid: true }, theme: { dark: false }, busy: false, notices: [] };
+const formOf = (p) => (p?.sex === "F" ? "female" : p?.sex === "M" ? "male" : "neutral");
+let gen = 0, rebuilds = 0;
+const inspectors = new Map();
+const insp = { title: "Inspector", node: null };
+const ctx = {
+  panelId: "demo", state,
+  viewport: { add() {}, remove() {}, requestRender() {}, scene: null },
+  getRig: () => state.rig, getBody: () => state.body, getProfile: () => state.profile,
+  async setProfile(p) {
+    const my = ++gen;
+    state.profile = p; emit("profile", p);
+    await new Promise((r) => setTimeout(r, 20)); // the shell debounces and builds asynchronously
+    if (my !== gen) return { ok: false, superseded: true };
+    const body = fitBody(p, { form: p.form ?? formOf(p), overrides: p.overrides });
+    const rig = buildRig(body, { skeleton: false });
+    const previous = state.rig;
+    if (previous?.getPose) { try { rig.setPose(previous.getPose()); } catch { /* new body, same pose */ } }
+    rig.onChange(() => emit("pose", { rig }));
+    rebuilds++;
+    state.body = body; emit("body", body);
+    state.rig = rig; emit("rig", rig);
+    previous?.dispose();
+    return { ok: true, fallback: false };
+  },
+  rebuild: () => ctx.setProfile(state.profile),
+  on, emit,
+  get units() { return state.units; },
+  setUnits(u) { state.units = u; emit("units", u); },
+  fmt: (mm, o) => fmtLength(mm, state.units, o),
+  setDisplay(d) { Object.assign(state.display, d); state.rig?.setDisplay?.({ landmarks: state.display.landmarks }); emit("display", { ...state.display }); },
+  select(sel) {
+    const s = sel ? { kind: sel.kind, id: String(sel.id) } : null;
+    if (JSON.stringify(s) === JSON.stringify(state.selection)) return false;
+    state.selection = s;
+    try { state.rig?.select?.(s?.kind === "joint" ? s.id : null); } catch { /* unknown */ }
+    emit("selection", s);
+    return true;
+  },
+  toast(m) { events.push(`toast:${m}`); },
+  notify(text, o = {}) { const n = { id: o.id ?? `n${state.notices.length}`, level: o.level ?? "info", text }; state.notices = [...state.notices.filter((x) => x.id !== n.id), n]; emit("notices", state.notices); },
+  dismiss(id) { state.notices = state.notices.filter((x) => x.id !== id); emit("notices", state.notices); },
+  requestRender() {},
+  inspector(content, o = {}) {
+    const el = document.getElementById("inspector"); el.hidden = false;
+    document.getElementById("insp-title").textContent = o.title ?? "Inspector";
+    const body = document.getElementById("insp-body");
+    if (content instanceof Node) { if (body.firstChild !== content) body.replaceChildren(content); } else body.textContent = content ?? "";
+    insp.title = o.title; insp.node = content;
+  },
+};
+window.__demo = { ctx, events, insp, get rebuilds() { return rebuilds; }, state };
+
+// the first body, as the shell does it (United States, Army, men, P50)
+const index = await loadIndex();
+const entry = index.populations.find((p) => p.country_id === "united-states" && p.role_id === "army" && p.sex === "M");
+await ctx.setProfile(percentileProfile(await loadPopulation(entry), { percentile: 50 }));
+const queries = [];
+window.__demo.queries = queries;
+const mod = await import(`/js/human/panels/${which === "both" ? "profile" : which}.js`);
+if (q.get("fakedb") === "1") {
+  // 120 men and 80 women of an invented survey: stature 1500 + 3 i mm, mass 50 + 0.4 i kg, subject_key 1000 + i (men) / 5000 + i (women)
+  const COLS = ["subject_key", "dataset", "sex", "branch", "stature", "mass"];
+  const people = [];
+  for (let i = 0; i < 120; i++) people.push({ subject_key: 1000 + i, dataset: "ansur_1988", sex: "M", branch: null, stature: 1500 + 3 * i, mass: 50 + 0.4 * i });
+  for (let i = 0; i < 80; i++) people.push({ subject_key: 5000 + i, dataset: "ansur_1988", sex: "F", branch: null, stature: 1450 + 2.5 * i, mass: 45 + 0.3 * i });
+  const filt = (p) => (a) => (p[0] == null || a.dataset === p[0]) && (p[2] == null || a.sex === p[2]) && (p[4] == null || a.branch === p[4]);
+  mod.setSubjectQuery(async (sql, params = []) => {
+    queries.push(sql.replace(/\s+/g, " ").slice(0, 60));
+    if (window.__failDb) throw new Error("the demo database is offline");
+    if (/GROUP BY dataset, sex, branch/.test(sql)) return { columns: ["dataset", "sex", "branch", "n"], rows: ["M", "F"].map((sx) => ["ansur_1988", sx, null, people.filter((x) => x.sex === sx).length]) };
+    if (/COUNT\(\*\) AS n FROM subjects WHERE/.test(sql)) return { columns: ["n"], rows: [[people.filter(filt(params)).length]] };
+    if (/ORDER BY stature, subject_key LIMIT/.test(sql)) {
+      const [, lim, off] = /LIMIT (\d+) OFFSET (\d+)/.exec(sql).map(Number);
+      const rows = people.filter(filt(params)).sort((a, b) => a.stature - b.stature || a.subject_key - b.subject_key).slice(off, off + lim);
+      return { columns: COLS, rows: rows.map((r) => COLS.map((c) => r[c])) };
+    }
+    if (/match_distance/.test(sql)) {
+      const hasMass = /"mass" IS NOT NULL/.test(sql), st = params[0], ms = hasMass ? params[2] : null, fp = params.slice(hasMass ? 4 : 2);
+      const d = (r) => ((r.stature - st) / 65) ** 2 + (hasMass ? ((r.mass - ms) / 12) ** 2 : 0);
+      const best = people.filter(filt(fp)).sort((a, b) => d(a) - d(b) || a.subject_key - b.subject_key)[0];
+      return { columns: [...COLS, "match_distance"], rows: best ? [[...COLS.map((c) => best[c]), d(best)]] : [] };
+    }
+    if (/WHERE subject_key = \?/.test(sql)) { const r = people.find((x) => x.subject_key === params[0]); return { columns: COLS, rows: r ? [COLS.map((c) => r[c])] : [] }; }
+    throw new Error(`the demo database does not know: ${sql.slice(0, 80)}`);
+  });
+}
+const host = document.getElementById("host");
+const api = await mod.default.mount(host, ctx);
+window.__demo.panels = { [which === "both" ? "profile" : which]: api };
+if (which === "both") {
+  const sk = document.createElement("div"); host.after(sk);
+  window.__demo.panels.skeleton = await (await import("/js/human/panels/skeleton.js")).default.mount(sk, ctx);
+}
+for (const a of Object.values(window.__demo.panels)) a?.onShow?.();
+window.__ready = true;
+</script>
+</body>
+</html>

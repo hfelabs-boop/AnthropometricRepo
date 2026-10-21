@@ -25,6 +25,7 @@ Each extraction writes one CSV to `aggregates/raw/<source>.csv` with these colum
 | `notes` | Anything a user must know (bilateral side, derived value, sample sub-group, etc.). |
 
 Rules
+* Check the SD against the mean: `scripts/validate_aggregates.py` rejects an SD that is under 1% or over 15% of the mean for stature and sitting height (under 3% or over 40% for body mass), which is a typo or a unit slip (an SD of 0.14 kg for a mean of 78.7 kg, 0.6 m for a stature). Blank the SD, keep the mean and n, and say "printed SD removed as implausible" in the notes.
 * Never guess. If a value is unreadable, drop that row. Do not fix OCR errors by hand unless the paper's own numbers (percentiles, CV, other rows) prove the right value.
 * One row per population x sex x measure. Keep sub-populations (officers, pilots, ...) as separate populations.
 * Conversions: 1 in = 25.4 mm, 1 cm = 10 mm, 1 lb = 0.45359237 kg, 1 hectogram = 0.1 kg.

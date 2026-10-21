@@ -1,0 +1,110 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>rig adversarial</title>
+<link rel="icon" href="data:,">
+<!-- Verifier harness. ?fit=1 uses fit.js (male 1750/78 or ?stature=&mass=&sex=) with the masses workaround, otherwise syntheticBody. window.A = { rig, sheet(views, opts), pose(obj), info() } -->
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<style>html,body{margin:0;background:#ecebe6}@media (prefers-color-scheme:dark){html,body{background:#161615}}canvas{display:block}</style>
+<canvas id="c" width="1000" height="650"></canvas>
+<script type="module">
+import * as THREE from "three";
+import { syntheticBody } from "/js/human/synthetic.js";
+import { fitBody } from "/js/human/fit.js";
+import { buildRig } from "/js/human/rig.js";
+import { Mesher } from "/js/human/skeletonview.js";
+import { JOINTS } from "/js/human/skeleton.js";
+const q = new URLSearchParams(location.search);
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+const W = +q.get("w") || 1000, H = +q.get("h") || 650;
+const canvas = document.getElementById("c"); canvas.width = W; canvas.height = H;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, H, false); renderer.setScissorTest(true);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(dark ? 0x161615 : 0xecebe6);
+scene.add(new THREE.HemisphereLight(0xffffff, dark ? 0x30302c : 0xb9b6ac, dark ? 1.1 : 1.35));
+const key = new THREE.DirectionalLight(0xffffff, dark ? 1.7 : 2.0); key.position.set(1.5, 3, 3); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, dark ? 0.7 : 0.8); fill.position.set(-3, 1, -2); scene.add(fill);
+scene.add(new THREE.GridHelper(4, 40, dark ? 0x55554f : 0xb0aea5, dark ? 0x2a2a27 : 0xd0cec5));
+const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 50);
+let body;
+if (q.get("fit")) {
+  const sex = q.get("sex") || "M";
+  body = fitBody({ id: "adv", label: "adv", sex, source: { kind: "manual" }, notes: [], measures: { stature: { value: +q.get("stature") || 1750, unit: "mm" }, mass: { value: +q.get("mass") || 78, unit: "kg" } } });
+  
+} else body = syntheticBody(+q.get("stature") / 1000 || 1.75, q.get("form") || "male");
+
+function fakeSkin(b, bones) {
+  const m = new Mesher(0.7), P = b.positions, v = (id) => new THREE.Vector3(...P[id]);
+  const rod = (a, c, r, r2 = r) => m.rod(v(a), typeof c === "string" ? v(c) : c, r, r, r2, r2, { capA: 1, capB: 1 });
+  for (const s of ["L", "R"]) {
+    rod(`shoulder_${s}`, `elbow_${s}`, 0.048, 0.04); rod(`elbow_${s}`, `wrist_${s}`, 0.04, 0.03);
+    rod(`wrist_${s}`, `middle_mcp_${s}`, 0.032, 0.04);
+    rod(`hip_${s}`, `knee_${s}`, 0.088, 0.06); rod(`knee_${s}`, `ankle_${s}`, 0.058, 0.04);
+    m.ellipsoid(v(`mtp_${s}`).add(new THREE.Vector3(0, 0, 0.04)), [0.04, 0.025, 0.07], null, {});
+  }
+  const spine = ["pelvis", "L5", "L3", "L1", "T10", "T8", "T6", "T4", "T2", "C7", "C4", "head"].map(v);
+  m.tube(spine, (u) => ({ a: 0.095 + 0.03 * Math.sin(Math.PI * Math.min(1, u * 1.7)) * (u < 0.6 ? 1 : 0.3), b: 0.17 - 0.05 * Math.abs(u - 0.5) - (u > 0.8 ? 0.13 * (u - 0.8) / 0.2 : 0), pow: 2.4 }), { hint: new THREE.Vector3(0, 0, 1), capA: 0.6, capB: 0.6, segs: 20 });
+  m.ellipsoid(v("head").add(new THREE.Vector3(0, 0.07, 0.015)), [0.082, 0.105, 0.098], null, { lat: 14, lon: 20 });
+  const geo = m.build(new THREE.Vector3(), false);
+  const mat = new THREE.MeshStandardMaterial({ color: dark ? 0xb08a78 : 0xd9a58a, roughness: 0.75 });
+  return { mesh: new THREE.Mesh(geo, mat), dispose() { geo.dispose(); mat.dispose(); } };
+}
+let rig = buildRig(body, { quality: q.get("quality") || "high", skinBuilder: q.get("skin") ? fakeSkin : null });
+scene.add(rig.group);
+const POSES = {
+  neutral: {},
+  seated: { angles: { hip_L: [90, 0, 0], hip_R: [90, 0, 0], knee_L: [90, 0], knee_R: [90, 0], elbow_L: [90], elbow_R: [90] } },
+  squat: { root: { flex: 5 }, angles: { hip_L: [105, 12, 0], hip_R: [105, 12, 0], knee_L: [130, 0], knee_R: [130, 0], ankle_L: [30, 0, 0], ankle_R: [30, 0, 0], shoulder_L: [80, 0, 0], shoulder_R: [80, 0, 0], elbow_L: [20], elbow_R: [20] }, spine: { lumbar: [20, 0, 0], thoracic: [15, 0, 0], cervical: [-10, 0, 0] } },
+  armsUp: { angles: { shoulder_L: [175, 0, 0], shoulder_R: [175, 0, 0], elbow_L: [5], elbow_R: [5] } },
+  armsOut: { angles: { shoulder_L: [0, 90, 0], shoulder_R: [0, 90, 0], forearm_L: [-30], forearm_R: [-30] } },
+  bend: { root: { flex: 10 }, angles: { hip_L: [50, 0, 0], hip_R: [50, 0, 0] }, spine: { lumbar: [50, 0, 0], thoracic: [30, 0, 0], cervical: [10, 0, 0] } },
+  twist: { spine: { lumbar: [0, 10, 25], thoracic: [0, 10, 30], cervical: [0, 0, 30] }, angles: { head: [10, 0, 20] } },
+  supine: { root: { flex: -90 }, angles: {} },
+  prone: { root: { flex: 90 }, angles: { shoulder_L: [170, 0, 0], shoulder_R: [170, 0, 0] } },
+};
+const hand = (side, mcp, pip, dip, thumb) => {
+  const o = {};
+  for (const f of ["index", "middle", "ring", "little"]) { o[`${f}_mcp_${side}`] = [mcp, 0]; o[`${f}_pip_${side}`] = [pip]; o[`${f}_dip_${side}`] = [dip]; }
+  o[`thumb_cmc_${side}`] = [thumb[0], thumb[1]]; o[`thumb_mcp_${side}`] = [thumb[2]]; o[`thumb_ip_${side}`] = [thumb[3]];
+  return o;
+};
+POSES.fist = { angles: { elbow_L: [90], elbow_R: [90], shoulder_L: [30, 0, 0], shoulder_R: [30, 0, 0], ...hand("L", 85, 100, 70, [30, 10, 40, 40]), ...hand("R", 85, 100, 70, [30, 10, 40, 40]) } };
+POSES.open = { angles: { elbow_L: [90], elbow_R: [90], shoulder_L: [30, 0, 0], shoulder_R: [30, 0, 0], ...hand("L", -20, 0, 0, [0, 40, 0, 0]), ...hand("R", 0, 0, 0, [0, 0, 0, 0]) } };
+POSES.wristFlex = { angles: { elbow_L: [90], elbow_R: [90], wrist_L: [70, 20], wrist_R: [-60, -15], forearm_L: [80], forearm_R: [-80], shoulder_L: [30, 0, 0], shoulder_R: [30, 0, 0] } };
+POSES.footFlex = { angles: { ankle_L: [20, 15, 10], ankle_R: [-40, -15, -10], mtp_L: [60], mtp_R: [-30], knee_L: [40, 0], knee_R: [100, 0], hip_L: [60, 20, 20], hip_R: [-15, -25, -20] } };
+function pose(p) {
+  const n = typeof p === "string" ? POSES[p] : p;
+  rig.resetPose();
+  if (n.spine) rig.setSpine(n.spine);
+  const rep = rig.setPose({ root: { y: 0, ...(n.root || {}) }, angles: { ...rig.angles, ...(n.angles || {}) } });
+  rig.setRoot({ y: -rig.lowestY() });
+  return rep;
+}
+function look({ az = 0, el = 8, dist = 5, target = [0, 0.9, 0], fov = 30 } = {}) {
+  const a = az * Math.PI / 180, e = el * Math.PI / 180;
+  camera.fov = fov; camera.updateProjectionMatrix();
+  camera.position.set(target[0] + dist * Math.sin(a) * Math.cos(e), target[1] + dist * Math.sin(e), target[2] + dist * Math.cos(a) * Math.cos(e));
+  camera.up.set(0, 1, 0);
+  if (Math.abs(el) > 85) camera.up.set(0, 0, -1);
+  camera.lookAt(...target);
+}
+// views: [{az, el, dist, target, fov}], tiled in `cols` columns
+function sheet(views, { cols = 2, display, select, poseName, only } = {}) {
+  if (display) rig.setDisplay(display);
+  if (select !== undefined) rig.select(select);
+  if (poseName !== undefined) pose(poseName);
+  const rows = Math.ceil(views.length / cols), tw = Math.floor(W / cols), th = Math.floor(H / rows);
+  renderer.setClearColor(scene.background); renderer.clear();
+  views.forEach((v, i) => {
+    const x = (i % cols) * tw, y = H - (Math.floor(i / cols) + 1) * th;
+    renderer.setViewport(x, y, tw, th); renderer.setScissor(x, y, tw, th);
+    camera.aspect = tw / th; look(v);
+    renderer.render(scene, camera);
+  });
+  return rig.getPose().root;
+}
+function info() { return { memory: { ...renderer.info.memory }, programs: renderer.info.programs?.length, calls: renderer.info.render.calls, triangles: renderer.info.render.triangles }; }
+window.A = { THREE, rig, body, scene, camera, renderer, sheet, pose, info, POSES, JOINTS, rebuild(opts) { scene.remove(rig.group); rig.dispose(); rig = buildRig(body, { skinBuilder: q.get('skin') ? fakeSkin : null, ...opts }); window.A.rig = rig; scene.add(rig.group); return rig; } };
+sheet([{}], { cols: 1 });
+window.__ready = true;
+</script>

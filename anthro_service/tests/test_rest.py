@@ -1,0 +1,462 @@
+"""REST API tests. Need:  pip install -r anthro_service/requirements.txt   (skipped when fastapi or httpx is missing)."""
+from __future__ import annotations
+
+import csv
+import http.client
+import importlib.util
+import io
+import os
+import socket
+import subprocess
+import sys
+import time
+import unittest
+import json
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+try:
+    from fastapi.testclient import TestClient
+    from anthro_service.rest import create_app
+except ImportError:  # pragma: no cover
+    if os.environ.get("REQUIRE_SERVICE_DEPS") == "1":
+        raise
+    TestClient = None
+
+from anthro_service import get_repo  # noqa: E402
+
+REPO = get_repo()
+Q = {"country": "United States", "role": "Army", "sex": "M"}
+
+
+@unittest.skipIf(TestClient is None, "fastapi / httpx not installed")
+class Rest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        os.environ.pop("ANTHRO_API_KEYS", None)
+        cls.c = TestClient(create_app())
+
+    def test_health_meta_and_headers(self):
+        r = self.c.get("/v1/health")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["data_version"], REPO.data_version)
+        self.assertEqual(r.headers["x-data-version"], REPO.data_version)
+        m = self.c.get("/v1/meta").json()
+        self.assertEqual(m["counts"], REPO.meta()["counts"])
+        self.assertEqual(self.c.get("/v1/meta").headers["cache-control"], "public, max-age=3600")
+        self.assertEqual(self.c.get("/v1/health").headers["cache-control"], "no-store")  # a liveness check must not be cached
+
+    def test_design_values_equal_the_library(self):
+        for path in (f"/v1/populations/united-states/army/M", "/v1/populations/USA/Army/male"):
+            self.assertEqual(self.c.get(path, params={"measures": "stature,mass"}).json()["count"], 2)
+        r = self.c.get("/v1/design-values", params={**Q, "measures": "stature", "percentiles": "5,50,95,97.5"})
+        self.assertEqual(r.status_code, 200)
+        want = REPO.design_values("United States", "Army", "M", ["stature"], percentiles=[5, 50, 95, 97.5])
+        self.assertEqual(r.json()["measures"][0]["percentiles"], want["measures"][0]["percentiles"])
+        self.assertEqual(r.json()["population"]["country_id"], "united-states")
+
+    def test_stats_false_drops_mean_and_sd(self):
+        m = self.c.get("/v1/design-values", params={**Q, "measures": "stature", "stats": "false"}).json()["measures"][0]
+        self.assertNotIn("mean", m)
+        self.assertNotIn("sd", m)
+
+    def test_csv_and_xml_by_suffix_and_by_format(self):
+        a = self.c.get("/v1/populations/united-states/army/M.csv", params={"measures": "stature,mass"})
+        b = self.c.get("/v1/design-values", params={**Q, "measures": "stature,mass", "format": "csv"})
+        self.assertEqual(a.text, b.text)
+        self.assertTrue(a.headers["content-type"].startswith("text/csv"))
+        rows = list(csv.DictReader(io.StringIO(a.text)))
+        self.assertEqual(sorted(r["key"] for r in rows), ["mass", "stature"])
+        x = self.c.get("/v1/populations/united-states/army/M.xml", params={"measures": "stature"})
+        self.assertTrue(x.headers["content-type"].startswith("application/xml"))
+        self.assertTrue(len(ET.fromstring(x.content)))
+        j = self.c.get("/v1/populations/united-states/army/M.json", params={"measures": "stature"})
+        self.assertEqual(j.json()["count"], 1)
+
+    def test_mannequin_and_compare(self):
+        m = self.c.get("/v1/mannequin", params={**Q, "percentile": 95}).json()
+        want = REPO.mannequin("United States", "Army", "M", 95)
+        self.assertEqual(m["values"], want["values"])
+        self.assertEqual(m["core"], want["core"])
+        self.assertEqual(m["percentile"], 95)
+        c = self.c.get("/v1/compare", params={"measure": "stature", "percentile": 95, "limit": 5, "format": "csv"})
+        self.assertEqual(len(list(csv.DictReader(io.StringIO(c.text)))), 5)
+        self.assertEqual(self.c.get("/v1/mannequin", params={**Q, "format": "xml"}).status_code, 200)
+
+    def test_catalog_endpoints(self):
+        self.assertTrue(any(c["id"] == "united-states" for c in self.c.get("/v1/countries").json()))
+        roles = self.c.get("/v1/countries/USA").json()["roles"]
+        self.assertIn("army", [r["id"] for r in roles])
+        self.assertEqual(len(self.c.get("/v1/categories").json()), len(REPO.categories()))
+        self.assertIn("sitting_height", [m["key"] for m in self.c.get("/v1/measures", params={"q": "sitting height"}).json()])
+        self.assertEqual(self.c.get("/v1/measures/stature").json()["key"], "stature")
+        other = next(k for k in REPO._measures if k.startswith("other:"))
+        self.assertEqual(self.c.get(f"/v1/measures/{other}").json()["key"], other)
+        self.assertTrue(self.c.get("/v1/measures", params={"limit": 3, "format": "csv"}).text.startswith("key,"))
+        s = self.c.get("/v1/populations/united-states/army/surveys").json()
+        self.assertIn("ansur-ii-2012", [x["id"] for x in s["surveys"]])
+        self.assertEqual(self.c.get("/v1/sources/ansur-ii-2012").json()["id"], "ansur-ii-2012")
+
+    def test_errors_have_one_json_shape(self):
+        cases = [("/v1/design-values", {"country": "Narnia", "role": "Army"}, 404, "not_found"),
+                 ("/v1/design-values", {**Q, "sex": "X"}, 422, "bad_request"),
+                 ("/v1/design-values", {**Q, "percentiles": "abc"}, 422, "bad_request"),
+                 ("/v1/design-values", {**Q, "min_reliability": "bogus"}, 422, "bad_request"),
+                 ("/v1/design-values", {**Q, "measures": "no_such"}, 404, "not_found"),
+                 ("/v1/design-values", {"role": "Army"}, 422, "bad_request"),
+                 ("/v1/mannequin", {**Q, "percentile": 150}, 422, "bad_request"),
+                 ("/v1/compare", {"measure": "stature", "limit": 0}, 422, "bad_request"),
+                 ("/v1/measures/nope", {}, 404, "not_found"),
+                 ("/v1/populations/united-states/army/surveys", {}, 200, None),
+                 ("/v1/populations/united-states/nope/surveys", {}, 404, "not_found")]
+        for path, params, status, code in cases:
+            r = self.c.get(path, params=params)
+            self.assertEqual(r.status_code, status, (path, params, r.text[:200]))
+            if code:
+                self.assertEqual(r.json()["error"]["code"], code, (path, params))
+                self.assertTrue(r.json()["error"]["message"])
+
+    def test_unknown_country_suggests_close_matches(self):
+        e = self.c.get("/v1/design-values", params={"country": "Germny", "role": "Army"}).json()["error"]
+        self.assertIn("Germany", e["available"])
+
+    def test_cors(self):
+        r = self.c.get("/v1/health", headers={"Origin": "http://example.com"})
+        self.assertEqual(r.headers["access-control-allow-origin"], "*")
+        self.assertIn("x-data-version", r.headers["access-control-expose-headers"].lower())
+        pre = self.c.options("/v1/mannequin", headers={"Origin": "http://example.com", "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "x-api-key"})
+        self.assertEqual(pre.status_code, 200)
+
+    def test_openapi_describes_every_endpoint(self):
+        spec = self.c.get("/openapi.json").json()
+        self.assertEqual(spec["info"]["title"], "Military Anthropometry API")
+        for p in ("/v1/design-values", "/v1/mannequin", "/v1/compare", "/v1/populations/{country}/{role}/{sex}", "/v1/countries", "/v1/measures"):
+            self.assertIn(p, spec["paths"])
+        self.assertIn("DesignValues", spec["components"]["schemas"])
+        self.assertEqual(self.c.get("/docs").status_code, 200)
+        self.assertEqual(self.c.get("/").json()["openapi"], "/openapi.json")
+
+    def test_committed_openapi_file_is_current(self):
+        """anthro_service/openapi.json is what integrators import; regenerate it with  python -m anthro_service openapi --out anthro_service/openapi.json
+        Compares the structure (paths, parameters, response types, security, model fields), not the formatting, so a FastAPI upgrade does not fail it."""
+        import json
+        committed = json.loads((ROOT / "anthro_service" / "openapi.json").read_text(encoding="utf-8"))
+        live = self.c.get("/openapi.json").json()
+        self.assertEqual(sorted(committed["paths"]), sorted(live["paths"]))
+        for path, ops in live["paths"].items():
+            for method, op in ops.items():
+                old = committed["paths"][path][method]
+                self.assertEqual([p["name"] for p in old.get("parameters", [])], [p["name"] for p in op.get("parameters", [])], (path, method))
+                self.assertEqual(sorted(old["responses"]["200"].get("content", {})), sorted(op["responses"]["200"].get("content", {})), (path, method))
+                self.assertEqual(old.get("security"), op.get("security"), (path, method))
+        self.assertEqual(sorted(committed["components"]["schemas"]), sorted(live["components"]["schemas"]))
+        for name, schema in live["components"]["schemas"].items():
+            self.assertEqual(sorted(committed["components"]["schemas"][name].get("properties", {})), sorted(schema.get("properties", {})), name)
+        self.assertEqual(sorted(committed["components"].get("securitySchemes", {})), sorted(live["components"].get("securitySchemes", {})))
+        self.assertEqual(committed["info"]["version"], live["info"]["version"])
+
+    def test_openapi_documents_security_and_the_csv_xml_answers(self):
+        spec = self.c.get("/openapi.json").json()
+        self.assertEqual(sorted(spec["components"]["securitySchemes"]), ["APIKeyHeader", "HTTPBearer"])
+        self.assertTrue(spec["paths"]["/v1/meta"]["get"]["security"])
+        self.assertNotIn("security", spec["paths"]["/v1/health"]["get"])
+        for path in ("/v1/mannequin", "/v1/design-values", "/v1/compare", "/v1/populations/{country}/{role}/{sex}"):
+            self.assertEqual(sorted(spec["paths"][path]["get"]["responses"]["200"]["content"]), ["application/json", "application/xml", "text/csv"], path)
+
+    def test_every_failure_is_a_json_error(self):
+        from unittest import mock
+        quiet = TestClient(create_app(), raise_server_exceptions=False)
+        for method, path, status, code in (("GET", "/v1/nonexistent", 404, "not_found"), ("POST", "/v1/meta", 405, "method_not_allowed"), ("PUT", "/v1/design-values", 405, "method_not_allowed"),
+                                           ("GET", "/v1/measures/", 422, "bad_request"), ("GET", "/v1/measures/%20", 422, "bad_request"),
+                                           ("GET", "/v1/compare?measure=", 422, "bad_request"), ("GET", "/v1/compare?measure=%20", 422, "bad_request")):
+            r = quiet.request(method, path)
+            self.assertEqual((r.status_code, r.json()["error"]["code"]), (status, code), (method, path, r.text[:100]))
+            self.assertTrue(r.headers["content-type"].startswith("application/json"))
+        with mock.patch("anthro_service.core.Repo.meta", side_effect=RuntimeError("boom")):
+            r = quiet.get("/v1/meta")
+        self.assertEqual((r.status_code, r.json()["error"]["code"]), (500, "internal_error"))
+        self.assertNotIn("boom", r.text)  # no internals in the answer
+
+    def test_a_misspelled_parameter_is_an_error_not_a_silent_default(self):
+        for path, params, want in (("/v1/mannequin", {**Q, "percentiles": "95"}, "percentile"), ("/v1/compare", {"measure": "stature", "country": "Germany"}, "countries"),
+                                   ("/v1/mannequin", {**Q, "percentile": 95, "measure": "stature"}, "measures"), ("/v1/design-values", {**Q, "percentile": 95}, "percentiles"),
+                                   ("/v1/measures", {"query": "head"}, "q"), ("/v1/measures/stature", {"x": 1}, None)):
+            r = self.c.get(path, params=params)
+            self.assertEqual(r.status_code, 422, (path, params))
+            e = r.json()["error"]
+            self.assertEqual(e["code"], "bad_request")
+            self.assertIn("Unknown parameter", e["message"])
+            if want:
+                self.assertIn(f"'{want}'", e["hint"])
+        self.assertEqual(self.c.get("/v1/mannequin", params={**Q, "percentile": 95, "format": "csv"}).status_code, 200)  # every declared parameter still works
+
+    def test_a_repeated_parameter_is_an_error_not_a_silent_last_wins(self):
+        r = self.c.get("/v1/mannequin", params=[("country", "United States"), ("role", "Army"), ("measures", "stature"), ("measures", "mass")])
+        self.assertEqual(r.status_code, 422)
+        self.assertIn("'measures' was given 2 times", r.json()["error"]["message"])
+        self.assertEqual(self.c.get("/v1/design-values?country=United States&role=Army&percentiles=5&percentiles=95").status_code, 422)
+        self.assertEqual(self.c.get("/v1/mannequin", params={**Q, "measures": "stature,mass"}).status_code, 200)
+
+    def test_pooled_country_names_with_commas_work_in_compare(self):
+        pooled = "Multiple: Turkey, Greece, Italy"
+        for countries in (pooled, "multiple-turkey-greece-italy", f"Germany,{pooled}"):
+            r = self.c.get("/v1/compare", params={"measure": "stature", "countries": countries, "limit": 50})
+            self.assertEqual(r.status_code, 200, countries)
+            self.assertIn(pooled, {x["country"] for x in r.json()["results"]})
+        self.assertEqual({x["country"] for x in self.c.get("/v1/compare", params={"measure": "stature", "countries": f"Germany,{pooled}", "limit": 50}).json()["results"]}, {"Germany", pooled})
+
+    def test_a_request_with_thousands_of_parameters_and_a_huge_name_list_stay_cheap(self):
+        import time
+        t = time.time()
+        r = self.c.get("/v1/meta?" + "&".join(f"a{i}=" for i in range(8000)))
+        self.assertEqual(r.status_code, 422)
+        self.assertLess(time.time() - t, 2.0)  # it was quadratic: 10000 parameters took 3 s
+        t = time.time()
+        r = self.c.get("/v1/compare", params={"measure": "stature", "countries": ",".join(["Germany"] * 5000)})
+        self.assertEqual(r.status_code, 422)
+        self.assertIn("At most 200 names", r.json()["error"]["message"])
+        self.assertLess(time.time() - t, 2.0)
+
+    def test_cors_origins_may_use_underscores_and_drop_default_ports(self):
+        from anthro_service.rest import cors_origins
+        saved = os.environ.get("ANTHRO_CORS_ORIGINS")
+        try:
+            os.environ["ANTHRO_CORS_ORIGINS"] = "http://my_web:3000, https://app.example.org:443"
+            self.assertEqual(cors_origins(), ["http://my_web:3000", "https://app.example.org"])
+            c = TestClient(create_app())
+            r = c.get("/v1/health", headers={"Origin": "https://app.example.org"})
+            self.assertEqual(r.headers["access-control-allow-origin"], "https://app.example.org")  # what a browser sends: no :443
+        finally:
+            if saved is None:
+                os.environ.pop("ANTHRO_CORS_ORIGINS", None)
+            else:
+                os.environ["ANTHRO_CORS_ORIGINS"] = saved
+
+    def test_every_answer_has_the_data_version_and_json_the_charset(self):
+        pre = self.c.options("/v1/meta", headers={"Origin": "https://a.example", "Access-Control-Request-Method": "GET"})
+        self.assertEqual((pre.status_code, pre.headers["x-data-version"]), (200, REPO.data_version))
+        spec = self.c.get("/openapi.json")
+        self.assertEqual(spec.headers["content-type"], "application/json; charset=utf-8")
+        self.assertEqual(spec.headers["x-data-version"], REPO.data_version)
+        self.assertEqual(self.c.get("/docs").headers["x-data-version"], REPO.data_version)
+
+    def test_cors_origins_are_validated_and_shared_caches_are_told_to_vary(self):
+        from anthro_service.rest import cors_origins
+        saved = os.environ.get("ANTHRO_CORS_ORIGINS")
+        try:
+            for value, want in (("", ["*"]), ("  ", ["*"]), ("*", ["*"]), ("https://App.Example/", ["https://app.example"]), ("https://a.example, http://b.example:8080", ["https://a.example", "http://b.example:8080"])):
+                os.environ["ANTHRO_CORS_ORIGINS"] = value
+                self.assertEqual(cors_origins(), want, value)
+            for bad in ("app.example", "https://a.example/app", "ftp://a.example", "https://a.example;https://b.example"):
+                os.environ["ANTHRO_CORS_ORIGINS"] = bad
+                with self.assertRaises(ValueError) as cm:
+                    cors_origins()
+                self.assertIn("ANTHRO_CORS_ORIGINS", str(cm.exception))
+            os.environ["ANTHRO_CORS_ORIGINS"] = "https://ok.example"
+            c = TestClient(create_app())
+            for headers, allow in (({}, None), ({"Origin": "https://evil.example"}, None), ({"Origin": "https://ok.example"}, "https://ok.example")):
+                r = c.get("/v1/meta", headers=headers)
+                self.assertEqual(r.headers.get("access-control-allow-origin"), allow, headers)
+                self.assertEqual([t.strip().lower() for t in r.headers["vary"].split(",")].count("origin"), 1, headers)  # once, whoever added it
+        finally:
+            if saved is None:
+                os.environ.pop("ANTHRO_CORS_ORIGINS", None)
+            else:
+                os.environ["ANTHRO_CORS_ORIGINS"] = saved
+
+    def test_the_edge_layer_on_its_own(self):
+        """Vary: Origin must not depend on whether this Starlette version's CORS layer adds it (0.38 to 0.52 do not for refused origins)."""
+        import asyncio
+        from anthro_service.rest import Edge
+
+        def call(headers, vary_origin, method="GET"):
+            sent = []
+
+            async def app(scope, receive, send):
+                self.assertEqual(scope["method"], "GET")  # the app never sees a HEAD
+                await send({"type": "http.response.start", "status": 200, "headers": headers})
+                await send({"type": "http.response.body", "body": b"{}"})
+
+            async def send(message):
+                sent.append(message)
+
+            asyncio.run(Edge(app, "abc123", vary_origin)({"type": "http", "method": method, "path": "/v1/meta"}, None, send))
+            return dict((k.decode(), v.decode()) for k, v in sent[0]["headers"]), sent[1]["body"]
+
+        h, body = call([(b"content-type", b"application/json")], True)
+        self.assertEqual((h["vary"], h["x-data-version"], h["content-type"], body), ("Origin", "abc123", "application/json; charset=utf-8", b"{}"))
+        h, _ = call([(b"content-type", b"text/csv; charset=utf-8"), (b"vary", b"Accept-Encoding")], True)
+        self.assertEqual((h["vary"], h["content-type"]), ("Accept-Encoding, Origin", "text/csv; charset=utf-8"))
+        self.assertEqual(call([(b"vary", b"origin, Accept")], True)[0]["vary"], "origin, Accept")  # already there: not repeated
+        self.assertNotIn("vary", call([], False)[0])
+        self.assertEqual(call([(b"x-data-version", b"keep")], False)[0]["x-data-version"], "keep")
+        self.assertEqual(call([], False, "HEAD")[1], b"")
+
+    def test_json_declares_utf8_and_the_spec_stays_plain(self):
+        for path in ("/v1/meta", "/v1/nonexistent", "/v1/design-values?country=Narnia&role=x"):
+            self.assertEqual(self.c.get(path).headers["content-type"], "application/json; charset=utf-8", path)
+        r = self.c.get("/v1/design-values", params={**Q, "measures": "bmi"})
+        self.assertIn("kg/m²", r.content.decode("utf-8"))
+        spec = self.c.get("/openapi.json").json()
+        self.assertIn("application/json", spec["paths"]["/v1/meta"]["get"]["responses"]["200"]["content"])
+
+    def test_a_crash_is_a_json_500_with_the_usual_headers(self):
+        from unittest import mock
+        quiet = TestClient(create_app(), raise_server_exceptions=False)
+        with mock.patch("anthro_service.core.Repo.meta", side_effect=RuntimeError("boom")):
+            r = quiet.get("/v1/meta", headers={"Origin": "https://tool.example.org"})
+        self.assertEqual((r.status_code, r.json()["error"]["code"]), (500, "internal_error"))
+        self.assertEqual(r.headers["x-data-version"], REPO.data_version)
+        self.assertEqual(r.headers["access-control-allow-origin"], "*")
+
+    def test_the_texts_of_the_spec_match_the_behaviour(self):
+        spec = self.c.get("/openapi.json").json()
+        text = json.dumps(spec)
+        self.assertNotIn("BMI)", spec["paths"]["/v1/mannequin"]["get"]["description"])
+        self.assertIn("(stature, body mass, sitting height)", spec["paths"]["/v1/mannequin"]["get"]["description"])
+        measures = spec["paths"]["/v1/measures"]["get"]["responses"]["200"]
+        self.assertNotIn("XML", measures["description"])
+        self.assertEqual(sorted(measures["content"]), ["application/json", "text/csv"])
+        self.assertEqual(self.c.get("/v1/measures", params={"format": "xml"}).status_code, 422)
+        self.assertIn("latest", text)
+
+    def test_csv_headers_are_clean_ascii(self):
+        r = self.c.get("/v1/mannequin", params={"country": "Czech Republic", "role": "Army", "sex": "M", "percentile": 95, "min_reliability": "all", "format": "csv"})
+        self.assertEqual(r.status_code, 200)
+        notes = r.headers["x-notes"]
+        self.assertTrue(notes.isascii() and "?" not in notes.split("(listed")[0] and not any(ord(ch) < 32 for ch in notes))
+        self.assertIn("JSON and XML answers", notes)  # the CSV has no unavailable rows: it says where they are
+        self.assertIn("kozni", notes)  # accents are dropped, not turned into '?'
+
+    def test_head_and_read_only(self):
+        for path in ("/v1/health", "/v1/meta", "/v1/mannequin?country=USA&role=Army&sex=M"):
+            r = self.c.head(path)
+            self.assertEqual((r.status_code, r.content), (200, b""), path)
+            self.assertEqual(r.headers["x-data-version"], REPO.data_version)
+        self.assertEqual(self.c.head("/v1/nonexistent").status_code, 404)
+
+    def test_role_names_with_a_slash_work_in_paths(self):
+        for path in ("/v1/populations/united-states/Recruits/trainees/M", "/v1/populations/United%20States/Recruits%2Ftrainees/M", "/v1/populations/united-states/recruits-trainees/M"):
+            r = self.c.get(path, params={"measures": "stature"})
+            self.assertEqual((r.status_code, r.json()["population"]["role"]), (200, "Recruits/trainees"), path)
+        r = self.c.get("/v1/populations/united-states/Recruits/trainees/surveys")
+        self.assertEqual((r.status_code, r.json()["role"]), (200, "Recruits/trainees"))
+        self.assertEqual(self.c.get("/v1/populations/united-states/army/surveys").json()["role"], "Army")
+        self.assertEqual(self.c.get("/v1/populations/united-states/Recruits/trainees/M.csv", params={"measures": "stature"}).status_code, 200)
+        self.assertEqual(self.c.get("/v1/populations/united-states/nope/M").json()["error"]["code"], "not_found")
+
+    def test_survey_latest_total_count_and_compare(self):
+        r = self.c.get("/v1/design-values", params={**Q, "measures": "stature", "survey": "latest"}).json()
+        self.assertEqual(r["population"]["survey"]["id"], "ansur-ii-2012")
+        self.assertEqual(r["measures"][0]["percentile_basis"]["p50"], "reported")
+        combined = self.c.get("/v1/design-values", params={**Q, "measures": "stature"}).json()
+        self.assertEqual(combined["measures"][0]["percentile_basis"]["p50"], "pooled")
+        self.assertTrue(any("survey=latest" in n for n in combined["notes"]))
+        m = self.c.get("/v1/measures", params={"q": "head", "limit": 2})
+        self.assertEqual((len(m.json()), m.headers["x-total-count"]), (2, str(len(REPO.measures(q="head")))))
+        self.assertEqual(self.c.get("/v1/measures", params={"category": "zzz"}).status_code, 404)
+        c = self.c.get("/v1/compare", params={"measure": "sitting_height", "countries": "United States,Germany,Israel", "limit": 1}).json()
+        self.assertEqual((c["count"], c["truncated"]), (1, True))
+        self.assertGreater(c["total"], 1)
+        self.assertIn("Israel", c["no_data"]["countries"])
+
+    def test_csv_and_xml_carry_the_notes(self):
+        r = self.c.get("/v1/mannequin", params={**Q, "percentile": 95, "format": "csv"})
+        self.assertIn("boundary case", r.headers["x-disclaimer"])
+        self.assertIn("x-hidden-by-reliability", r.headers)
+        self.assertIn("survey=latest", r.headers["x-notes"])
+        header = r.text.splitlines()[0].split(",")
+        self.assertTrue({"year_min", "year_max", "sources", "caution", "n_surveys"} <= set(header))
+        x = ET.fromstring(self.c.get("/v1/mannequin", params={**Q, "percentile": 95, "format": "xml"}).content)
+        self.assertGreater(len(x.findall("notes/note")), 1)
+        self.assertIn("hiddenByReliability", x.attrib)
+        d = ET.fromstring(self.c.get("/v1/design-values", params={**Q, "measures": "stature", "format": "xml"}).content)
+        m = d.find("measure")
+        self.assertTrue({"sources", "nSurveys", "yearMin", "officialDocuments"} <= set(m.attrib))
+
+
+def free_port() -> int:
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+@unittest.skipIf(TestClient is None, "fastapi / httpx not installed")
+class RealServer(unittest.TestCase):
+    """HEAD through a real uvicorn, on both HTTP backends: the TestClient cannot show the httptools failure (a body-less answer with a Content-Length)."""
+
+    def run_server(self, backend: str):
+        if backend == "httptools" and importlib.util.find_spec("httptools") is None:
+            if os.environ.get("REQUIRE_SERVICE_DEPS") == "1":
+                self.fail("httptools is required (REQUIRE_SERVICE_DEPS=1) but not installed")
+            self.skipTest("httptools is not installed")
+        port = free_port()
+        p = subprocess.Popen([sys.executable, "-W", "ignore", "-m", "uvicorn", "anthro_service.rest:app", "--port", str(port), "--http", backend, "--log-level", "warning"],
+                             cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        self.addCleanup(lambda: (p.terminate(), p.wait(10)))
+        for _ in range(100):
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=0.2).close()
+                return port, p
+            except OSError:
+                time.sleep(0.1)
+        self.fail("the server did not start")
+
+    def check(self, backend: str):
+        port, proc = self.run_server(backend)
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        for _ in range(3):  # the same keep-alive connection: one broken HEAD would close it
+            conn.request("HEAD", "/v1/meta")
+            r = conn.getresponse()
+            self.assertEqual((r.status, r.read()), (200, b""))
+            head_length = r.getheader("content-length")
+            conn.request("GET", "/v1/meta")
+            g = conn.getresponse()
+            self.assertEqual(g.status, 200)
+            self.assertEqual(str(len(g.read())), head_length)
+        conn.request("HEAD", "/v1/nonexistent")
+        self.assertEqual(conn.getresponse().status, 404)
+        conn.close()
+        proc.terminate()
+        err = proc.stderr.read()
+        self.assertNotIn("Exception in ASGI application", err)
+        self.assertNotIn("Content-Length", err)
+
+    def test_head_with_h11(self):
+        self.check("h11")
+
+    def test_head_with_httptools(self):
+        self.check("httptools")
+
+
+@unittest.skipIf(TestClient is None, "fastapi / httpx not installed")
+class RestWithKeys(unittest.TestCase):
+    def setUp(self):
+        os.environ["ANTHRO_API_KEYS"] = "alpha-key, beta-key"
+        self.c = TestClient(create_app())
+
+    def tearDown(self):
+        os.environ.pop("ANTHRO_API_KEYS", None)
+
+    def test_keys_are_required_on_v1_but_not_on_health(self):
+        self.assertEqual(self.c.get("/v1/health").status_code, 200)
+        r = self.c.get("/v1/meta")
+        self.assertEqual((r.status_code, r.json()["error"]["code"]), (401, "unauthorized"))
+        self.assertEqual(self.c.get("/v1/meta", headers={"X-API-Key": "wrong"}).status_code, 401)
+        self.assertEqual(self.c.get("/v1/meta", headers={"X-API-Key": "alpha-key"}).status_code, 200)
+        ok = self.c.get("/v1/meta", headers={"Authorization": "Bearer beta-key"})
+        self.assertEqual(ok.status_code, 200)
+        self.assertTrue(ok.headers["cache-control"].startswith("private"))
+        self.assertEqual(self.c.get("/v1/meta", headers={"Authorization": "Basic beta-key"}).status_code, 401)
+        self.assertIn("Bearer", self.c.get("/v1/meta").headers["www-authenticate"])
+        self.assertEqual(self.c.get("/v1/measures/stature", headers={"X-API-Key": "alpha-key"}).status_code, 200)  # a path parameter called `key` must not collide with the credential
+        self.assertEqual(self.c.head("/v1/meta", headers={"X-API-Key": "alpha-key"}).status_code, 200)
+        self.assertEqual(self.c.head("/v1/meta").status_code, 401)
+        self.assertEqual(self.c.get("/v1/design-values", params={"country": "x", "role": "y"}).status_code, 401)  # auth before lookups
+
+
+if __name__ == "__main__":
+    unittest.main()

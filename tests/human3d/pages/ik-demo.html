@@ -1,0 +1,133 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>ik demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<!-- Look at what ik.js does: the skinned body, the goals (red spheres, bars), the reach envelope (translucent hull and points), the elbow and knee poles.
+     python3 tests/human3d/shot.py /__pages/ik-demo.html out.png --w 900 --h 900 --wait-fn window.__ready --eval 'window.__demo.reach("R", [-0.25, 1.35, 0.55], { az: 40 })'
+     URL parameters: ?stature=1.75&sex=M|F&size=640&skin=0
+     window.__demo: { solver, rig, body, reach(side, target, { az, el, dist, trunk, frame }), foot(side, spec), look(target), squat(dy), grip(grip, side), envelope(side, { samples, trunk }), view(opts), result }
+     Every call solves with ik.js from the pose the figure is in, sets the rig, draws the goals and returns the Result (error, reachable, ms, clamped). -->
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<style>
+  html, body { margin: 0; background: #ecebe6; }
+  @media (prefers-color-scheme: dark) { html, body { background: #161615; } }
+  canvas { display: block; max-width: 100%; height: auto; aspect-ratio: 1; }
+</style>
+<canvas id="c" width="800" height="800"></canvas>
+<script type="module">
+import * as THREE from "three";
+import { fitBody } from "/js/human/fit.js";
+import { buildRig } from "/js/human/rig.js";
+import { buildSkin } from "/js/human/body.js";
+import * as IK from "/js/human/ik.js";
+
+const params = new URLSearchParams(location.search);
+const size = +params.get("size") || 800;
+const canvas = document.getElementById("c");
+canvas.width = size; canvas.height = size;
+const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(size, size, false);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(dark ? 0x161615 : 0xecebe6);
+scene.add(new THREE.HemisphereLight(0xffffff, dark ? 0x30302c : 0xb9b6ac, dark ? 1.1 : 1.35));
+const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(1.5, 3, 3); scene.add(key);
+scene.add(new THREE.GridHelper(4, 40, dark ? 0x55554f : 0xb0aea5, dark ? 0x2a2a27 : 0xd0cec5));
+const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 50);
+
+const body = fitBody({ sex: params.get("sex") || "M", measures: { stature: { value: 1000 * (+params.get("stature") || 1.75), unit: "mm" } } });
+const skin = params.get("skin") !== "0";
+const rig = buildRig(body, skin ? { skeleton: false, quality: "low", skinBuilder: (b, bones, o) => buildSkin(b, bones, { ...o, color: 0xc9b8a6, detail: 0.6 }) } : { skeleton: true, quality: "low" });
+if (skin) rig.setDisplay({ skin: true, xray: true });
+scene.add(rig.group);
+const solver = IK.createSolver(body);
+const overlay = new THREE.Group();
+scene.add(overlay);
+
+const RED = 0xe03030, BLUE = 0x2060e0, GREEN = 0x30a050;
+const clear = () => { for (const o of [...overlay.children]) { overlay.remove(o); o.traverse((n) => { n.geometry?.dispose?.(); n.material?.dispose?.(); }); } };
+const dot = (p, color = RED, r = 0.018) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), new THREE.MeshBasicMaterial({ color })); m.position.set(...p); overlay.add(m); return m; };
+const line = (a, b, color = BLUE) => { overlay.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]), new THREE.LineBasicMaterial({ color }))); };
+const bar = (g) => { // a grip: the bar the fingers wrap around
+  const c = new THREE.Vector3(...g.position), ax = new THREE.Vector3(...g.axis).normalize(), n = new THREE.Vector3(...g.normal).normalize();
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(Math.max(g.diameter, 0.01) / 2, Math.max(g.diameter, 0.01) / 2, 0.3, 16), new THREE.MeshBasicMaterial({ color: GREEN }));
+  m.position.copy(c); m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), ax); overlay.add(m);
+  line(g.position, c.clone().addScaledVector(n, -0.08).toArray(), GREEN); // the palm comes from this side
+};
+
+let cur = { root: { ...solver.restRoot }, angles: {} };
+let last = null;
+function view({ az = 30, el = 8, dist = 4.2, target = [0, 0.95, 0.2], fov = 30 } = {}) {
+  const a = (az * Math.PI) / 180, e = (el * Math.PI) / 180;
+  camera.fov = fov; camera.updateProjectionMatrix();
+  camera.position.set(target[0] + dist * Math.sin(a) * Math.cos(e), target[1] + dist * Math.sin(e), target[2] + dist * Math.cos(a) * Math.cos(e));
+  camera.lookAt(...target);
+  renderer.render(scene, camera);
+}
+function apply(r, opts = {}) {
+  rig.setPose(r.pose, { clamp: false });
+  cur = { root: r.root, angles: r.angles };
+  last = r;
+  view(opts);
+  return summary(r);
+}
+const summary = (r) => ({ reachable: r.reachable, error: r.error, ms: +r.ms.toFixed(2), iterations: r.iterations, limited: r.clamped.filter((c) => c.blocking).map((c) => `${c.joint}.${c.dof} ${c.limit}`), text: IK.describeResult(r) });
+
+function reset() { cur = { root: { ...solver.restRoot }, angles: {} }; rig.setPose(cur, { clamp: false }); clear(); }
+function reach(side, target, o = {}) {
+  if (o.reset !== false) reset();
+  clear(); dot(target);
+  const r = IK.reachHand(solver, cur, side, target, { trunk: !!o.trunk, frame: o.frame });
+  const p = solver.worldPoint(r.pose, `grip_centre_${side}`);
+  line(p.toArray(), target);
+  // the elbow: the pole the solver aims for is down and out
+  return apply(r, o);
+}
+function grip(g, side, o = {}) {
+  if (o.reset !== false) reset();
+  clear(); bar(g);
+  const r = solver.solve(cur, [IK.handFrameFromGrip(g, side)], { free: [`arm_${side}`, `clavicle_${side}`] });
+  return apply(r, o);
+}
+function foot(side, spec, o = {}) {
+  if (o.reset !== false) reset();
+  clear(); dot(spec.position, RED);
+  return apply(IK.placeFoot(solver, cur, side, spec), o);
+}
+function look(target, o = {}) {
+  if (o.reset !== false) reset();
+  clear(); dot(target, RED, 0.04);
+  for (const s of ["L", "R"]) { const p = solver.worldPoint(cur, `pupil_${s}`); line(p.toArray(), target, RED); }
+  const r = IK.lookAt(solver, cur, target, { trunk: !!o.trunk });
+  clear(); dot(target, RED, 0.04);
+  for (const s of ["L", "R"]) { const p = solver.worldPoint(r.pose, `pupil_${s}`); line(p.toArray(), target, RED); }
+  return apply(r, { target: [0, 1.4, 0.5], dist: 2.6, ...o });
+}
+function squat(dy, o = {}) {
+  if (o.reset !== false) reset();
+  clear();
+  const pins = IK.pinGoals(solver, cur, ["heel_sole_L", "heel_sole_R", "ball_sole_medial_L", "ball_sole_medial_R"]);
+  for (const g of pins) dot(g.target, RED, 0.012);
+  return apply(IK.movePelvis(solver, cur, { dy }), o);
+}
+function envelope(side, o = {}) {
+  reset(); clear();
+  const e = IK.reachEnvelope(solver, cur, side, { samples: o.samples ?? 4000, trunk: !!o.trunk, seed: 1 });
+  const g = new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(e.points, 3));
+  overlay.add(new THREE.Points(g, new THREE.PointsMaterial({ color: BLUE, size: 0.012, transparent: true, opacity: 0.5 })));
+  const hg = new THREE.BufferGeometry();
+  hg.setAttribute("position", new THREE.Float32BufferAttribute(Float32Array.from(e.hull.vertices), 3));
+  hg.setIndex(Array.from(e.hull.faces));
+  overlay.add(new THREE.Mesh(hg, new THREE.MeshBasicMaterial({ color: GREEN, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false })));
+  overlay.add(new THREE.LineSegments(new THREE.WireframeGeometry(hg), new THREE.LineBasicMaterial({ color: GREEN, transparent: true, opacity: 0.25 })));
+  view({ az: o.az ?? 40, dist: o.dist ?? 4, target: [0, 1.2, 0.2], ...o });
+  return { count: e.count, maxDistance: e.maxDistance, ms: e.ms, faces: e.hull.faces.length / 3 };
+}
+
+window.__demo = { solver, rig, body, reach, grip, foot, look, squat, envelope, view, get result() { return last; }, IK };
+reset();
+view();
+window.__ready = true;
+</script>

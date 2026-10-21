@@ -105,6 +105,20 @@ python -m http.server -d public 8000    # preview at http://localhost:8000
 
 **To deploy on Vercel:** choose **Add New → Project**, import this repository, and keep the settings from `vercel.json` (no framework, build command `python3 scripts/build_site.py`, output directory `public`). Every push to `main` redeploys the site.
 
+## Digital human (3D)
+
+The **Digital human** tab (`site/js/human/`, design in [`docs/human3d/DESIGN.md`](docs/human3d/DESIGN.md)) builds a posable 3D mannequin from a population, a real person, an imported file or a manual stature and mass: a 77-joint rig with ranges of motion, a skin generated from the measured girths, the mapping of every measure to every bone and a fit report ([`MODEL.md`](docs/human3d/MODEL.md)). It has a library of 200+ postures ([`POSE.md`](docs/human3d/POSE.md)), a joint and IK posture editor ([`EDITOR.md`](docs/human3d/EDITOR.md), [`IK.md`](docs/human3d/IK.md)), a sandbox with seats, displays, boxes and tools, sit/grab/reach placement and distance measurements ([`PLACE_ANALYSIS.md`](docs/human3d/PLACE_ANALYSIS.md)), posture angle analysis ([`METRICS.md`](docs/human3d/METRICS.md)) and export to GLB, OBJ, STL, BVH, CSV and an exchange JSON ([`EXPORT.md`](docs/human3d/EXPORT.md)). three.js r180 (MIT) is vendored in `site/vendor/three`. Tests: `node --import ./tests/human3d/register.mjs --test "tests/human3d/*.test.mjs"` (Node 22; browser tests: `REQUIRE_BROWSER=1 python3 -m pytest tests/human3d/test_*.py`).
+
+## API and MCP server for CAD and digital-human tools
+
+[`anthro_service/`](anthro_service) serves the country × role × sex percentiles (P5/P50/P95 or any percentile of up to 571 measures, with reliability and sources) to tools that build mannequins and digital humans (CATIA Human Builder, Jack, RAMSIS, AutoCAD scripts, Blender) and to AI assistants:
+
+- **Static files** at `/api/v1/…` on the deployed site (`python scripts/build_site.py` writes them): JSON and CSV per population, no server.
+- **REST API** with an OpenAPI description, CSV and XML output: `pip install -r anthro_service/requirements.txt && python -m anthro_service serve`.
+- **MCP server** for Claude Desktop, Claude Code, Cursor and other MCP clients: `python -m anthro_service mcp`.
+
+See [`anthro_service/README.md`](anthro_service/README.md) for the endpoints, the percentile and reliability definitions, examples (Python, VBA, PowerShell, curl) and the licence caveat for commercial use.
+
 ## Contributing
 
 To add a source or fix an entry:

@@ -53,10 +53,15 @@ export function renderAbout(root) {
       h("li", {}, code("datasets"), ", ", code("surveys"), ", ", code("survey_links"), ": provenance and the full 49-survey catalog."),
       h("li", {}, code("raw_ansur_1988"), ", ", code("raw_ansur_ii_2012"), ", ", code("raw_asran_2015"), ", ", code("raw_usaf_1967"), " and ", code("raw_columns"), ": original columns with descriptions.")),
 
+    h("h2", {}, "Digital human (3D)"),
+    p("The ", a("#/human", "Digital human"), " tab turns a survey population (country, role, sex, percentile), a real person from the database, an imported file or a manual stature and mass into a posable 3D mannequin with a 77-joint rig, a skeleton and the mapping from every measure to every bone. Choose among 200+ postures (standing, sitting, leaning, holding, lifting, reaching, kneeling, lying, walking, work, military, vehicle), edit them joint by joint or with inverse kinematics, place the figure in a sandbox with a cabin seat, displays, boxes and tools, and measure distances and angles. Models can be exported to GLB, OBJ, STL, BVH and CSV for CAD and animation tools."),
+    p("It is a simplified kinematic and anthropometric visualisation: rigid links, approximate joint centres and ranges of motion, no soft-tissue, strength or fatigue model. A population profile is a boundary case, not a typical person. The fit report shows how closely the model reproduces each input measure. The 3D engine is ", a("three.js", "https://threejs.org"), " (MIT, bundled); the method is documented in ", a(REPO + "/tree/main/docs/human3d", "docs/human3d"), "."),
+
     h("h2", {}, "Downloads"),
     h("ul", {},
       h("li", {}, a("db/anthro.sqlite.gz", "Full SQLite database (gzip)"), " — open it with any SQLite tool, Python ", code("sqlite3"), ", R ", code("RSQLite"), " or DB Browser for SQLite."),
       h("li", {}, a("catalog/surveys.csv", "Survey catalog (CSV)"), " · ", a("catalog/surveys.json", "JSON"), " · ", a("catalog/papers.csv", "Paper index (CSV)")),
+      h("li", {}, a("api/v1/index.json", "Percentile data as an API"), " — read-only JSON and CSV per country, role and sex (P5, P50, P95 of every measure, with reliability and sources) for CAD and digital-human tools. A live REST API and an MCP server for AI assistants are in ", a(REPO + "/tree/main/anthro_service", "anthro_service/"), "."),
       h("li", {}, a("aggregates/aggregates.csv", "All extracted statistics (CSV)"), " · ", a("aggregates/rollup.csv", "Country × role roll-up (CSV)"), " · ", a("aggregates/SPEC.md", "column definitions")),
       h("li", {}, "Original data files: ", a("data/ansur-1988/ansurMen.csv", "ANSUR 88 men"), ", ", a("data/ansur-1988/ansurWomen.csv", "women"), " · ",
         a("data/ansur-ii-2012/ANSUR_II_MALE_Public.csv", "ANSUR II men"), ", ", a("data/ansur-ii-2012/ANSUR_II_FEMALE_Public.csv", "women"), " · ",

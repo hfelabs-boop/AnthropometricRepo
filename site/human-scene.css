@@ -1,0 +1,122 @@
+/* Scene and Measure panels of the Digital human tab (site/js/human/panels/scene.js and measure.js) and the labels their objects and measurements put into the 3D
+   view. Prefixes: hm-sc- (scene panel), hm-obj- (catalogue), hm-ol- (object list), hm-ed- (settings of the selected object), hm-swatch, hm-ib (icon button),
+   hm-ms- (measure panel), hm-label-object / -measure / -snap (labels in the view). Colours come from the site's tokens, so both themes work. The panel column is
+   about 280 to 320 px wide (one column below 900 px): everything stacks and wraps, nothing may force a horizontal scroll down to 360 px. */
+
+.hm-sc, .hm-ms { display: grid; gap: 10px; font-size: .88rem; min-width: 0; }
+.hm-sc > *, .hm-ms > *, .hm-sc-stack > *, .hm-ed-body > * { min-width: 0; }
+.hm-sc .hm-panel-title, .hm-ms .hm-panel-title { margin: 0; }
+.hm-sc p, .hm-ms p { margin: 0; }
+.hm-sc [hidden], .hm-ms [hidden], .hm-ed [hidden], .hm-ms-detail [hidden] { display: none !important; }
+.hm-sc .field, .hm-ms .field, .hm-ed .field, .hm-ms-detail .field { margin-bottom: 0; }
+.hm-sc .hm-section-body, .hm-ms .hm-section-body { gap: 8px; }
+.hm-sc details > summary, .hm-ms details > summary { border-radius: 6px; }
+.hm-sc .input, .hm-ms .input, .hm-ed .input, .hm-ms-detail .input { min-height: 34px; padding: 5px 9px; min-width: 0; }
+/* a closed section points right instead of rotating its arrow: a rotated glyph sticks out of the summary by a few pixels and makes the panel scroll sideways on a phone */
+.hm-sc .hm-section:not([open]) > summary::after, .hm-ms .hm-section:not([open]) > summary::after { content: "▸"; transform: none; }
+
+.hm-sc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.hm-sc-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.hm-sc-stack { display: grid; gap: 8px; }
+.hm-sc-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.hm-sc .btn, .hm-ms .btn, .hm-ed .btn, .hm-ms-detail .btn { white-space: normal; text-align: left; }
+.hm-sc .btn.small svg, .hm-ms .btn svg, .hm-ed .btn svg { flex: none; }
+.hm-sc-slot { min-width: 0; }
+.hm-empty { padding: 4px 0; }
+
+/* square icon buttons (lock, hide, duplicate, delete, show / hide a measurement) */
+.hm-ib { width: 28px; height: 28px; display: inline-grid; place-items: center; padding: 0; flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 7px; color: var(--text-2); cursor: pointer; }
+.hm-ib:hover { border-color: var(--line-strong); color: var(--text); background: var(--surface-2); }
+.hm-ib[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.hm-ib:focus-visible, .hm-obj-card:focus-visible, .hm-ol-main:focus-visible, .hm-ms-val:focus-visible, .hm-swatch:focus-visible { outline-offset: 2px; }
+@media (pointer: coarse) { .hm-ib { width: 38px; height: 38px; } .hm-swatch { width: 30px; height: 30px; } }
+
+/* ---------- catalogue ---------- */
+.hm-obj-search { position: relative; }
+.hm-obj-search .input { padding-left: 30px; width: 100%; }
+.hm-obj-sicon { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; display: grid; }
+.hm-obj-cats { display: flex; flex-wrap: wrap; gap: 5px; }
+.hm-obj-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-height: 330px; overflow: auto; padding: 2px; scrollbar-width: thin; }
+.hm-obj-card { display: flex; align-items: center; gap: 8px; padding: 5px 7px; min-height: 54px; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; cursor: pointer; text-align: left; color: var(--text); }
+.hm-obj-card:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.hm-obj-card[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.hm-obj-thumb { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 6px; background: var(--surface-2); color: var(--text-3); overflow: hidden; }
+.hm-obj-thumb img { width: 44px; height: 44px; display: block; }
+.hm-obj-name { font-size: .8rem; line-height: 1.25; overflow-wrap: anywhere; }
+.hm-obj-detail { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+.hm-obj-detail-head { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+.hm-obj-detail h3 { margin: 0; font-size: .95rem; }
+.hm-obj-detail .btn { justify-self: start; }
+
+/* ---------- list of objects ---------- */
+.hm-ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.hm-ol-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.hm-ol-row[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.hm-ol-row[data-hidden="1"] .hm-ol-main { opacity: .55; }
+.hm-ol-main { display: grid; text-align: left; border: 0; background: none; padding: 3px 6px; cursor: pointer; min-width: 0; border-radius: 6px; color: var(--text); }
+.hm-ol-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-ol-type { color: var(--text-3); font-size: .75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-place:empty { display: none; }
+
+/* ---------- settings of the selected object (also used for a measurement) ---------- */
+.hm-ed-body { display: grid; gap: 10px; }
+.hm-ed-set { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; min-width: 0; }
+fieldset.hm-ed-set legend { font-size: .8rem; font-weight: 600; color: var(--text-2); padding: 0; margin-bottom: 4px; }
+.hm-ed-h { font-size: .8rem; font-weight: 600; color: var(--text-2); }
+.hm-ed-xyz { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px 8px; }
+.hm-ed-f { display: grid; gap: 2px; min-width: 0; }
+.hm-ed-f label { font-size: .75rem; color: var(--text-3); }
+.hm-ed-f .hm-num { width: 100%; min-width: 0; }
+.hm-ed-checks { display: flex; gap: 12px; flex-wrap: wrap; }
+.hm-ed-check { padding-left: 0; }
+.hm-ed-type { margin-top: -6px; }
+.hm-ed-about > summary { cursor: pointer; color: var(--accent); font-size: .85rem; width: fit-content; }
+.hm-ed-about p { margin-top: 6px; }
+.hm-ed .hm-slider-ctl { grid-template-columns: minmax(0, 1fr) 70px auto; }
+.hm-swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.hm-swatch { width: 24px; height: 24px; padding: 0; border-radius: 50%; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--line-strong); cursor: pointer; flex: none; }
+.hm-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.hm-swatch-default { background-image: linear-gradient(135deg, transparent 46%, var(--surface) 46%, var(--surface) 54%, transparent 54%); }
+.hm-swatch-custom { width: 28px; height: 28px; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 6px; }
+
+.hm-sc-msg-list { margin: 4px 0 0; padding-left: 18px; }
+.hm-sc-msgs .notice { display: block; }
+.hm-sc-kbd { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; margin: 8px 0 0; font-size: .82rem; align-items: baseline; }
+.hm-sc-kbd dd { margin: 0; color: var(--text-2); }
+.hm-sc-keys > summary { cursor: pointer; color: var(--accent); font-size: .85rem; width: fit-content; }
+.hm-sc-keys .hm-kbd { white-space: normal; text-align: left; }
+
+/* ---------- measure panel ---------- */
+.hm-ms-hint { min-height: 2.6em; }
+.hm-ms-err { color: var(--bad); }
+.hm-ms-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.hm-ms-item { display: grid; gap: 1px; padding: 4px 6px 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.hm-ms-item[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.hm-ms-item[data-hidden="1"] .hm-ms-name, .hm-ms-item[data-hidden="1"] .hm-ms-res { opacity: .55; }
+.hm-ms-line { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px; align-items: center; }
+.hm-ms-dot { display: block; width: 12px; height: 12px; border-radius: 50%; }
+.hm-ms-name { width: 100%; min-width: 0; padding: 3px 5px; border: 1px solid transparent; border-radius: 6px; background: transparent; font-weight: 600; color: var(--text); text-overflow: ellipsis; }
+.hm-ms-name:hover { border-color: var(--line); }
+.hm-ms-name:focus { border-color: var(--accent); background: var(--surface); }
+.hm-ms-res { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; padding: 0 5px 0 34px; min-width: 0; }
+.hm-ms-val { padding: 1px 0; border: 0; background: none; font-weight: 650; font-size: 1rem; font-variant-numeric: tabular-nums; cursor: pointer; color: var(--text); border-radius: 6px; text-align: left; overflow-wrap: anywhere; }
+.hm-ms-sub { color: var(--text-2); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; font-size: .8rem; }
+.hm-ms-item[data-state="grey"] { background: var(--surface-2); }
+.hm-ms-item[data-state="grey"] .hm-ms-val { color: var(--text-3); font-weight: 400; }
+.hm-ms-item[data-state="grey"] .hm-ms-sub { color: var(--text-3); font-style: italic; }
+.hm-ms-big { font-size: 1.5rem; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; overflow-wrap: anywhere; }
+.hm-ms-big[data-state="grey"] { color: var(--text-3); }
+.hm-ms-detail-body { display: grid; gap: 10px; }
+.hm-ms-detail .hm-kv dd { font-variant-numeric: tabular-nums; }
+
+/* ---------- labels in the 3D view ---------- */
+.hm-label.hm-label-object { font-weight: 500; color: var(--text-2); }
+.hm-label.hm-label-object::before { border-radius: 1px; background: var(--text-3); }
+.hm-label.hm-label-measure { font-variant-numeric: tabular-nums; }
+.hm-label.hm-label-measure::before { border-radius: 1px; }
+.hm-label.hm-label-snap { border-color: var(--accent); color: var(--accent); }
+
+@media (forced-colors: active) {
+  .hm-ib[aria-pressed="true"], .hm-obj-card[aria-pressed="true"], .hm-ol-row[aria-current="true"], .hm-ms-item[aria-current="true"] { border: 2px solid Highlight; }
+  .hm-swatch[aria-checked="true"] { outline: 3px solid Highlight; }
+}

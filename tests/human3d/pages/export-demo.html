@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<base href="/"><!-- the data files (api/v1) are relative to the site root, as on the real page -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>export panel demo</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/human.css">
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<style>
+  body { padding: 12px; }
+  .demo { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 12px; align-items: start; max-width: 1200px; }
+  .side { min-width: 0; max-height: calc(100vh - 80px); overflow: auto; }
+  .stage { position: relative; height: 560px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; align-items: center; }
+  @media (max-width: 760px) { .demo { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<!-- Demo / test page of the Export panel (panels/export.js) without the shell: a real figure (fit.js, rig.js, body.js), the real viewport (viewport.js), the sandbox
+     (sandbox.js) and a minimal ctx. URL: ?sex=M|F &p=5|50|95 (percentile of the US Army) &posture=<library id> &quality=high|low &dark=1
+     window.__demo = { ctx, panel, viewport, setPosture(id), setProfile(sex, p), sandbox(), runAll() } and window.__ready.
+     runAll() clicks every download button of the panel and resolves with { file name: bytes } (the browser must allow multiple downloads). -->
+<div class="bar">
+  <label>Sex <select id="sex"><option>M</option><option>F</option></select></label>
+  <label>Percentile <select id="pct"><option>5</option><option selected>50</option><option>95</option></select></label>
+  <label>Posture <select id="posture"></select></label>
+  <label>Quality <select id="quality"><option>high</option><option>low</option></select></label>
+</div>
+<div class="demo"><aside class="panel side"><div class="hm-panel-body" id="host"></div></aside><div class="stage" id="stage"></div></div>
+<script type="module">
+import * as THREE from "three";
+import { fitBody } from "/js/human/fit.js";
+import { buildRig } from "/js/human/rig.js";
+import { buildSkin } from "/js/human/body.js";
+import { createViewport } from "/js/human/viewport.js";
+import { percentileProfile, loadIndex, loadPopulation } from "/js/human/anthro.js";
+import { POSTURES, byId } from "/js/human/postures.js";
+import { expandPosture, placePose } from "/js/human/pose.js";
+import { sandboxFor } from "/js/human/sandbox.js";
+import panel from "/js/human/panels/export.js";
+
+const q = new URLSearchParams(location.search);
+if (q.get("dark")) document.documentElement.dataset.theme = "dark";
+const viewport = createViewport(document.getElementById("stage"), { quality: q.get("quality") || "high" });
+const handlers = new Map();
+const on = (e, f) => { if (!handlers.has(e)) handlers.set(e, new Set()); handlers.get(e).add(f); return () => handlers.get(e).delete(f); };
+const emit = (e, d) => { for (const f of [...(handlers.get(e) ?? [])]) { try { f(d); } catch (err) { console.error(err); } } };
+const state = { profile: null, body: null, rig: null, selection: null, units: "mm", posture: { id: null, name: "Neutral standing" }, quality: viewport.quality, busy: false, notices: [] };
+let oldRig = null;
+const ctx = {
+  panelId: "export", state, viewport, on, emit,
+  getRig: () => state.rig, getBody: () => state.body, getProfile: () => state.profile,
+  toast: (m) => { console.log("toast:", m); }, notify() {}, dismiss() {}, requestRender: () => viewport.requestRender(), inspector() {},
+  setPosture(p) { state.posture = { id: p.id ?? null, name: String(p.name || "Custom posture") }; emit("posture", state.posture); },
+  setQuality(qq) { state.quality = qq; viewport.setQuality(qq); document.getElementById("quality").value = qq; return setProfile(document.getElementById("sex").value, Number(document.getElementById("pct").value)); },
+};
+let index = null;
+async function setProfile(sex, pct) {
+  index ??= await loadIndex();
+  const entry = index.populations.find((p) => p.country_id === "united-states" && p.role_id === "army" && p.sex === sex);
+  const profile = percentileProfile(await loadPopulation(entry), { percentile: pct });
+  const body = fitBody(profile, { form: sex === "F" ? "female" : "male" });
+  const rig = buildRig(body, { skinBuilder: buildSkin, skeleton: true, quality: state.quality });
+  const pose = oldRig?.getPose();
+  viewport.add(rig.group);
+  if (pose) { try { rig.setPose(pose); } catch { /* new body */ } }
+  rig.onChange(() => { emit("pose", { rig }); viewport.requestRender(); });
+  if (oldRig) { viewport.remove(oldRig.group); oldRig.dispose(); }
+  oldRig = rig;
+  Object.assign(state, { profile, body, rig });
+  emit("profile", profile); emit("body", body); emit("rig", rig);
+  viewport.requestRender();
+}
+function setPosture(id) {
+  const rig = state.rig;
+  if (!id) { rig.resetPose(); ctx.setPosture({ id: null, name: "Neutral standing" }); return; }
+  const posture = byId(id), x = expandPosture(posture);
+  rig.setPose({ root: { ...placePose(rig.restBody, { root: x.root, angles: x.angles }, { posture }) }, angles: x.angles });
+  ctx.setPosture({ id, name: posture.name });
+}
+const sel = document.getElementById("posture");
+sel.append(new Option("Neutral standing", ""), ...POSTURES.map((p) => new Option(`${p.category}: ${p.name}`, p.id)));
+sel.onchange = () => setPosture(sel.value);
+document.getElementById("quality").value = viewport.quality;
+document.getElementById("quality").onchange = (e) => ctx.setQuality(e.target.value);
+for (const id of ["sex", "pct"]) document.getElementById(id).onchange = () => setProfile(document.getElementById("sex").value, Number(document.getElementById("pct").value));
+document.getElementById("sex").value = q.get("sex") || "M";
+document.getElementById("pct").value = q.get("p") || "50";
+await setProfile(document.getElementById("sex").value, Number(document.getElementById("pct").value));
+viewport.frame(new THREE.Box3(new THREE.Vector3(-0.6, 0, -0.6), new THREE.Vector3(0.6, 1.9, 0.6)), { animate: false });
+if (q.get("posture")) { sel.value = q.get("posture"); setPosture(q.get("posture")); }
+const host = document.getElementById("host");
+const api = await panel.mount(host, ctx);
+api.onShow?.();
+host.querySelectorAll("details.hm-section").forEach((d) => { d.open = true; });
+window.__demo = {
+  ctx, panel: api, viewport, setPosture, setProfile, sandbox: () => sandboxFor(ctx),
+  async runAll() {
+    const out = {};
+    for (const b of [...host.querySelectorAll("button.btn.primary, button.btn")].filter((x) => /^(Download|Copy summary)/.test(x.textContent) || /^Download/.test(x.getAttribute("aria-label") || ""))) {
+      b.click();
+      await new Promise((r) => setTimeout(r, 50));
+      while (host.querySelector(".hm-ex")?.hasAttribute("aria-busy")) await new Promise((r) => setTimeout(r, 50));
+      out[b.getAttribute("aria-label") || b.textContent] = host.querySelector(".hm-ex-last").textContent;
+    }
+    return out;
+  },
+};
+window.__ready = true;
+</script>
+</body>
+</html>

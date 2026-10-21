@@ -1,0 +1,4 @@
+# Keep the VBA module importable: the VBA editor expects CRLF.
+*.bas text eol=crlf
+*.cls text eol=crlf
+*.frm text eol=crlf

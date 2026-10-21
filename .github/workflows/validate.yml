@@ -24,3 +24,43 @@ jobs:
           python scripts/validate_aggregates.py
           python scripts/build_aggregates.py
           git diff --exit-code aggregates/
+
+  service:
+    # REST API and MCP server (anthro_service/); also checks them against both major versions of the mcp package
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mcp: ["mcp==1.22.0", "mcp>=1.22,<2", "mcp>=2,<3"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: pip install fastapi uvicorn httptools httpx pytest "${{ matrix.mcp }}"
+      - name: API, MCP and static snapshot tests
+        env:
+          REQUIRE_SERVICE_DEPS: "1"
+        run: python -m pytest anthro_service/tests -q
+
+  human3d:
+    # "Digital human" tab (site/js/human): kinematics, fitting, skin, postures, IK, sandbox, export. Node tests only (no browser):
+    # the Playwright tests in tests/human3d/test_*.py are run locally with REQUIRE_BROWSER=1.
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -r requirements.txt
+      - name: Build the website data (database, api/v1)
+        run: python scripts/build_site.py
+      - name: Digital human tests
+        run: node --import ./tests/human3d/register.mjs --test "tests/human3d/*.test.mjs"

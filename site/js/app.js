@@ -4,7 +4,7 @@ import { initCatalog } from "./catalog.js";
 import { loadDB } from "./db.js";
 import { renderAbout } from "./about.js";
 
-const VIEWS = ["catalog", "explore", "compare", "sql", "measures", "tables", "papers", "about"];
+const VIEWS = ["catalog", "explore", "compare", "human", "sql", "measures", "tables", "papers", "about"];
 const inits = {};      // view -> Promise<{onShow?}>
 let catalogData = null, papersData = [];
 
@@ -16,21 +16,27 @@ const lazy = {
   compare: () => import("./compare.js").then(m => m.initCompare()),
   tables: () => import("./tables.js").then(m => m.initTables()),
   papers: () => import("./papers.js").then(m => m.initPapers()),
+  human: () => import("./human/index.js").then(m => m.initHuman()),   // three.js is imported only here, when the tab is first opened
 };
 
 function dbError(view, e) {
-  const target = { explore: "#ex-body", sql: "#sql-results", measures: "#measures-table", tables: "#view-tables", compare: "#view-compare", papers: "#view-papers" }[view];
-  $(target)?.replaceChildren(h("div", { class: "notice error" }, `Could not load the database: ${e.message || e}`),
+  const target = { explore: "#ex-body", sql: "#sql-results", measures: "#measures-table", tables: "#view-tables", compare: "#view-compare", papers: "#view-papers", human: "#view-human" }[view];
+  $(target)?.replaceChildren(h("div", { class: "notice error" }, (view === "human" ? `Could not load the 3D module: ${e.message || e}` : `Could not load the database: ${e.message || e}`)),
     h("button", { class: "btn", type: "button", style: { marginTop: "8px" }, onclick: () => { delete inits[view]; route(); } }, "Retry"));
 }
 
+let current = null;
 async function route() {
   const { view: raw } = readHash();
   const view = VIEWS.includes(raw) ? raw : "catalog";
+  if (current && current !== view && inits[current]) (await inits[current].catch(() => null))?.onHide?.();   // views that animate stop while hidden
+  current = view;
   for (const v of VIEWS) $(`#view-${v}`).hidden = v !== view;
-  $$(".tab").forEach(t => { if (t.dataset.view === view) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current"); });
+  // A nav link may carry data-panel (the Postures link is #/human?panel=posture): it is current only for that panel.
+  const panel = readHash().params.get("panel");
+  $$(".tab").forEach(t => { if (t.dataset.view === view && (t.dataset.panel ? t.dataset.panel === panel : !panel || view !== "human")) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current"); });
   closeSidebars();
-  document.title = `${{ catalog: "Survey catalog", explore: "Explore data", compare: "By country & role", sql: "SQL console", measures: "Measures", tables: "Tables", papers: "Papers", about: "About" }[view]} · Military Anthropometric Surveys`;
+  document.title = `${{ catalog: "Survey catalog", explore: "Explore data", compare: "By country & role", human: "Digital human", sql: "SQL console", measures: "Measures", tables: "Tables", papers: "Papers", about: "About" }[view]} · Military Anthropometric Surveys`;
   if (view === "catalog" && !inits.catalog) inits.catalog = Promise.resolve(initCatalog(catalogData, papersData));
   if (view === "about" && !inits.about) inits.about = Promise.resolve(renderAbout($("#view-about")));
   if (lazy[view]) {

@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><title>demo page</title>
+<script type="importmap">{"imports":{"three":"/vendor/three/three.module.min.js","three/addons/":"/vendor/three/addons/"}}</script>
+<canvas id="c" width="320" height="240"></canvas>
+<script type="module">
+import * as THREE from "three";
+import { JOINTS } from "/js/human/skeleton.js";
+window.__ready = { revision: THREE.REVISION, joints: JOINTS.length };
+</script>
