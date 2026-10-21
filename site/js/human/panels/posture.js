@@ -11,6 +11,7 @@ import { POSTURES, GRIPS } from "../postures.js";
 import { GRIP_NAMES } from "../postures/grips.js";
 import { editorFor, BACKUP_KEY, EDIT_TABS, HANDLES, FINGER_NAMES, createHandleLayer, sliderBounds, regionRange, regionTotals, supportLabel, supportShort, tabOfJoint, hasTwin, dofTitle, NUDGE_M } from "../editor.js";
 import { section, tablist, badge, emptyState, notice, nextId, toUnit, fromUnit, unitDigits, UNIT_LABEL } from "../ui.js";
+import { correctAngles, verdictOf, compareFlags, postureVerdict } from "../correct.js";
 
 const CSS_URL = new URL("../../../human-posture.css", import.meta.url).href;
 const PREFS_KEY = "hm-posture-prefs-v1";
@@ -502,6 +503,16 @@ function libraryView(env) {
     slot.title = v.title;
     slot.dataset.state = v.kind || "pending";
   }
+  const ERGO = { "not-acceptable": ["bad", "not acceptable"], check: ["warn", "check"], acceptable: ["good", "acceptable"] };
+  function fillErgo(rowEl, p, b) {
+    const slot = rowEl.querySelector(".hm-pe-ergo");
+    if (!slot) return;
+    const r = postureVerdict(b, p), [kind, text] = ERGO[r.verdict] ?? ["", "…"];
+    slot.className = `tag hm-pe-ergo ${kind}`.trim();
+    slot.textContent = r.verdict ? text : "n/a";
+    slot.title = r.verdict ? `Ergonomic verdict on this body: ${text} (ISO 11226 indication, not a risk assessment). ${r.counts.high} not acceptable, ${r.counts.caution} to check.` : "Could not be placed on this body";
+    slot.dataset.state = r.verdict ?? "none";
+  }
   function pump() {
     pumpId = 0;
     const b = body();
@@ -513,6 +524,7 @@ function libraryView(env) {
       if (!r.isConnected || r.dataset.id !== p.id) continue;
       drawThumb(r.querySelector("canvas"), p, b);
       fillBadge(r, p, b);
+      fillErgo(r, p, b);
     }
     if (pending.length) pumpId = requestAnimationFrame(pump);
   }
@@ -525,7 +537,7 @@ function libraryView(env) {
       h("div", { class: "hm-pe-card-body" },
         h("div", { class: "hm-pe-card-name" }, h("span", { class: "hm-pe-card-title" }, p.name), h("span", { class: "hm-pe-edited", hidden: true, title: "You have edited this posture" }, "edited")),
         h("div", { class: "hm-pe-card-desc" }, p.description),
-        h("div", { class: "hm-pe-card-badges" }, badge(sup, "outline", `${supportLabel(p.support)}: ${SUPPORT_INFO[p.support] ?? ""}`), h("span", { class: "tag hm-pe-valid", title: "Checking the posture on this body" }, "…"), badge(src.text, "outline", src.title))));
+        h("div", { class: "hm-pe-card-badges" }, badge(sup, "outline", `${supportLabel(p.support)}: ${SUPPORT_INFO[p.support] ?? ""}`), h("span", { class: "tag hm-pe-valid", title: "Checking the posture on this body" }, "…"), h("span", { class: "tag hm-pe-ergo", title: "Ergonomic verdict on this body (ISO 11226 indication)" }, "…"), badge(src.text, "outline", src.title))));
     io?.observe(r);
     queue(r, p);
     return r;
@@ -706,6 +718,55 @@ function currentView(env, lib) {
     importMsg.replaceChildren(r.ok ? notice(`Showing "${r.name}".${r.warnings?.length ? ` ${r.warnings.slice(0, 3).join(" ")}` : ""}`, { level: r.warnings?.length ? "warn" : "info", onDismiss: () => importMsg.replaceChildren() }) : notice(`That file cannot be used. ${r.errors.slice(0, 3).join(" ")}`, { level: "error", onDismiss: () => importMsg.replaceChildren() }));
     if (r.ok) env.say(`Imported "${r.name}".`);
   });
+  // ergonomic correction: the verdict chip sits next to the name; the switch shows the corrected posture and the before/after table
+  const verdictChip = h("span", { class: "tag hm-pe-verdict", hidden: true, role: "status" });
+  let corr = null; // { original: { angles }, result, applied } while the corrected posture is on the figure
+  const corrMsg = h("p", { class: "small hm-pe-corrmsg", role: "status" });
+  const corrTable = h("div", { class: "hm-pe-corrtable", hidden: true, role: "region", "aria-label": "Before and after the correction" });
+  const corrSwitch = switchRow({ label: "Show corrected posture", hint: "Moves the joints toward the ISO 11226 limits; the palms stay within 15 cm and the figure is re-grounded. One undo step.", checked: false, onChange: (v) => setCorrection(v) });
+  // the figure may round the angles a little when it clamps them: compare within 0.05 degrees
+  const sameAngles = (a, b) => { if (!a || !b) return false; for (const k of Object.keys(b)) { const x = a[k] ?? [], y = b[k] ?? []; for (let i = 0; i < y.length; i++) if (Math.abs((x[i] ?? 0) - (y[i] ?? 0)) > 0.05) return false; } return true; };
+  const rigAngles = () => { const r = ctx.getRig(); if (!r) return null; const p = r.getPose(); return Object.fromEntries(Object.entries(p.angles).map(([k, a]) => [k, Array.from(a)])); };
+  function setCorrection(on) {
+    if (!on) {
+      if (corr) { try { editor.setPose({ angles: corr.original.angles }, { record: true }); } catch (e) { env.say(String(e.message), "error"); } }
+      corr = null; corrMsg.textContent = ""; corrTable.hidden = true; return;
+    }
+    const r = ctx.getRig(), body = ctx.getBody?.() ?? r?.restBody ?? r?.body;
+    if (!r || !body) { corrSwitch.set(false); return; }
+    const pose = r.getPose(), info = editor.info(), seated = Object.values(info.place.carriers ?? {}).includes("seat");
+    let res;
+    try { res = correctAngles(body, { root: pose.root, angles: pose.angles }, { flagOptions: { seated } }); }
+    catch (e) { corrSwitch.set(false); corrMsg.textContent = `The correction could not be worked out (${String(e.message).slice(0, 100)}).`; return; }
+    if (res.changed === 0 || res.cost.after >= res.cost.before - 1e-9) { corrSwitch.set(false); corrMsg.textContent = "No change within the limits makes this posture more acceptable: the flags come from the support or the task, not from the joints."; return; }
+    corr = { original: { angles: pose.angles }, result: res, applied: false };
+    editor.setPose({ angles: res.angles }, { record: true });
+    const after = editor.info();
+    if (after.balance?.status === "falls") { // the corrected figure would fall over: keep the original
+      editor.setPose({ angles: pose.angles }, { record: true }); corr = null; corrSwitch.set(false);
+      corrMsg.textContent = "The corrected posture would fall over, so the original is kept. Change the support or the stance first.";
+      return;
+    }
+    corr.applied = true; corr.corrected = res.angles;
+    env.say("Showing the corrected posture.");
+    update();
+  }
+  function corrTableRender(info) {
+    if (!corr?.applied) { corrTable.hidden = true; return; }
+    const rows = compareFlags(corr.result.before, info.flags ?? []).filter((r) => r.status !== "ok");
+    const word = { "not-acceptable": "not acceptable", check: "check", acceptable: "acceptable" };
+    const { verdictBefore: vb, verdictAfter: va, hands, changed } = corr.result;
+    const verdict = vb === va ? `Still ${word[va]}: the flags are reduced, not removed.` : `Verdict: ${word[vb]} → ${word[va]}.`;
+    const sev = (f) => f ? h("span", { class: `tag ${f.severity === "high" ? "bad" : f.severity === "caution" ? "warn" : "good"}` }, `${Math.round(f.value * 10) / 10}° ${f.severity === "high" ? "not acceptable" : f.severity === "caution" ? "check" : "ok"}`) : h("span", { class: "muted" }, "—");
+    const res = { fixed: "fixed", worse: "worse", unchanged: "still flagged" };
+    corrTable.replaceChildren(
+      h("p", { class: "small hm-pe-corrsum" }, verdict, ` Palms moved ${Math.round(hands.L * 1000)} mm (left) and ${Math.round(hands.R * 1000)} mm (right); ${changed} joints changed.`),
+      rows.length ? h("ul", { class: "hm-pe-corrlist", "aria-label": "Measures before and after" }, rows.map((r) => h("li", { class: `hm-pe-corrrow is-${r.status}` },
+        h("span", { class: "hm-pe-corrlabel" }, r.label),
+        h("span", { class: "hm-pe-corrvals" }, sev(r.before), h("span", { class: "hm-pe-arrow", "aria-hidden": "true" }, "→"), sev(r.after), h("span", { class: "hm-pe-corrres small muted" }, res[r.status] ?? r.status))))) : h("p", { class: "small muted" }, "No flag remains."));
+    corrTable.hidden = false;
+  }
+
   const animate = switchRow({ label: "Animate", hint: "Glide into a posture (off with reduced motion)", checked: editor.options.animate, onChange: (v) => { editor.setOption("animate", v); env.savePrefs(); } });
   const stay = switchRow({ label: "Stay on the floor or seat", hint: "Re-ground the figure after every edit", checked: editor.options.stick, onChange: (v) => { editor.setStick(v); } });
 
@@ -752,11 +813,11 @@ function currentView(env, lib) {
   const angleBox = h("details", { class: "hm-pe-details" }, h("summary", {}, "Key angles and indications"), anglesEl, flagsEl, h("p", { class: "small muted" }, "A kinematic indication on a simplified model (ISO 11226 limits), not a risk assessment."));
   const col = (a) => h("div", { class: "hm-pe-block" }, ...a);
   const el = h("div", { class: "hm-pe-cur" },
-    h("div", { class: "hm-pe-curhead" }, nameEl, dot), baseEl,
+    h("div", { class: "hm-pe-curhead" }, nameEl, dot, verdictChip), baseEl,
     h("div", { class: "hm-pe-row hm-pe-actions", role: "group", "aria-label": "History and reset" }, undoB, redoB, resetB, neutralB),
     h("div", { class: "hm-pe-row hm-pe-actions", role: "group", "aria-label": "Mirror" }, mirrorB, copyLR, copyRL),
     h("div", { class: "hm-pe-row hm-pe-actions", role: "group", "aria-label": "Save and files" }, saveB, delB, exportB, importB, fileIn), saveForm, delConfirm, importMsg,
-    h("div", { class: "hm-pe-switches" }, animate.el, stay.el),
+    h("div", { class: "hm-pe-switches" }, corrSwitch.el, animate.el, stay.el), corrMsg, corrTable,
     col([h("h3", { class: "hm-pe-h3" }, "Placement"), h("div", { class: "hm-pe-field" }, h("label", { for: supportSel.id, class: "hm-pe-flabel" }, "Carried by"), supportSel), modeSeg, modeNote, chairRow, seatHost, h("div", { class: "hm-pe-row" }, resetPlace), headingRow.el]),
     col([h("h3", { class: "hm-pe-h3" }, "Live readouts"), h("div", { class: "hm-pe-chiprow" }, balanceEl, gapsEl), romEl, clampEl, angleBox]));
 
@@ -767,6 +828,15 @@ function currentView(env, lib) {
     const base = editor.base, mod = !!info?.modified;
     const saved = base.kind === "custom" && editor.listCustom().some((p) => p.id === base.id); // a custom posture that was deleted is still on the figure, but there is nothing left to delete
     nameEl.textContent = base.name;
+    if (info) {
+      const v = verdictOf(info.flags ?? []), label = { "not-acceptable": "Not acceptable", check: "Check posture", acceptable: "Acceptable" }[v];
+      verdictChip.hidden = false; verdictChip.textContent = label; verdictChip.className = `tag hm-pe-verdict ${v === "not-acceptable" ? "bad" : v === "check" ? "warn" : "good"}`;
+      verdictChip.title = "ISO 11226 indication for the static posture (not a risk assessment); see the flags in Key angles and indications";
+      corrSwitch.el.querySelector("input").disabled = v === "acceptable" && !corr;
+      if (corr?.applied && !sameAngles(rigAngles(), corr.corrected)) { corr = null; corrSwitch.set(false); corrMsg.textContent = "The posture was changed by hand, so the correction is cleared."; }
+      corrTableRender(info);
+      if (ctx.setVerdict && ctx.state.postureVerdict !== v) ctx.setVerdict(v);
+    }
     dot.hidden = !mod;
     baseEl.textContent = mod ? `Edited from ${base.kind === "neutral" ? "neutral standing" : base.kind === "custom" ? (saved ? "your custom posture" : "a custom posture that is no longer saved") : base.kind === "imported" ? "an imported posture" : "the library posture"}.` : { library: "Library posture.", custom: saved ? "Your custom posture, saved in this browser." : "A custom posture that is no longer saved. Use Save as custom to keep it.", imported: "Imported from a file.", neutral: "Every joint at 0." }[base.kind] ?? "";
     const h_ = editor.history;
