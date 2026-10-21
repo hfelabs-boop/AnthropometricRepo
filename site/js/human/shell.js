@@ -135,6 +135,9 @@ async function build(undo) {
   const left = h("aside", { class: "hm-left panel", "aria-label": "Tools" }, tabs.el, panelsEl);
 
   const viewportEl = h("div", { class: "hm-viewport-host" });
+  // the ergonomic verdict of the figure, next to the model (set by the Posture panel through ctx.setVerdict)
+  const verdictBadge = h("div", { class: "hm-verdict", hidden: true, role: "status", "aria-label": "Posture verdict" });
+  viewportEl.append(verdictBadge);
   const viewBtns = VIEW_ORDER.map((name, i) => h("button", { type: "button", title: `${VIEW_PRESETS[name].title} (${i + 1})`, dataset: { view: name }, onclick: () => setView(name) }, VIEW_PRESETS[name].label));
   const viewSeg = h("div", { class: "seg hm-seg", role: "group", "aria-label": "View presets" }, viewBtns);
   const fitBtn = chipButton({ label: "Fit", title: "Fit the figure in the view (F)", icon: "fit", onClick: () => frameFigure(true) });
@@ -221,6 +224,7 @@ async function build(undo) {
       setDisplay(partial) { store.setDisplay(partial); },
       setQuality(q) { if (q !== state.quality) { state.quality = state.qualityChoice = q; viewport.setQuality(q); store.emit("quality", q); pipeline.rebuild(); } },
       setView, frame: frameFigure,
+      setVerdict(v) { if (state.postureVerdict !== v) { state.postureVerdict = v ?? null; store.emit("verdict", state.postureVerdict); } },
       setPosture({ id = null, name }) { state.posture = { id, name: String(name || "Custom posture") }; store.emit("posture", state.posture); },
       select: (sel) => select(sel),
       toast: (m) => toast(m),
@@ -399,6 +403,11 @@ async function build(undo) {
   store.on("quality", () => { updateStatus(); persist(); });
   store.on("profile", () => updateStatus());
   store.on("posture", () => updateStatus());
+  store.on("verdict", () => updateStatus());
+  store.on("verdict", () => {
+    const v = state.postureVerdict, t = { "not-acceptable": "Not acceptable (ISO 11226)", check: "Check posture", acceptable: "Acceptable" }[v];
+    verdictBadge.hidden = !t; verdictBadge.textContent = t ?? ""; verdictBadge.dataset.verdict = v ?? "";
+  });
   store.on("rig", () => { rootEl.dataset.hmState = "ready"; updateStatus(); renderInspector(); });
   // a panel's own inspector content is left alone on pose events: it may hold the slider being dragged that causes them
   store.on("pose", () => { if (state.selection && !inspectorBy.get(activeTab)) renderInspector(); });
@@ -576,7 +585,9 @@ async function build(undo) {
   function updateStatus() {
     const p = state.profile, sel = state.selection;
     stProfile.v.textContent = stProfile.v.title = p ? p.label : "loading…";
-    stPosture.v.textContent = state.posture.name;
+    const v = state.postureVerdict, vt = { "not-acceptable": " · not acceptable (ISO 11226)", check: " · check posture", acceptable: " · acceptable" }[v] ?? "";
+    stPosture.v.textContent = state.posture.name + vt;   // the ergonomic verdict of the figure, next to the model (see panels/posture.js)
+    stPosture.v.dataset.verdict = v ?? "";
     const selText = !sel ? "none" : sel.kind === "joint" ? JOINT_BY_ID[sel.id]?.label ?? sel.id : `${sel.kind} ${sel.id}`;
     stSel.v.textContent = stSel.v.title = selText;
     stUnits.v.textContent = UNIT_LABEL[state.units];
