@@ -24,6 +24,8 @@ export const sameSelection = (a, b) => (a == null && b == null) || (!!a && !!b &
 // ---------------------------------------------------------------------------------------------------------------------
 // preferences (units, display toggles, quality): localStorage is optional and can throw (private mode, blocked site data)
 const PREFS_KEY = "hm-prefs";
+/** The skins the figure can wear: the realistic scanned-and-rigged body (realskin.js, the default) or the procedural mannequin (body.js). */
+export const SKIN_STYLES = Object.freeze(["realistic", "mannequin"]);
 
 export function loadPrefs(storage) {
   const out = {};
@@ -33,6 +35,7 @@ export function loadPrefs(storage) {
     if (!raw || typeof raw !== "object") return out;
     if (LENGTH_UNITS.includes(raw.units)) out.units = raw.units;
     if (raw.quality === "low" || raw.quality === "high") out.quality = raw.quality;
+    if (SKIN_STYLES.includes(raw.skinStyle)) out.skinStyle = raw.skinStyle;
     if (raw.display && typeof raw.display === "object") {
       out.display = {};
       for (const k of DISPLAY_KEYS) if (typeof raw.display[k] === "boolean") out.display[k] = raw.display[k];
@@ -54,7 +57,7 @@ export const impliedXray = (d) => !!d.skin && !!(d.skeleton || d.joints);
 export function savePrefs(state, storage) {
   try {
     storage ??= globalThis.localStorage;
-    storage?.setItem(PREFS_KEY, JSON.stringify({ units: state.units, quality: state.qualityChoice ?? undefined, display: state.display }));
+    storage?.setItem(PREFS_KEY, JSON.stringify({ units: state.units, quality: state.qualityChoice ?? undefined, skinStyle: state.skinStyle, display: state.display }));
     return true;
   } catch { return false; }
 }
@@ -69,6 +72,7 @@ export function createStore(initial = {}) {
     posture: { id: null, name: "Neutral standing" },
     theme: { dark: false },
     quality: prefs.quality ?? "high", qualityChoice: prefs.quality ?? null,
+    skinStyle: prefs.skinStyle ?? "realistic",
     busy: false, notices: [],
   };
   const handlers = new Map();
