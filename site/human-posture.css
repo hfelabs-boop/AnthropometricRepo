@@ -211,10 +211,6 @@
 .hm-pe-arrow { color: var(--text-3); }
 .hm-pe-corrres { overflow-wrap: anywhere; }
 .hm-pe-corrmsg:empty { display: none; }
-.hm-verdict { position: absolute; left: 10px; top: 56px; /* below the view toolbar */ z-index: 2; pointer-events: none; font-size: .85rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hm-verdict[data-verdict="not-acceptable"] { background: var(--chip-bad-bg); color: var(--bad); border-color: transparent; }
-.hm-verdict[data-verdict="check"] { background: var(--chip-warn-bg); color: var(--warn); border-color: transparent; }
-.hm-verdict[data-verdict="acceptable"] { background: var(--chip-good-bg); color: var(--good); border-color: transparent; }
 .hm-pe-ergo { white-space: nowrap; }
 .hm-pe-ergo[data-state="not-acceptable"] { background: var(--chip-bad-bg); color: var(--bad); }
 .hm-pe-ergo[data-state="check"] { background: var(--chip-warn-bg); color: var(--warn); }

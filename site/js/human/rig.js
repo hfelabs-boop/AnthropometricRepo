@@ -508,6 +508,13 @@ export class Rig {
     return d;
   }
 
+  /** Colour the bones of the skeleton view: { boneId: sRGB hex | null }, or null for their own colours (the RULA / REBA strain view). */
+  setBoneTint(tint) {
+    this._alive();
+    if (tint != null && !isObj(tint)) throw new TypeError("setBoneTint: expected { boneId: colour } or null");
+    if (this.view) this.view.setTint(tint);
+  }
+
   // ---- picking, selection, labels ------------------------------------------------------------------------------------------------------------
   /**
    * Nearest visible joint marker hit by the raycaster: { id, point, distance } | null. null when the markers are hidden (or any ancestor of the

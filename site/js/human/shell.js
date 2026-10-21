@@ -33,7 +33,9 @@ import { h, toast, download } from "../util.js";
 import { createViewport, VIEW_ORDER, VIEW_PRESETS } from "./viewport.js";
 import { createStore, createPipeline, loadDefaultProfile, withTimeout, loadPrefs, savePrefs, prefsDisplay, impliedXray, LENGTH_UNITS, SKIN_STYLES } from "./state.js";
 import { chipButton, segmented, roving, tablist, notice, emptyState, icon, fmtLength, UNIT_LABEL } from "./ui.js";
-import { JOINT_BY_ID, BONE_BY_ID, GROUPS } from "./skeleton.js";
+import { JOINT_BY_ID, BONE_BY_ID, BONES, GROUPS } from "./skeleton.js";
+import { postureMetrics } from "./metrics.js";
+import { segmentStrain, boneLevels, STRAIN_COLORS } from "./strain.js";
 
 const CSS_URL = new URL("../../human.css", import.meta.url).href;
 
@@ -51,6 +53,7 @@ const DISPLAY_TOGGLES = [
   ["com", "Centre of mass", "Show the whole-body centre of mass and its floor projection"],
   ["xray", "X-ray", "See through the skin"],
   ["grid", "Grid", "Show the floor grid (1 m and 0.1 m) and the axes"],
+  ["strain", "RULA / REBA", "Colour the skeleton by posture strain: each body segment by its REBA / RULA angle band, green low, yellow medium, red high (shows the bones)"],
 ];
 
 const MODEL_NOTES = [
@@ -138,7 +141,8 @@ async function build(undo) {
   const viewportEl = h("div", { class: "hm-viewport-host" });
   // the ergonomic verdict of the figure, next to the model (set by the Posture panel through ctx.setVerdict)
   const verdictBadge = h("div", { class: "hm-verdict", hidden: true, role: "status", "aria-label": "Posture verdict" });
-  viewportEl.append(verdictBadge);
+  const strainLegend = h("div", { class: "hm-strain", hidden: true, role: "status", "aria-label": "RULA / REBA segment strain" });
+  viewportEl.append(verdictBadge, strainLegend);
   const viewBtns = VIEW_ORDER.map((name, i) => h("button", { type: "button", title: `${VIEW_PRESETS[name].title} (${i + 1})`, dataset: { view: name }, onclick: () => setView(name) }, VIEW_PRESETS[name].label));
   const viewSeg = h("div", { class: "seg hm-seg", role: "group", "aria-label": "View presets" }, viewBtns);
   const fitBtn = chipButton({ label: "Fit", title: "Fit the figure in the view (F)", icon: "fit", onClick: () => frameFigure(true) });
@@ -388,15 +392,39 @@ async function build(undo) {
     viewport.setGrid(d.grid);
     const noSkin = !!rig && !rig.skin; // no skin generator in this build: the rig keeps `skin` false whatever is asked
     // bones and markers behind an opaque skin cannot be seen, hovered or clicked: showing them makes the skin see-through (X-ray, pressed and locked)
-    const implied = !d.xray && impliedXray({ skin: d.skin && !noSkin, skeleton: d.skeleton, joints: d.joints });
-    try { rig?.setDisplay?.({ skin: d.skin, skeleton: d.skeleton, joints: d.joints, labels: d.labels, landmarks: d.landmarks, com: d.com, xray: d.xray || implied }); } catch (e) { console.error("Digital human: setDisplay failed:", e); }
+    const bones = d.skeleton || d.strain; // the strain view colours the bones, so it shows them
+    const implied = !d.xray && impliedXray({ skin: d.skin && !noSkin, skeleton: bones, joints: d.joints });
+    try { rig?.setDisplay?.({ skin: d.skin, skeleton: bones, joints: d.joints, labels: d.labels, landmarks: d.landmarks, com: d.com, xray: d.xray || implied }); } catch (e) { console.error("Digital human: setDisplay failed:", e); }
     for (const [k, b] of Object.entries(toggleBtns)) b.setPressed(k === "skin" && noSkin ? false : k === "xray" ? d.xray || implied : !!d[k]);
     toggleBtns.skin.disabled = noSkin;
     toggleBtns.xray.disabled = implied;
     toggleBtns.xray.title = implied ? "On while the bones or joint markers are shown, which would be hidden behind the skin otherwise" : DISPLAY_TOGGLES.find((t) => t[0] === "xray")[2];
     dispRoving.refresh();
     toggleBtns.skin.title = noSkin ? "The skin surface is not available in this build, so only the skeleton is shown" : DISPLAY_TOGGLES[0][2];
+    updateStrain(rig);
     viewport.requestRender();
+  }
+  // RULA / REBA strain view: the bones of each segment take the colour of its score (strain.js), recomputed after every pose change
+  const LEVEL_TEXT = { low: "low", medium: "medium", high: "high" };
+  function updateStrain(rig = state.rig) {
+    if (!rig?.setBoneTint) return;
+    if (!state.display.strain) { rig.setBoneTint(null); strainLegend.hidden = true; return; }
+    let segs;
+    try {
+      let seated;
+      try { const c = state.postureEditor?.info?.()?.place?.carriers; if (c) seated = Object.values(c).includes("seat"); } catch { /* no editor yet */ }
+      const pose = rig.getPose();
+      segs = segmentStrain(postureMetrics(rig.restBody ?? rig.body, pose, pose.root, {}), seated == null ? {} : { seated });
+    } catch (e) { console.warn("Digital human: the strain view could not score this posture:", e); rig.setBoneTint(null); strainLegend.hidden = true; return; }
+    const levels = boneLevels(segs, BONES), tint = {};
+    for (const [id, lv] of Object.entries(levels)) tint[id] = lv ? STRAIN_COLORS[lv] : null;
+    rig.setBoneTint(tint);
+    const rows = Object.values(segs).filter((x) => x.level);
+    strainLegend.replaceChildren(
+      h("div", { class: "hm-strain-head" }, "RULA / REBA segment strain"),
+      h("ul", {}, rows.map((x) => h("li", { dataset: { level: x.level }, title: x.why }, h("span", { class: "hm-strain-dot", "aria-hidden": "true" }), h("span", { class: "hm-strain-name" }, x.label), h("span", { class: "hm-strain-score" }, `${x.score} · ${LEVEL_TEXT[x.level]}`)))),
+      h("div", { class: "hm-strain-note" }, "Posture scores only: load, grip and activity are not included."));
+    strainLegend.hidden = false;
   }
   /** Why a selection cannot exist (null when it is fine): a joint or landmark that is not part of the rig would show an inspector about nothing. */
   function selectionProblem(sel) {
@@ -440,7 +468,7 @@ async function build(undo) {
   });
   store.on("rig", () => { rootEl.dataset.hmState = "ready"; updateStatus(); renderInspector(); });
   // a panel's own inspector content is left alone on pose events: it may hold the slider being dragged that causes them
-  store.on("pose", () => { if (state.selection && !inspectorBy.get(activeTab)) renderInspector(); });
+  store.on("pose", () => { if (state.selection && !inspectorBy.get(activeTab)) renderInspector(); if (state.display.strain) updateStrain(); });
   store.on("busy", (b) => { // the spinner shows at once while there is no figure yet, after a short delay when one is being replaced (no flicker)
     clearTimeout(busyTimer);
     busyText.textContent = state.profile ? "Building the model…" : "Loading the profile…";
