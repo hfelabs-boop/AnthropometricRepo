@@ -214,3 +214,21 @@
 @media (prefers-reduced-motion: reduce) {
   .hm-root * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* posture verdict badge and RULA / REBA strain legend over the viewport (shell.js) */
+.hm-verdict { position: absolute; left: 10px; top: 56px; /* below the view toolbar */ z-index: 2; pointer-events: none; font-size: .85rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-verdict[data-verdict="not-acceptable"] { background: var(--chip-bad-bg); color: var(--bad); border-color: transparent; }
+.hm-verdict[data-verdict="check"] { background: var(--chip-warn-bg); color: var(--warn); border-color: transparent; }
+.hm-verdict[data-verdict="acceptable"] { background: var(--chip-good-bg); color: var(--good); border-color: transparent; }
+/* RULA / REBA strain legend (shell.js updateStrain): next to the coloured skeleton */
+.hm-strain { position: absolute; right: 10px; top: 56px; z-index: 2; pointer-events: auto; font-size: .78rem; padding: 8px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); max-width: min(300px, calc(100% - 20px)); max-height: calc(100% - 130px); overflow: auto; }
+.hm-strain-head { font-weight: 600; margin-bottom: 4px; }
+.hm-strain ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.hm-strain li { display: grid; grid-template-columns: 10px 1fr auto; gap: 6px; align-items: center; }
+.hm-strain-dot { width: 10px; height: 10px; border-radius: 50%; }
+.hm-strain li[data-level="low"] .hm-strain-dot { background: #22a55b; }
+.hm-strain li[data-level="medium"] .hm-strain-dot { background: #f2b705; }
+.hm-strain li[data-level="high"] .hm-strain-dot { background: #e5484d; }
+.hm-strain-score { font-variant-numeric: tabular-nums; color: var(--text-2); }
+.hm-strain li[data-level="high"] .hm-strain-score { color: var(--bad); font-weight: 600; }
+.hm-strain-note { margin-top: 4px; color: var(--text-2); font-size: .72rem; }

@@ -1121,6 +1121,36 @@ export class SkeletonView {
       mesh.visible = !!this.disp.skeleton;
       this._boneMeshes.push(mesh);
     }
+    if (this._tint) this._applyTint();
+  }
+
+  /**
+   * Colour bones with flat colours instead of their anatomical vertex colours: tint = { boneId: sRGB hex | null } (a bone not listed or null keeps its
+   * own colours), or null to restore all of them. Used for the RULA / REBA strain view. One material per colour, with the same silhouette darkening.
+   */
+  setTint(tint) {
+    this._tint = tint ?? null;
+    if (this._bonesBuilt) this._applyTint();
+  }
+
+  _tintMat(hex) {
+    this._tintMats ??= new Map();
+    let m = this._tintMats.get(hex);
+    if (!m) {
+      m = this._mat(new THREE.MeshStandardMaterial({ color: hex, roughness: 0.55, metalness: 0, emissive: hex, emissiveIntensity: 0.18 }));
+      m.onBeforeCompile = this.boneMat.onBeforeCompile;
+      m.customProgramCacheKey = () => "bone-rim";
+      this._tintMats.set(hex, m);
+    }
+    return m;
+  }
+
+  _applyTint() {
+    const t = this._tint;
+    for (const mesh of this._boneMeshes) {
+      const hex = t ? t[mesh.userData.boneId] : null;
+      mesh.material = hex == null ? this.boneMat : this._tintMat(hex);
+    }
   }
 
   /**
