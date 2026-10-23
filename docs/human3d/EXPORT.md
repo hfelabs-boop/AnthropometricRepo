@@ -2,7 +2,7 @@
 
 For people who take the digital human into CAD, digital-human-modelling and motion tools, and for whoever changes the Export tab. Contract: `DESIGN.md` (units, axes). Code:
 `site/js/human/export.js` (pure: three + skeleton.js, runs in Node), `site/js/human/panels/export.js` (the panel, the downloads and the PNG images, which need the viewport's
-renderer), `site/human-export.css` (prefix `hm-ex-`). Everything is made in the browser; nothing is sent anywhere (a test greps `export.js` for `fetch`, `XMLHttpRequest`, `document`, ...).
+renderer), `site/human-export.css` (prefix `hm-ex-`). Everything is made in the browser; nothing is sent anywhere (a test greps `export.js` for `fetch`, `XMLHttpRequest`, `document`, ...), except by *Send to CAD* (`cadlink.js`), which posts the exchange JSON to the server the user names.
 
 The model is a simplified kinematic and anthropometric visualisation (rigid links, approximate joint centres and ranges of motion, no soft tissue). Every file says so where its format has room
 for it, and says which units, axes, profile, posture and version it holds.
@@ -133,6 +133,18 @@ One self-describing document for other programs; 205 kB. `validateExchange(doc |
 What `validateExchange` checks: format, version (a newer one is refused), units, axes, the profile and its measures, 77 joints in skeleton order with the right parents, finite coordinates below 100 m, unit quaternions (1e-5), the degrees of freedom of every joint (keys, finite values,
 `min <= max`; a value outside its range is a warning), **rigid links** (the distance of a joint to its parent equals its rest offset within 0.05 mm: a moved joint is an error), landmarks that name a joint and are unique, a plausible stature (500 to 3000 mm, a warning outside 1300 to 2500),
 segment masses that add up to the body mass within 5 %, posture angles that name real joints and degrees of freedom, placement, scene objects and measurements.
+
+### Send to CAD (`cadlink.js`, the Export panel's *Send to CAD* section)
+
+Posts the exchange JSON above to an `anthro_service` REST server (`POST /v1/profiles`): usually the one on the CAD computer itself (`python -m anthro_service serve`,
+`http://127.0.0.1:8000`). CATIA and other tools then read the body back: `/v1/profiles/latest/values` (the measures, with the keys and units of `/v1/mannequin`),
+`/angles` (every joint degree of freedom), `/points` (joint centres and landmarks), as JSON, CSV or XML; the VBA module `anthro_service/examples/AnthroApi.bas` has
+`AnthroProfile`, `AnthroProfileAngles` and `AnthroProfileToParameters`. The panel has the server address (remembered in this browser), an API key field (never saved),
+*Test connection* (`/v1/health`, then `/v1/profiles?limit=1`, which checks the key and the access rule) and *Send profile and posture*; the answer lists the URLs to
+copy into a macro. Failures say what to do: start the server, enter the key, use https for a server on another computer, or download the JSON and run
+`python -m anthro_service push FILE.json` (Safari blocks requests from the https site to `http://127.0.0.1`). This is the only part of the panel that sends anything;
+it sends only to the address you type. Server side: `anthro_service/README.md`, "Pushed profiles". Tests: `tests/human3d/cadlink.test.mjs` (fake fetch) and
+`tests/human3d/test_send_to_cad.py` (the panel in Chromium against a live server).
 
 ### Posture file (`buildPostureFile`, `parsePostureFile`, `applyPostureFile`)
 

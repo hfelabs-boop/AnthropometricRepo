@@ -4,11 +4,14 @@ Environment:
   ANTHRO_DATA_DIR      checkout of the repository (default: the folder above this package)
   ANTHRO_API_KEYS      comma-separated keys; when set, /v1 requests need  X-API-Key: <key>  or  Authorization: Bearer <key>
   ANTHRO_CORS_ORIGINS  comma-separated allowed origins (default *)
+  ANTHRO_PROFILES      pushed profiles (/v1/profiles): on (default: this computer only, or anyone with a key when ANTHRO_API_KEYS is set), open (any client), off
+  ANTHRO_PROFILE_DIR   where pushed profiles are kept (default ~/.anthro_service/profiles)
 """
 from __future__ import annotations
 
 import difflib
 import hmac
+import inspect
 import logging
 import os
 import re
@@ -26,6 +29,7 @@ from . import models as M
 from .core import ApiError, BadRequest, Repo, VERSION, get_repo
 from .formats import MEDIA, RENDER, csv_headers, measures_csv
 from .origins import clean_origin
+from .profiles import MAX_BYTES, VIEWS, TooLarge, get_store, view_csv, view_xml
 
 log = logging.getLogger("anthro_service")
 
@@ -33,6 +37,16 @@ log = logging.getLogger("anthro_service")
 class Unauthorized(ApiError):
     status = 401
     code = "unauthorized"
+
+
+class Forbidden(ApiError):
+    status = 403
+    code = "forbidden"
+
+
+class Disabled(ApiError):
+    status = 404
+    code = "not_found"
 
 
 DESCRIPTION = """
@@ -62,6 +76,8 @@ Pass `survey=latest` for the most recent well-covered survey, or an id from `/v1
 
 TAGS = [
     {"name": "values", "description": "Percentiles for design: the endpoints a CAD or DHM integration needs."},
+    {"name": "profiles", "description": "Profiles pushed from the website's Digital human (Export tab, *Send to CAD*): the body, its measures and its posture, for CATIA and other "
+                                        "CAD or digital-human tools. Served to this computer only unless the server has API keys (ANTHRO_API_KEYS) or ANTHRO_PROFILES=open."},
     {"name": "catalog", "description": "Countries, roles, measures, surveys and sources."},
     {"name": "service", "description": "Health and metadata."},
 ]
@@ -73,6 +89,8 @@ SexQ = Annotated[str, Query(description="`M`, `F` or `both` (mixed / not stated)
 MeasuresQ = Annotated[str | None, Query(description="Comma-separated measure keys (see /v1/measures), e.g. `stature,mass,sitting_height`. Default: all measures with data.")]
 CategoriesQ = Annotated[str | None, Query(description="Comma-separated category names or ids (see /v1/categories), e.g. `heights-standing,seated`.")]
 RelQ = Annotated[str, Query(description="Lowest reliability to include: `high`, `medium` (default) or `low`/`all`.")]
+PidPath = Annotated[str, Path(description="A pushed profile's id from GET /v1/profiles, or `latest` for the newest one.", examples=["latest"])]
+ViewPath = Annotated[Literal["values", "dims", "angles", "points", "document"], Path(description="values, dims, angles, points or document.")]
 SurveyQ = Annotated[str | None, Query(description="Use one survey instead of the combined values: an id from /v1/populations/{country}/{role}/surveys, or `latest` for the most recent well-covered survey.")]
 
 
@@ -112,10 +130,14 @@ class Edge:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         head = scope["method"] == "HEAD"
+        pna = scope["method"] == "OPTIONS" and any(k.lower() == b"access-control-request-private-network" and v.lower() == b"true" for k, v in scope.get("headers", []))
 
         async def finish(message):
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
+                if pna and not any(k.lower() == b"access-control-allow-private-network" for k, _ in headers):
+                    # Private Network Access: a public website (the Digital human) may call this server on the user's own computer (Starlette < 1.x has no option for it)
+                    headers.append((b"access-control-allow-private-network", b"true"))
                 index = {k.lower(): i for i, (k, _) in enumerate(headers)}
                 if b"x-data-version" not in index:
                     headers.append((b"x-data-version", self.version))
@@ -227,8 +249,9 @@ def create_app(data_dir: str | None = None) -> FastAPI:
 
     # added after `headers`, so they wrap it: CORS around the middleware above, the edge layer around everything
     origins = cors_origins()
-    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "HEAD", "OPTIONS"], allow_headers=["X-API-Key", "Authorization", "Content-Type"],
-                       expose_headers=["X-Data-Version", "X-Total-Count", "X-Disclaimer", "X-Notes", "X-Hidden-By-Reliability"])
+    pna = {"allow_private_network": True} if "allow_private_network" in inspect.signature(CORSMiddleware.__init__).parameters else {}
+    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["GET", "HEAD", "OPTIONS", "POST", "DELETE"], allow_headers=["X-API-Key", "Authorization", "Content-Type"],
+                       expose_headers=["X-Data-Version", "X-Total-Count", "X-Disclaimer", "X-Notes", "X-Hidden-By-Reliability", "Location"], **pna)
     app.add_middleware(Edge, data_version=repo.data_version, vary_origin=origins != ["*"])
 
     @app.exception_handler(ApiError)
@@ -239,7 +262,7 @@ def create_app(data_dir: str | None = None) -> FastAPI:
     async def http_error(_: Request, e: StarletteHTTPException):
         code = {404: "not_found", 405: "method_not_allowed"}.get(e.status_code, "error")
         hint = {404: "No such endpoint. See /docs. Path forms take ids (united-states, recruits-trainees) or names; the query-string forms (/v1/design-values, /v1/mannequin) take either.",
-                405: "This API is read-only: use GET."}.get(e.status_code)
+                405: "Use GET; only /v1/profiles also takes POST (push a profile) and DELETE."}.get(e.status_code)
         body = {"code": code, "message": str(e.detail) if e.status_code not in (404, 405) else {404: "Not found.", 405: "Method not allowed."}[e.status_code]}
         if hint:
             body["hint"] = hint
@@ -348,7 +371,82 @@ def create_app(data_dir: str | None = None) -> FastAPI:
     def source(source_id: str):
         return repo.source(source_id)
 
+    # ---- pushed profiles ---------------------------------------------------------------------------------------------------------
+    names = {m["key"]: m["name"] for m in repo.measures()}
+
+    def profiles_access(request: Request):
+        """ANTHRO_PROFILES=on (default): with API keys, anyone with a key (guard checked it); without keys, this computer only. open: anyone. off: no profiles."""
+        mode = os.environ.get("ANTHRO_PROFILES", "on").strip().lower() or "on"
+        if mode in ("off", "0", "false", "no"):
+            raise Disabled("Pushed profiles are switched off on this server (ANTHRO_PROFILES=off).")
+        if mode == "open" or [k for k in os.environ.get("ANTHRO_API_KEYS", "").split(",") if k.strip()]:
+            return
+        host = request.client.host if request.client else ""
+        if host not in ("127.0.0.1", "::1", "localhost") and not host.startswith("::ffff:127."):
+            raise Forbidden("Pushed profiles are served to this computer only.", "Run the server on the CAD workstation, or set ANTHRO_API_KEYS (then send X-API-Key) "
+                            "or ANTHRO_PROFILES=open on a trusted network.")
+
+    def nocache(response: Response):
+        response.headers["Cache-Control"] = "no-store"
+
+    def links(pid: str) -> dict:
+        b = f"/v1/profiles/{pid}"
+        return {"self": b, "values_csv": f"{b}/values?format=csv", "values_xml": f"{b}/values?format=xml", "angles_csv": f"{b}/angles?format=csv",
+                "points_csv": f"{b}/points?format=csv", "dims_csv": f"{b}/dims?format=csv", "document": f"{b}/document"}
+
+    def send_view(view: str, data, fmt: str):
+        if fmt == "json" or view == "document":
+            return UTF8JSON(data, headers={"Cache-Control": "no-store"})
+        body = view_csv(view, data) if fmt == "csv" else view_xml(view, data)
+        return Response(body, media_type=MEDIA[fmt], headers={"Cache-Control": "no-store"})
+
+    pr = APIRouter(prefix="/v1/profiles", tags=["profiles"], dependencies=[Depends(guard), Depends(strict_params), Depends(profiles_access), Depends(nocache)],
+                   responses={**err, 401: {"model": M.ErrorResponse}, 403: {"model": M.ErrorResponse}})
+    PUSH_BODY = {"requestBody": {"required": True, "description": f"A human-exchange JSON document (version 1) of the website's Export tab, or a digital-human-profile file of its Profile tab. At most {MAX_BYTES:,} bytes.",
+                                 "content": {"application/json": {"schema": {"type": "object", "required": ["format", "version"], "properties": {"format": {"type": "string", "enum": ["human-exchange", "digital-human-profile"]}, "version": {"type": "integer", "enum": [1]}}}}}}}
+
+    @pr.post("", status_code=201, summary="Push a profile (the website's Send to CAD)", openapi_extra=PUSH_BODY,
+             description="Stores the document and returns its id and the URLs a CAD macro reads (values, angles, points, dims). The newest profile is also `latest`. "
+                         f"The store keeps the {get_store().max} newest profiles.")
+    async def push(request: Request):
+        size = request.headers.get("content-length")
+        if size and size.isdigit() and int(size) > MAX_BYTES:
+            raise TooLarge(f"The document is {int(size):,} bytes; at most {MAX_BYTES:,} are accepted.")
+        chunks, total = [], 0
+        async for chunk in request.stream():
+            total += len(chunk)
+            if total > MAX_BYTES:
+                raise TooLarge(f"The document is larger than {MAX_BYTES:,} bytes.")
+            chunks.append(chunk)
+        meta = get_store().push(b"".join(chunks), received_from=request.client.host if request.client else None)
+        return UTF8JSON({**meta, "links": links(meta["id"])}, status_code=201, headers={"Location": f"/v1/profiles/{meta['id']}", "Cache-Control": "no-store"})
+
+    @pr.get("", summary="Pushed profiles, newest first", responses=TABLE)
+    def list_profiles(limit: Annotated[int | None, Query(ge=1, le=1000)] = None, format: Fmt = "json"):
+        items = get_store().list(limit)
+        if format == "json":
+            return UTF8JSON({"count": len(items), "profiles": [{**m, "links": links(m["id"])} for m in items]}, headers={"Cache-Control": "no-store"})
+        return send_view("list", items, format)
+
+    @pr.get("/{profile_id}", summary="One pushed profile: summary, flat values and units (the /v1/mannequin shape)", responses=TABLE)
+    def get_profile(profile_id: PidPath, format: Fmt = "json"):
+        data = get_store().view(profile_id, "summary", names)
+        data["links"] = links(data["profile"]["id"])
+        return send_view("summary", data, format)
+
+    @pr.get("/{profile_id}/{view}", summary="One view of a pushed profile: values, dims, angles, points or the whole document", responses=TABLE,
+            description="`values`: the measures (mm, kg) as `values`/`units` and a table; `dims`: the dimension table of the website's model; `angles`: every joint degree of "
+                        "freedom of the posture (degrees) with its range; `points`: joint centres and landmarks of the posed figure (mm; +Y up, +Z front, +X the figure's left); "
+                        "`document`: the human-exchange JSON as pushed.")
+    def get_view(profile_id: PidPath, view: ViewPath, format: Fmt = "json"):
+        return send_view(view, get_store().view(profile_id, view, names), format)
+
+    @pr.delete("/{profile_id}", summary="Delete a pushed profile")
+    def delete_profile(profile_id: PidPath):
+        return get_store().delete(profile_id)
+
     app.include_router(v1)
+    app.include_router(pr)
     return app
 
 

@@ -16,6 +16,7 @@ from pydantic import Field
 
 from .core import ApiError, VERSION, get_repo
 from .origins import clean_host, clean_origin
+from .profiles import get_store
 
 try:  # mcp 2.x
     from mcp.server.mcpserver import MCPServer as _Server
@@ -40,7 +41,10 @@ INSTRUCTIONS = (
     "interpolated, extrapolated) and sources: report them to the user. By default only high and medium reliability values are returned.\n\n"
     "Two cautions to pass on. (1) Each dimension is the requested percentile of that dimension alone, so a set of same-percentile dimensions is a boundary case, not a typical "
     "person. (2) By default the values combine every survey of a population, which can span decades; the notes say so. For current personnel use survey='latest' or pick a "
-    "survey with list_surveys. Read the 'notes' and 'caution' fields of every answer."
+    "survey with list_surveys. Read the 'notes' and 'caution' fields of every answer.\n\n"
+    "Pushed profiles: a user of the website's Digital human can push a body (its measures, the model's dimensions and its posture) with 'Send to CAD'. "
+    "list_pushed_profiles shows them, newest first; get_pushed_profile('latest') gives the values to set on a CAD manikin (same keys and units as get_mannequin_dimensions), "
+    "view='angles' the joint angles of the posture and view='points' the joint centres and landmarks in millimetres."
 )
 
 
@@ -286,6 +290,57 @@ def compare_populations(measure: Annotated[str, Field(description="Measure key, 
           description="Title, links, licence (where the catalog records one) and official document of a source id taken from the 'sources' field of a value.")
 def get_source(source_id: Annotated[str, Field(description="A source id such as 'ansur-ii-2012'.")]) -> dict:
     return _run(lambda: get_repo().source(source_id))
+
+
+@mcp.tool(title="List pushed profiles", annotations=READ_ONLY,
+          description="Profiles pushed from the website's Digital human (Export tab, 'Send to CAD') or with `python -m anthro_service push FILE`, newest first: id, label, sex, "
+                      "stature, mass, number of measures, posture, time received. Use an id (or 'latest') with get_pushed_profile.")
+def list_pushed_profiles(limit: Limit = 20) -> dict:
+    def go():
+        items = get_store().list(limit)
+        out = {"count": len(items), "profiles": [{k: v for k, v in m.items() if v not in (None, [], {})} for m in items]}
+        if not items:
+            out["note"] = "No profile has been pushed yet. In the website's Digital human, open the Export tab and use 'Send to CAD' with this computer's server, or run: python -m anthro_service push FILE.json"
+        return out
+    return _run(go)
+
+
+@mcp.tool(title="Get a pushed profile", annotations=READ_ONLY,
+          description="One pushed profile. view='summary' (default) or 'values': the profile's measures as a flat values/units map (same keys and units as get_mannequin_dimensions: "
+                      "mm, kg) plus core (stature, mass, sitting height); 'dims': the dimension table of the website's model; 'angles': every joint degree of freedom of the posture in "
+                      "degrees with its range and meaning; 'points': joint centres and landmarks of the posed figure in mm (+Y up, +Z front, +X the figure's left). "
+                      "At most 'limit' rows or measures unless you name the measures you need.")
+def get_pushed_profile(profile: Annotated[str, Field(description="Profile id from list_pushed_profiles, or 'latest'.")] = "latest",
+                       view: Annotated[str, Field(description="summary, values, dims, angles or points.", json_schema_extra={"enum": ["summary", "values", "dims", "angles", "points"]})] = "summary",
+                       measures: Names = None, limit: Limit = 120) -> dict:
+    names = _as_list(measures)
+
+    def go():
+        if view == "document":
+            raise ToolError("The whole document is too large for a tool answer: use the views, or GET /v1/profiles/{id}/document on the REST API.")
+        data = get_store().view(profile, view, {m["key"]: m["name"] for m in get_repo().measures()})
+        if "measures" in data:
+            rows = data["measures"]
+            if names:
+                want = set(names)
+                rows = [r for r in rows if r["key"] in want]
+                missing = sorted(want - {r["key"] for r in rows})
+                if missing:
+                    data["missing"] = missing
+            total = len(rows)
+            data["measures"] = rows if names else rows[:limit]
+            keep = {r["key"] for r in data["measures"]}
+            data["values"] = {k: v for k, v in data["values"].items() if k in keep}
+            data["units"] = {k: v for k, v in data["units"].items() if k in keep}
+            data["total"], data["returned"] = total, len(data["measures"])
+        elif "rows" in data:
+            total = len(data["rows"])
+            data["rows"] = data["rows"][:limit]
+            data["total"], data["returned"] = total, len(data["rows"])
+        if data.get("total", 0) > data.get("returned", 0):
+            data.setdefault("notes", []).append(f"Showing {data['returned']} of {data['total']}; raise 'limit' (at most 200){' or name the measures you need' if 'measures' in data else ''}.")
+        return data
+    return _run(go)
 
 
 def _forbid_unknown_arguments() -> None:

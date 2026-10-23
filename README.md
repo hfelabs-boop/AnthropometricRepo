@@ -121,6 +121,8 @@ The **Digital human** tab (`site/js/human/`, design in [`docs/human3d/DESIGN.md`
 - **REST API** with an OpenAPI description, CSV and XML output: `pip install -r anthro_service/requirements.txt && python -m anthro_service serve`.
 - **MCP server** for Claude Desktop, Claude Code, Cursor and other MCP clients: `python -m anthro_service mcp`.
 
+- **Send to CAD**: the Digital human's Export tab pushes the figure you built (measures, dimensions, posture) to this server (`POST /v1/profiles`); CATIA and other tools read it back from `/v1/profiles/latest/values`, `/angles` and `/points` (or the VBA functions `AnthroProfile`, `AnthroProfileAngles`), and AI assistants through the MCP tools `list_pushed_profiles` and `get_pushed_profile`. Without a browser: `python -m anthro_service push FILE.json`.
+
 See [`anthro_service/README.md`](anthro_service/README.md) for the endpoints, the percentile and reliability definitions, examples (Python, VBA, PowerShell, curl) and the licence caveat for commercial use.
 
 ## Contributing

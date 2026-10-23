@@ -84,7 +84,7 @@ class Tools(unittest.TestCase):
     def test_tools_have_descriptions_schemas_annotations_and_titles(self):
         tools = self.tools()
         self.assertEqual(set(tools), {"about", "list_countries", "list_roles", "list_categories", "list_surveys", "search_measures", "get_measure", "get_design_values",
-                                      "get_mannequin_dimensions", "compare_populations", "get_source"})
+                                      "get_mannequin_dimensions", "compare_populations", "get_source", "list_pushed_profiles", "get_pushed_profile"})
         for name, t in tools.items():
             self.assertGreater(len(t.description or ""), 40, name)
             self.assertNotIn("\n", t.description, name)
@@ -467,7 +467,7 @@ class Transports(unittest.TestCase):
             p.stdin.close()
             p.wait(30)
         by_id = {m["id"]: m for m in lines}
-        self.assertEqual(len(by_id[2]["result"]["tools"]), 11)
+        self.assertEqual(len(by_id[2]["result"]["tools"]), 13)
         self.assertTrue(by_id[3]["result"]["isError"])
         self.assertIn("Unknown country", by_id[3]["result"]["content"][0]["text"])
 

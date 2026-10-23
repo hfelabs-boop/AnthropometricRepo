@@ -7,7 +7,7 @@
       "name": "Repository",
       "url": "https://github.com/hfelabs-boop/AnthropometricRepo"
     },
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "paths": {
     "/v1/health": {
@@ -56,7 +56,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -119,7 +119,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -204,7 +204,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "401": {
             "content": {
@@ -252,7 +252,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -454,7 +454,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "401": {
             "content": {
@@ -524,7 +524,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "401": {
             "content": {
@@ -603,7 +603,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "401": {
             "content": {
@@ -827,7 +827,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "401": {
             "content": {
@@ -1052,7 +1052,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "401": {
             "content": {
@@ -1267,7 +1267,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "401": {
             "content": {
@@ -1492,7 +1492,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "401": {
             "content": {
@@ -1560,7 +1560,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           },
           "401": {
             "content": {
@@ -1571,6 +1571,536 @@
               }
             },
             "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/v1/profiles": {
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Push a profile (the website's Send to CAD)",
+        "description": "Stores the document and returns its id and the URLs a CAD macro reads (values, angles, points, dims). The newest profile is also `latest`. The store keeps the 200 newest profiles.",
+        "operationId": "push_v1_profiles_post",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "description": "A human-exchange JSON document (version 1) of the website's Export tab, or a digital-human-profile file of its Profile tab. At most 5,000,000 bytes.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "format",
+                  "version"
+                ],
+                "properties": {
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "human-exchange",
+                      "digital-human-profile"
+                    ]
+                  },
+                  "version": {
+                    "type": "integer",
+                    "enum": [
+                      1
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Pushed profiles, newest first",
+        "operationId": "list_profiles_v1_profiles_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 1000,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv",
+                "xml"
+              ],
+              "type": "string",
+              "description": "Output format. CSV and XML are flat tables.",
+              "default": "json",
+              "title": "Format"
+            },
+            "description": "Output format. CSV and XML are flat tables."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON by default; CSV or XML with format=csv or format=xml.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/v1/profiles/{profile_id}": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "One pushed profile: summary, flat values and units (the /v1/mannequin shape)",
+        "operationId": "get_profile_v1_profiles__profile_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A pushed profile's id from GET /v1/profiles, or `latest` for the newest one.",
+              "examples": [
+                "latest"
+              ],
+              "title": "Profile Id"
+            },
+            "description": "A pushed profile's id from GET /v1/profiles, or `latest` for the newest one."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv",
+                "xml"
+              ],
+              "type": "string",
+              "description": "Output format. CSV and XML are flat tables.",
+              "default": "json",
+              "title": "Format"
+            },
+            "description": "Output format. CSV and XML are flat tables."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON by default; CSV or XML with format=csv or format=xml.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Delete a pushed profile",
+        "operationId": "delete_profile_v1_profiles__profile_id__delete",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A pushed profile's id from GET /v1/profiles, or `latest` for the newest one.",
+              "examples": [
+                "latest"
+              ],
+              "title": "Profile Id"
+            },
+            "description": "A pushed profile's id from GET /v1/profiles, or `latest` for the newest one."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/v1/profiles/{profile_id}/{view}": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "One view of a pushed profile: values, dims, angles, points or the whole document",
+        "description": "`values`: the measures (mm, kg) as `values`/`units` and a table; `dims`: the dimension table of the website's model; `angles`: every joint degree of freedom of the posture (degrees) with its range; `points`: joint centres and landmarks of the posed figure (mm; +Y up, +Z front, +X the figure's left); `document`: the human-exchange JSON as pushed.",
+        "operationId": "get_view_v1_profiles__profile_id___view__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          },
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "profile_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "A pushed profile's id from GET /v1/profiles, or `latest` for the newest one.",
+              "examples": [
+                "latest"
+              ],
+              "title": "Profile Id"
+            },
+            "description": "A pushed profile's id from GET /v1/profiles, or `latest` for the newest one."
+          },
+          {
+            "name": "view",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "values",
+                "dims",
+                "angles",
+                "points",
+                "document"
+              ],
+              "type": "string",
+              "description": "values, dims, angles, points or document.",
+              "title": "View"
+            },
+            "description": "values, dims, angles, points or document."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "csv",
+                "xml"
+              ],
+              "type": "string",
+              "description": "Output format. CSV and XML are flat tables.",
+              "default": "json",
+              "title": "Format"
+            },
+            "description": "Output format. CSV and XML are flat tables."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "JSON by default; CSV or XML with format=csv or format=xml.",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
           }
         }
       }
@@ -2907,6 +3437,10 @@
     {
       "name": "values",
       "description": "Percentiles for design: the endpoints a CAD or DHM integration needs."
+    },
+    {
+      "name": "profiles",
+      "description": "Profiles pushed from the website's Digital human (Export tab, *Send to CAD*): the body, its measures and its posture, for CATIA and other CAD or digital-human tools. Served to this computer only unless the server has API keys (ANTHRO_API_KEYS) or ANTHRO_PROFILES=open."
     },
     {
       "name": "catalog",

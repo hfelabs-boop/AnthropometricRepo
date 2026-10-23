@@ -150,7 +150,8 @@ class Rest(unittest.TestCase):
             for method, op in ops.items():
                 old = committed["paths"][path][method]
                 self.assertEqual([p["name"] for p in old.get("parameters", [])], [p["name"] for p in op.get("parameters", [])], (path, method))
-                self.assertEqual(sorted(old["responses"]["200"].get("content", {})), sorted(op["responses"]["200"].get("content", {})), (path, method))
+                ok = next(c for c in ("200", "201") if c in op["responses"])  # POST /v1/profiles answers 201
+                self.assertEqual(sorted(old["responses"][ok].get("content", {})), sorted(op["responses"][ok].get("content", {})), (path, method))
                 self.assertEqual(old.get("security"), op.get("security"), (path, method))
         self.assertEqual(sorted(committed["components"]["schemas"]), sorted(live["components"]["schemas"]))
         for name, schema in live["components"]["schemas"].items():
