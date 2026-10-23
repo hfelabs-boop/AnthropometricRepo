@@ -12,6 +12,7 @@ import { GRIP_NAMES } from "../postures/grips.js";
 import { editorFor, BACKUP_KEY, EDIT_TABS, HANDLES, FINGER_NAMES, createHandleLayer, sliderBounds, regionRange, regionTotals, supportLabel, supportShort, tabOfJoint, hasTwin, dofTitle, NUDGE_M } from "../editor.js";
 import { section, tablist, badge, emptyState, notice, nextId, toUnit, fromUnit, unitDigits, UNIT_LABEL } from "../ui.js";
 import { correctAngles, verdictOf, compareFlags, postureVerdict } from "../correct.js";
+import { postureCompliance, checkPosture, summarize, tagText, clauseRef, STATUS_WORD } from "../mil1472.js";
 
 const CSS_URL = new URL("../../../human-posture.css", import.meta.url).href;
 const PREFS_KEY = "hm-posture-prefs-v1";
@@ -513,6 +514,15 @@ function libraryView(env) {
     slot.title = r.verdict ? `Ergonomic verdict on this body: ${text} (ISO 11226 indication, not a risk assessment). ${r.counts.high} not acceptable, ${r.counts.caution} to check.` : "Could not be placed on this body";
     slot.dataset.state = r.verdict ?? "none";
   }
+  const MIL = { compliant: "1472H ✓", "not-compliant": "1472H ✗", check: "1472H check", none: "1472H —" };
+  function fillMil(rowEl, p, b) {
+    const slot = rowEl.querySelector(".hm-pe-mil");
+    if (!slot) return;
+    const r = postureCompliance(b, p);
+    slot.textContent = r.status ? MIL[r.status] : "n/a";
+    slot.title = r.status ? `MIL-STD-1472H on this body: ${STATUS_WORD[r.status]}. ${tagText(r.summary)} Clauses checked: ${r.summary.clauses.join(", ")}.` : "Could not be placed on this body";
+    slot.dataset.state = r.status ?? "none";
+  }
   function pump() {
     pumpId = 0;
     const b = body();
@@ -525,6 +535,7 @@ function libraryView(env) {
       drawThumb(r.querySelector("canvas"), p, b);
       fillBadge(r, p, b);
       fillErgo(r, p, b);
+      fillMil(r, p, b);
     }
     if (pending.length) pumpId = requestAnimationFrame(pump);
   }
@@ -537,7 +548,7 @@ function libraryView(env) {
       h("div", { class: "hm-pe-card-body" },
         h("div", { class: "hm-pe-card-name" }, h("span", { class: "hm-pe-card-title" }, p.name), h("span", { class: "hm-pe-edited", hidden: true, title: "You have edited this posture" }, "edited")),
         h("div", { class: "hm-pe-card-desc" }, p.description),
-        h("div", { class: "hm-pe-card-badges" }, badge(sup, "outline", `${supportLabel(p.support)}: ${SUPPORT_INFO[p.support] ?? ""}`), h("span", { class: "tag hm-pe-valid", title: "Checking the posture on this body" }, "…"), h("span", { class: "tag hm-pe-ergo", title: "Ergonomic verdict on this body (ISO 11226 indication)" }, "…"), badge(src.text, "outline", src.title))));
+        h("div", { class: "hm-pe-card-badges" }, badge(sup, "outline", `${supportLabel(p.support)}: ${SUPPORT_INFO[p.support] ?? ""}`), h("span", { class: "tag hm-pe-valid", title: "Checking the posture on this body" }, "…"), h("span", { class: "tag hm-pe-mil", title: "MIL-STD-1472H on this body" }, "…"), h("span", { class: "tag hm-pe-ergo", title: "Ergonomic verdict on this body (ISO 11226 indication)" }, "…"), badge(src.text, "outline", src.title))));
     io?.observe(r);
     queue(r, p);
     return r;
@@ -720,6 +731,11 @@ function currentView(env, lib) {
   });
   // ergonomic correction: the verdict chip sits next to the name; the switch shows the corrected posture and the before/after table
   const verdictChip = h("span", { class: "tag hm-pe-verdict", hidden: true, role: "status" });
+  // MIL-STD-1472H: the chip next to the name and the clauses of the current pose (ranges of motion of Table XXXI, the posture's load)
+  const milChip = h("span", { class: "tag hm-pe-mil", hidden: true });
+  const milList = h("ul", { class: "hm-pe-millist small" });
+  const milBox = h("details", { class: "hm-pe-details hm-pe-milbox" }, h("summary", {}, "MIL-STD-1472H clauses of this posture"), milList,
+    h("p", { class: "small muted" }, "Ranges of motion of Table XXXI (5.8.4.3) and the load the posture holds (5.20.3, 5.20.4), on this body. The scene's objects and interactions are in the Analysis tab."));
   let corr = null; // { original: { angles }, result, applied } while the corrected posture is on the figure
   const corrMsg = h("p", { class: "small hm-pe-corrmsg", role: "status" });
   const corrTable = h("div", { class: "hm-pe-corrtable", hidden: true, role: "region", "aria-label": "Before and after the correction" });
@@ -813,15 +829,39 @@ function currentView(env, lib) {
   const angleBox = h("details", { class: "hm-pe-details" }, h("summary", {}, "Key angles and indications"), anglesEl, flagsEl, h("p", { class: "small muted" }, "A kinematic indication on a simplified model (ISO 11226 limits), not a risk assessment."));
   const col = (a) => h("div", { class: "hm-pe-block" }, ...a);
   const el = h("div", { class: "hm-pe-cur" },
-    h("div", { class: "hm-pe-curhead" }, nameEl, dot, verdictChip), baseEl,
+    h("div", { class: "hm-pe-curhead" }, nameEl, dot, verdictChip, milChip), baseEl,
     h("div", { class: "hm-pe-row hm-pe-actions", role: "group", "aria-label": "History and reset" }, undoB, redoB, resetB, neutralB),
     h("div", { class: "hm-pe-row hm-pe-actions", role: "group", "aria-label": "Mirror" }, mirrorB, copyLR, copyRL),
     h("div", { class: "hm-pe-row hm-pe-actions", role: "group", "aria-label": "Save and files" }, saveB, delB, exportB, importB, fileIn), saveForm, delConfirm, importMsg,
     h("div", { class: "hm-pe-switches" }, corrSwitch.el, animate.el, stay.el), corrMsg, corrTable,
     col([h("h3", { class: "hm-pe-h3" }, "Placement"), h("div", { class: "hm-pe-field" }, h("label", { for: supportSel.id, class: "hm-pe-flabel" }, "Carried by"), supportSel), modeSeg, modeNote, chairRow, seatHost, h("div", { class: "hm-pe-row" }, resetPlace), headingRow.el]),
-    col([h("h3", { class: "hm-pe-h3" }, "Live readouts"), h("div", { class: "hm-pe-chiprow" }, balanceEl, gapsEl), romEl, clampEl, angleBox]));
+    col([h("h3", { class: "hm-pe-h3" }, "Live readouts"), h("div", { class: "hm-pe-chiprow" }, balanceEl, gapsEl), romEl, clampEl, angleBox, milBox]));
 
   let lastSig = "", clampTimer = 0;
+  /** The MIL-STD-1472H chip and clause list of the current pose. */
+  function updateMil(info) {
+    const r = ctx.getRig(), body = ctx.getBody?.() ?? r?.restBody ?? r?.body;
+    if (!r || !body) { milChip.hidden = true; return; }
+    let res;
+    try {
+      const pose = r.getPose(), src = info.base.id ? editor.getPosture(info.base.id) : null;
+      res = checkPosture(body, { root: pose.root, angles: pose.angles }, { ...(src ?? {}), id: info.base.id, name: info.base.name, support: info.place.support, category: src?.category ?? "" }).results;
+    } catch { milChip.hidden = true; return; }
+    const sum = summarize(res);
+    milChip.hidden = false;
+    milChip.textContent = `1472H: ${STATUS_WORD[sum.status]}`;
+    milChip.dataset.state = sum.status;
+    milChip.title = tagText(sum);
+    const shown = res.filter((x) => x.status !== "pass");
+    const sig = JSON.stringify(res.map((x) => [x.id, x.status, Math.round((x.value ?? 0) * 10)]));
+    if (milList._sig === sig) return;
+    milList._sig = sig;
+    const word = { pass: "Meets", fail: "Fails", check: "Check", input: "Needs input" };
+    milList.replaceChildren(
+      h("li", {}, h("strong", {}, `${STATUS_WORD[sum.status]}. `), tagText(sum)),
+      ...shown.map((x) => h("li", { "data-status": x.status }, h("span", { class: `tag hm-pe-milst`, dataset: { state: x.status } }, word[x.status]), " ", h("strong", {}, clauseRef(x)), `: ${x.note || x.title}`, x.value != null ? ` (${Math.round(x.value * 10) / 10}${x.unit === "°" ? "°" : ` ${x.unit}`}; limit ${x.limit})` : x.limit ? ` (${x.limit})` : "")),
+      ...(shown.length ? [] : [h("li", { class: "muted" }, `Every checked clause is met (${sum.counts.pass} checks).`)]));
+  }
   angleBox.addEventListener("toggle", () => { anglesEl._sig = flagsEl._sig = null; if (angleBox.open) update(); });
   function update() {
     const info = (() => { try { return editor.info(); } catch { return null; } })();
@@ -836,6 +876,7 @@ function currentView(env, lib) {
       if (corr?.applied && !sameAngles(rigAngles(), corr.corrected)) { corr = null; corrSwitch.set(false); corrMsg.textContent = "The posture was changed by hand, so the correction is cleared."; }
       corrTableRender(info);
       if (ctx.setVerdict && ctx.state.postureVerdict !== v) ctx.setVerdict(v);
+      updateMil(info);
     }
     dot.hidden = !mod;
     baseEl.textContent = mod ? `Edited from ${base.kind === "neutral" ? "neutral standing" : base.kind === "custom" ? (saved ? "your custom posture" : "a custom posture that is no longer saved") : base.kind === "imported" ? "an imported posture" : "the library posture"}.` : { library: "Library posture.", custom: saved ? "Your custom posture, saved in this browser." : "A custom posture that is no longer saved. Use Save as custom to keep it.", imported: "Imported from a file.", neutral: "Every joint at 0." }[base.kind] ?? "";

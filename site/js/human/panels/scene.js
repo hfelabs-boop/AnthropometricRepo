@@ -13,6 +13,8 @@ import { CATALOG, CATEGORIES, byType, SWATCHES, buildObject, disposeObject } fro
 import { acquireSandbox, releaseSandbox, TEMPLATES, GRID_STEPS_MM, ANGLE_STEPS, MAX_OBJECTS, MAX_TEXT } from "../sandbox.js";
 import { acquireMeasure, releaseMeasure } from "../measure.js";
 import { mountPlace } from "../place.js";
+import { complianceReport, objectCompliance } from "../compliance.js";
+import { checkObject, summarize, STATUS_WORD, tagText, clauseRef } from "../mil1472.js";
 
 const CSS_URL = new URL("../../../human-scene.css", import.meta.url).href;
 
@@ -283,9 +285,40 @@ export default {
       if (b.dataset.icon !== icon) { b.replaceChildren(svgIcon(icon, 15)); b.dataset.icon = icon; }
       b.setAttribute("aria-label", label); b.title = title; b.setAttribute("aria-pressed", pressed ? "true" : "false");
     };
+    // ---- MIL-STD-1472H: each object (its own dimensions) and the figure's interactions with it (seat, grips, display, load) ----------------
+    let milReport = null, milTimer = 0;
+    const peekEditor = () => ctx.state?.postureEditor ?? ctx.posture ?? null;
+    /** { results, summary } of an object: from the scene report when the figure exists, else its own dimensions only. */
+    function milOf(o) {
+      const fromReport = objectCompliance(milReport, o.id);
+      if (fromReport) return fromReport;
+      if (milReport) return null;
+      let grips = [];
+      try { grips = byType(o.type).grips(o.params); } catch { grips = []; }
+      const results = checkObject(o, { grips });
+      return results.length ? { results, summary: summarize(results) } : null;
+    }
+    const MIL_SHORT = { compliant: "1472H ✓", "not-compliant": "1472H ✗", check: "1472H check", none: "" };
+    function syncMil(el, o) {
+      const m = milOf(o);
+      el.hidden = !m;
+      if (!m) return;
+      el.textContent = MIL_SHORT[m.summary.status];
+      el.dataset.state = m.summary.status;
+      el.title = `MIL-STD-1472H: ${STATUS_WORD[m.summary.status]}. ${tagText(m.summary)}`;
+    }
+    function refreshMil() {
+      milTimer = 0;
+      const ed = peekEditor(), rig = ctx.getRig?.();
+      try { milReport = rig && ed ? complianceReport({ rig, editor: ed, sandbox, profile: ctx.getProfile?.() ?? null }) : null; } catch { milReport = null; }
+      for (const [oid, r] of rowEls) { const o = sandbox.objects.get(oid); if (o) syncMil(r.milEl, o); }
+      state.editor?.syncMil?.();
+    }
+    const requestMil = () => { if (!milTimer) milTimer = setTimeout(refreshMil, 150); };
+
     function makeRow(oid) {
-      const nameEl = h("span", { class: "hm-ol-name" }), typeEl = h("span", { class: "hm-ol-type" });
-      const main = h("button", { type: "button", class: "hm-ol-main", onclick: () => sandbox.select(oid) }, nameEl, typeEl);
+      const nameEl = h("span", { class: "hm-ol-name" }), typeEl = h("span", { class: "hm-ol-type" }), milEl = h("span", { class: "tag hm-ol-mil", hidden: true });
+      const main = h("button", { type: "button", class: "hm-ol-main", onclick: () => sandbox.select(oid) }, nameEl, typeEl, milEl);
       const cur = () => sandbox.objects.get(oid);
       const lockB = h("button", { type: "button", class: "hm-ib", onclick: () => { const o = cur(); if (o) sandbox.setLocked(oid, !o.locked); } });
       const eyeB = h("button", { type: "button", class: "hm-ib", onclick: () => { const o = cur(); if (o) sandbox.setVisible(oid, !o.visible); } });
@@ -297,7 +330,7 @@ export default {
       const li = h("li", { class: "hm-ol-row", dataset: { id: oid } }, main, lockB, eyeB, dupB, delB);
       li.addEventListener("pointerenter", () => sandbox.hover(oid));
       li.addEventListener("pointerleave", () => sandbox.hover(null));
-      return { li, main, nameEl, typeEl, lockB, eyeB, dupB, delB };
+      return { li, main, nameEl, typeEl, milEl, lockB, eyeB, dupB, delB };
     }
     function syncRow(r, o, sel) {
       const t = byType(o.type);
@@ -309,6 +342,7 @@ export default {
       setBtn(r.lockB, { icon: o.locked ? "lock" : "unlock", label: `${o.locked ? "Unlock" : "Lock"} ${o.name}`, title: o.locked ? "Locked: it cannot be moved. Press to unlock" : "Lock it in place", pressed: o.locked });
       setBtn(r.eyeB, { icon: o.visible ? "eye" : "eye-off", label: `${o.visible ? "Hide" : "Show"} ${o.name}`, title: o.visible ? "Hide it" : "Hidden. Press to show it", pressed: !o.visible });
       r.dupB.setAttribute("aria-label", `Duplicate ${o.name}`); r.delB.setAttribute("aria-label", `Delete ${o.name}`);
+      syncMil(r.milEl, o);
     }
     function renderList() {
       const sel = sandbox.selected, seen = new Set();
@@ -454,6 +488,24 @@ export default {
       const delB = h("button", { type: "button", class: "btn small", onclick: () => sandbox.remove(obj.id) }, svgIcon("trash", 14), "Delete");
 
       const anchors = Object.values(spec.anchors(obj.params)).map((a) => a.label), grips = spec.grips(obj.params), sup = spec.supports(obj.params);
+      // MIL-STD-1472H: the object's own clauses and the figure's interactions with it
+      const milHead = h("p", { class: "small hm-ed-milhead" }), milList = h("ul", { class: "hm-ed-millist small" });
+      const milSet = h("details", { class: "hm-ed-set hm-ed-mil", open: true }, h("summary", { class: "hm-ed-h" }, "MIL-STD-1472H"), milHead, milList);
+      const WORD = { pass: "Meets", fail: "Fails", check: "Check", input: "Needs input" };
+      const syncMilBox = () => {
+        const o = sandbox.objects.get(obj.id), m = o ? milOf(o) : null;
+        milSet.hidden = !m;
+        if (!m) return;
+        const sig = JSON.stringify(m.results.map((r) => [r.id, r.subject?.id, r.status, Math.round((r.value ?? 0) * 10)]));
+        if (milList._sig === sig) return;
+        milList._sig = sig;
+        milHead.replaceChildren(h("span", { class: "tag hm-ol-mil", dataset: { state: m.summary.status } }, STATUS_WORD[m.summary.status]), " ", tagText(m.summary));
+        const order = { fail: 0, check: 1, input: 2, pass: 3 };
+        milList.replaceChildren(...m.results.slice().sort((a, b) => order[a.status] - order[b.status]).map((r) => h("li", { "data-status": r.status },
+          h("span", { class: "tag hm-ol-mil", dataset: { state: r.status } }, WORD[r.status]), " ", h("strong", { title: `${r.title}, page ${r.page}` }, clauseRef(r)),
+          ` ${r.subject?.kind === "interaction" ? `${r.subject.name}: ` : ""}${r.title}`, r.value != null ? ` — ${Math.round(r.value * 10) / 10}${r.unit === "°" ? "°" : r.unit ? ` ${r.unit}` : ""}` : "", r.limit ? ` (limit ${r.limit})` : "",
+          r.note ? h("div", { class: "muted" }, r.note) : null)));
+      };
       const el = h("div", { class: "hm-ed-body" },
         h("div", { class: "field" }, h("label", { for: name.id }, "Name"), name),
         h("p", { class: "small muted hm-ed-type" }, `${spec.name} · ${spec.category}`),
@@ -462,6 +514,7 @@ export default {
           h("div", { class: "hm-sc-row" }, dropB, restB)),
         h("div", { class: "hm-ed-set" }, h("div", { class: "hm-ed-h" }, "Colour"), swatchBar),
         h("div", { class: "hm-ed-set" }, h("div", { class: "hm-ed-h" }, "Size and settings"), ...paramEls),
+        milSet,
         h("div", { class: "hm-ed-set" }, h("div", { class: "hm-ed-h" }, h("label", { for: attachSel.id }, "Attach to the figure")), attachSel,
           h("label", { class: "check", for: follow.id }, follow, h("span", { class: "lbl" }, "Turn with the body part")), attachNote),
         h("div", { class: "hm-sc-row" }, showB, dupB, delB),
@@ -477,8 +530,9 @@ export default {
         for (const c of [dropB, restB]) c.disabled = o.locked || !!o.attachedTo;
         for (const f of syncs) f(o);
         showColor(o); showAttach(o);
+        syncMilBox();
       };
-      return { id: obj.id, units: u, type: obj.type, el, sync };
+      return { id: obj.id, units: u, type: obj.type, el, sync, syncMil: syncMilBox };
     }
 
     const emptyEditor = () => emptyState("Nothing selected.", "Click an object in the 3D view or in the list. Drag it on the floor, hold Shift to lift it, use the arrow keys to nudge it.");
@@ -612,6 +666,7 @@ export default {
       schedule();
     });
     on("selection", () => { needList = true; schedule(); });
+    for (const evt of ["scene", "pose", "rig", "posture", "profile", "body"]) on(evt, requestMil);
     on("units", () => { state.editor = null; needEditor = true; schedule(); });
     on("rig", () => { state.editor = null; needEditor = true; schedule(); });
     renderCatalog();
@@ -619,6 +674,7 @@ export default {
     renderEditor();
     updateHistory();
     syncSnap();
+    requestMil();
 
     // "Remember this scene" saves 600 ms after an edit; a page that is closed or put away before that must not lose the edit (the tab being left is flushed by the sandbox's dispose)
     const flushSave = () => { sandbox.flushSave(); };
@@ -645,6 +701,7 @@ export default {
         window.removeEventListener("pagehide", flushSave);
         document.removeEventListener("visibilitychange", onVisibility);
         if (raf && typeof cancelAnimationFrame === "function") cancelAnimationFrame(raf);
+        if (milTimer) clearTimeout(milTimer);
         placeMO?.disconnect();
         placeMount?.dispose();
         dock.dispose();

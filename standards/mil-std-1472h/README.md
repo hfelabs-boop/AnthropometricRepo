@@ -8,6 +8,8 @@ This folder lists every requirement in **MIL-STD-1472H** (*Department of Defense
 | [`requirements.csv`](requirements.csv) | The same list flattened for a spreadsheet; it is generated. |
 | `../../scripts/build_standards.py` | Validates the JSON and regenerates the CSV. `--check` runs in CI. |
 
+**In the website.** The Digital human tab now applies these requirements: every library posture, the current posture, every object of the scene and every interaction of the figure with it carry a *Compliant / Not compliant / Check* tag with the clauses that decide it, and the Analysis tab has the full report with a CSV download. What is checked, and how, is in [`docs/human3d/MIL_STD_1472H.md`](../../docs/human3d/MIL_STD_1472H.md); the rules are `site/js/human/mil1472.js`, and `tests/human3d/mil1472.test.mjs` keeps their limits equal to `requirements.json`.
+
 > **This is not the standard.** Each `text` field is a close paraphrase that keeps every number and unit as printed. Read the paragraph in the standard before you make a compliance claim. Revision H is the current one (it supersedes G with Change 1, January 2019). Check [ASSIST](https://quicksearch.dla.mil/) for later changes. The PDF is free from [EverySpec](https://everyspec.com/MIL-STD/MIL-STD-1400-1499/MIL-STD-1472H_57041/).
 
 ## How the list was made
