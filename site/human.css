@@ -216,7 +216,10 @@
 }
 
 /* posture verdict badge and RULA / REBA strain legend over the viewport (shell.js) */
-.hm-verdict { position: absolute; left: 10px; top: 56px; /* below the view toolbar */ z-index: 2; pointer-events: none; font-size: .85rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-verdicts { position: absolute; left: 10px; top: 56px; /* below the view toolbar */ z-index: 2; pointer-events: none; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; max-width: calc(100% - 20px); }
+.hm-verdicts[hidden] { display: none; }
+.hm-verdict { font-size: .72rem; font-weight: 600; line-height: 1.3; padding: 2px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-verdict[hidden] { display: none; }
 .hm-verdict[data-verdict="not-acceptable"] { background: var(--chip-bad-bg); color: var(--bad); border-color: transparent; }
 .hm-verdict[data-verdict="check"] { background: var(--chip-warn-bg); color: var(--warn); border-color: transparent; }
 .hm-verdict[data-verdict="acceptable"] { background: var(--chip-good-bg); color: var(--good); border-color: transparent; }

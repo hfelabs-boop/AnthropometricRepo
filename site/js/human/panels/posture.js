@@ -852,6 +852,7 @@ function currentView(env, lib) {
     milChip.textContent = `1472H: ${STATUS_WORD[sum.status]}`;
     milChip.dataset.state = sum.status;
     milChip.title = tagText(sum);
+    ctx.setMilVerdict?.({ status: sum.status, failed: sum.failed, toCheck: sum.toCheck });
     const shown = res.filter((x) => x.status !== "pass");
     const sig = JSON.stringify(res.map((x) => [x.id, x.status, Math.round((x.value ?? 0) * 10)]));
     if (milList._sig === sig) return;

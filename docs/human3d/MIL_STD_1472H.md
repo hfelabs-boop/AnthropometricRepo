@@ -4,6 +4,7 @@ Every posture, every object of the scene and every interaction of the figure wit
 
 | Where | What is tagged |
 |---|---|
+| 3D view, top left | Two small chips over the model: `ISO 11226: …` and `MIL-STD-1472H: …` for the current posture. The MIL chip names up to three failed (or to-check) clauses. The status bar repeats both. |
 | Posture tab, library cards | Every library posture on the current body. The badge reads `1472H ✓` / `1472H ✗` / `1472H check`; its tooltip lists the clauses. |
 | Posture tab, current posture | A chip next to the posture name, and *MIL-STD-1472H clauses of this posture* under Live readouts: each clause that fails or needs checking, with its value and limit. |
 | Scene tab, object list | A badge on each object. It covers the object's own dimensions and the figure's interactions with it. |
