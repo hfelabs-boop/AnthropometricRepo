@@ -514,7 +514,7 @@ function libraryView(env) {
     slot.title = r.verdict ? `Ergonomic verdict on this body: ${text} (ISO 11226 indication, not a risk assessment). ${r.counts.high} not acceptable, ${r.counts.caution} to check.` : "Could not be placed on this body";
     slot.dataset.state = r.verdict ?? "none";
   }
-  const MIL = { compliant: "1472H ✓", "not-compliant": "1472H ✗", check: "1472H check", none: "1472H —" };
+  const MIL = { compliant: "1472H ✓", "not-compliant": "1472H ✗", check: "1472H check", review: "1472H info", na: "1472H n/a", none: "1472H —" };
   function fillMil(rowEl, p, b) {
     const slot = rowEl.querySelector(".hm-pe-mil");
     if (!slot) return;
@@ -857,7 +857,7 @@ function currentView(env, lib) {
     const sig = JSON.stringify(res.map((x) => [x.id, x.status, Math.round((x.value ?? 0) * 10)]));
     if (milList._sig === sig) return;
     milList._sig = sig;
-    const word = { pass: "Meets", fail: "Fails", check: "Check", input: "Needs input" };
+    const word = { pass: "Meets", fail: "Fails", check: "Check", input: "Needs input", na: "N/A" };
     milList.replaceChildren(
       h("li", {}, h("strong", {}, `${STATUS_WORD[sum.status]}. `), tagText(sum)),
       ...shown.map((x) => h("li", { "data-status": x.status }, h("span", { class: `tag hm-pe-milst`, dataset: { state: x.status } }, word[x.status]), " ", h("strong", {}, clauseRef(x)), `: ${x.note || x.title}`, x.value != null ? ` (${Math.round(x.value * 10) / 10}${x.unit === "°" ? "°" : ` ${x.unit}`}; limit ${x.limit})` : x.limit ? ` (${x.limit})` : "")),

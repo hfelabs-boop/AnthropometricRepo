@@ -7,12 +7,22 @@
 import * as THREE from "three";
 import { byType } from "./catalog.js";
 import { viewInfo } from "./measure.js";
+import { surfaceIndex, nearestSurface, rayHit } from "./clearance.js";
 import { checkPosture, checkObject, checkScene, summarize, loadGeometry, postureLoad, LIFT, clauseRef, STANDARD, STATUS_WORD } from "./mil1472.js";
 
 const LOAD_TYPES = new Set(["crate", "small_box", "ammo_can", "toolbox", "rucksack", "drum", "sandbag", "jerrycan", "pallet"]);
 const DISPLAY_ANCHORS = ["screen_centre", "glass_centre", "panel_centre"];
 export const HOLD_TOLERANCE = 0.03; // m: a grip centre this close to a grip of an object is a hand on that grip
 const IN2M = 0.0254;
+// body-to-surface clearance (5.6.2.2): skin landmarks of the head and of the body; hands are left out (they touch the controls on purpose)
+export const HEAD_MARKS = ["vertex", "glabella", "opisthocranion", "euryon_L", "euryon_R", "pronasale", "menton"];
+export const BODY_MARKS = ["acromion_L", "acromion_R", "deltoid_L", "deltoid_R", "olecranon_L", "olecranon_R", "chest_front", "scapula_back_L", "scapula_back_R",
+  "trochanterion_L", "trochanterion_R", "knee_front_L", "knee_front_R", "knee_top_L", "knee_top_R", "toe_tip_L", "toe_tip_R", "heel_L", "heel_R", "buttock_extremity"];
+// landmarks that rest on a support: a surface below them (the floor, a seat pan) or behind the back (a seat back) is contact, not a clearance
+const RESTS_BELOW = new Set(["toe_tip_L", "toe_tip_R", "heel_L", "heel_R", "buttock_extremity"]), RESTS_BEHIND = new Set(["scapula_back_L", "scapula_back_R", "buttock_extremity"]);
+export const CLEAR_RADIUS = 0.3; // m: surfaces farther than this from every landmark are "clear"
+const CLEARANCE_TYPES = new Set(["cabin_shell", "cad_model"]), DESK_TYPES = new Set(["desk", "console"]), WALL_TYPES = new Set(["wall", "partition"]);
+const DESK_WALL_RANGE = 3; // m: a wall farther than this behind a desk's user is not part of that workspace
 const fin = (v) => typeof v === "number" && Number.isFinite(v);
 
 /** The stance that picks the mounting-height figures: "seated", "kneeling", "squatting", "lying" or "standing". */
@@ -87,6 +97,7 @@ export function sceneFacts({ rig, editor, sandbox = null, profile = null }) {
       }
     }
   }
+  relationFacts(facts, sandbox, L, fwd);
   // the load in the hands: a load object held by at least one hand
   for (const [oid, sides] of held) {
     const o = sandbox.objects.get(oid);
@@ -97,6 +108,73 @@ export function sceneFacts({ rig, editor, sandbox = null, profile = null }) {
     break;
   }
   return facts;
+}
+
+/**
+ * The relations between objects and between the figure and an object that 1472H measures in the scene (facts.cabins, facts.clearances, facts.desks,
+ * facts.walls): the head room above each seat inside a cabin (Figure 39), the gap from the figure's skin to the surfaces of a cabin or an imported model
+ * (5.6.2.2.1 to 5.6.2.2.4) and the space from a desk's user edge to the wall behind its user (Figure 58 D).
+ */
+function relationFacts(facts, sandbox, L, fwd) {
+  const all = [...sandbox.objects.values()].filter((o) => o.visible);
+  const box = new THREE.Box3(), pt = new THREE.Vector3(), dir = new THREE.Vector3();
+  facts.cabins = []; facts.clearances = []; facts.desks = []; facts.walls = [];
+  // head room above every seat inside a cabin
+  const seats = all.filter((o) => Object.hasOwn(o._anchors ?? {}, "srp"));
+  for (const c of all.filter((o) => o.type === "cabin_shell")) {
+    const idx = surfaceIndex(c), entry = { id: c.id, name: c.name, seats: [] };
+    for (const s of seats) {
+      const srp = sandbox.anchorWorld(s.id, "srp", new THREE.Vector3());
+      if (!srp) continue;
+      const lp = sandbox.worldToLocal(c.id, srp.clone());
+      const p = c.params, f = p.floor ?? 0;
+      if (Math.abs(lp.x) > p.width / 2 + 0.01 || Math.abs(lp.z) > p.length / 2 || lp.y < f - 0.05 || lp.y > f + p.height) continue;
+      entry.seats.push({ id: s.id, name: s.name, clearance: rayHit(idx, srp.toArray(), [0, 1, 0], 5) });
+    }
+    facts.cabins.push(entry);
+  }
+  // the figure's skin to the surfaces of cabins and imported models
+  const marks = [...HEAD_MARKS.map((id) => [id, "head"]), ...BODY_MARKS.map((id) => [id, "body"])].map(([id, part]) => ({ id, part, p: L(id) })).filter((m) => m.p);
+  const fig = new THREE.Box3();
+  for (const m of marks) fig.expandByPoint(pt.set(...m.p));
+  const side = [fwd[1], -fwd[0]];
+  for (const o of all.filter((x) => CLEARANCE_TYPES.has(x.type))) {
+    const idx = surfaceIndex(o), entry = { id: o.id, name: o.name, type: o.type, measured: false, near: false, hits: [] };
+    facts.clearances.push(entry);
+    if (!idx || fig.isEmpty()) continue;
+    entry.measured = true;
+    box.setFromObject(o.model).expandByScalar(CLEAR_RADIUS);
+    if (!box.intersectsBox(fig)) continue;
+    entry.near = true;
+    for (const m of marks) {
+      const h = nearestSurface(idx, m.p, CLEAR_RADIUS);
+      if (!h) continue;
+      const d = [m.p[0] - h.point[0], m.p[1] - h.point[1], m.p[2] - h.point[2]];
+      const fore = d[0] * fwd[0] + d[2] * fwd[1], lat = d[0] * side[0] + d[2] * side[1], vert = d[1];
+      const axis = Math.abs(vert) >= Math.abs(fore) && Math.abs(vert) >= Math.abs(lat) ? "vertical" : Math.abs(fore) >= Math.abs(lat) ? "fore-aft" : "lateral";
+      if (axis === "vertical" && vert > -0.03 && RESTS_BELOW.has(m.id)) continue; // standing or sitting on it (or sunk a little into a floor slab)
+      if (axis === "fore-aft" && fore > 0 && RESTS_BEHIND.has(m.id)) continue; // leaning on a seat back
+      entry.hits.push({ landmark: m.id, part: m.part, axis, distance: h.distance });
+    }
+  }
+  // desk to wall: from each desk's user edge, along the direction its user faces away from it, to the nearest wall or partition
+  const walls = all.filter((o) => WALL_TYPES.has(o.type)), facing = new Map(walls.map((w) => [w.id, 0]));
+  for (const d of all.filter((o) => DESK_TYPES.has(o.type))) {
+    const edge = sandbox.anchorWorld(d.id, "user_edge", new THREE.Vector3());
+    if (!edge) continue;
+    d.group.updateMatrixWorld(true);
+    dir.set(0, 0, 1).transformDirection(d.group.matrixWorld).setY(0).normalize();
+    const origin = [edge.x, Math.min(edge.y, 0.9), edge.z];
+    let best = null;
+    for (const w of walls) {
+      const t = rayHit(surfaceIndex(w), origin, dir.toArray(), DESK_WALL_RANGE);
+      if (t != null && (!best || t < best.distance)) best = { wallId: w.id, wallName: w.name, distance: t };
+    }
+    if (!best) continue;
+    facing.set(best.wallId, facing.get(best.wallId) + 1);
+    facts.desks.push({ id: d.id, name: d.name, type: d.type, ...best });
+  }
+  for (const w of walls) facts.walls.push({ id: w.id, name: w.name, desks: facing.get(w.id) });
 }
 
 /** Group results by their subject: [{ subject, results, summary }] in first-seen order. */
@@ -135,6 +213,14 @@ export function complianceReport({ rig, editor, sandbox = null, profile = null }
     }
   }
   const scene = checkScene(facts);
+  // a statement measured in the scene replaces the object's own "needs information" item it answers (subject.covers)
+  const covered = new Set(scene.flatMap((r) => (r.subject?.covers ?? []).map((c) => `${c.objectId}|${c.id}`)));
+  for (const g of objects) {
+    const kept = g.results.filter((r) => !covered.has(`${g.object.id}|${r.id}`));
+    if (kept.length !== g.results.length) { g.results = kept; g.summary = summarize(kept); }
+  }
+  // an object whose every item was answered in the scene (a wall: desk to wall) is reported under that relation only
+  for (let i = objects.length - 1; i >= 0; i--) if (!objects[i].results.length) objects.splice(i, 1);
   const interactions = bySubject(scene.filter((r) => r.subject?.kind === "interaction"));
   const population = scene.filter((r) => r.subject?.kind === "population");
   const results = [...p.results, ...interactions.flatMap((g) => g.results), ...objects.flatMap((g) => g.results), ...population];
@@ -145,7 +231,8 @@ export function complianceReport({ rig, editor, sandbox = null, profile = null }
 export function objectCompliance(report, objectId) {
   if (!report) return null;
   const own = report.objects.find((g) => g.object.id === objectId)?.results ?? [];
-  const inter = report.interactions.filter((g) => String(g.subject?.id ?? "").split(":")[1] === objectId).flatMap((g) => g.results);
+  const concerns = (sj) => (sj?.objects ?? [String(sj?.id ?? "").split(":")[1]]).includes(objectId);
+  const inter = report.interactions.filter((g) => concerns(g.subject)).flatMap((g) => g.results);
   const results = [...own, ...inter];
   return results.length ? { results, summary: summarize(results) } : null;
 }
