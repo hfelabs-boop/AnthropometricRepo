@@ -25,7 +25,7 @@ from statistics import NormalDist
 
 from .measurecat import category_of, category_order
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 CALC_REVISION = 2  # bump when the maths, rounding or response contents change: part of data_version
 REPOSITORY = "https://github.com/hfelabs-boop/AnthropometricRepo"
 ATTRIBUTION = (

@@ -238,12 +238,13 @@ def test_library_lists_every_posture_in_a_window_and_draws_stick_figures(s):
     assert s.page.locator(".hm-pe-count").inner_text().startswith(f"{n} of {n} postures")
     rows = s.page.locator(".hm-pe-card").count()
     assert 3 <= rows <= 20, f"{rows} rows in the DOM for {n} postures: the list is windowed"
-    # every card has a stick figure with ink in it, a support badge, a validator badge and a source badge
+    # every card has a stick figure with ink in it, a support badge, a validator badge, the MIL-STD-1472H tag, the ISO 11226 verdict and a source badge
     ink = s.js("""() => [...document.querySelectorAll('.hm-pe-card canvas')].map((c) => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let k = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 40) k++; return k; })""")
     assert all(k > 60 for k in ink), f"stick figures drawn: {ink}"
     first = s.page.locator(".hm-pe-card").first
     badges = first.locator(".tag").all_inner_texts()
-    assert badges[0] in ("stands", "sits", "kneels", "lies") and badges[1] in ("ok", "ok, notes", "fails") and len(badges) == 3
+    assert badges[0] in ("stands", "sits", "kneels", "lies") and badges[1] in ("ok", "ok, notes", "fails") and len(badges) == 5
+    assert badges[2].startswith("1472H") or badges[2] in ("…", "n/a"), badges
     assert first.locator(".hm-pe-card-desc").inner_text().strip()
     # scrolling brings other rows, the DOM stays small, the figures are drawn lazily
     s.page.evaluate("document.querySelector('.hm-pe-list').scrollTop = 40 * 80")

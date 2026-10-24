@@ -92,3 +92,13 @@
 .hm-an-reba .hm-an-table { min-width: 0; }
 @media (pointer: coarse) { .hm-an-jump { min-height: 40px; } .hm-an-sec > summary { min-height: 40px; } }
 @media (forced-colors: active) { .hm-an-hull { stroke: CanvasText; fill: none; } .hm-an-jump { border: 2px solid CanvasText; } }
+/* MIL-STD-1472H compliance */
+.hm-an-milchip { font-size: .7rem; padding: 0 6px; vertical-align: 1px; }
+.hm-an-milhead { margin: 2px 0 8px; line-height: 1.5; }
+.hm-an-milgroup { border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; margin: 6px 0; }
+.hm-an-milgroup > summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; min-height: 28px; }
+.hm-an-milgroup > summary::-webkit-details-marker { display: none; }
+.hm-an-millist { margin: 4px 0 2px; padding: 0; list-style: none; display: grid; gap: 6px; color: var(--text-2); }
+.hm-an-milrow { overflow-wrap: anywhere; }
+.hm-an-milactions { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+@media (pointer: coarse) { .hm-an-milgroup > summary { min-height: 40px; } }

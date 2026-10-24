@@ -68,3 +68,11 @@
   .hm-ex .seg button { min-height: 36px; }
   .hm-ex-check { min-height: 36px; }
 }
+
+/* Send to CAD */
+.hm-ex-card input.input { min-height: 34px; padding: 5px 8px; font-size: .86rem; width: 100%; box-sizing: border-box; }
+.hm-ex-cadout:empty { display: none; }
+.hm-ex-ok { color: var(--good); font-weight: 600; margin: 0; }
+.hm-ex-bad { color: var(--bad); font-weight: 600; margin: 0; }
+.hm-ex-links { margin: 4px 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.hm-ex-url { font-size: .74rem; overflow-wrap: anywhere; }

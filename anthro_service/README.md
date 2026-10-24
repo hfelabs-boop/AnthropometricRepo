@@ -2,6 +2,8 @@
 
 Body-measurement statistics of military populations (country × role × sex) for **digital-human and mannequin tools** (CATIA Human Builder, Siemens Jack, RAMSIS, AutoCAD or Blender scripts, spreadsheets) and for **AI assistants**. It serves the same numbers as the website's *By country & role* and *Design values* views: P5, P50, P95 (or any percentile) of 571 measures in 176 populations (country × role × sex; 130 country × role groups), with sample size, a reliability rating, the official document each value comes from, and the sources.
 
+It also has a **profile inbox**: the website's Digital human can push the body you built there (its measures, the model's dimensions and its posture) to this server with *Send to CAD*, and CATIA or another tool reads it back. See [Pushed profiles](#pushed-profiles-from-the-website-to-cad).
+
 Three ways to use it, from simplest to most flexible:
 
 | | Needs | Good for |
@@ -79,7 +81,7 @@ Common parameters: `measures=stature,mass` and `categories=seated,circumferences
 
 **Formats.** `/v1/design-values`, `/v1/mannequin` and `/v1/compare` answer **CSV** (UTF-8, CRLF, `,` separator, `.` decimal mark) and **XML** with `?format=csv` / `?format=xml`; `/v1/measures` has `format=csv`. `/v1/populations/{country}/{role}/{sex}` also takes a `.csv`, `.xml` or `.json` suffix on `sex`. XML carries the `<notes>` and the reliability filter's effect; CSV carries the data only, and the same information travels in the `X-Disclaimer`, `X-Notes` and `X-Hidden-By-Reliability` response headers.
 
-**Errors** are always `{"error": {"code": "not_found" | "bad_request" | "unauthorized" | "method_not_allowed" | "internal_error", "message": "…", "hint": "…", "available": ["…"], "closest": true}}` with status 404, 422, 401, 405 or 500 (`available` lists the valid values, or only the nearest matches when `closest` is true). The API is read-only: `GET` and `HEAD` only. Every answer, errors, `/openapi.json` and CORS preflights included, has `X-Data-Version`, and JSON declares `charset=utf-8`; a preflight from a refused origin is answered by the CORS layer in plain text.
+**Errors** are always `{"error": {"code": "not_found" | "bad_request" | "unauthorized" | "method_not_allowed" | "internal_error", "message": "…", "hint": "…", "available": ["…"], "closest": true}}` with status 404, 422, 401, 405 or 500 (`available` lists the valid values, or only the nearest matches when `closest` is true). The API is read-only (`GET` and `HEAD`), except `/v1/profiles`, which also takes `POST` (push a profile) and `DELETE`. Every answer, errors, `/openapi.json` and CORS preflights included, has `X-Data-Version`, and JSON declares `charset=utf-8`; a preflight from a refused origin is answered by the CORS layer in plain text.
 
 **Operation.** `X-Data-Version` on every response changes when any data file, the version or the calculation changes (cache on it). Answers are cacheable for an hour (`/v1/health` is not). Set `ANTHRO_API_KEYS=key1,key2` to require `X-API-Key: <key>` or `Authorization: Bearer <key>` on `/v1/*` (`/v1/health` stays open; the schemes are in the OpenAPI document, so Swagger's *Authorize* works); `ANTHRO_CORS_ORIGINS` restricts browser origins (comma separated origins such as `https://app.example.org`, default and when empty `*`; host names may contain `_` and internationalised names are converted to punycode; a default port is dropped because browsers leave it out; a mistake such as a missing scheme or a path stops the start-up with a message; with a list, answers carry `Vary: Origin` so shared caches keep the origins apart); `ANTHRO_DATA_DIR` points at another checkout of the data. There is no rate limiting or TLS: put it behind your reverse proxy. A [`Dockerfile`](../Dockerfile) is included (`docker build -t anthro-api . && docker run -p 8000:8000 anthro-api`).
 
@@ -114,9 +116,52 @@ Claude Desktop and most clients take a command; use absolute paths so it does no
 
 Claude Code: `claude mcp add anthropometry -e PYTHONPATH=/path/to/AnthropometricRepo -- /path/to/venv/bin/python -m anthro_service mcp`. The interpreter must be the one where `pip install -r anthro_service/requirements.txt` was run.
 
-Tools (all read-only): `list_countries`, `list_roles`, `list_categories`, `list_surveys`, `search_measures`, `get_measure`, `get_design_values`, `get_mannequin_dimensions`, `compare_populations`, `get_source`, `about`. Arguments a tool does not have are an error (the schemas say `additionalProperties: false`), and empty optional fields (null, `[]`, `{}`) are left out of the value tools' answers to save tokens. Failures come back as readable messages with the valid choices (or the closest matches), so the assistant can correct itself. Value tools return at most `limit` measures (default 60, maximum 200; harmonized ones first) unless you name them in `measures` (at most 200 names), and say what was left out; `get_measure` takes `country` and `limit` too. Tested with `mcp` 1.22 (the floor), 1.27 and 2.3 (`requirements.txt` allows 1.22 up to, not including, 3).
+Tools (all read-only): `list_countries`, `list_roles`, `list_categories`, `list_surveys`, `search_measures`, `get_measure`, `get_design_values`, `get_mannequin_dimensions`, `compare_populations`, `get_source`, `about`, and for profiles pushed from the website `list_pushed_profiles` and `get_pushed_profile` (views `values`, `dims`, `angles`, `points`; they read the same store as the REST API, `ANTHRO_PROFILE_DIR`). Arguments a tool does not have are an error (the schemas say `additionalProperties: false`), and empty optional fields (null, `[]`, `{}`) are left out of the value tools' answers to save tokens. Failures come back as readable messages with the valid choices (or the closest matches), so the assistant can correct itself. Value tools return at most `limit` measures (default 60, maximum 200; harmonized ones first) unless you name them in `measures` (at most 200 names), and say what was left out; `get_measure` takes `country` and `limit` too. Tested with `mcp` 1.22 (the floor), 1.27 and 2.3 (`requirements.txt` allows 1.22 up to, not including, 3).
 
 Example prompt: *"Take the US Army men from the anthropometry tool, use the latest survey, and give me the P5/P50/P95 values of stature, sitting height, buttock-knee length and hand length, then write the CATIA macro that sets them on my manikin."*
+
+## Pushed profiles: from the website to CAD
+
+The website's **Digital human** builds a body from a population, a real person of the open datasets or your own numbers, and poses it. **Send to CAD** (Export tab) pushes that figure to this server; CATIA, AutoCAD, Jack, RAMSIS, a script or an AI assistant then reads it back. The figure travels as the website's *human-exchange* JSON (profile measures, the model's dimension table, 77 joints with their angles and ranges, landmarks, posture, scene).
+
+**On the CAD computer:**
+
+```bash
+pip install -r anthro_service/requirements.txt
+python -m anthro_service serve                         # http://127.0.0.1:8000; profiles are kept in ~/.anthro_service/profiles (ANTHRO_PROFILE_DIR)
+```
+
+Then, in the website: Digital human → Export → **Send to CAD** → server `http://127.0.0.1:8000` → *Send profile and posture*. The answer lists the URLs to read. Chrome, Edge and Firefox allow the https website to call `http://127.0.0.1` (the server answers the Private Network Access preflight; Chrome may ask you to allow access to devices on your local network). Safari blocks it: download the *Exchange JSON* instead and run `python -m anthro_service push FILE.json`.
+
+| Endpoint | Returns |
+|---|---|
+| `POST /v1/profiles` | stores a human-exchange document (or a *digital-human-profile* file of the Profile tab: measures only); `201` with the `id`, the URLs below and `Location`. At most 5 MB; the 200 newest profiles are kept. |
+| `GET /v1/profiles` | the pushed profiles, newest first (id, label, sex, stature, mass, number of measures, posture, time received); `format=csv\|xml` too |
+| `GET /v1/profiles/{id}` | summary + the measures as a flat `values` / `units` map and `core`: **the same keys, units and shape as `/v1/mannequin`**, so a macro written for population values works unchanged on a pushed body |
+| `GET /v1/profiles/{id}/values` | the measures as a table (key, name, value, unit, status, reliability, basis, n) |
+| `GET /v1/profiles/{id}/angles` | the posture: the root orientation, then every degree of freedom of every joint (joint, side, dof, value, range, meaning; degrees) |
+| `GET /v1/profiles/{id}/points` | joint centres and landmarks of the posed figure, millimetres, +Y up, +Z front, +X the figure's left, floor at y = 0 |
+| `GET /v1/profiles/{id}/dims` | the dimension table of the website's model (segment lengths, breadths, sections) |
+| `GET /v1/profiles/{id}/document` | the document as pushed |
+| `DELETE /v1/profiles/{id}` | removes it |
+
+`{id}` may be **`latest`**. Every view takes `format=json` (default), `csv` or `xml`; answers are `Cache-Control: no-store`.
+
+**Who may push and read.** `ANTHRO_PROFILES=on` (default): without API keys, profiles are served to the computer the server runs on only (a request from another address gets 403); with `ANTHRO_API_KEYS`, anyone with a key. `ANTHRO_PROFILES=open` serves everyone (a trusted network only); `off` switches the inbox off. Put a server for a team behind HTTPS and set keys; the website's Send to CAD has a key field (the key is not saved).
+
+**Without the browser:**
+
+```bash
+python -m anthro_service push figure_exchange.json                 # to the server at $ANTHRO_SERVER or http://127.0.0.1:8000
+python -m anthro_service push figure_exchange.json --local         # straight into this computer's store (no server needed)
+python -m anthro_service profiles                                  # list
+python -m anthro_service pull latest --view values --format csv --out manikin.csv
+python -m anthro_service pull latest --view angles                 # the posture
+```
+
+**In CATIA (VBA):** import [`examples/AnthroApi.bas`](examples/AnthroApi.bas); `AnthroProfile("latest")` returns a dictionary *measure key → value* (mm, kg), `AnthroProfileUnits` the units, `AnthroProfileAngles("latest")` *"joint.dof" → degrees* (`knee_L.flex`, `hip_R.flex`, `root.heading`), and `AnthroProfileToParameters` copies the measures onto the active part's Knowledge parameters that have the same names (`stature` as a Length, `mass` as a Mass). Map the keys to your manikin's variables in your own macro if they differ. As for the rest of the VBA module: **not run inside CATIA**, checked by reading only.
+
+**Caveats.** A population profile is a boundary case (every measure is the chosen percentile of that measure alone; the summary's `notes` say so). `values` are the survey measures; `dims`, `angles` and `points` come from the website's simplified model (rigid links, approximate joint centres). The website's rig has 77 joints, which do not map one to one onto CATIA Human Builder's segments: use the angles as targets, not as a direct import.
 
 ## Connecting a CAD or digital-human tool
 
@@ -124,7 +169,7 @@ None of these products has a built-in connector; they take dimensions through sc
 
 | Tool | Route |
 |---|---|
-| **CATIA V5 / 3DEXPERIENCE (Human Builder, Human Measurements Editor)** | VBA / CATScript: [`examples/AnthroApi.bas`](examples/AnthroApi.bas) fetches the dimensions into a dictionary you copy onto manikin or Knowledge parameters. Or fetch a CSV ([`examples/design_table.py`](examples/design_table.py)) and import it as a design table. Edit `MAPPING` there to your parameter names. |
+| **CATIA V5 / 3DEXPERIENCE (Human Builder, Human Measurements Editor)** | VBA / CATScript: [`examples/AnthroApi.bas`](examples/AnthroApi.bas) fetches the dimensions into a dictionary you copy onto manikin or Knowledge parameters. For a body pushed from the website: `AnthroProfile("latest")` (measures), `AnthroProfileAngles("latest")` (posture) and `AnthroProfileToParameters` (copies the measures onto the active part's Knowledge parameters of the same names). Or fetch a CSV ([`examples/design_table.py`](examples/design_table.py)) and import it as a design table. Edit `MAPPING` there to your parameter names. |
 | **AutoCAD** (has no human model; scripts that place a human figure or ergonomic template) | AutoCAD VBA 7.x: the same `AnthroApi.bas`. AutoLISP / .NET / Python-COM: GET the CSV or JSON URL and read the columns. |
 | **Siemens Jack / Process Simulate, RAMSIS, SAMMIE, Santos** | Import the CSV as a custom population or anthropometry table, or call the REST API from the tool's scripting layer. Map `key` to the tool's variable names. |
 | **Blender / Unity / Unreal / MakeHuman** | HTTP + JSON from Python or C#. |

@@ -75,11 +75,14 @@
 .hm-pe-card-desc { font-size: .76rem; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hm-pe-card-badges { display: flex; flex-wrap: nowrap; gap: 4px; overflow: hidden; }
 .hm-pe-card-badges .tag { font-size: .68rem; padding: 0 7px; flex: none; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
+/* the ISO 11226 verdict and the source give way first on a narrow card: they shrink to an ellipsis instead of running out of the window */
+.hm-pe-card-badges .hm-pe-ergo, .hm-pe-card-badges .tag:last-child { flex: 0 1 auto; min-width: 0; }
 .hm-pe-empty { display: grid; gap: 6px; justify-items: start; padding: 4px 0; }
 
 /* ---------- current posture ---------- */
 .hm-pe-cur { display: grid; gap: 10px; min-width: 0; }
-.hm-pe-curhead { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.hm-pe-curhead { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.hm-pe-curhead .hm-pe-curname { flex: 1 1 8rem; }
 .hm-pe-curname { font-size: 1rem; min-width: 0; overflow-wrap: anywhere; }
 .hm-pe-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--warn); }
 .hm-pe-dot[hidden] { display: none; }
@@ -215,3 +218,9 @@
 .hm-pe-ergo[data-state="not-acceptable"] { background: var(--chip-bad-bg); color: var(--bad); }
 .hm-pe-ergo[data-state="check"] { background: var(--chip-warn-bg); color: var(--warn); }
 .hm-pe-ergo[data-state="acceptable"] { background: var(--chip-good-bg); color: var(--good); }
+/* MIL-STD-1472H tags: the word carries the meaning, the colour helps */
+.hm-pe-mil { white-space: nowrap; }
+.hm-pe-mil[data-state="not-compliant"], .hm-pe-milst[data-state="fail"] { background: var(--chip-bad-bg); color: var(--bad); }
+.hm-pe-mil[data-state="check"], .hm-pe-milst[data-state="check"] { background: var(--chip-warn-bg); color: var(--warn); }
+.hm-pe-mil[data-state="compliant"], .hm-pe-milst[data-state="pass"] { background: var(--chip-good-bg); color: var(--good); }
+.hm-pe-millist { margin: 0.4rem 0; padding-left: 1rem; display: grid; gap: 0.3rem; }

@@ -120,6 +120,15 @@ fieldset.hm-ed-set legend { font-size: .8rem; font-weight: 600; color: var(--tex
   .hm-ib[aria-pressed="true"], .hm-obj-card[aria-pressed="true"], .hm-ol-row[aria-current="true"], .hm-ms-item[aria-current="true"] { border: 2px solid Highlight; }
   .hm-swatch[aria-checked="true"] { outline: 3px solid Highlight; }
 }
+
+/* MIL-STD-1472H tag of an object (the word carries the meaning, the colour helps) */
+.hm-ol-mil { font-size: .68rem; padding: 0 5px; width: fit-content; white-space: nowrap; }
+.hm-ol-mil[data-state="not-compliant"], .hm-ol-mil[data-state="fail"] { background: var(--chip-bad-bg); color: var(--bad); }
+.hm-ol-mil[data-state="check"] { background: var(--chip-warn-bg); color: var(--warn); }
+.hm-ol-mil[data-state="compliant"], .hm-ol-mil[data-state="pass"] { background: var(--chip-good-bg); color: var(--good); }
+.hm-ed-mil > summary { cursor: pointer; }
+.hm-ed-millist { margin: 4px 0; padding: 0; list-style: none; display: grid; gap: 5px; overflow-wrap: anywhere; }
+
 /* imported models: the layer list of the selected one */
 .hm-ed-layerlist { display: grid; gap: 2px; max-height: 260px; overflow: auto; padding-right: 4px; }
 .hm-ed-layer { padding-left: 0; font-size: .85rem; }

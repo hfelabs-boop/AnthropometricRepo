@@ -7,6 +7,7 @@ public/ contains:
                                 decompresses it and queries it with sql.js
   catalog/                      surveys.json (read by the app) and CSV/JSON downloads
   data/                         the original open datasets, for direct download
+  standards/mil-std-1472h/      the MIL-STD-1472H requirements the site can check (requirements.json / .csv)
   api/v1/                       read-only JSON/CSV copy of the API (anthro_service/snapshot.py): percentiles
                                 per country, role and sex, for CAD / digital-human tools and scripts
 
@@ -42,6 +43,9 @@ def main():
     for name in ("aggregates.csv", "rollup.csv", "SPEC.md"):
         shutil.copy(ROOT / "aggregates" / name, OUT / "aggregates" / name)
     shutil.copytree(ROOT / "data", OUT / "data")
+    (OUT / "standards" / "mil-std-1472h").mkdir(parents=True)
+    for name in ("requirements.json", "requirements.csv"):
+        shutil.copy(ROOT / "standards" / "mil-std-1472h" / name, OUT / "standards" / "mil-std-1472h" / name)
 
     sys.path.insert(0, str(ROOT))
     from anthro_service import snapshot

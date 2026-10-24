@@ -6,7 +6,7 @@
 // that data and refreshes it when the pose, the scene, the selection or the units change: at most 10 times a second, never while the tab is hidden. Only the headline verdict is a
 // live region (it is spoken when its words change, not on every drag step).
 import * as THREE from "three";
-import { h, toast } from "../../util.js";
+import { h, toast, download } from "../../util.js";
 import { fmtLength, nextId } from "../ui.js";
 import { postureMetrics, ergonomicFlags, rebaInputs, REBA_BANDS } from "../metrics.js";
 import { balance } from "../pose.js";
@@ -14,6 +14,8 @@ import { editorFor, supportLabel } from "../editor.js";
 import { viewInfo, peekMeasure, VIEW_NOTE } from "../measure.js";
 import { peekSandbox } from "../sandbox.js";
 import { ensureAnalysisStyles, planeHeightAt, fmtMm } from "../place.js";
+import { complianceReport, reportCSV } from "../compliance.js";
+import { STATUS_WORD, tagText, clauseRef, STANDARD } from "../mil1472.js";
 
 const mm = (m) => m * 1000;
 const fin = (v) => typeof v === "number" && Number.isFinite(v);
@@ -180,6 +182,8 @@ export function computeAnalysis({ rig, editor, sandbox = null, measure = null, s
   const posture = { id: base.id, name: base.name, kind: base.kind, modified: !!info.modified, description: src?.description ?? "", source: src?.source ?? "", category: src?.category ?? "", support: place.support, supportLabel: supportLabel(place.support), mode: place.mode, seatName: chair?.obj.name ?? null };
 
   const notes = flags.filter((f) => f.severity !== "ok");
+  let mil = null;
+  try { mil = complianceReport({ rig, editor, sandbox, profile }); } catch (e) { mil = null; }
   const verdictParts = [`${posture.name}${posture.modified && !/\(edited\)$/.test(posture.name) ? " (edited)" : ""}`];
   if (bal.margin != null && bal.applies) verdictParts.push(bal.inside ? `centre of mass ${fmtMm(bal.margin)} inside the support` : `centre of mass ${fmtMm(bal.margin)} outside the support${bal.status === "falls" ? ", beyond the 40 mm tolerance" : ""}`);
   else if (bal.reason) verdictParts.push(bal.reason.replace(/\.$/, "").toLowerCase());
@@ -187,9 +191,10 @@ export function computeAnalysis({ rig, editor, sandbox = null, measure = null, s
   if (feet && feet.state !== "touch" && seated) verdictParts.push(`feet ${feet.text}`);
   verdictParts.push(rom.length ? `${rom.length} joint angle${rom.length === 1 ? "" : "s"} outside the range of motion` : "all joints inside their ranges");
   verdictParts.push(notes.length ? `${notes.length} posture note${notes.length === 1 ? "" : "s"} to check (an indication)` : "no ISO 11226 note");
+  if (mil) verdictParts.push(`MIL-STD-1472H: ${STATUS_WORD[mil.summary.status].toLowerCase()}${mil.summary.failed.length ? ` (${mil.summary.failed.join(", ")})` : ""}`);
   const verdict = `${verdictParts.join("; ")}.`;
 
-  return { ready: true, posture, place: { mode: place.mode, support: place.support, carriers, seated, seat: place.seat }, metrics: m, flagOptions: flagOpts, flags, notes, rows, reba, balance: bal, gaps, rom, reach, verdict };
+  return { ready: true, posture, place: { mode: place.mode, support: place.support, carriers, seated, seat: place.seat }, metrics: m, flagOptions: flagOpts, flags, notes, rows, reba, balance: bal, gaps, rom, reach, mil, verdict };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -268,10 +273,17 @@ export default {
     const reachList = h("ul", { class: "hm-an-reach small" });
     const rebaBox = h("div", { class: "hm-an-reba" });
     const modelBox = h("div", { class: "hm-an-model small" });
+    const milBox = h("div", { class: "hm-an-mil" });
+    const milCsv = h("button", { type: "button", class: "btn small", title: "Download every MIL-STD-1472H check of the scene as CSV", onclick: () => {
+      if (!data?.mil) return;
+      download(`mil-std-1472h-check.csv`, reportCSV(data.mil), "text/csv");
+    } }, "Download report (CSV)");
 
     const sec = (title, body, open = true) => h("details", { class: "hm-an-sec", open: open ? true : null }, h("summary", {}, title), h("div", { class: "hm-an-body" }, body));
     const root = h("div", { class: "hm-an" }, head, verdict, copyNote,
       sec("Posture", postureBox),
+      sec("MIL-STD-1472H compliance", [milBox, h("div", { class: "hm-an-milactions" }, milCsv),
+        h("p", { class: "small muted" }, `${STANDARD.id} (${STANDARD.date}). Checked on a simplified model and on this body only; read the clause in the standard before you rely on a result. The clauses and limits are listed in standards/mil-std-1472h.`)]),
       sec("Joint angles and ISO 11226 indications", [
         h("p", { class: "small muted" }, "Chips are indications from a simplified model for postures held longer than 4 seconds, not a risk assessment."),
         h("div", { class: "hm-an-scroll" }, angleTable), angleNotes]),
@@ -315,6 +327,8 @@ export default {
       put(angleNotes, d.notes.map((f) => [f.id, f.severity, f.note]), () => (d.notes.length
         ? d.notes.map((f) => h("li", {}, chip(f.severity), " ", h("strong", {}, `${f.label}: `), f.note))
         : [h("li", { class: "muted" }, "No joint with an ISO 11226 limit is outside its acceptable range (an indication on a simplified model).")]));
+      // MIL-STD-1472H
+      drawMil(d.mil);
       // balance
       const b = d.balance;
       diagram.update(b);
@@ -360,6 +374,38 @@ export default {
               ...["L", "R"].map((s) => row(`Knee (${SIDE_WORD[s]})`, rb.legs[s].flexion, REBA_BANDS.legs, rb.legs.seated ? null : rb.legs[s].bandIndex, rb.legs.seated ? "seated: knees are not scored" : ""))),
           )),
           h("p", { class: "small muted" }, `Legs: ${rb.legs.support}. ${rb.source}. Bands as in the REBA worksheets; the modifiers' thresholds are this tool's (approx.).`),
+        ];
+      });
+    }
+    const MIL_WORD = { pass: "Meets", fail: "Fails", check: "Check", input: "Needs input" };
+    const MIL_KIND = { compliant: "good", "not-compliant": "bad", check: "warn", none: "outline" };
+    const RES_KIND = { pass: "good", fail: "bad", check: "warn", input: "outline" };
+    const fmtVal = (r) => (r.value == null ? "" : `${Math.round(r.value * 10) / 10}${r.unit === "°" ? "°" : r.unit ? ` ${r.unit}` : ""}`);
+    function resultRow(r) {
+      return h("li", { class: "hm-an-milrow", "data-status": r.status },
+        h("span", { class: `tag ${RES_KIND[r.status]} hm-an-milchip` }, MIL_WORD[r.status]), " ",
+        h("strong", { title: `${r.title}, page ${r.page} (${r.level})` }, clauseRef(r)), ` ${r.title}`,
+        r.value != null || r.limit ? h("span", { class: "hm-an-milval" }, ` — ${fmtVal(r)}${r.value != null && r.limit ? "; " : ""}${r.limit ? `limit ${r.limit}` : ""}`) : null,
+        r.note ? h("div", { class: "small muted" }, r.note) : null);
+    }
+    function group(title, g, open) {
+      const sum = g.summary;
+      return h("details", { class: "hm-an-milgroup", open: open ? true : null, "data-status": sum.status },
+        h("summary", {}, h("span", { class: `tag ${MIL_KIND[sum.status]} hm-an-milchip` }, STATUS_WORD[sum.status]), " ", h("strong", {}, title), h("span", { class: "small muted" }, ` ${sum.clauses.join(", ")}`)),
+        h("ul", { class: "hm-an-millist small" }, g.results.slice().sort((a, b) => ({ fail: 0, check: 1, input: 2, pass: 3 }[a.status] - { fail: 0, check: 1, input: 2, pass: 3 }[b.status])).map(resultRow)));
+    }
+    function drawMil(M) {
+      put(milBox, M ? M.results.map((r) => [r.subject?.id, r.id, r.status, Math.round((r.value ?? 0) * 10)]) : null, () => {
+        if (!M) return [h("p", { class: "muted" }, "The report could not be computed.")];
+        const S = M.summary;
+        return [
+          h("p", { class: "hm-an-milhead" }, h("span", { class: `tag ${MIL_KIND[S.status]}` }, STATUS_WORD[S.status]), " ", tagText(S),
+            h("span", { class: "small muted" }, ` ${S.counts.pass} met, ${S.counts.fail} failed, ${S.counts.check} to check, ${S.counts.input} need input.`)),
+          group(`Posture: ${M.posture.subject.name}`, M.posture, M.posture.summary.status !== "compliant"),
+          ...M.interactions.map((g) => group(g.subject.name, g, g.summary.status !== "compliant")),
+          ...M.objects.map((g) => group(`Object: ${g.object.name}`, g, false)),
+          M.population.length ? h("ul", { class: "hm-an-millist small" }, M.population.map(resultRow)) : null,
+          M.interactions.length || M.objects.length ? null : h("p", { class: "small muted" }, "Add objects in the Scene tab (a seat, a display, stairs, a load) to check them and the figure's interactions with them."),
         ];
       });
     }

@@ -1,6 +1,7 @@
 // Export panel of the Digital human tab: take the figure, its posture and the scene into CAD, digital-human-modelling and motion tools.
 // The formats themselves are built by ../export.js (pure, tested in Node); this file adds the options, the downloads, the busy and error states, posture and
-// scene files that can be loaded again, and the PNG images, which need the viewport's renderer. Everything is made in the browser; nothing is sent anywhere.
+// scene files that can be loaded again, and the PNG images, which need the viewport's renderer. Everything is made in the browser; nothing is sent anywhere,
+// except by "Send to CAD", which posts the exchange JSON to the anthro_service server the user names (cadlink.js).
 // Panel contract: shell.js (default { id, label, order, mount(container, ctx) }). Styles: site/human-export.css (prefix hm-ex-), injected once.
 // Manual: docs/human3d/EXPORT.md.
 import * as THREE from "three";
@@ -10,6 +11,7 @@ import { peekSandbox, acquireSandbox, releaseSandbox, MAX_TEXT } from "../sandbo
 import { peekMeasure, acquireMeasure, releaseMeasure } from "../measure.js";
 import { viewDirection, frameDistance } from "../viewport.js";
 import * as X from "../export.js";
+import { DEFAULT_SERVER, normalizeServer, testServer, pushProfile, START_HINT } from "../cadlink.js";
 
 const CSS_URL = new URL("../../../human-export.css", import.meta.url).href;
 
@@ -40,6 +42,7 @@ const DEFAULTS = {
   csvHeader: false,
   imgScale: 1, imgBackground: "scene", imgGrid: true, imgShadow: true,
   postPlace: true, sceneAdd: false,
+  cadServer: DEFAULT_SERVER,
 };
 const CHOICES = { glbFigure: ["skin", "skeleton", "none"], glbPose: ["baked", "clip"], meshUnit: ["mm", "m"], meshAxes: Object.keys(X.AXES), bvhUnit: ["cm", "mm", "m"], imgScale: [1, 2], imgBackground: ["scene", "transparent"] };
 function loadOpts() {
@@ -402,6 +405,44 @@ export default {
       "One self-describing file: profile and measures, the dimension table, 77 joints with positions, orientations and ranges, landmarks, segment masses, posture, placement, scene and measurements. Millimetres, kilograms, degrees.",
       h("div", { class: "hm-ex-actions" }, jsonBtn, jsonSize));
 
+    // ---- 4b. send to CAD (anthro_service REST API) ------------------------------------------------------------------------------------
+    const cadId = ids("cadServer"), keyId = ids("cadKey");
+    const cadServer = h("input", { type: "url", class: "input", id: cadId, value: opt.cadServer, spellcheck: "false", autocomplete: "off", placeholder: DEFAULT_SERVER,
+      onchange: () => { const n = normalizeServer(cadServer.value); if (n.ok) { opt.cadServer = n.base; cadServer.value = n.base; saveOpts(opt); } } });
+    const cadKey = h("input", { type: "password", class: "input", id: keyId, autocomplete: "off", spellcheck: "false", placeholder: "only if the server sets ANTHRO_API_KEYS" });
+    const cadOut = h("div", { class: "hm-ex-cadout", role: "status", "aria-live": "polite" });
+    const server = () => { const n = normalizeServer(cadServer.value); if (!n.ok) throw new Error(n.error); return n.base; };
+    const pageOrigin = () => (typeof location === "object" ? location.origin : "");
+    const linkRow = (label, url) => h("li", {}, h("span", { class: "hm-ex-lbl" }, `${label}: `), h("code", { class: "hm-ex-url" }, url), " ",
+      h("button", { type: "button", class: "btn small", onclick: () => copy(url, `the ${label.toLowerCase()} address`) }, "Copy"));
+    const cadTest = button("Test connection", () => run("Connecting to the server", async () => {
+      const base = server(), r = await testServer(base, { key: cadKey.value, pageOrigin: pageOrigin() });
+      cadOut.replaceChildren(h("p", { class: r.ok ? "hm-ex-ok" : "hm-ex-bad" }, r.message), r.ok || !r.hint ? null : h("p", { class: "small muted" }, r.hint));
+      if (!r.ok) throw new Error(`${r.message} ${r.hint ?? ""}`.trim());
+      return r.message;
+    }, { snap: false }), { title: "Check that the server answers and accepts profiles from this browser" });
+    const cadSend = button("Send profile and posture", () => run("Sending to CAD", async (tick, inp) => {
+      const base = server(), text = X.exchangeText(inp, { created: stamp() }), check1 = X.validateExchange(text);
+      if (!check1.ok) throw new Error(`the document failed its own check: ${check1.errors[0]}`);
+      await tick(`Sending ${X.formatBytes(text.length)} to ${base}`);
+      const r = await pushProfile(base, text, { key: cadKey.value, pageOrigin: pageOrigin() });
+      if (!r.ok) {
+        cadOut.replaceChildren(h("p", { class: "hm-ex-bad" }, r.message), r.hint ? h("p", { class: "small muted" }, r.hint) : null);
+        throw new Error(`${r.message} ${r.hint ?? ""}`.trim());
+      }
+      cadOut.replaceChildren(
+        h("p", { class: "hm-ex-ok" }, `Sent "${r.label}" as ${r.id}.`),
+        h("ul", { class: "hm-ex-links small" }, linkRow("Values (CSV)", r.links.values_csv), linkRow("Joint angles (CSV)", r.links.angles_csv), linkRow("Points (CSV)", r.links.points_csv), linkRow("Latest values (CSV)", r.links.latest_values_csv)),
+        h("p", { class: "small muted" }, "In CATIA: import anthro_service/examples/AnthroApi.bas and run AnthroProfileToParameters (or AnthroProfile(\"latest\") in your own macro)."));
+      return `Sent "${r.label}" to ${base} as ${r.id}.`;
+    }), { primary: true, title: "Push the profile, the body and the posture to the server; CAD macros read them back" });
+    const cadCard = card("Send to CAD (REST API)", "CATIA, AutoCAD, Jack, RAMSIS, scripts",
+      "Pushes this figure (profile measures, the model's dimensions, joint angles and points: the exchange JSON) to an anthro_service server. CAD macros read it back: /v1/profiles/latest/values (same keys as /v1/mannequin), /angles and /points. The MCP server shows it to AI assistants too.",
+      h("div", { class: "hm-ex-field" }, h("label", { for: cadId }, "Server"), cadServer),
+      h("div", { class: "hm-ex-field" }, h("label", { for: keyId }, "API key (optional, not saved)"), cadKey),
+      h("div", { class: "hm-ex-actions" }, cadSend, cadTest), cadOut,
+      h("p", { class: "small muted" }, `${START_HINT}. The server keeps profiles on that computer; without API keys it serves them to that computer only.`));
+
     // ---- 5. posture and scene files --------------------------------------------------------------------------------------------------
     const fileInput = (accept, onFile) => {
       const el = h("input", { type: "file", accept, hidden: true, tabindex: "-1", "aria-hidden": "true", onchange: async () => { const f = el.files?.[0]; el.value = ""; if (f) await onFile(f); } });
@@ -489,13 +530,14 @@ export default {
     const sumCard = card("Summary", "Reports", "Profile, key dimensions, posture, the largest joint angles, scene objects and measurements as plain text.", h("div", { class: "hm-ex-actions" }, sumBtn), sumDetails);
 
     // ---- layout -------------------------------------------------------------------------------------------------------------------------
-    const intro = h("p", { class: "small muted hm-ex-intro" }, "Take the figure, its posture and the scene into CAD, digital-human and motion tools. Every file names the units and axes it uses. Files are made in your browser; nothing is uploaded.");
+    const intro = h("p", { class: "small muted hm-ex-intro" }, "Take the figure, its posture and the scene into CAD, digital-human and motion tools. Every file names the units and axes it uses. Files are made in your browser; nothing is uploaded, except by Send to CAD, which sends the figure to the server you name.");
     const note = h("p", { class: "hm-ex-note" }, "The model is a simplified kinematic and anthropometric visualisation (rigid links, approximate joint centres, no soft tissue). Check the scale and the axes after importing.");
     const root = h("div", { class: "hm-ex" }, h("h2", { class: "hm-panel-title" }, "Export"), intro, stateEl, busyEl, last, msgs,
       section("3D model: GLB, OBJ, STL", [qualityNote, glbCard, meshCard], { open: true }),
       section("Skeleton and motion: BVH", [bvhCard], { open: false }),
       section("Tables: CSV and JSON", [tablesCard], { open: false }),
       section("Exchange JSON", [jsonCard], { open: false }),
+      section("Send to CAD", [cadCard], { open: false }),
       section("Posture and scene files", [filesCard], { open: false }),
       section("Images: PNG", [imgCard], { open: false }),
       section("Summary", [sumCard], { open: false }),

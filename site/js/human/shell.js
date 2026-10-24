@@ -139,8 +139,9 @@ async function build(undo) {
   const left = h("aside", { class: "hm-left panel", "aria-label": "Tools" }, tabs.el, panelsEl);
 
   const viewportEl = h("div", { class: "hm-viewport-host" });
-  // the ergonomic verdict of the figure, next to the model (set by the Posture panel through ctx.setVerdict)
-  const verdictBadge = h("div", { class: "hm-verdict", hidden: true, role: "status", "aria-label": "Posture verdict" });
+  // the verdicts of the figure, next to the model: ISO 11226 (ctx.setVerdict) and MIL-STD-1472H (ctx.setMilVerdict), both set by the Posture panel
+  const verdictIso = h("span", { class: "hm-verdict", hidden: true }), verdictMil = h("span", { class: "hm-verdict hm-verdict-mil", hidden: true });
+  const verdictBadge = h("div", { class: "hm-verdicts", hidden: true, role: "status", "aria-label": "Posture verdicts" }, verdictIso, verdictMil);
   const strainLegend = h("div", { class: "hm-strain", hidden: true, role: "status", "aria-label": "RULA / REBA segment strain" });
   viewportEl.append(verdictBadge, strainLegend);
   const viewBtns = VIEW_ORDER.map((name, i) => h("button", { type: "button", title: `${VIEW_PRESETS[name].title} (${i + 1})`, dataset: { view: name }, onclick: () => setView(name) }, VIEW_PRESETS[name].label));
@@ -235,6 +236,13 @@ async function build(undo) {
       setQuality(q) { if (q !== state.quality) { state.quality = state.qualityChoice = q; viewport.setQuality(q); store.emit("quality", q); pipeline.rebuild(); } },
       setView, frame: frameFigure,
       setVerdict(v) { if (state.postureVerdict !== v) { state.postureVerdict = v ?? null; store.emit("verdict", state.postureVerdict); } },
+      /** The MIL-STD-1472H tag of the current pose: { status: "compliant" | "not-compliant" | "check" | "none", failed: [clauses], toCheck: [clauses] } or null. */
+      setMilVerdict(v) {
+        const key = v ? JSON.stringify([v.status, v.failed ?? [], v.toCheck ?? []]) : null;
+        if (state.milVerdictKey === key) return;
+        state.milVerdictKey = key; state.milVerdict = v ? { status: v.status, failed: [...(v.failed ?? [])], toCheck: [...(v.toCheck ?? [])] } : null;
+        store.emit("verdict", state.postureVerdict);
+      },
       setPosture({ id = null, name }) { state.posture = { id, name: String(name || "Custom posture") }; store.emit("posture", state.posture); },
       select: (sel) => select(sel),
       toast: (m) => toast(m),
@@ -463,8 +471,15 @@ async function build(undo) {
   store.on("posture", () => updateStatus());
   store.on("verdict", () => updateStatus());
   store.on("verdict", () => {
-    const v = state.postureVerdict, t = { "not-acceptable": "Not acceptable (ISO 11226)", check: "Check posture", acceptable: "Acceptable" }[v];
-    verdictBadge.hidden = !t; verdictBadge.textContent = t ?? ""; verdictBadge.dataset.verdict = v ?? "";
+    const v = state.postureVerdict, t = { "not-acceptable": "not acceptable", check: "check", acceptable: "acceptable" }[v];
+    verdictIso.hidden = !t; verdictIso.textContent = t ? `ISO 11226: ${t}` : ""; verdictIso.dataset.verdict = v ?? "";
+    const m = state.milVerdict, mw = m && { "not-compliant": "not compliant", check: "check", compliant: "compliant" }[m.status];
+    const clauses = m ? (m.status === "not-compliant" ? m.failed : m.status === "check" ? m.toCheck : []).map((c) => c.split(" ")[0]) : [];
+    const list = [...new Set(clauses)];
+    verdictMil.hidden = !mw;
+    verdictMil.textContent = mw ? `MIL-STD-1472H: ${mw}${list.length ? ` · ${list.slice(0, 3).join(", ")}${list.length > 3 ? "…" : ""}` : ""}` : "";
+    verdictMil.dataset.verdict = m ? { "not-compliant": "not-acceptable", check: "check", compliant: "acceptable" }[m.status] ?? "" : "";
+    verdictBadge.hidden = verdictIso.hidden && verdictMil.hidden;
   });
   store.on("rig", () => { rootEl.dataset.hmState = "ready"; updateStatus(); renderInspector(); });
   // a panel's own inspector content is left alone on pose events: it may hold the slider being dragged that causes them
@@ -643,7 +658,8 @@ async function build(undo) {
   function updateStatus() {
     const p = state.profile, sel = state.selection;
     stProfile.v.textContent = stProfile.v.title = p ? p.label : "loading…";
-    const v = state.postureVerdict, vt = { "not-acceptable": " · not acceptable (ISO 11226)", check: " · check posture", acceptable: " · acceptable" }[v] ?? "";
+    const v = state.postureVerdict, m = state.milVerdict?.status;
+    const vt = ({ "not-acceptable": " · ISO 11226 not acceptable", check: " · ISO 11226 check", acceptable: " · ISO 11226 acceptable" }[v] ?? "") + ({ "not-compliant": " · 1472H not compliant", check: " · 1472H check", compliant: " · 1472H compliant" }[m] ?? "");
     stPosture.v.textContent = state.posture.name + vt;   // the ergonomic verdict of the figure, next to the model (see panels/posture.js)
     stPosture.v.dataset.verdict = v ?? "";
     const selText = !sel ? "none" : sel.kind === "joint" ? JOINT_BY_ID[sel.id]?.label ?? sel.id : `${sel.kind} ${sel.id}`;
