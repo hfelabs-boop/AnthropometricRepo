@@ -147,18 +147,35 @@ test("loads: one-lifter limit (Table XLI), two handles over 4.5 kg, handle diame
   assert.equal(statusOf(checkObject({ type: "pedals", params: defaultParams("pedals") }), "sep"), "fail");
 });
 
-test("every catalogue type can be checked with its default parameters without throwing", () => {
+test("every catalogue type gets a 1472H statement with its default parameters: a clause, or 'no requirement applies' for reference objects", () => {
   let n = 0;
   for (const t of CATALOG) {
     const p = defaultParams(t.type), res = checkObject({ id: "x", type: t.type, name: t.name, params: p }, { grips: t.grips?.(p) ?? [] });
+    assert.ok(res.length, `${t.type}: no statement`);
     for (const r of res) {
-      assert.ok(["pass", "fail", "check", "input"].includes(r.status), `${t.type} ${r.id}`);
-      assert.ok(r.clause && r.title && r.page, `${t.type} ${r.id}`);
+      assert.ok(["pass", "fail", "check", "input", "na"].includes(r.status), `${t.type} ${r.id}`);
+      if (r.status === "na") assert.ok(r.title && r.note && !r.clause, `${t.type} ${r.id}`);
+      else assert.ok(r.clause && r.title && r.page, `${t.type} ${r.id}`);
       if (r.value != null) assert.ok(Number.isFinite(r.value));
     }
+    const s = summarize(res);
+    assert.ok(s.status !== "none", `${t.type}: summary none`);
+    assert.ok(tagText(s).length > 10, `${t.type}: tag`);
     n += res.length;
   }
-  assert.ok(n > 60, `${n} checks`);
+  assert.ok(n > 150, `${n} checks`);
+});
+
+test("new object checks: rack working level and access openings, cabin room, seat height, keyboard and joystick sizes", () => {
+  const rack = (o) => checkObject({ type: "equipment_rack", params: { ...defaultParams("equipment_rack"), ...o } });
+  assert.ok(rack({}).some((r) => r.clause === "5.9.1.9.1"));
+  const sh = (o) => checkObject({ type: "cabin_shell", params: { ...defaultParams("cabin_shell"), ...o } });
+  assert.equal(statusOf(sh({ width: 0.5 }), "elbow"), "check", "a should clause");
+  assert.equal(statusOf(sh({}), "elbow"), "pass");
+  const st = checkObject({ type: "stool", params: { ...defaultParams("stool"), height: 0.75 } });
+  assert.ok(st.some((r) => r.status === "fail"), "a 75 cm stool without a footrest");
+  for (const t of ["cube_1m", "measuring_pole", "point_marker"]) assert.equal(summarize(checkObject({ type: t, params: defaultParams(t) })).status, "na", t);
+  assert.equal(summarize(checkObject({ type: "cad_model", params: defaultParams("cad_model") })).status, "review");
 });
 
 // ---------------------------------------------------------------------------------------------------------------------------------------- postures
@@ -295,4 +312,62 @@ test("the report of an empty scene lists the posture and the population rule; it
   assert.equal(rep.posture.summary.status, "not-compliant", "the posture's 15 kg lift");
   assert.ok(rep.summary.failed.some((c) => c.startsWith("5.20.3.3")));
   assert.ok(rep.results.every((r) => typeof clauseRef(r) === "string"));
+});
+
+// ---------------------------------------------------------------------------------------------------------------------------------------- relations
+test("relations in the scene: head room above a seat in a cabin (Figure 39), the figure to the cabin's surfaces (5.6.2.2), a desk to the wall (Figure 58 D)", () => {
+  for (const [tpl, roof] of [["cockpit", "canopy"], ["helicopter", "flat"]]) {
+    const w = world();
+    w.sb.applyTemplate(tpl);
+    const objs = [...w.sb.objects.values()], cab = objs.find((o) => o.type === "cabin_shell"), seat = objs.find((o) => o.type === "cabin_seat");
+    assert.ok(cab && seat, tpl);
+    assert.equal(cab.params.roof, roof);
+    w.ed.apply("sit-upright-90");
+    assert.ok(w.ed.sitOn(seat.id), `${tpl}: sits`);
+    const t0 = performance.now();
+    const rep = complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile });
+    assert.ok(performance.now() - t0 < 1500, `${tpl}: ${performance.now() - t0} ms`);
+    const head = rep.interactions.find((g) => g.subject.id === `headroom:${cab.id}:${seat.id}`);
+    assert.ok(head, `${tpl}: head room above the seat`);
+    const hr = head.results[0];
+    assert.ok(hr.value > 600 && hr.value < 2000, `${tpl}: ${hr.value} mm`);
+    const clear = rep.interactions.find((g) => g.subject.id === `clear:${cab.id}`);
+    assert.ok(clear, `${tpl}: the figure is in the cabin`);
+    assert.deepEqual(clear.results.map((r) => r.id), ["head-clear", "fore-aft", "lateral", "vertical"]);
+    for (const r of clear.results) assert.ok(["pass", "fail", "check"].includes(r.status), `${tpl} ${r.id} ${r.status}`);
+    // the cabin's own "needs information" items are answered by the scene
+    const own = objectCompliance(rep, cab.id);
+    assert.ok(!own.results.some((r) => r.status === "input"), `${tpl}: ${own.results.filter((r) => r.status === "input").map((r) => r.id)}`);
+    assert.ok(own.results.some((r) => r.clause === "5.6.2.1") && own.results.some((r) => r.clause === "5.6.2.2.1"));
+    assert.ok(objectCompliance(rep, seat.id).results.some((r) => r.clause === "5.6.2.1"), "the seat shows its head room too");
+    // lower the roof onto the head: the head room and the head clearance fail
+    w.sb.setParam(cab.id, "height", 0.9);
+    const low = complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile });
+    assert.equal(low.interactions.find((g) => g.subject.id === `headroom:${cab.id}:${seat.id}`).results[0].status, "fail", tpl);
+  }
+  // an empty cabin: no seat, no figure in it
+  const w = world();
+  w.ed.apply("stand-relaxed");
+  const cab = w.sb.add("cabin_shell", { position: [5, 0, 5], yaw: 0 });
+  const rep = complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile });
+  const own = objectCompliance(rep, cab.id);
+  assert.equal(own.results.find((r) => r.clause === "5.6.2.1").status, "na");
+  assert.equal(own.results.find((r) => r.id === "body-clearance").status, "input", "the figure is not in it");
+  // desk to wall: 50 cm fails, 1 m passes; a wall nobody faces says so
+  const wall = w.sb.add("wall", { position: [0, 0, 0], yaw: 180 });
+  const desk = w.sb.add("desk", { position: [0, 0, -0.5 - 0.35], yaw: 0 });
+  let r = complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile });
+  let dw = r.interactions.find((g) => g.subject.id === `deskwall:${desk.id}:${wall.id}`);
+  assert.ok(dw, JSON.stringify(r.facts.desks));
+  assert.ok(Math.abs(dw.results[0].value - 50) < 1.5, `${dw.results[0].value} cm`);
+  assert.equal(dw.results[0].status, "fail");
+  assert.ok(objectCompliance(r, wall.id).results.every((x) => x.status !== "input"));
+  assert.ok(!r.objects.some((g) => g.object.id === wall.id), "the wall's only item is the relation: no empty object group");
+  assert.ok(r.objects.every((g) => g.results.length && g.summary.status !== "none"));
+  w.sb.move(desk.id, { x: 0, z: -1.0 - 0.35 }, { snap: false });
+  r = complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile });
+  assert.equal(r.interactions.find((g) => g.subject.id === `deskwall:${desk.id}:${wall.id}`).results[0].status, "pass");
+  const wall2 = w.sb.add("wall", { position: [8, 0, 8], yaw: 0 });
+  r = complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile });
+  assert.equal(objectCompliance(r, wall2.id).summary.status, "na");
 });

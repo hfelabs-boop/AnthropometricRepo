@@ -13,6 +13,7 @@ import { formatOf, guessUnits, CAD_ACCEPT, importCadFile, getAsset, parseCad, co
 import { byType, buildObject, disposeObject, normalizeParams, notifyAssetReady } from "../../site/js/human/catalog.js";
 import { createSandbox, TEMPLATES, TEMPLATE_GROUPS } from "../../site/js/human/sandbox.js";
 import { byId } from "../../site/js/human/postures.js";
+import { surfaceIndex, nearestSurface, rayHit } from "../../site/js/human/clearance.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ab = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
@@ -111,6 +112,34 @@ test("cad_model: an object whose model is not loaded is a placeholder, and the s
   await importCadFile(f); // registers the asset: the catalogue tells the sandbox
   assert.ok(!o.model.userData.missing && Math.abs(o.bbox.max.x - 0.5) < 1e-6, "rebuilt with the model");
   notifyAssetReady("0".repeat(64)); // an unrelated asset: nothing breaks
+  sb.dispose();
+});
+
+test("clearance: the nearest surface of an imported model and a ray to it, in the world, after a move and a turn; hidden layers and placeholders do not count", async () => {
+  const vp = { scene: new THREE.Scene(), container: new EventTarget(), add(o) { this.scene.add(o); }, remove(o) { this.scene.remove(o); }, requestRender() {}, on: () => () => {}, setCursor() {}, addLabelSource: () => () => {}, removeLabelSource() {}, detachGizmo() {}, frame() {} };
+  const ctx = { state: {}, viewport: vp, on: () => () => {}, emit() {}, select() {}, getRig: () => null, toast() {}, units: "mm" };
+  const sb = createSandbox({ viewport: vp, ctx, scheduler: (fn) => { const t = setTimeout(fn, 0); return () => clearTimeout(t); } });
+  const { id } = await importCadFile(objFile());
+  // the body is 1.0 x 0.5 x 0.2 m on the floor, the stick (0.1 m across) stands on it to 0.8 m
+  const o = sb.add("cad_model", { params: { asset: id, units: "mm", up: "y" }, position: [2, 0, 3], yaw: 90 });
+  const idx = surfaceIndex(o);
+  assert.ok(idx && idx.count > 12);
+  assert.equal(surfaceIndex(o), idx, "cached per model");
+  const above = nearestSurface(idx, [2.4, 0.6, 3], 0.3); // turned 90°: the 0.2 m deep body runs along world Z, so 0.4 m along X is clear
+  assert.equal(above, null, "the body is only 0.2 m deep after the turn: 0.4 m to the side is out of reach");
+  const top = nearestSurface(idx, [2, 0.9, 3], 0.3);
+  assert.ok(top && Math.abs(top.distance - 0.1) < 1e-4, `above the stick: ${top?.distance}`);
+  const side = nearestSurface(idx, [2, 0.3, 3 + 0.6], 0.3);
+  assert.ok(side && Math.abs(side.distance - 0.1) < 1e-4, `beside the end of the body along world Z: ${side?.distance}`);
+  assert.ok(Math.abs(rayHit(idx, [2, 2, 3], [0, -1, 0]) - 1.2) < 1e-4, "down onto the stick");
+  assert.ok(Math.abs(rayHit(idx, [2, 0.4, 3], [0, 1, 0]) - 0.1) < 1e-4, "from inside the body, its top face (seen from behind) counts");
+  assert.equal(rayHit(idx, [5, 0.3, 3], [1, 0, 0]), null);
+  sb.setParam(o.id, "hidden", "1");
+  const noStick = surfaceIndex(o);
+  assert.notEqual(noStick, idx);
+  assert.ok(Math.abs(nearestSurface(noStick, [2, 0.9, 3], 0.5).distance - 0.4) < 1e-4, "the hidden stick is not a surface");
+  const missing = sb.add("cad_model", { params: { asset: "f".repeat(64), units: "mm" }, position: [0, 0, 0] });
+  assert.equal(surfaceIndex(missing), null, "a placeholder box is not the model");
   sb.dispose();
 });
 

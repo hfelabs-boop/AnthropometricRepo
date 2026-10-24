@@ -379,7 +379,7 @@ export default {
       const results = checkObject(o, { grips });
       return results.length ? { results, summary: summarize(results) } : null;
     }
-    const MIL_SHORT = { compliant: "1472H ✓", "not-compliant": "1472H ✗", check: "1472H check", none: "" };
+    const MIL_SHORT = { compliant: "1472H ✓", "not-compliant": "1472H ✗", check: "1472H check", review: "1472H info", na: "1472H n/a", none: "" };
     function syncMil(el, o) {
       const m = milOf(o);
       el.hidden = !m;
@@ -575,7 +575,7 @@ export default {
       // MIL-STD-1472H: the object's own clauses and the figure's interactions with it
       const milHead = h("p", { class: "small hm-ed-milhead" }), milList = h("ul", { class: "hm-ed-millist small" });
       const milSet = h("details", { class: "hm-ed-set hm-ed-mil", open: true }, h("summary", { class: "hm-ed-h" }, "MIL-STD-1472H"), milHead, milList);
-      const WORD = { pass: "Meets", fail: "Fails", check: "Check", input: "Needs input" };
+      const WORD = { pass: "Meets", fail: "Fails", check: "Check", input: "Needs input", na: "N/A" };
       const syncMilBox = () => {
         const o = sandbox.objects.get(obj.id), m = o ? milOf(o) : null;
         milSet.hidden = !m;
@@ -584,9 +584,9 @@ export default {
         if (milList._sig === sig) return;
         milList._sig = sig;
         milHead.replaceChildren(h("span", { class: "tag hm-ol-mil", dataset: { state: m.summary.status } }, STATUS_WORD[m.summary.status]), " ", tagText(m.summary));
-        const order = { fail: 0, check: 1, input: 2, pass: 3 };
+        const order = { fail: 0, check: 1, input: 2, pass: 3, na: 4 };
         milList.replaceChildren(...m.results.slice().sort((a, b) => order[a.status] - order[b.status]).map((r) => h("li", { "data-status": r.status },
-          h("span", { class: "tag hm-ol-mil", dataset: { state: r.status } }, WORD[r.status]), " ", h("strong", { title: `${r.title}, page ${r.page}` }, clauseRef(r)),
+          h("span", { class: "tag hm-ol-mil", dataset: { state: r.status } }, WORD[r.status]), " ", h("strong", { title: r.page ? `${r.title}, page ${r.page}` : r.title }, clauseRef(r) || "—"),
           ` ${r.subject?.kind === "interaction" ? `${r.subject.name}: ` : ""}${r.title}`, r.value != null ? ` — ${Math.round(r.value * 10) / 10}${r.unit === "°" ? "°" : r.unit ? ` ${r.unit}` : ""}` : "", r.limit ? ` (limit ${r.limit})` : "",
           r.note ? h("div", { class: "muted" }, r.note) : null)));
       };

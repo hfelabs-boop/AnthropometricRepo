@@ -377,14 +377,15 @@ export default {
         ];
       });
     }
-    const MIL_WORD = { pass: "Meets", fail: "Fails", check: "Check", input: "Needs input" };
-    const MIL_KIND = { compliant: "good", "not-compliant": "bad", check: "warn", none: "outline" };
-    const RES_KIND = { pass: "good", fail: "bad", check: "warn", input: "outline" };
+    const MIL_WORD = { pass: "Meets", fail: "Fails", check: "Check", input: "Needs input", na: "Not applicable" };
+    const MIL_KIND = { compliant: "good", "not-compliant": "bad", check: "warn", review: "outline", na: "outline", none: "outline" };
+    const RES_KIND = { pass: "good", fail: "bad", check: "warn", input: "outline", na: "outline" };
+    const ORDER = { fail: 0, check: 1, input: 2, pass: 3, na: 4 };
     const fmtVal = (r) => (r.value == null ? "" : `${Math.round(r.value * 10) / 10}${r.unit === "°" ? "°" : r.unit ? ` ${r.unit}` : ""}`);
     function resultRow(r) {
       return h("li", { class: "hm-an-milrow", "data-status": r.status },
         h("span", { class: `tag ${RES_KIND[r.status]} hm-an-milchip` }, MIL_WORD[r.status]), " ",
-        h("strong", { title: `${r.title}, page ${r.page} (${r.level})` }, clauseRef(r)), ` ${r.title}`,
+        h("strong", { title: r.page ? `${r.title}, page ${r.page} (${r.level})` : r.title }, clauseRef(r) || "—"), ` ${r.title}`,
         r.value != null || r.limit ? h("span", { class: "hm-an-milval" }, ` — ${fmtVal(r)}${r.value != null && r.limit ? "; " : ""}${r.limit ? `limit ${r.limit}` : ""}`) : null,
         r.note ? h("div", { class: "small muted" }, r.note) : null);
     }
@@ -392,7 +393,7 @@ export default {
       const sum = g.summary;
       return h("details", { class: "hm-an-milgroup", open: open ? true : null, "data-status": sum.status },
         h("summary", {}, h("span", { class: `tag ${MIL_KIND[sum.status]} hm-an-milchip` }, STATUS_WORD[sum.status]), " ", h("strong", {}, title), h("span", { class: "small muted" }, ` ${sum.clauses.join(", ")}`)),
-        h("ul", { class: "hm-an-millist small" }, g.results.slice().sort((a, b) => ({ fail: 0, check: 1, input: 2, pass: 3 }[a.status] - { fail: 0, check: 1, input: 2, pass: 3 }[b.status])).map(resultRow)));
+        h("ul", { class: "hm-an-millist small" }, g.results.slice().sort((a, b) => ORDER[a.status] - ORDER[b.status]).map(resultRow)));
     }
     function drawMil(M) {
       put(milBox, M ? M.results.map((r) => [r.subject?.id, r.id, r.status, Math.round((r.value ?? 0) * 10)]) : null, () => {
@@ -400,7 +401,7 @@ export default {
         const S = M.summary;
         return [
           h("p", { class: "hm-an-milhead" }, h("span", { class: `tag ${MIL_KIND[S.status]}` }, STATUS_WORD[S.status]), " ", tagText(S),
-            h("span", { class: "small muted" }, ` ${S.counts.pass} met, ${S.counts.fail} failed, ${S.counts.check} to check, ${S.counts.input} need input.`)),
+            h("span", { class: "small muted" }, ` ${S.counts.pass} met, ${S.counts.fail} failed, ${S.counts.check} to check, ${S.counts.input} need input${S.counts.na ? `, ${S.counts.na} not applicable` : ""}.`)),
           group(`Posture: ${M.posture.subject.name}`, M.posture, M.posture.summary.status !== "compliant"),
           ...M.interactions.map((g) => group(g.subject.name, g, g.summary.status !== "compliant")),
           ...M.objects.map((g) => group(`Object: ${g.object.name}`, g, false)),

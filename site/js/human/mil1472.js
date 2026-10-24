@@ -109,7 +109,56 @@ export const CLAUSES = Object.freeze({
   handleClear: CL("5.20.7.2.1", "Handle clearance from obstructions", "shall", 432),
   handleLength: CL("5.20.7.5", "One-hand bar handle length", "shall", 433, "Figure 101"),
   weightLabel: CL("5.20.4.6", "Label items heavier than the one-person lift", "shall", 424),
+  // maintenance access: equipment racks, cabinets and enclosures (5.4, 5.7, 5.9)
+  workingLevel: CL("5.9.1.9.1", "Complete visual and physical access; favorable working level", "shall", 245),
+  armAccess: CL("5.9.6.9.3", "Arm and hand access openings not smaller than Figure 57", "shall", 252, "Figure 57"),
+  toolAccess: CL("5.9.6.7.2", "Access openings large enough for hands, arms and tools", "shall", 250, "Figure 56"),
+  hingeOpen: CL("5.9.2.5", "Hinge-mounted units open their full distance and stay open without being held", "shall", 246),
+  rollout: CL("5.9.3.6", "Items pulled out of their installed position on rollout racks, slides or hinges", "shall", 247),
+  drawerForce: CL("5.9.3.6.2a", "Pull-out racks and drawers operate with less than 17.8 N", "shall", 247),
+  coverLabels: CL("5.4.5.3", "Labels on the outside of covers and access openings", "shall", 148),
+  maintObstruction: CL("5.7.5.4", "Maintenance workspace free of obstructions", "shall", 219),
+  maintFloor: CL("5.9.6.8.4", "Floor space of at least 0.4 m² per maintainer", "shall", 251),
+  storageTraffic: CL("5.7.5.6.1", "Storage racks in passageways do not impede traffic", "shall", 220),
+  storageSharp: CL("5.7.5.6.2", "Storage racks: no protruding studs or sharp corners", "shall", 220),
+  // crew stations: cabins, cockpits, imported models (5.6.2)
+  vHeadClear: CL("5.6.2.1", "Vehicle seat: vertical head clearance above the SRP", "shall", 180, "Figure 39"),
+  headImpact: CL("5.6.2.2.1", "Head (with gear) to the closest potential head impact: at least 50 mm", "shall", 182),
+  clearFore: CL("5.6.2.2.2", "Body to hard surface, fore-aft: at least 50 mm", "shall", 182),
+  clearLateral: CL("5.6.2.2.3", "Body to hard surface, lateral: at least 50 mm", "should", 182),
+  clearVertical: CL("5.6.2.2.4", "Body to hard surface, vertical: at least 50 mm", "shall", 182),
+  elbowRoom: CL("5.6.2.2.3", "Vehicle station: elbow (dynamic) clearance", "should", 182, "Table XXVI"),
+  shoulderRoom: CL("5.6.2.2.3", "Vehicle station: shoulder clearance", "should", 182, "Table XXVI"),
+  clothedClear: CL("5.6.1.5.1", "Clothed and equipped dimensions for clearances", "shall", 180),
+  // seats, benches, workstations (5.6.2.8, 5.10)
+  benchSpacing: CL("5.6.2.8.1", "Bench seat spacing per seated person", "shall", 184),
+  unstableSeat: CL("5.10.3.12.3", "No unstable seating or standing devices", "shall", 298),
+  cushion: CL("5.10.3.12.10.2", "Cushioned seats when seated for longer than 1 hour", "shall", 299),
+  deskWall: CL("Figure 58", "Seated workspace: desk to wall (D)", "shall", 272),
+  pointerLevel: CL("5.10.1.4.6", "Pointing device level with the keyboard (±2.5 cm)", "should", 272, "Figure 73"),
+  keySlope: CL("5.1.3.2.4", "Slope of non-portable keyboards", "shall", 47),
+  keySize: CL("Table VII", "Keyboard key size (bare hand)", "shall", 47),
+  mouseSize: CL("Table VIII", "Mouse dimensions", "shall", 49),
+  joyGripLen: CL("5.1.3.5.2.5.1", "Joystick hand grip length", "shall", 52),
+  joyGripDia: CL("5.1.3.5.2.5.2", "Joystick hand grip diameter", "shall", 52),
+  joyClear: CL("5.1.3.5.2.5.3", "Joystick hand clearance: 100 mm to the side, 50 mm to the rear", "shall", 52),
+  // displays (5.2)
+  hudEyebox: CL("5.2.2.15.4", "HUD eye-box at least 11.5 cm wide, 6.5 cm high, 15 cm deep", "shall", 115),
+  hudFov: CL("5.2.2.15.7", "HUD field of view (land vehicles)", "shall", 115),
+  largeMin: CL("5.2.2.12.5", "Large screen: no observer closer than half its width or height", "shall", 111),
+  largeMax: CL("5.2.2.12.4", "Large screen: characters at least 2.9 mrad at the most distant observer", "shall", 111),
+  // tools, weapons, optics (5.9.3, 5.9.5, 5.13)
+  minimalTools: CL("5.9.3.2", "Minimal tools and only common hand tools for removal and replacement", "should", 246),
+  knobsNotScrewdriver: CL("5.9.5.2", "Knobs, not screwdriver controls, for adjustments more often than monthly", "shall", 248),
+  noFlashlight: CL("5.9.5.7", "Mirrors or flashlights not required for adjustments", "shall", 249),
+  smallArms: CL("5.13.1.4.1.1", "Small arms operable by the central 90 % of clothed and equipped users in any firing position", "shall", 346),
+  weaponSurfaces: CL("5.13.1.4.1.3", "Weapon contact surfaces smooth, without sharp edges", "shall", 346),
+  binoIpd: CL("5.13.2.11.3", "Binocular eyepiece separation adjustable from 50 to 75 mm", "shall", 351),
+  binoMass: CL("5.13.2.11.7", "Handheld binoculars not heavier than 1.5 kg (1 kg preferred)", "shall", 351),
+  binoMag: CL("5.13.2.3.3", "Handheld, unstabilized binoculars not more than 8 power", "shall", 349),
 });
+/** The statement of an object to which no MIL-STD-1472H requirement applies (a measuring aid, a reference shape): listed, never a pass. */
+const NO_CLAUSE = Object.freeze({ clause: "", title: "No MIL-STD-1472H requirement applies", level: "info", page: null, ref: null });
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Table XXXI: range of human motion, degrees (lower limit = mean - 1 SD, upper limit = mean + 1 SD; semi-nude males, WADC-TR 55-159 and WADC-TN-57-311).
@@ -147,7 +196,7 @@ export const HANDLE_DIA = Object.freeze([[6.8, 6], [9.0, 13], [18, 19], [Infinit
 
 // ---------------------------------------------------------------------------------------------------------------------
 // results
-const subj = (kind, id, name) => ({ kind, id, name });
+const subj = (kind, id, name, extra = null) => ({ kind, id, name, ...(extra ?? {}) });
 function res(key, c, status, { value = null, limit = "", unit = "", note = "", subject = null, id = null } = {}) {
   return { id: id ?? key, clause: c.clause, ref: c.ref, title: c.title, level: c.level, page: c.page, status, value: fin(value) ? value : null, limit, unit, note, subject };
 }
@@ -168,23 +217,26 @@ export function limitText(lo, hi, unit) {
 
 /** Status of a list of results: not-compliant (a shall fails), check (a should fails or a grey zone), compliant (at least one pass and nothing else), none. */
 export function summarize(results) {
-  const counts = { pass: 0, fail: 0, check: 0, input: 0 };
+  const counts = { pass: 0, fail: 0, check: 0, input: 0, na: 0 };
   for (const r of results) counts[r.status] = (counts[r.status] ?? 0) + 1;
-  const status = counts.fail ? "not-compliant" : counts.check ? "check" : counts.pass ? "compliant" : "none";
-  const uniq = (list) => [...new Set(list.map(clauseRef))].sort(byClause);
-  return { status, counts, clauses: uniq(results), failed: uniq(results.filter((r) => r.status === "fail")), toCheck: uniq(results.filter((r) => r.status === "check")) };
+  // "review": requirements apply but every one needs a value the site does not have; "na": only statements that no requirement applies
+  const status = counts.fail ? "not-compliant" : counts.check ? "check" : counts.pass ? "compliant" : counts.input ? "review" : counts.na ? "na" : "none";
+  const uniq = (list) => [...new Set(list.filter((r) => r.clause).map(clauseRef))].sort(byClause);
+  return { status, counts, clauses: uniq(results), failed: uniq(results.filter((r) => r.status === "fail")), toCheck: uniq(results.filter((r) => r.status === "check")), toEnter: uniq(results.filter((r) => r.status === "input")) };
 }
 /** "5.11.8.3.1 (Figure 86)" */
-export const clauseRef = (r) => (r.ref ? `${r.clause} (${r.ref})` : r.clause);
+export const clauseRef = (r) => (!r.clause ? "" : r.ref ? `${r.clause} (${r.ref})` : r.clause);
 const byClause = (a, b) => {
   const pa = a.split(/[ (]/)[0].split(".").map(Number), pb = b.split(/[ (]/)[0].split(".").map(Number);
   for (let i = 0; i < Math.max(pa.length, pb.length); i++) { const d = (pa[i] ?? -1) - (pb[i] ?? -1); if (d) return d; }
   return a.localeCompare(b);
 };
-export const STATUS_WORD = Object.freeze({ compliant: "Compliant", "not-compliant": "Not compliant", check: "Check", none: "Not checked" });
+export const STATUS_WORD = Object.freeze({ compliant: "Compliant", "not-compliant": "Not compliant", check: "Check", review: "Needs information", na: "Not applicable", none: "Not checked" });
 /** One line: "Not compliant: 5.8.4.3 (Table XXXI), 5.20.3.3" / "Compliant with 5.8.4.3 (Table XXXI)". */
 export function tagText(sum) {
   if (sum.status === "none") return "No MIL-STD-1472H clause applies that the model can check.";
+  if (sum.status === "na") return "No MIL-STD-1472H requirement applies to it (a reference or measuring object).";
+  if (sum.status === "review") return `Applies, needs information the model does not have: ${sum.toEnter.join(", ")}.`;
   if (sum.status === "not-compliant") return `Not compliant with ${sum.failed.join(", ")}${sum.toCheck.length ? `; check ${sum.toCheck.join(", ")}` : ""}.`;
   if (sum.status === "check") return `To check: ${sum.toCheck.join(", ")}. Meets ${sum.clauses.filter((c) => !sum.toCheck.includes(c)).join(", ") || "no other clause"}.`;
   return `Compliant with ${sum.clauses.join(", ")}.`;
@@ -494,6 +546,121 @@ export function checkObject(obj, { grips = [] } = {}) {
     }
     case "throttle": out.push(range("knob", C.throttleKnob, 40, 32, 44, "mm", { ...o, note: "The model's knob is 40 mm across." })); break;
     case "lever": out.push(range("knob", C.leverKnob, 44, 38, 75, "mm", { ...o, note: "The model's knob is 44 mm across." })); break;
+    // ---- seating without its own figure in the standard
+    case "stool":
+    case "bench": {
+      out.push(range("seat-height", C.feetSupported, cm(p.height), null, 46, "cm", { ...o, limit: "seat at most 46 cm above the foot support", note: "Figure 62 (F): above 46 cm the feet of small users hang; then add a footrest or heel catch." }));
+      if (obj.type === "bench") {
+        const seats = Math.floor(p.length / 0.55 + 1e-9);
+        out.push(res("spacing", C.benchSpacing, seats >= 1 ? "pass" : "fail", { ...o, value: mm(p.length / Math.max(seats, 1)), unit: "mm", limit: "at least 550 mm per seat position (663 mm preferred)", note: `${seats} seat position${seats === 1 ? "" : "s"} at 550 mm; ${Math.floor(p.length / 0.663 + 1e-9)} at the preferred 663 mm.` }));
+      }
+      out.push(res("unstable", C.unstableSeat, "input", { ...o, limit: "a stable seat", note: "Confirm it does not rock, roll or tip (ball chairs and wobble boards are not allowed)." }));
+      out.push(res("cushion", C.cushion, "input", { ...o, limit: "cushioned when seated for more than 1 hour", note: obj.type === "stool" ? "A bare stool is acceptable only for short spells." : "Enter how long people sit on it." }));
+      break;
+    }
+    // ---- displays and panels
+    case "hud_panel": {
+      out.push(res("eyebox", C.hudEyebox, "input", { ...o, limit: "eye-box ≥ 11.5 × 6.5 × 15 cm", note: "A property of the HUD optics: enter it from the HUD's specification." }));
+      out.push(res("fov", C.hudFov, "input", { ...o, limit: "≥ 6° up, 5° down, 12° left and right (land vehicles)", note: "From the HUD's specification." }));
+      break;
+    }
+    case "wall_display": {
+      const diag = (p.diagonal ?? 0) * IN2M, w = diag * (p.orientation === "portrait" ? 9 : 16) / Math.hypot(16, 9);
+      out.push(res("min-distance", C.largeMin, "input", { ...o, limit: `no viewer closer than ${r0(cm(Math.max(w, diag * 16 / Math.hypot(16, 9)) / 2))} cm (half its larger side)`, note: "Checked in the scene when the figure looks at it (also 2 to 10 × the diagonal, 5.2.2.12.3)." }));
+      out.push(res("characters", C.largeMax, "input", { ...o, limit: "characters ≥ 2.9 mrad (≥ 4.5 mrad preferred) for the most distant viewer", note: `About ${r0(mm(0.0029 * 3))} mm tall at 3 m: enter the character height of the content.` }));
+      break;
+    }
+    case "instrument_panel": out.push(range("width", C.consoleWidth, cm(p.width), null, 112, "cm", { ...o, note: "For one seated user; wider panels need a wraparound layout (Figure 75)." })); break;
+    case "side_console": {
+      out.push(res("controls", C.ctrlSeated, "input", { ...o, limit: "controls 15 to 106.7 cm above the seat", note: "Checked when the figure sits beside it and a hand is on a control of the scene." }));
+      out.push(range("height", C.ctrlStanding, cm(p.height), 76, 188, "cm", { ...o, soft: true, note: "Seen from a standing user; seated users are checked against the seat height in the scene." }));
+      break;
+    }
+    // ---- structures
+    case "shelving": {
+      const top = p.height;
+      out.push(range("top-shelf", C.gripOverheadStanding, cm(top), null, 181, "cm", { ...o, note: "The front edge of the top shelf as the highest grasp of a standing user." }));
+      out.push(res("traffic", C.storageTraffic, "input", { ...o, limit: "out of the traffic flow", note: "In a passageway: place it so it does not narrow the walkway (measure the gap in the Measure tab)." }));
+      out.push(res("sharp", C.storageSharp, "input", { ...o, limit: "no protruding studs or sharp corners", note: "A property of the real rack." }));
+      break;
+    }
+    case "wall":
+    case "partition": out.push(res("desk-wall", C.deskWall, "input", { ...o, limit: "at least 81 cm from a desk edge to the wall behind its user", note: "Checked in the scene for every desk that faces away from it." })); break;
+    case "equipment_rack": {
+      const base = Math.min(p.plinth, p.height - 0.2), b0 = Math.min(Math.max(Math.max(p.bayBottom, base + 0.02), base + 0.02), p.height - 0.1);
+      const b1 = Math.min(Math.max(Math.max(p.bayTop, b0 + 0.08), b0 + 0.08), p.height - 0.03), mid = (b0 + b1) / 2;
+      const wIn = p.width - 0.05, hIn = b1 - b0, depth = p.depth - 0.11;
+      // the working level: the bay against the mounting heights of controls for each posture (5.10.3.8.2.1 standing, 5.10.3.7.2 kneeling)
+      const standOk = cm(b0) >= 76 && cm(b1) <= 188, kneelOk = cm(b0) >= 45.7 && cm(b1) <= 145;
+      out.push(res("working-level", C.workingLevel, standOk ? "pass" : kneelOk ? "check" : "fail", { ...o, value: cm(mid), unit: "cm", limit: "the work inside the bay at a favourable level: 76 to 188 cm standing (86.4 to 139.7 for frequent work), 45.7 to 145 cm kneeling",
+        note: standOk ? (cm(b0) >= 86.4 && cm(b1) <= 139.7 ? "The whole bay is in the preferred standing range." : "Workable standing; part of the bay is outside the preferred 86.4 to 139.7 cm.") : kneelOk ? "Below the standing range: the maintainer must kneel (5.10.3.7.2). Raise the bay if the work is frequent." : "Outside the standing and kneeling ranges: the maintainer must squat, lie or reach overhead." }));
+      out.push(range("arm-access-w", C.armAccess, mm(wIn), depth > 0.49 ? 500 : 200, null, "mm", { ...o, id: "arm-access-width", note: depth > 0.49 ? "Two arms to the shoulders (the bay is deeper than 490 mm)." : "Two hands, reaching 150 to 490 mm deep, light clothing (arctic: wider by 0.75 × the reach)." }));
+      out.push(range("arm-access-h", C.armAccess, mm(hIn), 125, null, "mm", { ...o, id: "arm-access-height", note: "180 mm in arctic clothing." }));
+      const tools = [["open-end wrench", 270, 200], ["T-handle wrench", 135, 155], ["screwdriver", 110, 120]], fit = tools.filter(([, w, hh]) => mm(wIn) >= w && mm(hIn) >= hh).map((t) => t[0]);
+      out.push(res("tool-access", C.toolAccess, fit.length === tools.length ? "pass" : fit.length ? "check" : "fail", { ...o, value: mm(Math.min(wIn, hIn)), unit: "mm", limit: "open-end wrench 270 × 200 mm, T-handle 135 × 155, screwdriver 110 × 120",
+        note: fit.length === tools.length ? "Every common tool fits through the bay." : fit.length ? `Fits: ${fit.join(", ")}; check which tools the task needs.` : "Too small for common hand tools." }));
+      if (p.door !== "none") out.push(res("door-open", C.hingeOpen, "input", { ...o, limit: "opens fully and stays open without being held", note: p.door === "lift" || p.door === "gullwing" ? "A lifted lid or leaf needs a stay, a prop or a gas strut." : "A door check or detent." }));
+      out.push(res("labels", C.coverLabels, "input", { ...o, limit: "labels on the outside of the cover naming what is inside", note: "A property of the real equipment." }));
+      out.push(res("rollout", C.rollout, "input", { ...o, limit: "items pulled out ride on rollout racks, slides or hinges; less than 17.8 N to pull (5.9.3.6.2a)", note: "Enter it if units are pulled out of the rack." }));
+      out.push(res("workspace", C.maintFloor, "input", { ...o, limit: "≥ 0.4 m² of free floor per maintainer, free of obstructions (5.7.5.4)", note: "Keep the floor in front of the bay clear (check it with the figure in place)." }));
+      break;
+    }
+    case "cabin_shell": {
+      out.push(range("elbow", C.elbowRoom, cm(p.width), 91, null, "cm", { ...o, note: "Table XXVI A: lateral span at elbow height for one occupant (static: 71 cm)." }));
+      out.push(range("shoulder", C.shoulderRoom, cm(p.width), 58, null, "cm", { ...o, note: "Table XXVI C." }));
+      out.push(res("head", C.vHeadClear, "input", { ...o, limit: "at least 1,070 mm from each seat's SRP to the roof", note: "Checked in the scene for every seat inside the cabin." }));
+      out.push(res("body-clearance", C.clearVertical, "input", { ...o, limit: "≥ 50 mm from any body part to the cabin, with clothing and equipment", note: "Checked in the scene with the figure in its pose." }));
+      break;
+    }
+    case "cad_model": {
+      out.push(res("clearance", C.clothedClear, "input", { ...o, limit: "clearances from clothed and equipped body dimensions; ≥ 50 mm body to hard surface in crew stations (5.6.2.2.2 to 5.6.2.2.4)", note: "Measured in the scene from the figure to the model's surfaces; add clothing and equipment to the result." }));
+      out.push(res("accommodation", C.accommodation, "input", { ...o, limit: "central 90 % (95 % preferred) of men AND of women", note: "Check the model with a small woman and a large man (Profile tab)." }));
+      break;
+    }
+    // ---- controls and tools
+    case "joystick": {
+      out.push(range("grip-length", C.joyGripLen, 155, 110, 180, "mm", { ...o, note: "The model's grip is 155 mm long." }));
+      out.push(range("grip-dia", C.joyGripDia, 48, null, 50, "mm", { ...o, note: "The model's grip is 48 mm across at its widest." }));
+      out.push(res("hand-clear", C.joyClear, "input", { ...o, limit: "100 mm to the side, 50 mm to the rear", note: "Check the free space around the grip in the scene (Measure tab)." }));
+      break;
+    }
+    case "keyboard_mouse": {
+      const cols = Math.floor((p.width - 0.03) / 0.0185), key = mm(((p.width - 0.03) / cols) * 0.86);
+      out.push(range("key", C.keySize, key, 10, 19, "mm", { ...o, note: `The model's keys are ${r1(key)} mm wide (gloves need 15 mm, arctic mittens 19 mm).` }));
+      out.push(range("slope", C.keySlope, 0, 0, 25, "°", { ...o, note: "The model's keyboard lies flat (0 to 15° preferred)." }));
+      out.push(range("mouse-w", C.mouseSize, 60, 40, 70, "mm", { ...o, id: "mouse-width", note: "The model's mouse is 60 × 105 × 30 mm (length 70 to 120, height 25 to 40)." }));
+      out.push(range("pointer", C.pointerLevel, 0.2, -2.5, 2.5, "cm", { ...o, note: "The mouse sits on the keyboard's surface, its top 2 mm above the home row." }));
+      break;
+    }
+    case "hammer": case "wrench": case "screwdriver": case "drill": case "shovel": {
+      out.push(res("tools", C.minimalTools, "input", { ...o, limit: "minimal tools, common hand tools only", note: "Note which tools the task needs; special tools should be avoided." }));
+      if (obj.type === "screwdriver") out.push(res("knobs", C.knobsNotScrewdriver, "input", { ...o, limit: "knobs instead of screwdriver adjustments done more than monthly", note: "Enter how often the adjustment is made." }));
+      if (obj.type === "wrench" || obj.type === "screwdriver") out.push(res("opening", C.toolAccess, "input", { ...o, limit: obj.type === "wrench" ? "access opening ≥ 270 × 200 mm (open-end), 135 × 155 (T-handle)" : "access opening ≥ 110 × 120 mm", note: "The opening the tool is used through (an equipment rack checks its bay against these)." }));
+      if (obj.type === "drill" || obj.type === "shovel" || obj.type === "hammer") out.push(res("accommodation", C.accommodation, "input", { ...o, limit: "usable by the central 90 % of men and of women, in gloves where worn", note: "Check the grip with a small and a large hand (Profile tab)." }));
+      break;
+    }
+    case "flashlight": out.push(res("flashlight", C.noFlashlight, "check", { ...o, limit: "adjustments do not require a flashlight", note: "If the task needs it, provide lighting in the work area instead." })); break;
+    case "rifle": case "pistol": {
+      out.push(res("population", C.smallArms, "input", { ...o, limit: "central 90 % (95 % preferred) of clothed and equipped men and women, in every firing position", note: "Check the firing postures with a small woman and a large man in body armour." }));
+      out.push(res("surfaces", C.weaponSurfaces, "input", { ...o, limit: "smooth contact surfaces, no sharp edges, hot parts insulated", note: "A property of the real weapon." }));
+      break;
+    }
+    case "binoculars": {
+      out.push(res("ipd", C.binoIpd, "input", { ...o, limit: "eyepieces adjustable from 50 to 75 mm apart", note: "The model's eyepieces are fixed about 64 mm apart." }));
+      out.push(res("mass", C.binoMass, "input", { ...o, limit: "at most 1.5 kg (1 kg preferred)", note: "Enter the mass of the binoculars." }));
+      out.push(res("power", C.binoMag, "input", { ...o, limit: "at most 8 power when hand-held and unstabilized", note: "Enter the magnification." }));
+      break;
+    }
+    case "radio_handset": out.push(res("accommodation", C.accommodation, "input", { ...o, limit: "usable by the central 90 % of men and of women, in gloves where worn", note: "MIL-STD-1472H gives no handset dimensions; check the grip with a small and a large hand." })); break;
+    case "horizontal_bar": {
+      out.push(range("height", C.gripOverheadStanding, cm(p.height), null, 181, "cm", { ...o, note: "Highest grasp of a standing user; a bar for hanging or pull-ups is not a control." }));
+      out.push(range("dia", C.guardrailDia, mm(p.diameter), 37, 75, "mm", { ...o, soft: true, note: "Rail diameter for a power grasp (as a guardrail)." }));
+      break;
+    }
+    // ---- reference objects: a statement, never a pass
+    case "cube_1m": case "measuring_pole": case "point_marker": case "box": case "cylinder": case "floor_tile":
+      out.push(res("na", NO_CLAUSE, "na", { ...o, limit: "", note: { cube_1m: "A reference cube for judging sizes.", measuring_pole: "A stadiometer for reading stature (ISO 7250-1 conventions).", point_marker: "A marker of a point in space.", box: "A plain shape: if it stands for equipment, a load or a workspace, use the matching catalogue object to get its requirements.", cylinder: "A plain shape: if it stands for equipment, a load or a workspace, use the matching catalogue object to get its requirements.", floor_tile: "A floor marking or mat." }[obj.type] }));
+      break;
     default: break;
   }
   if (LOAD_TYPES.has(obj?.type)) {
@@ -526,6 +693,8 @@ const STANCE_CTRL = { standing: ["ctrlStanding", 76, 188], kneeling: ["ctrlKneel
 const STANCE_DISP = { standing: ["dispStanding", 104, 177.8], kneeling: ["dispKneeling", 71, 145], squatting: ["dispSquatting", 50.8, 125] };
 const INDIVIDUAL = new Set(["monitor", "triple_monitor", "laptop", "tablet", "instrument_panel"]);
 
+const CLEAR_MM = 300; // the search radius of compliance.js (CLEAR_RADIUS)
+const LANDMARK_WORD = (id) => String(id).replace(/_([LR])$/, (m, s) => (s === "L" ? " (left)" : " (right)")).replace(/_/g, " ");
 export function checkScene(facts) {
   const out = [], C = CLAUSES;
   if (!facts) return out;
@@ -565,6 +734,46 @@ export function checkScene(facts) {
       const [k, lo, hi] = STANCE_DISP[facts.stance];
       out.push(range("disp-height", C[k], cm(d.centre[1]), lo, hi, "cm", { subject: S, note: "Display centre above the floor." }));
     }
+  }
+  // head room above each seat inside a cabin (Figure 39)
+  for (const c of facts.cabins ?? []) {
+    if (!c.seats.length) {
+      out.push(res("headroom", C.vHeadClear, "na", { subject: subj("interaction", `headroom:${c.id}`, `Head room in ${c.name}`, { objects: [c.id], covers: [{ objectId: c.id, id: "head" }] }),
+        limit: "at least 1,070 mm from each seat's SRP to the roof", note: "No seat inside this cabin: put a seat in it to check the head room." }));
+      continue;
+    }
+    for (const s of c.seats) {
+      const S = subj("interaction", `headroom:${c.id}:${s.id}`, `Head room above ${s.name} in ${c.name}`, { objects: [c.id, s.id], covers: [{ objectId: c.id, id: "head" }] });
+      if (s.clearance == null) out.push(res("headroom", C.vHeadClear, "pass", { subject: S, unit: "mm", limit: "at least 1,070 mm from the SRP to the roof", note: "Nothing above the seat inside the cabin (open roof)." }));
+      else out.push(range("headroom", C.vHeadClear, mm(s.clearance), 1070, null, "mm", { subject: S, note: "Vertically from the seat reference point to the roof or canopy (Figure 39); a helmet does not change this dimension." }));
+    }
+  }
+  // the figure's skin to the surfaces of a cabin or an imported model (5.6.2.2.1 to 5.6.2.2.4)
+  for (const e of facts.clearances ?? []) {
+    if (!e.near) continue;
+    const covers = [{ objectId: e.id, id: e.type === "cabin_shell" ? "body-clearance" : "clearance" }];
+    const S = subj("interaction", `clear:${e.id}`, `Figure to ${e.name}`, { objects: [e.id], covers });
+    const far = `Nothing within ${r0(CLEAR_MM)} mm.`;
+    const row = (key, clause, hits, what) => {
+      if (!hits.length) { out.push(res(key, clause, "pass", { subject: S, unit: "mm", limit: "at least 50 mm", note: `${what}: ${far}` })); return; }
+      const h = hits.reduce((a, b) => (b.distance < a.distance ? b : a));
+      out.push(range(key, clause, mm(h.distance), 50, null, "mm", { subject: S, note: `${what}: closest at the ${LANDMARK_WORD(h.landmark)}. Measured to the bare skin: add the thickness of the clothing, helmet and equipment worn (5.6.1.5.1).` }));
+    };
+    row("head-clear", C.headImpact, e.hits.filter((h) => h.part === "head"), "Head");
+    const body = e.hits.filter((h) => h.part === "body");
+    row("fore-aft", C.clearFore, body.filter((h) => h.axis === "fore-aft"), "Body, fore-aft");
+    row("lateral", C.clearLateral, body.filter((h) => h.axis === "lateral"), "Body, sideways");
+    row("vertical", C.clearVertical, body.filter((h) => h.axis === "vertical"), "Body, vertical (contact with the floor and the seat not counted)");
+  }
+  // desk to wall (Figure 58 D)
+  for (const d of facts.desks ?? []) {
+    const S = subj("interaction", `deskwall:${d.id}:${d.wallId}`, `${d.name} to ${d.wallName}`, { objects: [d.id, d.wallId], covers: [{ objectId: d.wallId, id: "desk-wall" }] });
+    out.push(range("desk-wall", C.deskWall, cm(d.distance), 81, null, "cm", { subject: S, note: "From the desk's user edge to the wall behind the user (armrest to wall: at least 61 cm, Figure 58 E)." }));
+  }
+  for (const w of facts.walls ?? []) {
+    if (w.desks) continue;
+    out.push(res("desk-wall", C.deskWall, "na", { subject: subj("interaction", `deskwall:${w.id}`, `Desks facing ${w.name}`, { objects: [w.id], covers: [{ objectId: w.id, id: "desk-wall" }] }),
+      limit: "at least 81 cm from a desk edge to the wall behind its user", note: `No desk has its user's back to this ${w.name.toLowerCase().includes("partition") ? "partition" : "wall"} within 3 m.` }));
   }
   // a load in the hands
   if (facts.load) out.push(...loadResults(facts.load, subj("interaction", `load:${facts.load.objectId}`, `Holding ${facts.load.name}`)));

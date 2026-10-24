@@ -1,6 +1,6 @@
 # MIL-STD-1472H in the Digital human tab
 
-Every posture, every object of the scene and every interaction of the figure with the scene carries a **MIL-STD-1472H** tag. The tag is **Compliant**, **Not compliant** or **Check**, and it lists the clauses that decide it. The standard is *DoD Design Criteria Standard: Human Engineering*, 15 September 2020.
+Every posture, every object of the scene (every catalogue type, presets and imported CAD models included) and every interaction of the figure with the scene carries a **MIL-STD-1472H** tag. The tag is **Compliant**, **Not compliant**, **Check**, **Needs information** or **Not applicable**, and it lists the clauses that decide it. No object is left without a statement: `tests/human3d/mil1472.test.mjs` checks every catalogue type. The standard is *DoD Design Criteria Standard: Human Engineering*, 15 September 2020.
 
 | Where | What is tagged |
 |---|---|
@@ -20,7 +20,7 @@ The clauses, pages and limits come from [`standards/mil-std-1472h/requirements.j
 
 ## Statuses
 
-Each check returns one result with one of four statuses:
+Each check returns one result with one of five statuses:
 
 | Result | Meaning | Effect on the tag |
 |---|---|---|
@@ -28,8 +28,9 @@ Each check returns one result with one of four statuses:
 | **Fails** (`fail`) | A *shall* is not met. | **Not compliant** |
 | **Check** (`check`) | A *should* is not met, or the value is in a grey zone (see range of motion). | **Check** |
 | **Needs input** (`input`) | The clause applies, but the site does not know a value it needs, such as lifting frequency, work type or clothing. | Listed, never counted as a pass |
+| **Not applicable** (`na`) | A statement that no requirement applies: a reference object (1 m cube, measuring pole, marker, plain box or cylinder, floor tile), a cabin with no seat in it, a wall no desk faces. | Listed |
 
-A subject is **Compliant** when at least one check passes and nothing fails or needs checking.
+A subject is **Compliant** when at least one check passes and nothing fails or needs checking. It **Needs information** when the clauses that apply all need inputs, and is **Not applicable** when it has only *Not applicable* statements. A statement measured in the scene replaces the object's own *Needs input* item that it answers (for example the head room of a cabin once a seat is in it).
 
 ## Posture checks
 
@@ -93,6 +94,24 @@ These use the object's own parameters, as set in the Scene tab.
 | Steering wheel | Diameter 355–510 mm; rim 19–32 mm, and the model's 34 mm rim fails (5.1.4.1.2.5.6, Table IX). |
 | Pedals | Pad angle ≤ 60° and separation 50–100 mm (5.1.4.2.2.2.9, Figure 21). The model's pads are 30 mm apart. |
 | Throttle, lever | Knob 32–44 mm (Table XI) and 38–75 mm (Figure 20), under 5.1.4.2.2.1. |
+| Stool, bench | Seat at most 46 cm above the foot support (Figure 62 F, via 5.10.3.12.5). Bench: 550 mm per seat position (5.6.2.8.1). A stable seat (5.10.3.12.3) and a cushion for sitting over 1 hour (5.10.3.12.10.2): Needs input. |
+| HUD | Eye-box ≥ 11.5 × 6.5 × 15 cm (5.2.2.15.4) and field of view (5.2.2.15.7): Needs input, from the HUD's specification. |
+| Wall display | Nearest viewer (5.2.2.12.5) and character size (5.2.2.12.4): Needs input; the viewing distance is checked in the scene. |
+| Instrument panel | Width ≤ 112 cm for one seated user (5.10.3.14.3.1). |
+| Side console | Height 76–188 cm seen standing (Check); its controls are checked against the seat in the scene (5.10.3.9.1.1). |
+| Shelving | Top shelf ≤ 181 cm as an overhead grasp (5.10.3.8.2.4). Out of the traffic flow (5.7.5.6.1) and no sharp corners (5.7.5.6.2): Needs input. |
+| Wall, partition | Desk to wall ≥ 81 cm (Figure 58 D), measured in the scene. |
+| Equipment rack | Service bay at a working level: 76–188 cm standing, else 45.7–145 cm kneeling (Check), else fails (5.9.1.9.1). Bay opening for two arms: ≥ 500 mm wide when deeper than 490 mm, else 200 mm; ≥ 125 mm high (5.9.6.9.3, Figure 57). Hand tools through the opening: open-end wrench 270 × 200 mm, T-handle 135 × 155, screwdriver 110 × 120 (5.9.6.7.2, Figure 56). Door stays open (5.9.2.5), cover labels (5.4.5.3), rollout racks (5.9.3.6), free floor (5.9.6.8.4): Needs input. |
+| Cockpit / cabin shell | Inside width ≥ 91 cm at the elbows and 58 cm at the shoulders (5.6.2.2.3, Table XXVI, *should*). Head room and body clearance are measured in the scene. |
+| Imported model (CAD) | Clothed dimensions for clearances (5.6.1.5.1) and accommodation (4.5.3): Needs input until the figure is placed in it; then the body clearance is measured in the scene. |
+| Joystick | Grip 110–180 mm long (5.1.3.5.2.5.1) and ≤ 50 mm across (5.1.3.5.2.5.2); hand clearance 100 mm to the side, 50 mm to the rear (5.1.3.5.2.5.3): Needs input. |
+| Keyboard and mouse | Key size 10–19 mm (Table VII), keyboard slope 0–25° (5.1.3.2.4), mouse width 40–70 mm (Table VIII), mouse level with the keyboard ± 2.5 cm (5.10.1.4.6). |
+| Hand tools | Minimal, common tools (5.9.3.2). Screwdriver: knobs instead of screwdriver adjustments (5.9.5.2). Wrench and screwdriver: the access opening they need (5.9.6.7.2). Drill, shovel, hammer: accommodation (4.5.3). |
+| Flashlight | Check: maintenance shall not need a hand-held light (5.9.5.7). |
+| Rifle, pistol | Small-arms design (5.13.1.4.1.1) and handling surfaces (5.13.1.4.1.3): Needs input. |
+| Binoculars | Interpupillary range (5.13.2.11.3), mass (5.13.2.11.7), magnification (5.13.2.3.3): Needs input. |
+| Horizontal bar | Height ≤ 181 cm (5.10.3.8.2.4), diameter 37–75 mm (Check). |
+| Reference objects (1 m cube, measuring pole, point marker, box, cylinder, floor tile) | *Not applicable*: a statement that no requirement applies, with what the object is for. |
 | Loads (crate, box, ammo can, toolbox, rucksack, drum, sandbag, jerrycan, pallet) | One lifter ≤ 23 kg (5.20.3.2, Table XLI). Heavier items need a weight label (5.20.4.6, Needs input). Two handles over 4.5 kg (5.20.7.1.1). Handle diameter by mass (5.20.7.5, Figure 101). A load without a mass: Needs input. |
 
 ## Interaction checks
@@ -126,6 +145,13 @@ These come from the figure in the scene (`compliance.js` `sceneFacts`).
 **A load in the hands** (a load object with a mass and at least one hand on its grips)
 - The lifting checks above, with the real hand position.
 
+**Relations measured in the scene** (`compliance.js` `relationFacts`, geometry in `clearance.js`)
+- *Head room above a seat in a cabin* (5.6.2.1, Figure 39): for every seat whose SRP is inside a cockpit / cabin shell, a vertical ray from the SRP to the roof or canopy must find at least 1,070 mm. A cabin with no seat says so (*Not applicable*). Both the cabin and the seat show the result.
+- *The figure to the surfaces of a cabin or an imported model* (5.6.2.2.1 to 5.6.2.2.4): when the figure is within 30 cm of the object, the distance from skin landmarks (head: vertex, glabella, back of the head, the sides of the head, nose, chin; body: shoulders, elbows, chest, shoulder blades, hips, knees, toes, heels, buttocks) to the nearest triangle of the model. The head gives 5.6.2.2.1; the body is split by the main direction of the gap in the figure's frame into fore-aft (5.6.2.2.2), sideways (5.6.2.2.3, *should*) and vertical (5.6.2.2.4). Each must be at least 50 mm. The feet and buttocks on a surface below them and the back against a surface behind it are contact, not clearance. Hands are left out, since they hold the controls. The distance is to the bare skin: add the clothing, helmet and equipment worn (5.6.1.5.1). Hidden CAD layers do not count, and a model that is not loaded is not measured.
+- *Desk to wall* (Figure 58 D): from the user edge of each desk or console, along the direction the user's back faces, to the nearest wall or partition within 3 m: at least 81 cm. A wall that no desk faces says so (*Not applicable*).
+
+The triangles of each object are indexed once per model in a grid in the object's own frame, so moving the object or the figure costs only the queries (a few milliseconds for a cockpit).
+
 **The population (4.5.3)**
 - Always listed as *Needs input*. The check ran on one body, while 4.5.3 asks for the central 90 % (95 % preferred) of men and of women in their clothing and equipment.
 - Repeat the check with the small and the large boundary bodies, for example a 5th percentile woman and a 95th percentile man (Profile tab).
@@ -134,7 +160,7 @@ These come from the figure in the scene (`compliance.js` `sceneFacts`).
 
 - **One body only.** The report checks the body on screen. Compliance with 4.5.3 needs the boundary bodies (above).
 - **No clothing or equipment allowances.** 5.8.4.2.3 asks for them; the body is semi-nude survey data.
-- **The model's simplifications** (`DESIGN.md` 0) apply: rigid links, approximate joint centres, no soft tissue, no collision between the body and objects. So clearance clauses (5.8.4.2.4, Table XXVI, 5.6.2.2) are not checked yet.
+- **The model's simplifications** (`DESIGN.md` 0) apply: rigid links, approximate joint centres, no soft tissue. Body clearance (5.6.2.2) is measured from about thirty skin landmarks, not the whole skin, and only to cabins and imported models; the other objects are not tested for collision with the body. Table XXVI's whole-body envelopes (5.8.4.2.4) are not checked.
 - **Paraphrases.** The texts paraphrase the standard and keep its numbers. Read the clause, at the page given, before you rely on a result. Where the standard contradicts itself (guardrail height, stair angle, ramp angle), the README of the requirements lists both values.
 - **Not covered.** Most of the 1,726 requirements in the catalogue are checklist items or need inputs the site does not have yet: forces, frequencies, labels, lighting, noise. They are not shown as tags.
 
@@ -144,5 +170,7 @@ These come from the figure in the scene (`compliance.js` `sceneFacts`).
   - every clause and limit against the catalogue;
   - the edges of each object rule;
   - all 316 library postures on two bodies;
-  - the real rig, editor and sandbox: seat, display distance, a hand on a handle, a load.
+  - every catalogue type gets a statement;
+  - the real rig, editor and sandbox: seat, display distance, a hand on a handle, a load, head room and body clearance in the cockpit and helicopter presets, a desk against a wall.
+- `tests/human3d/cadimport.test.mjs` checks the clearance geometry on an imported model: nearest surface and rays after a move and a turn, hidden layers, placeholders.
 - `REQUIRE_BROWSER=1 python -m pytest tests/human3d/test_mil1472.py` (run it on its own, like the other browser test files) covers the real site in Chromium: the library badges, the current posture chip, the Scene rows and selected object, and the Analysis section and its CSV download.

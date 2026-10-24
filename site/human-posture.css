@@ -223,4 +223,6 @@
 .hm-pe-mil[data-state="not-compliant"], .hm-pe-milst[data-state="fail"] { background: var(--chip-bad-bg); color: var(--bad); }
 .hm-pe-mil[data-state="check"], .hm-pe-milst[data-state="check"] { background: var(--chip-warn-bg); color: var(--warn); }
 .hm-pe-mil[data-state="compliant"], .hm-pe-milst[data-state="pass"] { background: var(--chip-good-bg); color: var(--good); }
+.hm-pe-mil[data-state="review"], .hm-pe-milst[data-state="input"] { background: var(--surface-2); color: var(--text-2); }
+.hm-pe-mil[data-state="na"], .hm-pe-milst[data-state="na"] { background: var(--surface-2); color: var(--text-3); font-style: italic; }
 .hm-pe-millist { margin: 0.4rem 0; padding-left: 1rem; display: grid; gap: 0.3rem; }
