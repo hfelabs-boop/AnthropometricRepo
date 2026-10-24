@@ -10,11 +10,14 @@ import * as THREE from "three";
 import { h, download, toast } from "../../util.js";
 import { sliderRow, section, segmented, chipButton, emptyState, notice, nextId, toUnit, fromUnit, unitDigits, UNIT_LABEL, roving } from "../ui.js";
 import { CATALOG, CATEGORIES, byType, SWATCHES, buildObject, disposeObject } from "../catalog.js";
-import { acquireSandbox, releaseSandbox, TEMPLATES, GRID_STEPS_MM, ANGLE_STEPS, MAX_OBJECTS, MAX_TEXT } from "../sandbox.js";
+import { acquireSandbox, releaseSandbox, TEMPLATES, TEMPLATE_GROUPS, GRID_STEPS_MM, ANGLE_STEPS, MAX_OBJECTS, MAX_TEXT } from "../sandbox.js";
 import { acquireMeasure, releaseMeasure } from "../measure.js";
-import { mountPlace } from "../place.js";
+import { mountPlace, placeFor } from "../place.js";
+import { editorFor } from "../editor.js";
+import { importCadFile, getAsset, embedAssets, restoreAssets, CAD_ACCEPT, CAD_FORMATS, formatOf } from "../cadimport.js";
 
 const CSS_URL = new URL("../../../human-scene.css", import.meta.url).href;
+const MAX_SCENE_FILE = 400e6; // a scene file with embedded models (MAX_TEXT, 4 MB, applies to one without)
 
 // ---------------------------------------------------------------------------------------------------------------------
 // shared helpers (also used by panels/measure.js)
@@ -256,21 +259,99 @@ export default {
     }
 
     // ---- templates -----------------------------------------------------------------------------------------------------
-    const tplSelect = h("select", { class: "input", id: id.tpl, "aria-label": "Template" }, TEMPLATES.map((t) => h("option", { value: t.id }, t.name)));
+    const tplSelect = h("select", { class: "input", id: id.tpl, "aria-label": "Environment preset" },
+      TEMPLATE_GROUPS.map((g) => { const ts = TEMPLATES.filter((t) => (t.group ?? "Other") === g); return ts.length ? h("optgroup", { label: g }, ts.map((t) => h("option", { value: t.id }, t.name))) : null; }));
+    tplSelect.value = "cockpit";
     const tplNote = h("p", { class: "small muted" });
-    const showTpl = () => { tplNote.textContent = TEMPLATES.find((t) => t.id === tplSelect.value)?.description ?? ""; };
+    const tplFigure = h("input", { type: "checkbox", id: nextId("hm-sc-tplfig"), checked: true });
+    const showTpl = () => {
+      const t = TEMPLATES.find((x) => x.id === tplSelect.value);
+      tplNote.textContent = t?.description ?? "";
+      tplFigure.disabled = !t?.figure;
+    };
     tplSelect.addEventListener("change", showTpl);
     showTpl();
+    /** Put the figure where a preset says (sit on its seat, or stand at a spot) in the preset's posture. Errors are reported, never thrown. */
+    async function placeFigure(t, created) {
+      const f = t.figure;
+      if (!f || !tplFigure.checked || !ctx.getRig()) return;
+      try {
+        const placer = await placeFor(ctx);
+        if (Number.isInteger(f.sitOn)) {
+          const seat = created[f.sitOn];
+          const r = seat ? placer.sitOn(seat.id, { posture: f.posture }) : { ok: false, message: "The preset's seat was not added." };
+          if (!r.ok) toast(r.message);
+        } else {
+          placer.standAt({ x: f.stand?.[0] ?? 0, z: f.stand?.[1] ?? 0, heading: f.heading ?? 0 });
+          if (f.posture) editorFor(ctx).apply(f.posture, { animate: false });
+        }
+      } catch (e) { console.warn("Scene: the figure could not be placed for the preset:", e); toast(`The figure could not be placed: ${e.message}`); }
+    }
     const applyTpl = (merge) => {
-      const t = TEMPLATES.find((x) => x.id === tplSelect.value);
-      if (!t || !sandbox.applyTemplate(t.id, { merge })) return;
-      sandbox.frameObjects?.(null);
-      say(`${merge ? "Added" : "Loaded"} the template ${t.name}.`);
+      const t = TEMPLATES.find((x) => x.id === tplSelect.value), created = [];
+      if (!t || !sandbox.applyTemplate(t.id, { merge, created })) return;
+      say(`${merge ? "Added" : "Loaded"} the preset ${t.name}.`);
       toast(`${t.name}: ${merge ? "added to" : "loaded as"} the scene. Undo with Ctrl+Z.`);
+      if (merge) { sandbox.frameObjects?.(null); return; }
+      // a side view shows the posture against the equipment (the three-quarter view looks at the back of a rack or a console, with the figure behind it)
+      placeFigure(t, created).finally(() => sandbox.frameObjects?.(null, { view: t.figure ? "right" : "iso" }));
     };
     const tplBody = h("div", { class: "hm-sc-stack" },
-      h("div", { class: "field" }, h("label", { for: id.tpl }, "Start from a template"), tplSelect), tplNote,
-      h("div", { class: "hm-sc-row" }, h("button", { type: "button", class: "btn", onclick: () => applyTpl(false), title: "Replace the scene with the template (undoable)" }, "Replace the scene"), h("button", { type: "button", class: "btn", onclick: () => applyTpl(true), title: "Add the template's objects to the scene" }, "Add to the scene")));
+      h("div", { class: "field" }, h("label", { for: id.tpl }, "Environment preset"), tplSelect), tplNote,
+      h("label", { class: "check", for: tplFigure.id }, tplFigure, h("span", { class: "lbl" }, "Put the figure in place (seat or work spot, and posture)")),
+      h("div", { class: "hm-sc-row" }, h("button", { type: "button", class: "btn primary", onclick: () => applyTpl(false), title: "Replace the scene with the preset (undoable)" }, "Load preset"), h("button", { type: "button", class: "btn", onclick: () => applyTpl(true), title: "Add the preset's objects to the scene, without moving the figure" }, "Add to the scene")));
+
+    // ---- import a CAD / 3D file -----------------------------------------------------------------------------------------------
+    const cadInput = h("input", { type: "file", accept: CAD_ACCEPT, class: "sr-only", tabindex: "-1", "aria-hidden": "true" });
+    const cadUnits = h("select", { class: "input", id: nextId("hm-sc-cu"), "aria-label": "Units of the file" }, [["auto", "Guess from the format and size"], ["mm", "Millimetres"], ["cm", "Centimetres"], ["m", "Metres"], ["in", "Inches"], ["ft", "Feet"]].map(([v, l]) => h("option", { value: v }, l)));
+    const cadUp = h("select", { class: "input", id: nextId("hm-sc-cup"), "aria-label": "Up axis of the file" }, [["auto", "Guess from the format"], ["y", "Y up"], ["z", "Z up (most CAD)"]].map(([v, l]) => h("option", { value: v }, l)));
+    const cadPlace = h("select", { class: "input", id: nextId("hm-sc-cpl"), "aria-label": "Where to put it" }, [["front", "In front of the figure"], ["around", "Centred on the figure (an environment around it)"], ["file", "At the file's own origin (keeps CAD coordinates)"]].map(([v, l]) => h("option", { value: v }, l)));
+    const cadMsg = h("div", { class: "hm-sc-msgs", "aria-live": "polite" });
+    const cadBusy = h("p", { class: "small muted hm-sc-cadbusy", hidden: true, role: "status" });
+    let cadRunning = false;
+    async function importCad(file) {
+      if (!file || cadRunning) return;
+      if (!formatOf(file.name)) { cadMsg.replaceChildren(notice([h("strong", {}, `${file.name} is not a format this tool reads.`), ` Use ${CAD_FORMATS.map((f) => f.label).join(", ")}.`], { level: "error", onDismiss: () => cadMsg.replaceChildren() })); return; }
+      cadRunning = true; cadBusy.hidden = false; cadBusy.textContent = `Reading ${file.name}…`; cadMsg.replaceChildren();
+      try {
+        const r = await importCadFile(file, { units: cadUnits.value, up: cadUp.value, onProgress: (t) => { cadBusy.textContent = t; } });
+        const where = cadPlace.value, rig = ctx.getRig(), fx = rig?.root?.x ?? 0, fz = rig?.root?.z ?? 0;
+        // the same file again for a scene whose model was missing: those objects come back by themselves (the asset arrived), nothing new is added
+        const existing = r.fresh ? [...sandbox.objects.values()].filter((x) => x.type === "cad_model" && x.params.asset === r.id) : [];
+        if (existing.length) { sandbox.select(existing[0].id); sandbox.frameObjects(null); cadMsg.replaceChildren(notice([h("strong", {}, `${file.name} is loaded again.`), ` ${existing.length} object${existing.length === 1 ? "" : "s"} of the scene use it and show it now.`], { level: "info", onDismiss: () => cadMsg.replaceChildren() })); return; }
+        const params = { asset: r.id, file: file.name.slice(0, 160), units: r.units, up: r.up, origin: where === "file" ? "file" : "floor_centre" };
+        const o = sandbox.add("cad_model", { params, name: file.name.replace(/\.[^.]+$/, "").slice(0, 60) || "Imported model", select: true, ...(where === "front" ? {} : { position: where === "around" ? [fx, 0, fz] : [0, 0, 0], yaw: 0 }) });
+        if (!o) throw new Error(`the scene is limited to ${MAX_OBJECTS} objects`);
+        sandbox.frameObjects(null);
+        const b = o.bbox, mmx = (v) => `${Math.round(v * 1000).toLocaleString("en-US")} mm`;
+        const unitText = { mm: "millimetres", cm: "centimetres", m: "metres", in: "inches", ft: "feet" }[r.units];
+        cadMsg.replaceChildren(notice([
+          h("strong", {}, `Imported ${file.name}.`),
+          ` ${r.asset.formatLabel}, ${r.asset.triangles.toLocaleString("en-US")} triangles, ${r.asset.layers.length} layer${r.asset.layers.length === 1 ? "" : "s"}; ${mmx(b.max.x - b.min.x)} wide, ${mmx(b.max.y - b.min.y)} high, ${mmx(b.max.z - b.min.z)} deep.`,
+          ` Read as ${unitText}, ${r.up.toUpperCase()} up${r.unitsWhy !== "chosen" ? ` (${r.unitsWhy})` : ""}; change both in its settings if the size or orientation is wrong.`,
+          r.stored ? " A copy is kept in this browser, so a remembered scene finds it again." : " This browser did not keep a copy: save the scene to a file to keep the model with it.",
+          r.warnings.length ? h("ul", { class: "hm-sc-msg-list" }, r.warnings.map((w) => h("li", {}, w))) : null,
+        ], { level: "info", onDismiss: () => cadMsg.replaceChildren() }));
+        say(`Imported ${file.name}.`);
+      } catch (e) {
+        console.warn("Scene: import failed:", e);
+        cadMsg.replaceChildren(notice([h("strong", {}, `${file.name} could not be imported.`), ` ${e.message}`], { level: "error", onDismiss: () => cadMsg.replaceChildren() }));
+      } finally { cadRunning = false; cadBusy.hidden = true; }
+    }
+    cadInput.addEventListener("change", () => { const f = cadInput.files?.[0]; cadInput.value = ""; importCad(f); });
+    // drop a file on the 3D view (while this panel is mounted)
+    const vpEl = ctx.viewport?.container;
+    const onDragOver = (e) => { if ([...(e.dataTransfer?.items ?? [])].some((i) => i.kind === "file")) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } };
+    const onDrop = (e) => { const f = e.dataTransfer?.files?.[0]; if (!f) return; e.preventDefault(); importCad(f); };
+    vpEl?.addEventListener("dragover", onDragOver);
+    vpEl?.addEventListener("drop", onDrop);
+    offs.push(() => { vpEl?.removeEventListener("dragover", onDragOver); vpEl?.removeEventListener("drop", onDrop); });
+    const cadBody = h("div", { class: "hm-sc-stack" },
+      h("p", { class: "small" }, "Bring in your own cockpit, console, vehicle or room: ", h("strong", {}, CAD_FORMATS.map((f) => f.label).join(", ")), ". Each part of the file becomes a layer you can hide. The file stays in this browser."),
+      h("div", { class: "field" }, h("label", { for: cadPlace.id }, "Put it"), cadPlace),
+      h("div", { class: "hm-sc-row" }, h("div", { class: "field" }, h("label", { for: cadUnits.id }, "Units"), cadUnits), h("div", { class: "field" }, h("label", { for: cadUp.id }, "Up axis"), cadUp)),
+      h("div", { class: "hm-sc-row" }, h("button", { type: "button", class: "btn primary", onclick: () => cadInput.click() }, svgIcon("upload", 14), "Import a file…"), h("span", { class: "small muted" }, "or drop it on the 3D view")),
+      cadInput, cadBusy, cadMsg);
 
     // ---- the object list ---------------------------------------------------------------------------------------------------
     // Rows are created once per object and updated in place, so the button that was just pressed (lock, hide) keeps the keyboard focus.
@@ -402,6 +483,7 @@ export default {
       // parameters
       const paramEls = [], syncs = [];
       for (const ps of spec.params) {
+        if (ps.hidden) continue; // an asset id or a list kept for the object, not a field
         if (ps.kind === "number") {
           const len = isLength(ps), conv = len ? { to: (v) => toUnit(v * 1000, u), from: (d) => fromUnit(d, u) / 1000 } : { to: (v) => v, from: (d) => d };
           const step = len ? (u === "mm" ? Math.max(1, ps.step * 1000) : u === "cm" ? Math.max(0.1, ps.step * 100) : Math.max(0.05, Math.round(ps.step * 39.37 * 20) / 20)) : ps.step;
@@ -424,6 +506,8 @@ export default {
           syncs.push((o) => { sel.value = o.params[ps.key]; });
         }
       }
+
+      if (obj.type === "cad_model") { const L = cadLayers(obj); paramEls.unshift(L.el); syncs.push(L.sync); }
 
       // attach
       const attachSel = h("select", { class: "input", id: nextId("hm-ed-att"), "aria-label": "Attach to the figure" }, attachOptions());
@@ -478,7 +562,31 @@ export default {
         for (const f of syncs) f(o);
         showColor(o); showAttach(o);
       };
-      return { id: obj.id, units: u, type: obj.type, el, sync };
+      return { id: obj.id, units: u, type: obj.type, assetReady: assetReady(obj), el, sync };
+    }
+    const assetReady = (o) => o.type === "cad_model" && !!getAsset(o.params.asset);
+    /** The layers of an imported model: one checkbox per part, show all / hide all; or, while the file is not in this browser, how to bring it back. */
+    function cadLayers(obj) {
+      const asset = getAsset(obj.params.asset);
+      if (!asset) {
+        const el = notice([h("strong", {}, "The model file is not loaded."), ` It is drawn as a box. Import ${obj.params.file || "the same file"} again (the same file finds this object), or open the scene file it was saved in.`], { level: "warn" });
+        return { el, sync: () => {} };
+      }
+      const hiddenOf = (o) => new Set(String(o.params.hidden || "").split(",").filter(Boolean).map(Number));
+      const setHidden = (set) => sandbox.setParam(obj.id, "hidden", [...set].sort((x, y) => x - y).join(","));
+      const boxes = asset.layers.map((L, i) => {
+        const cb = h("input", { type: "checkbox", id: nextId("hm-ed-layer"), checked: true });
+        cb.addEventListener("change", () => { const s = hiddenOf(sandbox.objects.get(obj.id)); if (cb.checked) s.delete(i); else s.add(i); setHidden(s); });
+        return { cb, row: h("label", { class: "check hm-ed-layer", for: cb.id, title: `${L.triangles.toLocaleString("en-US")} triangles` }, cb, h("span", { class: "lbl" }, L.name)) };
+      });
+      const all = h("button", { type: "button", class: "btn small", onclick: () => setHidden(new Set()) }, "Show all");
+      const none = h("button", { type: "button", class: "btn small", onclick: () => setHidden(new Set(asset.layers.map((_, i) => i))) }, "Hide all");
+      const el = h("div", { class: "hm-ed-set hm-ed-layers" },
+        h("div", { class: "hm-ed-h" }, `Layers (${asset.layers.length})`),
+        h("p", { class: "small muted" }, `${asset.formatLabel} · ${asset.triangles.toLocaleString("en-US")} triangles · ${asset.name}`),
+        asset.layers.length > 1 ? h("div", { class: "hm-sc-row" }, all, none) : null,
+        h("div", { class: "hm-ed-layerlist" }, boxes.map((b) => b.row)));
+      return { el, sync: (o) => { const s = hiddenOf(o); boxes.forEach((b, i) => { b.cb.checked = !s.has(i); }); } };
     }
 
     const emptyEditor = () => emptyState("Nothing selected.", "Click an object in the 3D view or in the list. Drag it on the floor, hold Shift to lift it, use the arrow keys to nudge it.");
@@ -489,7 +597,7 @@ export default {
         dock.place();
         return;
       }
-      if (!state.editor || state.editor.id !== obj.id || state.editor.units !== ctx.units || state.editor.type !== obj.type) { state.editor = buildEditor(obj); editorEl.replaceChildren(state.editor.el); }
+      if (!state.editor || state.editor.id !== obj.id || state.editor.units !== ctx.units || state.editor.type !== obj.type || state.editor.assetReady !== assetReady(obj)) { state.editor = buildEditor(obj); editorEl.replaceChildren(state.editor.el); }
       state.editor.sync(obj);
       dock.place();
     }
@@ -529,17 +637,37 @@ export default {
       const f = fileInput.files?.[0];
       fileInput.value = "";
       if (!f) return;
-      if (f.size > MAX_TEXT) { showMsgs("error", "This file is too large to be a scene.", [`The limit is ${Math.round(MAX_TEXT / 1e6)} MB.`]); return; }
-      let text;
+      if (f.size > MAX_SCENE_FILE) { showMsgs("error", "This file is too large to be a scene.", [`The limit is ${Math.round(MAX_SCENE_FILE / 1e6)} MB.`]); return; }
+      let text, data;
       try { text = await f.text(); } catch { showMsgs("error", "The file could not be read.", []); return; }
-      const r = sandbox.fromJSON(text);
+      // a scene file may carry its imported models (an "assets" section): they are read first, so that the objects find them
+      try { data = JSON.parse(text); } catch { data = null; }
+      const notes = [];
+      if (data && typeof data === "object" && data.assets) {
+        const r0 = await restoreAssets(data.assets, { onProgress: (t) => showMsgs("info", t, [t]) });
+        if (r0.loaded.length) notes.push(`Models read from the file: ${r0.loaded.join(", ")}.`);
+        for (const m of r0.failed) notes.push(`A model could not be read: ${m}`);
+        delete data.assets;
+      } else if (f.size > MAX_TEXT) { showMsgs("error", "This file is too large to be a scene.", [`The limit is ${Math.round(MAX_TEXT / 1e6)} MB for a scene without models.`]); return; }
+      const r = sandbox.fromJSON(data && typeof data === "object" ? data : text);
+      if (r.ok) r.warnings = [...notes, ...r.warnings];
       if (!r.ok) { showMsgs("error", "This is not a scene this tool can open.", r.errors); return; }
       sandbox.frameObjects?.(null);
       toast(`Opened ${r.added} object${r.added === 1 ? "" : "s"}. Undo with Ctrl+Z.`);
       say(`Opened ${r.added} objects.`);
       showMsgs("warn", r.warnings.length ? "Opened, with notes:" : "", r.warnings);
     });
-    const saveScene = () => { download("digital-human-scene.json", JSON.stringify(sandbox.toSceneFile(), null, 2), "application/json"); toast("Scene saved as digital-human-scene.json"); };
+    const saveScene = () => {
+      const file = sandbox.toSceneFile(), ids = [...sandbox.objects.values()].filter((o) => o.type === "cad_model" && o.params.asset).map((o) => o.params.asset);
+      let note = "";
+      if (ids.length) { // imported models go into the file, so that it opens elsewhere
+        const e = embedAssets(ids);
+        if (Object.keys(e.assets).length) file.assets = e.assets;
+        if (e.skipped.length || e.missing.length) note = ` Not included: ${[...e.skipped, ...(e.missing.length ? [`${e.missing.length} model(s) not loaded`] : [])].join(", ")}.`;
+      }
+      download("digital-human-scene.json", JSON.stringify(file, null, ids.length ? 0 : 2) /* compact when it carries models */, "application/json");
+      toast(`Scene saved as digital-human-scene.json${ids.length ? " with its imported models" : ""}.${note}`);
+    };
     const rememberCb = h("input", { type: "checkbox", id: nextId("hm-sc-rem"), checked: sandbox.remember ? true : null });
     rememberCb.addEventListener("change", () => { if (!sandbox.setRemember(rememberCb.checked)) { rememberCb.checked = false; toast("This browser does not allow saving the scene here."); } });
     const clearBtn = h("button", { type: "button", class: "btn", onclick: () => { if (sandbox.objects.size && sandbox.clear()) { say("The scene was cleared."); toast("Scene cleared. Undo with Ctrl+Z."); } } }, svgIcon("trash", 14), "Clear the scene");
@@ -564,7 +692,8 @@ export default {
 
     // ---- assemble --------------------------------------------------------------------------------------------------------------------------------------------
     const addSection = section("Add an object", [h("div", { class: "field hm-obj-search" }, h("label", { for: id.search, class: "sr-only" }, "Search objects"), h("span", { class: "hm-obj-sicon" }, svgIcon("search", 14)), search), catBar, grid, detail], { open: true });
-    const tplSection = section("Templates", [tplBody], { open: false });
+    const tplSection = section("Environment presets", [tplBody], { open: true });
+    const cadSection = section("Import CAD / 3D model", [cadBody], { open: true });
     const objSection = section("Objects in the scene", [h("div", { class: "hm-sc-row" }, h("button", { type: "button", class: "btn small", onclick: () => sandbox.frameObjects(null), title: "Fit every object in the 3D view" }, svgIcon("frame", 14), "Show all")), listEmpty, list], { open: true });
     objSection.querySelector("summary").append(listCount);
     const editSection = section("Selected object", [editorSlot], { open: true });
@@ -572,7 +701,7 @@ export default {
     const fileSection = section("Scene file", [fileBody], { open: false });
     const root = h("div", { class: "hm-sc" }, h("div", { class: "hm-sc-head" }, h("h2", { class: "hm-panel-title" }, "Scene"), h("div", { class: "hm-sc-row" }, undoBtn, redoBtn)),
       h("p", { class: "small muted" }, "Place objects around the figure: seats, displays, loads, tools. Click or drag them in the 3D view; measure in the Measure tab."),
-      addSection, tplSection, objSection, placeSection, editSection, snapSection, fileSection, keys, live);
+      tplSection, cadSection, addSection, objSection, placeSection, editSection, snapSection, fileSection, keys, live);
     host.replaceChildren(root);
 
     // keys: with focus in this panel or in its settings only Ctrl+Z / Y / D work (undo, redo, duplicate). Delete, W, E, R, [ ] and the arrows belong to the
