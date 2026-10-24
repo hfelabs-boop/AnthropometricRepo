@@ -135,6 +135,11 @@ export const CLAUSES = Object.freeze({
   unstableSeat: CL("5.10.3.12.3", "No unstable seating or standing devices", "shall", 298),
   cushion: CL("5.10.3.12.10.2", "Cushioned seats when seated for longer than 1 hour", "shall", 299),
   deskWall: CL("Figure 58", "Seated workspace: desk to wall (D)", "shall", 272),
+  dispField: CL("5.10.3.6.1.5", "Display within 45° of the line of sight", "shall", 284, "Figure 2"),
+  warnCone: CL("5.1.2.2.3.11", "Emergency and warning displays within the 30° cone about the normal line of sight", "shall", 41, "Figure 2"),
+  dispObstruct: CL("5.18.7.2.1.1", "View to the display not obstructed by other equipment", "shall", 402),
+  armObscure: CL("5.1.2.2.3.8", "The hand or arm does not obscure the display", "shall", 41),
+  ctrlVisible: CL("5.10.3.7.1.6.4", "Control visible to check its position", "shall", 287),
   pointerLevel: CL("5.10.1.4.6", "Pointing device level with the keyboard (±2.5 cm)", "should", 272, "Figure 73"),
   keySlope: CL("5.1.3.2.4", "Slope of non-portable keyboards", "shall", 47),
   keySize: CL("Table VII", "Keyboard key size (bare hand)", "shall", 47),
@@ -693,8 +698,17 @@ const STANCE_CTRL = { standing: ["ctrlStanding", 76, 188], kneeling: ["ctrlKneel
 const STANCE_DISP = { standing: ["dispStanding", 104, 177.8], kneeling: ["dispKneeling", 71, 145], squatting: ["dispSquatting", 50.8, 125] };
 const INDIVIDUAL = new Set(["monitor", "triple_monitor", "laptop", "tablet", "instrument_panel"]);
 
-const CLEAR_MM = 300; // the search radius of compliance.js (CLEAR_RADIUS)
-const LANDMARK_WORD = (id) => String(id).replace(/_([LR])$/, (m, s) => (s === "L" ? " (left)" : " (right)")).replace(/_/g, " ");
+const CLEAR_MM = 300, NEAR_MM = 150; // the search radii of compliance.js (CLEAR_RADIUS around cabins and imported models, NEAR_RADIUS elsewhere)
+const CONTROL_SIGHT = 1.3; // m: controls this close to the eye are the figure's own
+const BONE_WORD = { head: "head", jaw: "jaw", eye: "eye", shoulder: "upper arm", elbow: "forearm", forearm: "forearm", wrist: "wrist", hip: "thigh", knee: "lower leg", ankle: "foot", mtp: "toes", clavicle: "shoulder", pelvis: "pelvis" };
+const LANDMARK_WORD = (id) => {
+  const m = /^([A-Za-z]+?)(\d*)(?:_([LR]))?$/.exec(String(id));
+  const side = m?.[3] === "L" ? "left " : m?.[3] === "R" ? "right " : "";
+  if (m && BONE_WORD[m[1]] && !m[2]) return `${side}${BONE_WORD[m[1]]}`;
+  if (m && /^[LT]$/.test(m[1]) && m[2]) return m[1] === "L" ? "lower back" : "upper back";
+  if (m && m[1] === "C" && m[2]) return "neck";
+  return String(id).replace(/_([LR])$/, (x, s) => (s === "L" ? " (left)" : " (right)")).replace(/_/g, " ");
+};
 export function checkScene(facts) {
   const out = [], C = CLAUSES;
   if (!facts) return out;
@@ -748,22 +762,42 @@ export function checkScene(facts) {
       else out.push(range("headroom", C.vHeadClear, mm(s.clearance), 1070, null, "mm", { subject: S, note: "Vertically from the seat reference point to the roof or canopy (Figure 39); a helmet does not change this dimension." }));
     }
   }
-  // the figure's skin to the surfaces of a cabin or an imported model (5.6.2.2.1 to 5.6.2.2.4)
+  // the figure's skin to the surfaces of the objects near it (5.6.2.2.1 to 5.6.2.2.4); a cabin or an imported model lists all four directions
   for (const e of facts.clearances ?? []) {
     if (!e.near) continue;
-    const covers = [{ objectId: e.id, id: e.type === "cabin_shell" ? "body-clearance" : "clearance" }];
+    const full = e.type === "cabin_shell" || e.type === "cad_model";
+    const covers = full ? [{ objectId: e.id, id: e.type === "cabin_shell" ? "body-clearance" : "clearance" }] : [];
     const S = subj("interaction", `clear:${e.id}`, `Figure to ${e.name}`, { objects: [e.id], covers });
-    const far = `Nothing within ${r0(CLEAR_MM)} mm.`;
+    const far = `Nothing within ${r0(full ? CLEAR_MM : NEAR_MM)} mm.`;
     const row = (key, clause, hits, what) => {
-      if (!hits.length) { out.push(res(key, clause, "pass", { subject: S, unit: "mm", limit: "at least 50 mm", note: `${what}: ${far}` })); return; }
+      if (!hits.length) { if (full) out.push(res(key, clause, "pass", { subject: S, unit: "mm", limit: "at least 50 mm", note: `${what}: ${far}` })); return; }
       const h = hits.reduce((a, b) => (b.distance < a.distance ? b : a));
-      out.push(range(key, clause, mm(h.distance), 50, null, "mm", { subject: S, note: `${what}: closest at the ${LANDMARK_WORD(h.landmark)}. Measured to the bare skin: add the thickness of the clothing, helmet and equipment worn (5.6.1.5.1).` }));
+      const where = `closest at the ${LANDMARK_WORD(h.landmark)}`;
+      const note = h.distance < 0 ? `${what}: the body is INSIDE the object (the ${LANDMARK_WORD(h.landmark)}, ${r0(-mm(h.distance))} mm deep). Move the figure or the object.`
+        : `${what}: ${where}. Measured to the bare skin: add the thickness of the clothing, helmet and equipment worn (5.6.1.5.1).${e.crew ? "" : " 5.6.2.2 is written for crew stations: elsewhere it is a guide (Check), but the body must never be inside an object."}`;
+      out.push(range(key, clause, mm(h.distance), 50, null, "mm", { subject: S, soft: !e.crew && h.distance >= 0, note }));
     };
     row("head-clear", C.headImpact, e.hits.filter((h) => h.part === "head"), "Head");
     const body = e.hits.filter((h) => h.part === "body");
     row("fore-aft", C.clearFore, body.filter((h) => h.axis === "fore-aft"), "Body, fore-aft");
     row("lateral", C.clearLateral, body.filter((h) => h.axis === "lateral"), "Body, sideways");
     row("vertical", C.clearVertical, body.filter((h) => h.axis === "vertical"), "Body, vertical (contact with the floor and the seat not counted)");
+  }
+  // line of sight to the displays in front of the figure and to the controls within reach (Figure 2)
+  for (const t of facts.sight?.targets ?? []) {
+    const block = t.blockedBy ? `Hidden behind ${t.blockedBy.name} (${r0(cm(t.blockedBy.distance))} cm from the eye).` : "Nothing in the way (glass does not count).";
+    if (t.kind === "display") {
+      if (Math.abs(t.horiz) > 90) continue;
+      const S = subj("interaction", `view:${t.id}`, `Looking at ${t.name}`);
+      out.push(range("los-field", C.dispField, t.angle, null, 45, "°", { subject: S, note: `Off the normal line of sight (15° below the head's horizontal): ${r0(t.angle)}°, ${r0(Math.abs(t.horiz))}° ${t.horiz >= 0 ? "left" : "right"} and ${r0(Math.abs(t.vert))}° ${t.vert >= 0 ? "above" : "below"} the horizontal.` }));
+      out.push(res("los-cone", C.warnCone, t.angle <= 15 ? "pass" : "input", { subject: S, value: t.angle, unit: "°", limit: "within 15° of the normal line of sight for warning, emergency and critical displays",
+        note: t.angle <= 15 ? "Inside the 30° cone: fit for warnings and critical indicators (5.2.3.1.11)." : "Outside the 30° cone: acceptable only if the display shows no warnings or critical indicators." }));
+      out.push(res("unobstructed", C.dispObstruct, t.blockedBy ? "fail" : "pass", { subject: S, limit: "a clear line from the eye to the display", note: block }));
+      out.push(res("arm", C.armObscure, t.arm ? "fail" : "pass", { subject: S, limit: "the hands and arms clear of the line of sight", note: t.arm ? `The ${t.arm} is in the line of sight to the display.` : "The arms are clear of the line of sight." }));
+    } else if (t.distance <= CONTROL_SIGHT) {
+      const S = subj("interaction", `see:${t.id}`, `Seeing ${t.name}`);
+      out.push(res("visible", C.ctrlVisible, t.blockedBy ? "fail" : "pass", { subject: S, value: t.angle, unit: "°", limit: "a clear line from the eye to the control", note: `${block} ${r0(t.angle)}° off the normal line of sight.` }));
+    }
   }
   // desk to wall (Figure 58 D)
   for (const d of facts.desks ?? []) {

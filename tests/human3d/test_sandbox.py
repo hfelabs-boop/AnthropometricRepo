@@ -172,8 +172,8 @@ def s(chromium, server):
 def test_catalogue_cards_add_and_inspector(s):
     """The catalogue lists every category with cards; double-click and Enter add; the selected object's settings appear in the inspector."""
     p = s.page
-    assert p.locator(".hm-obj-cats button").count() == 6
-    for cat, n in [("Seating", 6), ("Displays", 7), ("Boxes and loads", 9), ("Structures", 13), ("Tools and controls", 18), ("Reference", 6)]:
+    assert p.locator(".hm-obj-cats button").count() == 7
+    for cat, n in [("Seating", 6), ("Displays", 7), ("Boxes and loads", 9), ("Structures", 16), ("Tools and controls", 18), ("Reference", 6), ("Imported", 1)]:
         p.click(f".hm-obj-cats button:has-text('{cat}')")
         assert p.locator(".hm-obj-card").count() == n, cat
     p.fill("#hm-sc-q-1, .hm-sc input[type=search]", "ladder")
@@ -399,18 +399,17 @@ def test_floor_constraint_snapping_and_numeric_fields(s):
 
 def test_templates_scene_files_and_hostile_files(s, tmp_path):
     p = s.page
-    p.locator(".hm-sc summary:has-text('Templates')").click()
-    p.select_option(".hm-sc select[aria-label='Template']", "cockpit")
-    p.click(".hm-sc button:has-text('Replace the scene')")
+    p.select_option(".hm-sc select[aria-label='Environment preset']", "cockpit")  # the presets section is open from the start
+    p.click(".hm-sc button:has-text('Load preset')")
     s.settle(500)
-    assert sorted(o["type"] for o in s.objects()) == ["cabin_seat", "hud_panel", "joystick", "throttle", "triple_monitor"]
+    assert sorted(o["type"] for o in s.objects()) == ["cabin_seat", "cabin_shell", "hud_panel", "joystick", "side_console", "side_console", "throttle", "triple_monitor"]
     p.screenshot(path=str(SHOT_DIR / "template-cockpit.png"))
     p.keyboard.press("Control+z")  # focus is on a button in the panel: the shortcut still works there
     s.settle(200)
     assert s.objects() == []
     for tid, n in [("office", 4), ("cab", 4), ("lifting", 3), ("range", 5), ("stairs", 3)]:
-        p.select_option(".hm-sc select[aria-label='Template']", tid)
-        p.click(".hm-sc button:has-text('Replace the scene')")
+        p.select_option(".hm-sc select[aria-label='Environment preset']", tid)
+        p.click(".hm-sc button:has-text('Load preset')")
         s.settle(250)
         assert len(s.objects()) == n, tid
     # save and open
@@ -424,23 +423,23 @@ def test_templates_scene_files_and_hostile_files(s, tmp_path):
     p.click(".hm-sc button:has-text('Clear the scene')")
     s.settle(200)
     assert s.objects() == []
-    p.set_input_files(".hm-sc input[type=file]", str(path))
+    p.set_input_files(".hm-sc input[type=file][accept*=json]", str(path))
     s.settle(500)
     assert len(s.objects()) == 3
     # hostile files: errors are shown, nothing changes
     bad = tmp_path / "bad.json"
     for text, needle in [('{"version": 99, "objects": []}', "newer"), ("not json at all", "not valid JSON"), ('{"version": 1}', "no list of objects"), ("[]", "not a scene")]:
         bad.write_text(text)
-        p.set_input_files(".hm-sc input[type=file]", str(bad))
+        p.set_input_files(".hm-sc input[type=file][accept*=json]", str(bad))
         s.settle(300)
-        assert needle in p.locator(".hm-sc-msgs").inner_text(), (text, p.locator(".hm-sc-msgs").inner_text())
+        assert needle in p.locator(".hm-sc-msgs").last.inner_text(), (text, p.locator(".hm-sc-msgs").last.inner_text())
         assert len(s.objects()) == 3
     bad.write_text(json.dumps({"version": 1, "objects": [{"type": "nope"}, {"type": "box", "params": {"width": 1e9, "__proto__": {"x": 1}}, "position": [1e12, -5, "x"]}]}))
-    p.set_input_files(".hm-sc input[type=file]", str(bad))
+    p.set_input_files(".hm-sc input[type=file][accept*=json]", str(bad))
     s.settle(400)
     objs = s.objects()
     assert len(objs) == 1 and objs[0]["params"]["width"] == 10 and objs[0]["position"][1] == 0
-    assert "unknown type" in p.locator(".hm-sc-msgs").inner_text()
+    assert "unknown type" in p.locator(".hm-sc-msgs").last.inner_text()
     assert not s.errors(), s.errors()
 
 
@@ -985,7 +984,7 @@ def test_every_catalogue_object_renders_in_the_real_viewport(s):
       for (const t of cat.CATALOG) sb.add(t.type, {{ position: [ (cat.CATALOG.indexOf(t) % 12) * 2.2 - 12, 0, 3 + Math.floor(cat.CATALOG.indexOf(t) / 12) * 3.2 ] }}); }}""")
     s.js(f"async () => (await {SB}).frameObjects(null)")
     s.settle(1500)
-    assert len(s.objects()) == 59
+    assert len(s.objects()) == s.js("async () => (await import('/js/human/catalog.js')).CATALOG.length")
     bad = s.js(f"async () => [...(await {SB}).objects.values()].filter((o) => ![...o.position, o.yaw].every(Number.isFinite)).length")
     assert bad == 0
     box = s.js("(() => { const r = window.__human.viewport.canvas.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })()")
@@ -1076,7 +1075,7 @@ def test_screenshots_desktop_and_phone(chromium, server, dark):
         s.js(f"async () => (await {SB}).frameObjects(null)")
         s.settle(1200)
         s.shot(f"scene-1280-{theme}.png")
-        s.page.locator(".hm-sc summary:has-text('Templates')").click()
+        s.page.locator(".hm-sc summary:has-text('Environment presets')").scroll_into_view_if_needed()
         s.shot(f"scene-1280-{theme}-templates.png")
         s.tab("measure")
         s.settle(500)

@@ -7,8 +7,8 @@
 // falls back to a synthetic body with a visible notice, a failed rig keeps the previous one.
 
 export const LENGTH_UNITS = Object.freeze(["mm", "cm", "in"]);
-export const DISPLAY_KEYS = Object.freeze(["skin", "skeleton", "joints", "labels", "landmarks", "com", "xray", "grid", "strain"]);
-export const DEFAULT_DISPLAY = Object.freeze({ skin: true, skeleton: false, joints: false, labels: false, landmarks: false, com: false, xray: false, grid: true, strain: false });
+export const DISPLAY_KEYS = Object.freeze(["skin", "skeleton", "joints", "labels", "landmarks", "com", "xray", "grid", "strain", "sight"]);
+export const DEFAULT_DISPLAY = Object.freeze({ skin: true, skeleton: false, joints: false, labels: false, landmarks: false, com: false, xray: false, grid: true, strain: false, sight: false });
 export const SELECTION_KINDS = Object.freeze(["joint", "object", "landmark", "handle"]);
 
 /** Selection {kind, id} or null; anything else (unknown kind, empty id) is rejected with a TypeError. */

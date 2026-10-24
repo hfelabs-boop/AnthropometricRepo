@@ -53,6 +53,7 @@ const DISPLAY_TOGGLES = [
   ["com", "Centre of mass", "Show the whole-body centre of mass and its floor projection"],
   ["xray", "X-ray", "See through the skin"],
   ["grid", "Grid", "Show the floor grid (1 m and 0.1 m) and the axes"],
+  ["sight", "Line of sight", "Show the MIL-STD-1472H line of sight (Figure 2) from the eyes: the normal line of sight 15° below the head's horizontal, the 30° cone for warnings and critical indicators, the 45° limit for displays, and a line to each display and control: green clear, amber outside the 30° cone, red out of view or hidden behind an object or an arm"],
   ["strain", "RULA / REBA", "Colour the skeleton by posture strain: each body segment by its REBA / RULA angle band, green low, yellow medium, red high (shows the bones)"],
 ];
 
@@ -143,7 +144,8 @@ async function build(undo) {
   const verdictIso = h("span", { class: "hm-verdict", hidden: true }), verdictMil = h("span", { class: "hm-verdict hm-verdict-mil", hidden: true });
   const verdictBadge = h("div", { class: "hm-verdicts", hidden: true, role: "status", "aria-label": "Posture verdicts" }, verdictIso, verdictMil);
   const strainLegend = h("div", { class: "hm-strain", hidden: true, role: "status", "aria-label": "RULA / REBA segment strain" });
-  viewportEl.append(verdictBadge, strainLegend);
+  const sightLegend = h("div", { class: "hm-strain hm-sight", hidden: true, role: "status", "aria-label": "Line of sight" });
+  viewportEl.append(verdictBadge, strainLegend, sightLegend);
   const viewBtns = VIEW_ORDER.map((name, i) => h("button", { type: "button", title: `${VIEW_PRESETS[name].title} (${i + 1})`, dataset: { view: name }, onclick: () => setView(name) }, VIEW_PRESETS[name].label));
   const viewSeg = h("div", { class: "seg hm-seg", role: "group", "aria-label": "View presets" }, viewBtns);
   const fitBtn = chipButton({ label: "Fit", title: "Fit the figure in the view (F)", icon: "fit", onClick: () => frameFigure(true) });
@@ -410,8 +412,39 @@ async function build(undo) {
     dispRoving.refresh();
     toggleBtns.skin.title = noSkin ? "The skin surface is not available in this build, so only the skeleton is shown" : DISPLAY_TOGGLES[0][2];
     updateStrain(rig);
+    updateSight(rig);
     viewport.requestRender();
   }
+  // line of sight (MIL-STD-1472H Figure 2): drawn from the eyes after every pose or scene change while the toggle is on (sightview.js)
+  let sightView = null, sightRaf = 0, sightMods = null, sightLoading = null; // compliance.js and sightview.js load on the first use of the toggle
+  const SIGHT_WORD = { good: "in the 30° cone, clear", warn: "outside the 30° cone", bad: "out of view or hidden" };
+  function updateSight(rig = state.rig) {
+    if (!state.display.sight || !rig) { sightView?.clear(); sightLegend.hidden = true; viewport.requestRender(); return; }
+    if (!sightMods) {
+      sightLoading ??= Promise.all([import("./compliance.js"), import("./sightview.js")]).then(([c, v]) => { sightMods = { ...c, ...v }; updateSight(); })
+        .catch((e) => { console.warn("Digital human: the line of sight could not be loaded:", e); sightLoading = null; });
+      return;
+    }
+    const { sightFacts, createSightView, sightLevel } = sightMods;
+    let sight = null;
+    try {
+      const L = (id) => { try { return rig.landmarkWorld(id, new THREE.Vector3()).toArray(); } catch { return null; } };
+      sight = state.sandbox ? sightFacts(rig, state.sandbox, L) : sightFacts(rig, { objects: new Map() }, L, []);
+    } catch (e) { console.warn("Digital human: the line of sight could not be computed:", e); }
+    sightView ??= createSightView(viewport);
+    sightView.update(sight);
+    const rows = (sight?.targets ?? []).map((t) => ({ t, lv: sightLevel(t) })).filter((x) => x.lv);
+    const why = (t) => [t.blockedBy ? `hidden behind ${t.blockedBy.name}` : "", t.arm ? `behind the ${t.arm}` : "", t.kind === "display" && t.angle > 45 ? "more than 45° off" : ""].filter(Boolean).join("; ");
+    sightLegend.replaceChildren(
+      h("div", { class: "hm-strain-head" }, "Line of sight (MIL-STD-1472H)"),
+      rows.length ? h("ul", {}, rows.map(({ t, lv }) => h("li", { dataset: { level: lv }, title: `${t.kind === "display" ? "Display" : "Control"}: ${SIGHT_WORD[lv]}${why(t) ? ` (${why(t)})` : ""}` },
+        h("span", { class: "hm-strain-dot", "aria-hidden": "true" }), h("span", { class: "hm-strain-name" }, t.name), h("span", { class: "hm-strain-score" }, `${Math.round(t.angle)}°${why(t) ? " · " + why(t) : ""}`))))
+        : h("div", { class: "hm-strain-note" }, "No display in front of the figure and no control within reach."),
+      h("div", { class: "hm-strain-note" }, "Blue: normal line of sight, 15° below the head's horizontal (dashed). Green cone: 30°, for warnings. Amber cone: displays at most 45° off."));
+    sightLegend.hidden = false;
+  }
+  const requestSight = () => { if (state.display.sight && !sightRaf) sightRaf = requestAnimationFrame(() => { sightRaf = 0; updateSight(); }); };
+  undo.push(() => { cancelAnimationFrame(sightRaf); sightView?.dispose(); sightView = null; });
   // RULA / REBA strain view: the bones of each segment take the colour of its score (strain.js), recomputed after every pose change
   const LEVEL_TEXT = { low: "low", medium: "medium", high: "high" };
   function updateStrain(rig = state.rig) {
@@ -483,7 +516,8 @@ async function build(undo) {
   });
   store.on("rig", () => { rootEl.dataset.hmState = "ready"; updateStatus(); renderInspector(); });
   // a panel's own inspector content is left alone on pose events: it may hold the slider being dragged that causes them
-  store.on("pose", () => { if (state.selection && !inspectorBy.get(activeTab)) renderInspector(); if (state.display.strain) updateStrain(); });
+  store.on("pose", () => { if (state.selection && !inspectorBy.get(activeTab)) renderInspector(); if (state.display.strain) updateStrain(); requestSight(); });
+  store.on("scene", requestSight);
   store.on("busy", (b) => { // the spinner shows at once while there is no figure yet, after a short delay when one is being replaced (no flicker)
     clearTimeout(busyTimer);
     busyText.textContent = state.profile ? "Building the model…" : "Loading the profile…";

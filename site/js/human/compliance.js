@@ -7,21 +7,28 @@
 import * as THREE from "three";
 import { byType } from "./catalog.js";
 import { viewInfo } from "./measure.js";
-import { surfaceIndex, nearestSurface, rayHit } from "./clearance.js";
-import { checkPosture, checkObject, checkScene, summarize, loadGeometry, postureLoad, LIFT, clauseRef, STANDARD, STATUS_WORD } from "./mil1472.js";
+import { surfaceIndex, nearestSurface, rayHit, insideSurface } from "./clearance.js";
+import { checkPosture, checkObject, checkScene, summarize, loadGeometry, postureLoad, LIFT, clauseRef, STANDARD, STATUS_WORD, CONTROL_TYPES } from "./mil1472.js";
 
 const LOAD_TYPES = new Set(["crate", "small_box", "ammo_can", "toolbox", "rucksack", "drum", "sandbag", "jerrycan", "pallet"]);
 const DISPLAY_ANCHORS = ["screen_centre", "glass_centre", "panel_centre"];
 export const HOLD_TOLERANCE = 0.03; // m: a grip centre this close to a grip of an object is a hand on that grip
 const IN2M = 0.0254;
-// body-to-surface clearance (5.6.2.2): skin landmarks of the head and of the body; hands are left out (they touch the controls on purpose)
+// body-to-surface clearance (5.6.2.2): points on the skin (a sample of the skin's vertices, or skin landmarks when the figure has no skin); the hands are
+// left out (they touch the controls on purpose), and so are the arms for an object the hands are on
 export const HEAD_MARKS = ["vertex", "glabella", "opisthocranion", "euryon_L", "euryon_R", "pronasale", "menton"];
 export const BODY_MARKS = ["acromion_L", "acromion_R", "deltoid_L", "deltoid_R", "olecranon_L", "olecranon_R", "chest_front", "scapula_back_L", "scapula_back_R",
   "trochanterion_L", "trochanterion_R", "knee_front_L", "knee_front_R", "knee_top_L", "knee_top_R", "toe_tip_L", "toe_tip_R", "heel_L", "heel_R", "buttock_extremity"];
-// landmarks that rest on a support: a surface below them (the floor, a seat pan) or behind the back (a seat back) is contact, not a clearance
-const RESTS_BELOW = new Set(["toe_tip_L", "toe_tip_R", "heel_L", "heel_R", "buttock_extremity"]), RESTS_BEHIND = new Set(["scapula_back_L", "scapula_back_R", "buttock_extremity"]);
-export const CLEAR_RADIUS = 0.3; // m: surfaces farther than this from every landmark are "clear"
+const MARK_PART = { olecranon_L: "arm", olecranon_R: "arm", deltoid_L: "arm", deltoid_R: "arm", toe_tip_L: "foot", toe_tip_R: "foot", heel_L: "foot", heel_R: "foot" };
+export const SKIN_SAMPLES = 900;
+export const CLEAR_RADIUS = 0.3; // m: around a cabin or an imported model, surfaces farther than this from every point are "clear"
+export const NEAR_RADIUS = 0.15; // m: around any other object
+const CONTACT = 0.03, SUNK = 0.015; // m: a point this close to a surface below it rests on it; a point this far inside a part is inside the object
 const CLEARANCE_TYPES = new Set(["cabin_shell", "cad_model"]), DESK_TYPES = new Set(["desk", "console"]), WALL_TYPES = new Set(["wall", "partition"]);
+// reference objects take no part in the body's clearance; crew-station objects are held to 5.6.2.2 as a "shall" (elsewhere it is a guide: Check)
+const NO_CLEARANCE = new Set(["cube_1m", "measuring_pole", "point_marker", "floor_tile"]);
+const HAND_CONTROLS = new Set(["joystick", "throttle", "lever", "steering_wheel", "keyboard_mouse"]);
+const CREW_TYPES = new Set(["cabin_shell", "cad_model", "cabin_seat", "jump_seat", "instrument_panel", "side_console", "steering_wheel", "pedals", "joystick", "throttle", "lever", "hud_panel"]);
 const DESK_WALL_RANGE = 3; // m: a wall farther than this behind a desk's user is not part of that workspace
 const fin = (v) => typeof v === "number" && Number.isFinite(v);
 
@@ -97,7 +104,7 @@ export function sceneFacts({ rig, editor, sandbox = null, profile = null }) {
       }
     }
   }
-  relationFacts(facts, sandbox, L, fwd);
+  relationFacts(facts, sandbox, L, fwd, rig);
   // the load in the hands: a load object held by at least one hand
   for (const [oid, sides] of held) {
     const o = sandbox.objects.get(oid);
@@ -115,10 +122,10 @@ export function sceneFacts({ rig, editor, sandbox = null, profile = null }) {
  * facts.walls): the head room above each seat inside a cabin (Figure 39), the gap from the figure's skin to the surfaces of a cabin or an imported model
  * (5.6.2.2.1 to 5.6.2.2.4) and the space from a desk's user edge to the wall behind its user (Figure 58 D).
  */
-function relationFacts(facts, sandbox, L, fwd) {
+function relationFacts(facts, sandbox, L, fwd, rig) {
   const all = [...sandbox.objects.values()].filter((o) => o.visible);
   const box = new THREE.Box3(), pt = new THREE.Vector3(), dir = new THREE.Vector3();
-  facts.cabins = []; facts.clearances = []; facts.desks = []; facts.walls = [];
+  facts.cabins = []; facts.clearances = []; facts.desks = []; facts.walls = []; facts.sight = null;
   // head room above every seat inside a cabin
   const seats = all.filter((o) => Object.hasOwn(o._anchors ?? {}, "srp"));
   for (const c of all.filter((o) => o.type === "cabin_shell")) {
@@ -133,30 +140,42 @@ function relationFacts(facts, sandbox, L, fwd) {
     }
     facts.cabins.push(entry);
   }
-  // the figure's skin to the surfaces of cabins and imported models
-  const marks = [...HEAD_MARKS.map((id) => [id, "head"]), ...BODY_MARKS.map((id) => [id, "body"])].map(([id, part]) => ({ id, part, p: L(id) })).filter((m) => m.p);
-  const fig = new THREE.Box3();
-  for (const m of marks) fig.expandByPoint(pt.set(...m.p));
-  const side = [fwd[1], -fwd[0]];
-  for (const o of all.filter((x) => CLEARANCE_TYPES.has(x.type))) {
-    const idx = surfaceIndex(o), entry = { id: o.id, name: o.name, type: o.type, measured: false, near: false, hits: [] };
-    facts.clearances.push(entry);
-    if (!idx || fig.isEmpty()) continue;
+  // the figure's skin to the surfaces of every object near it
+  const pts = bodyPoints(rig, L), fig = new THREE.Box3();
+  for (const m of pts) fig.expandByPoint(pt.set(...m.p));
+  const side = [fwd[1], -fwd[0]], hands = ["grip_centre_L", "grip_centre_R", "palm_centre_L", "palm_centre_R", "middle_tip_L", "middle_tip_R"].map(L).filter(Boolean);
+  const held = new Set(facts.holds.map((h) => h.objectId)), cabins = all.filter((o) => o.type === "cabin_shell");
+  for (const o of all) {
+    if (NO_CLEARANCE.has(o.type) || o.id === facts.seat?.id || held.has(o.id) || o.attachedTo) continue;
+    const big = CLEARANCE_TYPES.has(o.type), R = big ? CLEAR_RADIUS : NEAR_RADIUS;
+    const entry = { id: o.id, name: o.name, type: o.type, crew: CREW_TYPES.has(o.type) || cabins.some((c) => insideFootprint(sandbox, c, o)), measured: false, near: false, hits: [] };
+    const idx = surfaceIndex(o);
+    if (!idx || fig.isEmpty()) { if (big) facts.clearances.push(entry); continue; }
     entry.measured = true;
-    box.setFromObject(o.model).expandByScalar(CLEAR_RADIUS);
-    if (!box.intersectsBox(fig)) continue;
+    box.setFromObject(o.model).expandByScalar(R);
+    if (!box.intersectsBox(fig)) { if (big) facts.clearances.push(entry); continue; }
     entry.near = true;
-    for (const m of marks) {
-      const h = nearestSurface(idx, m.p, CLEAR_RADIUS);
-      if (!h) continue;
-      const d = [m.p[0] - h.point[0], m.p[1] - h.point[1], m.p[2] - h.point[2]];
+    const inHand = hands.some((h) => nearestSurface(idx, h, 0.05)); // the hands are on it: the arms may come close
+    const controls = HAND_CONTROLS.has(o.type), feetOn = o.type === "pedals";
+    for (const m of pts) {
+      if (m.part === "hand" || (inHand && m.part === "arm") || (feetOn && m.part === "foot") || !box.containsPoint(pt.set(...m.p))) continue;
+      const h = nearestSurface(idx, m.p, R), inside = insideSurface(idx, m.p);
+      if (!h && !inside) continue;
+      const dist = h ? h.distance : R, sunk = inside && dist > SUNK;
+      const d = h ? [m.p[0] - h.point[0], m.p[1] - h.point[1], m.p[2] - h.point[2]].map((x) => (inside ? -x : x)) : [0, 1, 0]; // from the surface outwards to the point
       const fore = d[0] * fwd[0] + d[2] * fwd[1], lat = d[0] * side[0] + d[2] * side[1], vert = d[1];
       const axis = Math.abs(vert) >= Math.abs(fore) && Math.abs(vert) >= Math.abs(lat) ? "vertical" : Math.abs(fore) >= Math.abs(lat) ? "fore-aft" : "lateral";
-      if (axis === "vertical" && vert > -0.03 && RESTS_BELOW.has(m.id)) continue; // standing or sitting on it (or sunk a little into a floor slab)
-      if (axis === "fore-aft" && fore > 0 && RESTS_BEHIND.has(m.id)) continue; // leaning on a seat back
-      entry.hits.push({ landmark: m.id, part: m.part, axis, distance: h.distance });
+      if (!sunk) {
+        if (controls && !sunk) continue; // a control sits next to the body by design (a cyclic between the knees, feet on pedals): only going into it counts
+        if (axis === "vertical" && vert >= 0 && (m.part === "foot" || m.part === "leg" || dist < CONTACT)) continue; // standing, sitting or leaning on it from above
+        if (axis === "vertical" && m.part === "foot" && dist < 0.05) continue; // a sole on or a little into a floor (a cabin's floor plate is 2 cm thick)
+        if (axis === "fore-aft" && fore > 0 && m.part === "body" && dist < CONTACT) continue; // the back against a seat back or a wall
+      }
+      entry.hits.push({ landmark: m.id, part: m.part === "head" ? "head" : "body", axis, distance: sunk ? -dist : inside ? 0 : dist });
     }
+    if (big || entry.hits.length) facts.clearances.push(entry);
   }
+  facts.sight = sightFacts(rig, sandbox, L, all);
   // desk to wall: from each desk's user edge, along the direction its user faces away from it, to the nearest wall or partition
   const walls = all.filter((o) => WALL_TYPES.has(o.type)), facing = new Map(walls.map((w) => [w.id, 0]));
   for (const d of all.filter((o) => DESK_TYPES.has(o.type))) {
@@ -175,6 +194,111 @@ function relationFacts(facts, sandbox, L, fwd) {
     facts.desks.push({ id: d.id, name: d.name, type: d.type, ...best });
   }
   for (const w of walls) facts.walls.push({ id: w.id, name: w.name, desks: facing.get(w.id) });
+}
+
+/** True when the object's base centre lies inside the footprint of a cabin shell (then it is part of a crew station). */
+function insideFootprint(sandbox, cabin, o) {
+  if (cabin.id === o.id) return false;
+  const lp = sandbox.worldToLocal(cabin.id, new THREE.Vector3(...o.position));
+  return !!lp && Math.abs(lp.x) <= cabin.params.width / 2 && Math.abs(lp.z) <= cabin.params.length / 2;
+}
+
+const BONE_PART = (b) => (/^(head|jaw|eye_)/.test(b) ? "head" : /^(wrist|thumb|index|middle|ring|little)/.test(b) ? "hand" : /^(shoulder|elbow|forearm)_/.test(b) ? "arm" : /^(ankle|mtp)_/.test(b) ? "foot" : /^knee_/.test(b) ? "leg" : "body");
+const skinSamples = new WeakMap(); // skinned mesh -> [{ i, bone, part }]
+/** Points on the skin: { id (a body-part word), part: head | arm | hand | foot | body, p: [x, y, z] world }. A fixed sample of the skin's vertices, or the skin landmarks. */
+export function bodyPoints(rig, L = (id) => { try { return rig.landmarkWorld(id, new THREE.Vector3()).toArray(); } catch { return null; } }) {
+  const meshes = (rig?._skinned ?? []).filter((m) => m.isSkinnedMesh && m.geometry?.attributes?.skinIndex);
+  if (meshes.length) {
+    const out = [], v = new THREE.Vector3(), total = meshes.reduce((n, m) => n + m.geometry.attributes.position.count, 0), stride = Math.max(1, Math.floor(total / SKIN_SAMPLES));
+    rig.group?.updateMatrixWorld(true);
+    for (const m of meshes) {
+      let list = skinSamples.get(m);
+      if (!list) {
+        const si = m.geometry.attributes.skinIndex, sw = m.geometry.attributes.skinWeight;
+        list = [];
+        for (let i = 0; i < m.geometry.attributes.position.count; i += stride) {
+          let k = 0;
+          for (let j = 1; j < si.itemSize; j++) if (sw.getComponent(i, j) > sw.getComponent(i, k)) k = j;
+          const bone = m.skeleton.bones[si.getComponent(i, k)]?.name ?? "";
+          list.push({ i, bone, part: BONE_PART(bone) });
+        }
+        skinSamples.set(m, list);
+      }
+      for (const s of list) { m.getVertexPosition(s.i, v); v.applyMatrix4(m.matrixWorld); out.push({ id: s.bone, part: s.part, p: v.toArray() }); }
+    }
+    return out;
+  }
+  return [...HEAD_MARKS.map((id) => [id, "head"]), ...BODY_MARKS.map((id) => [id, MARK_PART[id] ?? "body"])].map(([id, part]) => ({ id, part, p: L(id) })).filter((m) => m.p);
+}
+
+// ---- line of sight (Figure 2): the head's own frame from skin landmarks of the skull; the normal line of sight is 15 degrees below its horizontal
+export const NORMAL_LOS_DOWN = 15;
+/** The eye point and the head frame: { eye, forward, left, up, los } (world, unit vectors), or null. */
+export function headFrame(L) {
+  const g = L("glabella"), o = L("opisthocranion"), tl = L("tragion_L"), tr = L("tragion_R"), eye = L("eye_mid");
+  if (!g || !o || !tl || !tr || !eye) return null;
+  const f = new THREE.Vector3(...g).sub(new THREE.Vector3(...o)).normalize(), l = new THREE.Vector3(...tl).sub(new THREE.Vector3(...tr));
+  l.addScaledVector(f, -l.dot(f)).normalize();
+  const u = new THREE.Vector3().crossVectors(f, l).normalize();
+  const a = NORMAL_LOS_DOWN * Math.PI / 180, los = f.clone().multiplyScalar(Math.cos(a)).addScaledVector(u, -Math.sin(a)).normalize();
+  return { eye, forward: f.toArray(), left: l.toArray(), up: u.toArray(), los: los.toArray() };
+}
+const ARM_SEGMENTS = [["acromion", "olecranon", 0.05], ["olecranon", "stylion", 0.04], ["stylion", "middle_tip", 0.045]];
+/**
+ * What the eyes see (5.10.3.6.1.5, 5.1.2.2.3.8 and .11, 5.10.3.7.1.6.4): for every display and control, its angle off the normal line of sight, and what
+ * blocks the straight line from the eye to it: another object (glass does not block) or the figure's own arm.
+ */
+export function sightFacts(rig, sandbox, L, all = [...sandbox.objects.values()].filter((o) => o.visible)) {
+  const H = headFrame(L);
+  if (!H) return null;
+  const eye = new THREE.Vector3(...H.eye), los = new THREE.Vector3(...H.los), up = new THREE.Vector3(...H.up), left = new THREE.Vector3(...H.left);
+  const arms = [];
+  for (const s of ["L", "R"]) for (const [a, b, r] of ARM_SEGMENTS) { const A = L(`${a}_${s}`), B = L(`${b}_${s}`); if (A && B) arms.push({ a: new THREE.Vector3(...A), b: new THREE.Vector3(...B), r, side: s }); }
+  const targets = [];
+  for (const o of all) {
+    const anchor = DISPLAY_ANCHORS.find((a) => Object.hasOwn(o._anchors ?? {}, a)), control = CONTROL_TYPES.has(o.type);
+    if (!anchor && !control) continue;
+    const kind = control && o.type !== "instrument_panel" ? "control" : "display";
+    let point = anchor ? sandbox.anchorWorld(o.id, anchor, new THREE.Vector3()) : null;
+    if (!point) {
+      let grips = [];
+      try { grips = sandbox.gripsWorld(o.id); } catch { grips = []; }
+      point = grips.length ? grips.reduce((acc, g) => acc.add(g.position), new THREE.Vector3()).multiplyScalar(1 / grips.length) : new THREE.Box3().setFromObject(o.model).getCenter(new THREE.Vector3());
+    }
+    const to = point.clone().sub(eye), dist = to.length();
+    if (dist < 0.05) continue;
+    const dir = to.clone().divideScalar(dist);
+    const angle = Math.acos(Math.min(1, Math.max(-1, dir.dot(los)))) * 180 / Math.PI;
+    // elevation against the true horizontal; azimuth against the direction the head faces, seen from above
+    const hf = new THREE.Vector3(H.forward[0], 0, H.forward[2]), hl = new THREE.Vector3(H.left[0], 0, H.left[2]);
+    const vert = Math.asin(Math.min(1, Math.max(-1, dir.y))) * 180 / Math.PI, horiz = Math.atan2(dir.dot(hl), dir.dot(hf)) * 180 / Math.PI;
+    let blockedBy = null;
+    for (const x of all) {
+      if (x.id === o.id || x.attachedTo) continue;
+      const t = rayHit(surfaceIndex(x), H.eye, dir.toArray(), dist - 0.02, { seeThrough: true });
+      if (t != null && (!blockedBy || t < blockedBy.distance)) blockedBy = { id: x.id, name: x.name, distance: t };
+    }
+    const arm = arms.find((s) => segSegDistance(eye, point, s.a, s.b) < s.r) ?? null;
+    targets.push({ id: o.id, name: o.name, type: o.type, kind, point: point.toArray(), distance: dist, angle, vert, horiz,
+      blockedBy, arm: arm ? (arm.side === "L" ? "left arm" : "right arm") : null });
+  }
+  return { ...H, targets };
+}
+/** Shortest distance between segments PQ and AB (THREE.Vector3). */
+function segSegDistance(P, Q, A, B) {
+  const d1 = Q.clone().sub(P), d2 = B.clone().sub(A), r = P.clone().sub(A), a = d1.dot(d1), e = d2.dot(d2), f = d2.dot(r);
+  let s, t;
+  if (a < 1e-12 && e < 1e-12) return P.distanceTo(A);
+  if (a < 1e-12) { s = 0; t = Math.min(1, Math.max(0, f / e)); } else {
+    const c = d1.dot(r);
+    if (e < 1e-12) { t = 0; s = Math.min(1, Math.max(0, -c / a)); } else {
+      const b = d1.dot(d2), den = a * e - b * b;
+      s = den > 1e-12 ? Math.min(1, Math.max(0, (b * f - c * e) / den)) : 0;
+      t = (b * s + f) / e;
+      if (t < 0) { t = 0; s = Math.min(1, Math.max(0, -c / a)); } else if (t > 1) { t = 1; s = Math.min(1, Math.max(0, (b - c) / a)); }
+    }
+  }
+  return P.clone().addScaledVector(d1, s).distanceTo(A.clone().addScaledVector(d2, t));
 }
 
 /** Group results by their subject: [{ subject, results, summary }] in first-seen order. */
