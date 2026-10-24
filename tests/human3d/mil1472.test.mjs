@@ -371,3 +371,64 @@ test("relations in the scene: head room above a seat in a cabin (Figure 39), the
   r = complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile });
   assert.equal(objectCompliance(r, wall2.id).summary.status, "na");
 });
+
+test("moving the figure into an object: the body inside an equipment rack fails 5.6.2.2 with a negative clearance; clear of it, nothing is reported", () => {
+  const w = world();
+  w.ed.apply("stand-relaxed");
+  const rack = w.sb.add("equipment_rack", { position: [0, 0, 1.5], yaw: 180 });
+  let rep = complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile });
+  assert.ok(!rep.interactions.some((g) => g.subject.id === `clear:${rack.id}`), "1.5 m away: no clearance rows");
+  w.sb.move(rack.id, { x: 0, z: 0.25 }, { snap: false });
+  rep = complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile });
+  const g = rep.interactions.find((x) => x.subject.id === `clear:${rack.id}`);
+  assert.ok(g, "the figure touches the rack");
+  const inside = g.results.filter((r) => r.value < 0);
+  assert.ok(inside.length && inside.every((r) => r.status === "fail" && /INSIDE/.test(r.note)), JSON.stringify(g.results.map((r) => [r.id, r.status, r.value])));
+  assert.equal(objectCompliance(rep, rack.id).summary.status, "not-compliant");
+  // a desk is not a crew station: a near miss is Check, not Fail
+  const w2 = world();
+  w2.ed.apply("stand-relaxed");
+  const k = w2.rig.landmarkWorld("knee_front_L");
+  const desk = w2.sb.add("desk", { position: [0, 0, k.z + 0.02 + 0.35], yaw: 180 });
+  w2.sb.setParam(desk.id, "height", 0.6);
+  const r2 = complianceReport({ rig: w2.rig, editor: w2.ed, sandbox: w2.sb, profile: w2.profile }).interactions.find((x) => x.subject.id === `clear:${desk.id}`);
+  if (r2) for (const r of r2.results) if (r.value >= 0) assert.notEqual(r.status, "fail", `${r.id} ${r.value}`);
+});
+
+test("line of sight: a display in front is in the field and clear; behind a box it is obstructed; far to the side it is out of the 45 degree field; a control behind a wall cannot be seen", () => {
+  const w = world();
+  w.ed.apply("stand-relaxed");
+  const eye = w.rig.landmarkWorld("eye_mid").clone();
+  const mon = w.sb.add("monitor", { position: [eye.x, 0, eye.z + 0.8], yaw: 180 });
+  w.sb.setParam(mon.id, "centreHeight", eye.y - 0.2);
+  const view = () => complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile }).interactions.find((g) => g.subject.id === `view:${mon.id}`);
+  let v = view(), st = (id) => v.results.find((r) => r.id === id);
+  assert.equal(st("los-field").status, "pass");
+  assert.ok(st("los-field").value < 20, `${st("los-field").value}°`);
+  assert.equal(st("unobstructed").status, "pass");
+  assert.equal(st("arm").status, "pass");
+  const sight = sceneFacts({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile }).sight;
+  const dot = sight.los.reduce((acc, x, i) => acc + x * sight.forward[i], 0);
+  assert.ok(Math.abs(Math.acos(dot) * 180 / Math.PI - 15) < 0.01, "the normal line of sight is 15 degrees below the head's horizontal");
+  assert.ok(sight.los[1] < -0.2 && sight.los[1] > -0.5, `and points down: ${sight.los}`);
+  const t = sight.targets.find((x) => x.id === mon.id);
+  assert.ok(t.vert < -10 && t.vert > -18, `about 14 degrees below the horizontal: ${t.vert}`);
+  // a box between the eyes and the display
+  const box = w.sb.add("box", { position: [eye.x, 0, eye.z + 0.4] });
+  w.sb.setParam(box.id, "height", eye.y);
+  v = view();
+  assert.equal(st("unobstructed").status, "fail");
+  assert.match(st("unobstructed").note, /Box/);
+  w.sb.remove(box.id);
+  // 60 degrees to the side: out of the field
+  const a = 60 * Math.PI / 180;
+  w.sb.move(mon.id, { x: eye.x + Math.sin(a) * 0.8, z: eye.z + Math.cos(a) * 0.8 }, { snap: false });
+  v = view();
+  assert.equal(st("los-field").status, "fail", `${st("los-field").value}`);
+  // a joystick within reach, then a wall between it and the eyes
+  const js = w.sb.add("joystick", { position: [eye.x, 0, eye.z + 0.5] });
+  const seen = () => complianceReport({ rig: w.rig, editor: w.ed, sandbox: w.sb, profile: w.profile }).interactions.find((g) => g.subject.id === `see:${js.id}`)?.results[0];
+  assert.equal(seen().status, "pass");
+  w.sb.add("partition", { position: [eye.x, 0, eye.z + 0.3], yaw: 0 });
+  assert.equal(seen().status, "fail");
+});

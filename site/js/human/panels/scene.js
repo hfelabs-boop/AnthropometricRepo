@@ -439,12 +439,49 @@ export default {
       for (const [oid, r] of rowEls) if (!seen.has(oid)) { r.li.remove(); rowEls.delete(oid); }
       listCount.textContent = String(rowEls.size);
       listEmpty.hidden = rowEls.size > 0;
+      syncVis();
       updateAddState();
       if (pendingFocus != null) {
         const rows = [...list.children], next = rows[Math.min(pendingFocus, rows.length - 1)];
         (next?.querySelector(".hm-ol-main") ?? search).focus();
         pendingFocus = null;
       }
+    }
+
+    // ---- show and hide parts of the scene: everything, the selected object alone, walls and shells, or a whole category -----------------------
+    // (hidden objects stay in the scene file but leave the 3D view, picking and the MIL-STD-1472H checks)
+    const STRUCTURES = new Set(["cabin_shell", "wall", "partition", "doorway", "hatch", "cad_model"]);
+    const setVis = (label, pred, v) => sandbox.grouped(label, () => { for (const o of [...sandbox.objects.values()]) if (pred(o) && o.visible !== v) sandbox.setVisible(o.id, v); });
+    const visAll = h("button", { type: "button", class: "btn small", title: "Show every object", onclick: () => setVis("Show all", () => true, true) }, svgIcon("eye", 14), "Show all");
+    const visNone = h("button", { type: "button", class: "btn small", title: "Hide every object (the figure stays)", onclick: () => setVis("Hide all", () => true, false) }, svgIcon("eye-off", 14), "Hide all");
+    const visOnly = h("button", { type: "button", class: "btn small", title: "Hide everything but the selected object", onclick: () => { const id = sandbox.selected; if (id) sandbox.grouped("Show only the selected object", () => { for (const o of [...sandbox.objects.values()]) if ((o.id === id) !== o.visible) sandbox.setVisible(o.id, o.id === id); }); } }, "Only selected");
+    const visShells = chipButton({ label: "Walls and shells", toggle: true, pressed: true, title: "Show or hide cabin shells, walls, partitions, doorways, hatches and imported models: see inside a cockpit or past a wall",
+      onClick: () => { const any = [...sandbox.objects.values()].some((o) => STRUCTURES.has(o.type) && o.visible); setVis(any ? "Hide walls and shells" : "Show walls and shells", (o) => STRUCTURES.has(o.type), !any); } });
+    const visCats = h("div", { class: "hm-sc-viscats", role: "group", "aria-label": "Show or hide by category" });
+    const visNote = h("p", { class: "small muted hm-sc-visnote", hidden: true });
+    const catChips = new Map();
+    function syncVis() {
+      const objs = [...sandbox.objects.values()], hidden = objs.filter((o) => !o.visible).length;
+      visAll.disabled = !hidden; visNone.disabled = hidden === objs.length; visOnly.disabled = !sandbox.selected || objs.length < 2;
+      const shells = objs.filter((o) => STRUCTURES.has(o.type));
+      visShells.hidden = !shells.length;
+      visShells.setPressed?.(shells.some((o) => o.visible));
+      const cats = new Map();
+      for (const o of objs) { const c = byType(o.type)?.category ?? "Other"; cats.set(c, [...(cats.get(c) ?? []), o]); }
+      for (const [c, chip] of catChips) if (!cats.has(c)) { chip.remove(); catChips.delete(c); }
+      for (const [c, list] of cats) {
+        let chip = catChips.get(c);
+        if (!chip) {
+          chip = chipButton({ label: c, toggle: true, pressed: true, onClick: () => { const on = [...sandbox.objects.values()].some((o) => (byType(o.type)?.category ?? "Other") === c && o.visible); setVis(`${on ? "Hide" : "Show"} ${c}`, (o) => (byType(o.type)?.category ?? "Other") === c, !on); } });
+          catChips.set(c, chip);
+          visCats.append(chip);
+        }
+        const shown = list.filter((o) => o.visible).length;
+        chip.setPressed?.(shown > 0);
+        chip.title = `${c}: ${shown} of ${list.length} shown. Press to ${shown ? "hide" : "show"} them`;
+      }
+      visNote.hidden = !hidden;
+      visNote.textContent = hidden ? `${hidden} hidden object${hidden === 1 ? " is" : "s are"} left out of the 3D view and of the MIL-STD-1472H checks.` : "";
     }
 
     // ---- undo / redo ---------------------------------------------------------------------------------------------------------
@@ -748,7 +785,8 @@ export default {
     const addSection = section("Add an object", [h("div", { class: "field hm-obj-search" }, h("label", { for: id.search, class: "sr-only" }, "Search objects"), h("span", { class: "hm-obj-sicon" }, svgIcon("search", 14)), search), catBar, grid, detail], { open: true });
     const tplSection = section("Environment presets", [tplBody], { open: true });
     const cadSection = section("Import CAD / 3D model", [cadBody], { open: true });
-    const objSection = section("Objects in the scene", [h("div", { class: "hm-sc-row" }, h("button", { type: "button", class: "btn small", onclick: () => sandbox.frameObjects(null), title: "Fit every object in the 3D view" }, svgIcon("frame", 14), "Show all")), listEmpty, list], { open: true });
+    const objSection = section("Objects in the scene", [h("div", { class: "hm-sc-row" }, h("button", { type: "button", class: "btn small", onclick: () => sandbox.frameObjects(null), title: "Fit every object in the 3D view" }, svgIcon("frame", 14), "Fit in view"), visAll, visNone, visOnly, visShells),
+      visCats, visNote, listEmpty, list], { open: true });
     objSection.querySelector("summary").append(listCount);
     const editSection = section("Selected object", [editorSlot], { open: true });
     const snapSection = section("Move, snap and gizmo", [snapBody], { open: false });

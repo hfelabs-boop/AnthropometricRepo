@@ -13,7 +13,7 @@ import { formatOf, guessUnits, CAD_ACCEPT, importCadFile, getAsset, parseCad, co
 import { byType, buildObject, disposeObject, normalizeParams, notifyAssetReady } from "../../site/js/human/catalog.js";
 import { createSandbox, TEMPLATES, TEMPLATE_GROUPS } from "../../site/js/human/sandbox.js";
 import { byId } from "../../site/js/human/postures.js";
-import { surfaceIndex, nearestSurface, rayHit } from "../../site/js/human/clearance.js";
+import { surfaceIndex, nearestSurface, rayHit, insideSurface } from "../../site/js/human/clearance.js";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const ab = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
@@ -202,4 +202,21 @@ test("equipment rack: the service bay sits between its heights, every door style
   assert.ok(low.bay_bottom.position[1] >= 0.12 - 1e-9 && low.bay_top.position[1] <= 0.97 + 1e-9, "the bay is kept inside the cabinet");
   const shell = buildObject("cabin_shell", {}).userData.bbox;
   assert.ok(Math.abs(shell.max.y - 1.5) < 0.05 && shell.min.y > -1e-6, "the canopy rises to the inside height");
+});
+
+test("clearance: lines of sight pass through glass; a point inside a closed part is inside, a point under an open canopy is not", () => {
+  const vp = { scene: new THREE.Scene(), container: new EventTarget(), add(o) { this.scene.add(o); }, remove(o) { this.scene.remove(o); }, requestRender() {}, on: () => () => {}, setCursor() {}, addLabelSource: () => () => {}, removeLabelSource() {}, detachGizmo() {}, frame() {} };
+  const ctx = { state: {}, viewport: vp, on: () => () => {}, emit() {}, select() {}, getRig: () => null, toast() {}, units: "mm" };
+  const sb = createSandbox({ viewport: vp, ctx, scheduler: (fn) => { const t = setTimeout(fn, 0); return () => clearTimeout(t); } });
+  const cab = sb.add("cabin_shell", { position: [0, 0, 0], params: { roof: "canopy", height: 1.4 } });
+  const idx = surfaceIndex(cab);
+  const up = rayHit(idx, [0, 0.5, 0], [0, 1, 0], 5);
+  assert.ok(up != null && up > 0.5, `the canopy stops a plain ray: ${up}`);
+  assert.equal(rayHit(idx, [0, 0.5, 0], [0, 1, 0], 5, { seeThrough: true }), null, "but not a line of sight");
+  assert.equal(insideSurface(idx, [0, 0.8, 0]), false, "the middle of the cabin is open space");
+  const box = sb.add("box", { position: [3, 0, 0] }), bh = box.bbox.max.y;
+  assert.equal(insideSurface(surfaceIndex(box), [3, bh / 2, 0]), true, "the middle of a solid box");
+  assert.equal(insideSurface(surfaceIndex(box), [3, bh + 0.1, 0]), false, "above it");
+  assert.ok(Math.abs(nearestSurface(surfaceIndex(box), [3, bh - 0.02, 0], 0.3).distance - 0.02) < 1e-4, "2 cm under its top face");
+  sb.dispose();
 });

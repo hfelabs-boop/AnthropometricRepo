@@ -51,7 +51,7 @@ test("store: display toggles validate keys and values and only emit on change", 
   assert.throws(() => s.setDisplay({ wireframe: true }), /unknown display option/);
   assert.throws(() => s.setDisplay({ skin: "yes" }), TypeError);
   assert.equal(s.state.display.skin, true, "a rejected call changes nothing");
-  assert.equal(DISPLAY_KEYS.length, 9);
+  assert.equal(DISPLAY_KEYS.length, 10);
 });
 
 test("store: selection model", () => {

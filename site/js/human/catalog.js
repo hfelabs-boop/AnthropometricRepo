@@ -1804,6 +1804,7 @@ function buildCadGroup(asset, p, color, { boxOnly = false } = {}) {
       if (!o.isMesh) return;
       const mats = [].concat(o.material ?? []).map((m) => {
         const c = (m ?? new THREE.MeshStandardMaterial()).clone();
+        c.userData.glass = !!(m?.transparent && m.opacity < 0.6); // see-through in the file (lines of sight pass); the opacity slider below is a view setting
         if (uniform && c.color) { c.color.copy(base); c.map = null; c.vertexColors = false; }
         c.side = THREE.DoubleSide;
         if (p.opacity < 0.999) { c.transparent = true; c.opacity = p.opacity; c.depthWrite = false; }

@@ -345,7 +345,7 @@ def test_every_control_can_be_reached_with_the_keyboard(s):
     s.open()
     seen = set()
     s.page.locator("button[role=tab][data-tab=profile]").focus()
-    for _ in range(40):
+    for _ in range(120):  # the Profile panel's dimension table comes first in the tab order
         s.page.keyboard.press("Tab")
         seen.add(s.js("document.activeElement.getAttribute('aria-label') || document.activeElement.textContent.trim()"))
     for needle in ("Front", "mm", "Quality: ", "Hide"):  # one stop per toolbar (roving), the canvas, the status bar, the inspector
@@ -357,7 +357,7 @@ def test_every_control_can_be_reached_with_the_keyboard(s):
     s.page.keyboard.press("ArrowRight")
     assert s.js("document.activeElement.textContent") == "Joints"
     s.page.keyboard.press("End")
-    assert s.js("document.activeElement.textContent") == "Grid"
+    assert s.js("document.activeElement.textContent") == s.js("[...document.querySelectorAll('.hm-bar-bottom button')].filter((b) => !b.disabled).at(-1).textContent")
     s.page.keyboard.press("ArrowRight")
     first = s.js("document.activeElement.textContent")
     assert first in ("Skin", "Skeleton"), "wraps to the first enabled control (Skin is disabled without a skin generator)"

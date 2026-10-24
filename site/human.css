@@ -232,6 +232,12 @@
 .hm-strain li[data-level="low"] .hm-strain-dot { background: #22a55b; }
 .hm-strain li[data-level="medium"] .hm-strain-dot { background: #f2b705; }
 .hm-strain li[data-level="high"] .hm-strain-dot { background: #e5484d; }
+.hm-sight { left: 10px; right: auto; top: 108px; max-width: min(280px, calc(100% - 20px)); max-height: calc(100% - 200px); }
+.hm-sight li[data-level="good"] .hm-strain-dot { background: #1f9d55; }
+.hm-sight li[data-level="warn"] .hm-strain-dot { background: #d99a1e; }
+.hm-sight li[data-level="bad"] .hm-strain-dot { background: #d0453b; }
+.hm-sight li[data-level="bad"] .hm-strain-score { color: var(--bad); font-weight: 600; }
+.hm-sight .hm-strain-score { white-space: normal; text-align: right; }
 .hm-strain-score { font-variant-numeric: tabular-nums; color: var(--text-2); }
 .hm-strain li[data-level="high"] .hm-strain-score { color: var(--bad); font-weight: 600; }
 .hm-strain-note { margin-top: 4px; color: var(--text-2); font-size: .72rem; }

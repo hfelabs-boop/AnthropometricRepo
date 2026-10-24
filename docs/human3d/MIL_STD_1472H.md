@@ -147,7 +147,22 @@ These come from the figure in the scene (`compliance.js` `sceneFacts`).
 
 **Relations measured in the scene** (`compliance.js` `relationFacts`, geometry in `clearance.js`)
 - *Head room above a seat in a cabin* (5.6.2.1, Figure 39): for every seat whose SRP is inside a cockpit / cabin shell, a vertical ray from the SRP to the roof or canopy must find at least 1,070 mm. A cabin with no seat says so (*Not applicable*). Both the cabin and the seat show the result.
-- *The figure to the surfaces of a cabin or an imported model* (5.6.2.2.1 to 5.6.2.2.4): when the figure is within 30 cm of the object, the distance from skin landmarks (head: vertex, glabella, back of the head, the sides of the head, nose, chin; body: shoulders, elbows, chest, shoulder blades, hips, knees, toes, heels, buttocks) to the nearest triangle of the model. The head gives 5.6.2.2.1; the body is split by the main direction of the gap in the figure's frame into fore-aft (5.6.2.2.2), sideways (5.6.2.2.3, *should*) and vertical (5.6.2.2.4). Each must be at least 50 mm. The feet and buttocks on a surface below them and the back against a surface behind it are contact, not clearance. Hands are left out, since they hold the controls. The distance is to the bare skin: add the clothing, helmet and equipment worn (5.6.1.5.1). Hidden CAD layers do not count, and a model that is not loaded is not measured.
+- *The figure to the surfaces of every object near it* (5.6.2.2.1 to 5.6.2.2.4). This re-runs whenever the figure or an object moves, so walking the figure into a rack or a wall turns the report red at once.
+  - **Points on the body:** about 900 vertices of the skin (with no skin, about 30 skin landmarks). Hands are left out, since they hold the controls. So are the arms near an object the hands are on, and the feet on a pedal set.
+  - **Distance:** to the nearest triangle of each object within 15 cm (30 cm around a cabin or an imported model). The head gives 5.6.2.2.1. The body is split by the main direction of the gap, in the figure's frame, into fore-aft (5.6.2.2.2), sideways (5.6.2.2.3, *should*) and vertical (5.6.2.2.4). Each must be at least 50 mm.
+  - **Inside an object:** a point inside a closed part of an object (an odd number of crossings both ways along a ray) is reported with a negative clearance, *the body is INSIDE the object*. It always fails.
+  - **Crew stations and elsewhere:** a cabin, an imported model, a crew seat, panel, console or control, or anything standing inside a cabin is a crew station, where a shortfall fails. Elsewhere 5.6.2.2 is a guide, and a shortfall is *Check*.
+  - **Hand controls** (stick, throttle, lever, wheel, keyboard) sit next to the body by design, so only going into them counts.
+  - **Contact, not clearance:** feet and legs over the floor, any point resting on a surface below it, and the back against a seat back or a wall.
+  - **Not checked:** reference objects, the seat the figure sits on, objects in its hands and objects attached to it.
+  - **Bare skin:** the distance is to the bare skin. Add the clothing, helmet and equipment worn (5.6.1.5.1). Hidden CAD layers do not count, and a model that is not loaded is not measured.
+- *Line of sight* (Figure 2). The normal line of sight is 15° below the head's horizontal, which is the line from the back of the head to the glabella. For each display in front of the figure:
+  - at most 45° off the normal line of sight (5.10.3.6.1.5);
+  - within the 30° cone (15° each side) if it carries warnings or critical indicators (5.1.2.2.3.11, 5.2.3.1.11). Outside the cone this is *Needs input*;
+  - a clear line from the eye, not crossing another object (5.18.7.2.1.1). Glass, such as canopies and windscreens, does not block it;
+  - not behind the figure's own arm, modelled as capsules from shoulder to fingertip (5.1.2.2.3.8).
+
+  Each control within 1.3 m of the eye must have a clear line from the eye (5.10.3.7.1.6.4).
 - *Desk to wall* (Figure 58 D): from the user edge of each desk or console, along the direction the user's back faces, to the nearest wall or partition within 3 m: at least 81 cm. A wall that no desk faces says so (*Not applicable*).
 
 The triangles of each object are indexed once per model in a grid in the object's own frame, so moving the object or the figure costs only the queries (a few milliseconds for a cockpit).
@@ -156,11 +171,25 @@ The triangles of each object are indexed once per model in a grid in the object'
 - Always listed as *Needs input*. The check ran on one body, while 4.5.3 asks for the central 90 % (95 % preferred) of men and of women in their clothing and equipment.
 - Repeat the check with the small and the large boundary bodies, for example a 5th percentile woman and a 95th percentile man (Profile tab).
 
+## Line of sight in the 3D view
+
+The **Line of sight** toggle under the 3D view (`sightview.js`) draws Figure 2 from the figure's eyes:
+- the normal line of sight (blue) and the head's horizontal (dashed);
+- the 30° cone (green) and the 90° cone that bounds the 45° display limit (amber);
+- a line to each display in front of the figure and each control within reach: green when it is in the 30° cone and clear, amber when it is outside the 30° cone, red when it is more than 45° off or hidden behind an object or an arm.
+
+A legend lists every target with its angle. The drawing follows every pose and scene change.
+
+## Showing and hiding parts of the scene
+
+The *Objects in the scene* section of the Scene tab has *Show all*, *Hide all*, *Only selected*, a *Walls and shells* toggle (cabin shells, walls, partitions, doorways, hatches and imported models: to see into a cockpit or past a wall) and one toggle per category present in the scene. Each is one undo step. Hidden objects leave the 3D view, picking and the MIL-STD-1472H checks, and a note under the buttons says how many are hidden.
+
 ## Limits
 
 - **One body only.** The report checks the body on screen. Compliance with 4.5.3 needs the boundary bodies (above).
 - **No clothing or equipment allowances.** 5.8.4.2.3 asks for them; the body is semi-nude survey data.
-- **The model's simplifications** (`DESIGN.md` 0) apply: rigid links, approximate joint centres, no soft tissue. Body clearance (5.6.2.2) is measured from about thirty skin landmarks, not the whole skin, and only to cabins and imported models; the other objects are not tested for collision with the body. Table XXVI's whole-body envelopes (5.8.4.2.4) are not checked.
+- **The model's simplifications** (`DESIGN.md` 0) apply: rigid links, approximate joint centres, no soft tissue. Body clearance (5.6.2.2) is measured from a sample of about 900 skin vertices, so a gap narrower than the spacing of the sample (about 3 to 5 cm) can slip between them. Table XXVI's whole-body envelopes (5.8.4.2.4) are not checked.
+- **Line of sight** is a straight line from the eye point (between the eyes) to one point of each display or control: its centre, or the middle of its grips. A display partly hidden is reported clear when its centre is visible.
 - **Paraphrases.** The texts paraphrase the standard and keep its numbers. Read the clause, at the page given, before you rely on a result. Where the standard contradicts itself (guardrail height, stair angle, ramp angle), the README of the requirements lists both values.
 - **Not covered.** Most of the 1,726 requirements in the catalogue are checklist items or need inputs the site does not have yet: forces, frequencies, labels, lighting, noise. They are not shown as tags.
 
@@ -171,6 +200,8 @@ The triangles of each object are indexed once per model in a grid in the object'
   - the edges of each object rule;
   - all 316 library postures on two bodies;
   - every catalogue type gets a statement;
-  - the real rig, editor and sandbox: seat, display distance, a hand on a handle, a load, head room and body clearance in the cockpit and helicopter presets, a desk against a wall.
-- `tests/human3d/cadimport.test.mjs` checks the clearance geometry on an imported model: nearest surface and rays after a move and a turn, hidden layers, placeholders.
+  - the real rig, editor and sandbox: seat, display distance, a hand on a handle, a load, head room and body clearance in the cockpit and helicopter presets, a desk against a wall;
+  - the figure walking into an equipment rack (inside it: fails), a near miss at a desk (Check, not Fail);
+  - line of sight: a display in the field, behind a box, 60° to the side; a control behind a partition.
+- `tests/human3d/cadimport.test.mjs` checks the clearance geometry (`clearance.js`): nearest surface and rays after a move and a turn, hidden layers, placeholders, glass, and points inside or outside a part.
 - `REQUIRE_BROWSER=1 python -m pytest tests/human3d/test_mil1472.py` (run it on its own, like the other browser test files) covers the real site in Chromium: the library badges, the current posture chip, the Scene rows and selected object, and the Analysis section and its CSV download.
