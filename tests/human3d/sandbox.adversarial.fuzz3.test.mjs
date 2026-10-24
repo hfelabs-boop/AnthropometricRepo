@@ -55,7 +55,7 @@ test("sandbox state-machine fuzz: invariants and undo/redo identity", () => {
         else if (r < 0.2 && id) { op = `remove ${id}`; sb.remove(id); }
         else if (r < 0.3 && id) { op = `move ${id}`; sb.move(id, { x: (R() - 0.5) * 6, z: (R() - 0.5) * 6, ...(R() < 0.3 ? { y: R() * 2 - 0.5 } : {}) }); }
         else if (r < 0.36 && id) { op = `rotate ${id}`; sb.rotate(id, (R() - 0.5) * 900); }
-        else if (r < 0.46 && id) { const o = sb.objects.get(id), ps = CATALOG.find((t) => t.type === o.type).params, p = ps[Math.floor(R() * ps.length)]; op = `param ${id} ${p.key}`; sb.setParam(id, p.key, p.kind === "number" ? p.min + R() * (p.max - p.min) * 1.2 - 0.1 * (p.max - p.min) : p.kind === "bool" ? R() < 0.5 : p.options[Math.floor(R() * p.options.length)].value); }
+        else if (r < 0.46 && id) { const o = sb.objects.get(id), ps = CATALOG.find((t) => t.type === o.type).params, p = ps[Math.floor(R() * ps.length)]; op = `param ${id} ${p.key}`; sb.setParam(id, p.key, p.kind === "number" ? p.min + R() * (p.max - p.min) * 1.2 - 0.1 * (p.max - p.min) : p.kind === "bool" ? R() < 0.5 : p.kind === "text" ? p.default : p.options[Math.floor(R() * p.options.length)].value); }
         else if (r < 0.5 && id) { op = `dup ${id}`; sb.duplicate(id, { select: true }); }
         else if (r < 0.54 && id) { op = `lock ${id}`; sb.setLocked(id, R() < 0.5); }
         else if (r < 0.58 && id) { op = `hide ${id}`; sb.setVisible(id, R() < 0.5); }

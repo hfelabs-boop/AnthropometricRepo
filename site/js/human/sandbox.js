@@ -11,7 +11,7 @@
 // The top of the file is PURE (no three objects needed): snapping, yaw handling, scene validation, the free-spot search. They are unit-tested in
 // Node without WebGL (tests/human3d/sandbox.test.mjs), and so is the whole Sandbox, against a stub viewport.
 import * as THREE from "three";
-import { byType, buildObject, disposeObject, normalizeParams, isHexColor } from "./catalog.js";
+import { byType, buildObject, disposeObject, normalizeParams, isHexColor, onAssetReady } from "./catalog.js";
 
 const D2R = Math.PI / 180, R2D = 180 / Math.PI;
 export const SCENE_APP = "digital-human-scene";
@@ -203,12 +203,25 @@ export function parseSceneText(text, opts) {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// templates: layouts around a figure standing at the origin facing +Z. Seat reference points sit about 0.55 m in front of the figure, so the
-// figure stands behind the seat; displays and controls face the user (yaw 180).
+// templates (environment presets): layouts around a figure standing at the origin facing +Z. Seat reference points sit about 0.55 m in front of the figure,
+// so the figure stands behind the seat; displays and controls face the user (yaw 180). `group` sorts them in the Scene panel. `figure` (optional) says
+// where the Scene panel puts the figure after loading: { sitOn: index of the seat in `objects`, posture } or { stand: [x, z], heading, posture } (a posture
+// id of the library). Maintenance presets follow common shipboard / shop situations: a rack bay at chest height, a floor-level unit, a deck enclosure
+// with gull-wing doors, a junction box with a lift-up lid.
+export const TEMPLATE_GROUPS = Object.freeze(["Workstations", "Cockpits and cabins", "Maintenance", "Tasks", "Other"]);
+const UAV_POSITION = (x, pilot) => [
+  { type: "desk", position: [x, 0, 1.25], yaw: 180, params: { height: 0.74, width: 0.9, depth: 0.7 } },
+  { type: "monitor", position: [x, 0.74, 1.45], yaw: 180, params: { diagonal: 24, centreHeight: 0.3, tilt: 0 } },
+  { type: "monitor", position: [x, 0.74, 1.5], yaw: 180, params: { diagonal: 24, centreHeight: 0.66, tilt: 12 } },
+  { type: "keyboard_mouse", position: [x, 0.74, 1.08], yaw: 180 },
+  { type: "office_chair", position: [x, 0, 0.55], yaw: 0 },
+  ...(pilot ? [{ type: "joystick", position: [x - 0.3, 0, 0.85], yaw: 180, params: { height: 0.68 } }, { type: "throttle", position: [x + 0.3, 0, 0.85], yaw: 180, params: { height: 0.68 } }] : []),
+];
 export const TEMPLATES = Object.freeze([
-  { id: "empty", name: "Empty", description: "Clear the scene.", objects: [] },
+  { id: "empty", group: "Other", name: "Empty", description: "Clear the scene.", objects: [] },
   {
-    id: "office", name: "Office workstation", description: "Desk, office chair, monitor and keyboard.",
+    id: "office", group: "Workstations", name: "Office workstation", description: "Desk, office chair, monitor and keyboard.",
+    figure: { sitOn: 1, posture: "sit-typing" },
     objects: [
       { type: "desk", position: [0, 0, 1.25], yaw: 180 },
       { type: "office_chair", position: [0, 0, 0.55], yaw: 0 },
@@ -217,7 +230,34 @@ export const TEMPLATES = Object.freeze([
     ],
   },
   {
-    id: "cab", name: "Vehicle cab", description: "Cabin seat, steering wheel, pedals and a dashboard panel.",
+    id: "uav_gcs", group: "Workstations", name: "UAV ground control station", description: "Two operator positions side by side, pilot (stick and throttle) and sensor operator, each with two stacked displays, a keyboard and a chair, and a shared wall display.",
+    figure: { sitOn: 4, posture: "veh-operator-joysticks" },
+    objects: [...UAV_POSITION(0, true), ...UAV_POSITION(-1.0, false), { type: "wall_display", position: [-0.5, 0, 2.6], yaw: 180, params: { diagonal: 65, centreHeight: 1.55 } }, { type: "wall", position: [-0.5, 0, 2.75], yaw: 180, params: { width: 3.2, height: 2.6 } }],
+  },
+  {
+    id: "ops_room", group: "Workstations", name: "Operations room watch station", description: "A long desk with a 3 by 2 wall of monitors, keyboard and chair: surveillance and command-and-control consoles.",
+    figure: { sitOn: 1, posture: "sit-typing" },
+    objects: [
+      { type: "desk", position: [0, 0, 1.25], yaw: 180, params: { height: 0.74, width: 1.8, depth: 0.8 } },
+      { type: "office_chair", position: [0, 0, 0.55], yaw: 0 },
+      ...[-0.47, 0, 0.47].flatMap((x) => [
+        { type: "monitor", position: [x, 0.74, 1.5], yaw: 180, params: { diagonal: 21, centreHeight: 0.3, tilt: 0 } },
+        { type: "monitor", position: [x, 0.74, 1.55], yaw: 180, params: { diagonal: 21, centreHeight: 0.62, tilt: 8 } },
+      ]),
+      { type: "keyboard_mouse", position: [0, 0.74, 1.05], yaw: 180 },
+    ],
+  },
+  {
+    id: "bridge_console", group: "Workstations", name: "Ship bridge console (standing)", description: "A standing-height console with a sloped control panel and a display above it, as on a ship's bridge.",
+    figure: { stand: [0, 0], heading: 0, posture: "work-bench-standing" },
+    objects: [
+      { type: "console", position: [0, 0, 0.72], yaw: 180, params: { width: 1.4, depth: 0.7, height: 0.95, panelHeight: 0.25, panelAngle: 30 } },
+      { type: "monitor", position: [0, 0.95, 0.98], yaw: 180, params: { diagonal: 27, centreHeight: 0.45, tilt: 15 } },
+    ],
+  },
+  {
+    id: "cab", group: "Cockpits and cabins", name: "Vehicle cab", description: "Cabin seat, steering wheel, pedals and a dashboard panel.",
+    figure: { sitOn: 0, posture: "veh-driver-9-and-3" },
     objects: [
       { type: "cabin_seat", position: [0, 0, 0.6], yaw: 0, params: { seatHeight: 0.4, recline: 105 } },
       { type: "steering_wheel", position: [0, 0, 1.2], yaw: 180, params: { centreHeight: 0.72, tilt: 25 } },
@@ -226,17 +266,69 @@ export const TEMPLATES = Object.freeze([
     ],
   },
   {
-    id: "cockpit", name: "Cockpit", description: "Seat, centre stick, throttle, three displays and a HUD.",
+    id: "cockpit", group: "Cockpits and cabins", name: "Cockpit, fast jet", description: "A see-through canopy cockpit: reclined seat, centre stick, throttle on the left, side consoles, three displays and a HUD.",
+    figure: { sitOn: 0, posture: "veh-cockpit-stick-throttle" },
     objects: [
       { type: "cabin_seat", position: [0, 0, 0.6], yaw: 0, params: { seatHeight: 0.35, recline: 100, panAngle: 8 } },
       { type: "joystick", position: [0, 0, 1.05], yaw: 180, params: { height: 0.62 } },
       { type: "throttle", position: [0.42, 0, 0.95], yaw: 180, params: { height: 0.62 } },
       { type: "triple_monitor", position: [0, 0, 1.6], yaw: 180, params: { centreHeight: 0.95, tilt: 10 } },
       { type: "hud_panel", position: [0, 0, 1.25], yaw: 180, params: { centreHeight: 1.12, tilt: 20 } },
+      { type: "side_console", position: [0.5, 0, 0.45], yaw: 0, params: { length: 0.7, width: 0.2, height: 0.55 } },
+      { type: "side_console", position: [-0.5, 0, 0.55], yaw: 0, params: { length: 0.9, width: 0.2, height: 0.55 } },
+      { type: "cabin_shell", position: [0, 0, 0.75], yaw: 0, params: { width: 1.2, length: 2.6, height: 1.45, roof: "canopy", windscreen: 60 } },
     ],
   },
   {
-    id: "lifting", name: "Lifting task", description: "A crate on a pallet and a shelving unit to lift it onto.",
+    id: "helicopter", group: "Cockpits and cabins", name: "Helicopter cockpit", description: "Two-seat rotorcraft cockpit with a flat roof: pilot seat with cyclic between the knees, collective on the left, pedals, a wide instrument panel and the co-pilot seat.",
+    figure: { sitOn: 0, posture: "veh-helicopter-pilot" },
+    objects: [
+      { type: "cabin_seat", position: [0, 0, 0.6], yaw: 0, params: { seatHeight: 0.4, recline: 102 } },
+      { type: "joystick", position: [0, 0, 1.0], yaw: 180, params: { height: 0.6 } },
+      { type: "lever", position: [0.28, 0, 0.75], yaw: 90, params: { length: 0.45, angle: 30, height: 0.3 } },
+      { type: "pedals", position: [0, 0, 1.38], yaw: 180 },
+      { type: "instrument_panel", position: [0.4, 0, 1.68], yaw: 180, params: { centreHeight: 0.92, tilt: 12, width: 1.5 } },
+      { type: "cabin_seat", position: [0.85, 0, 0.6], yaw: 0, params: { seatHeight: 0.4, recline: 102 } },
+      { type: "cabin_shell", position: [0.42, 0, 0.8], yaw: 0, params: { width: 1.9, length: 2.6, height: 1.6, roof: "flat", windscreen: 45 } },
+    ],
+  },
+  {
+    id: "rack_standing", group: "Maintenance", name: "Equipment rack, standing", description: "A 2 m electronics rack with its door open and the service bay at chest to eye height, and a toolbox at the maintainer's feet.",
+    figure: { stand: [0, 0], heading: 0, posture: "reach-forward-shoulder" },
+    objects: [
+      { type: "equipment_rack", position: [0, 0, 0.78], yaw: 180, params: { width: 0.6, depth: 0.8, height: 2.0, bayBottom: 1.0, bayTop: 1.6, door: "side" } },
+      { type: "equipment_rack", position: [0.65, 0, 0.78], yaw: 180, params: { width: 0.6, depth: 0.8, height: 2.0, bayBottom: 0.2, bayTop: 0.4, door: "none" } },
+      { type: "toolbox", position: [-0.55, 0, 0.35], yaw: 0 },
+    ],
+  },
+  {
+    id: "floor_unit", group: "Maintenance", name: "Floor-level unit, kneeling", description: "A low equipment unit with its service bay near the floor, worked on kneeling on a mat, a multimeter-sized toolbox beside it.",
+    figure: { stand: [0, 0], heading: 0, posture: "work-kneel-floor-level" },
+    objects: [
+      { type: "equipment_rack", position: [0, 0, 0.95], yaw: 180, params: { width: 0.7, depth: 0.6, height: 1.0, bayBottom: 0.12, bayTop: 0.7, door: "none", plinth: 0.1 } },
+      { type: "floor_tile", position: [0, 0, 0.3], yaw: 0, params: { size: 0.8, thickness: 0.01 } },
+      { type: "toolbox", position: [0.6, 0, 0.55], yaw: 0 },
+    ],
+  },
+  {
+    id: "deck_enclosure", group: "Maintenance", name: "Deck enclosure, gull-wing doors", description: "A deck-mounted equipment enclosure with two leaves swung up, the bay from knee to chest height, worked on kneeling on a cardboard mat with tools laid out.",
+    figure: { stand: [0, 0], heading: 0, posture: "kneel-upright-toes" },
+    objects: [
+      { type: "equipment_rack", position: [0, 0, 0.85], yaw: 180, params: { width: 1.0, depth: 0.9, height: 1.6, bayBottom: 0.4, bayTop: 1.3, door: "gullwing", doorAngle: 125, plinth: 0.12 } },
+      { type: "floor_tile", position: [0, 0, 0.15], yaw: 0, params: { size: 1.0, thickness: 0.006 }, color: "#c89f6e" },
+      { type: "wrench", position: [0.45, 0, 0.1], yaw: 30 },
+      { type: "screwdriver", position: [0.55, 0, -0.05], yaw: 80 },
+    ],
+  },
+  {
+    id: "junction_box", group: "Maintenance", name: "Junction box, lid lifted", description: "A wall- or mast-mounted junction box with its lid lifted, the cable terminations at chest height, worked on standing.",
+    figure: { stand: [0, 0], heading: 0, posture: "reach-forward-shoulder" },
+    objects: [
+      { type: "equipment_rack", position: [0, 0, 0.62], yaw: 180, params: { width: 0.8, depth: 0.45, height: 1.45, bayBottom: 1.0, bayTop: 1.4, door: "lift", doorAngle: 115, plinth: 0.9 } },
+    ],
+  },
+  {
+    id: "lifting", group: "Tasks", name: "Lifting task", description: "A crate on a pallet and a shelving unit to lift it onto.",
     objects: [
       { type: "pallet", position: [0, 0, 1.0], yaw: 0 },
       { type: "crate", position: [0, 0.144, 1.0], yaw: 0, params: { width: 0.5, depth: 0.35, height: 0.3, mass: 15 } },
@@ -244,7 +336,7 @@ export const TEMPLATES = Object.freeze([
     ],
   },
   {
-    id: "range", name: "Rifle range bench", description: "Shooting bench with a rifle, a sandbag rest, an ammunition can and a seat.",
+    id: "range", group: "Tasks", name: "Rifle range bench", description: "Shooting bench with a rifle, a sandbag rest, an ammunition can and a seat.",
     objects: [
       { type: "bench", position: [0, 0, 0.55], yaw: 0, params: { length: 1.0 } },
       { type: "workbench", position: [0, 0, 1.15], yaw: 180, params: { height: 0.85, width: 1.5, depth: 0.6 } },
@@ -254,7 +346,7 @@ export const TEMPLATES = Object.freeze([
     ],
   },
   {
-    id: "stairs", name: "Stairs and ladder", description: "A flight of stairs with handrails and a ladder leaning on a wall.",
+    id: "stairs", group: "Tasks", name: "Stairs and ladder", description: "A flight of stairs with handrails and a ladder leaning on a wall.",
     objects: [
       { type: "stairs", position: [-0.9, 0, 0.8], yaw: 0, params: { steps: 5, handrails: true } },
       { type: "ladder", position: [0.9, 0, 0.88], yaw: 0, params: { length: 2.4, angle: 75 } },
@@ -1040,12 +1132,13 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     return out;
   }
   /** Fit an object (or every object) in the 3D view. */
-  function frameObjects(id) {
+  /** Fit one object (or every object, id null) in the view; opts.view: a camera preset to look from (viewport.js VIEW_PRESETS). */
+  function frameObjects(id, opts = {}) {
     const b = new THREE.Box3();
     if (id) { const o = objects.get(id); if (!o) return false; ready(o); b.copy(o.bbox).applyMatrix4(o.group.matrixWorld); } else bounds(b);
     if (b.isEmpty()) return false;
     b.expandByScalar(0.25);
-    viewport.frame?.(b, { animate: true, margin: 1.4 });
+    viewport.frame?.(b, { animate: true, margin: 1.4, ...(opts.view ? { view: opts.view } : {}) });
     return true;
   }
 
@@ -1140,12 +1233,13 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     render();
     return { ok: true, added, skipped: v.skipped, warnings, errors: [] };
   }
-  function applyTemplate(id, { merge = false } = {}) {
+  /** Load (or with merge: add) a template. opts.created: an array that receives the SceneObjects made, in the template's order (null for one that was not added). */
+  function applyTemplate(id, { merge = false, created = null } = {}) {
     const t = TEMPLATES.find((x) => x.id === id);
     if (!t) return false;
     grouped(`Template: ${t.name}`, () => {
       if (!merge) for (const o of [...objects.values()]) destroyObject(o);
-      for (const d of t.objects) add(d.type, { params: d.params, position: d.position, yaw: d.yaw, silent: true });
+      for (const d of t.objects) { const o = add(d.type, { params: d.params, position: d.position, yaw: d.yaw, color: d.color, silent: true }); created?.push(o ?? null); }
       emitScene("load", { template: id });
       record(`Template: ${t.name}`);
     });
@@ -1206,6 +1300,12 @@ export function createSandbox({ viewport, ctx, storage, scheduler } = {}) {
     unsubs.push(ctx.on("rig", () => updateAttached()));
     unsubs.push(ctx.on("theme", () => { for (const o of objects.values()) for (const l of [o._outline, o._hover]) if (l) l.material.color.copy(accent()); render(); }));
   }
+  // an imported model whose file was still loading is drawn as a placeholder: rebuild it when its asset arrives (catalog.js onAssetReady)
+  unsubs.push(onAssetReady((assetId) => {
+    let n = 0;
+    for (const o of objects.values()) if (o.type === "cad_model" && o.params.asset === assetId) { buildModel(o); applyTransform(o); n++; }
+    if (n) { updateAttached(); render(); emitScene("restore", { asset: assetId }); }
+  }));
   for (const [evt, fn] of [["click", onClick], ["pointerdown", onPointerDown], ["pointermove", onPointerMove], ["pointerup", onPointerUp], ["pointercancel", onPointerCancel], ["gizmo-start", onGizmoStart], ["gizmo-change", onGizmoChange], ["gizmo-end", onGizmoEnd]]) {
     const off = viewport.on?.(evt, fn);
     if (typeof off === "function") unsubs.push(off);

@@ -423,7 +423,7 @@ test("leaks: add / param-change / remove / measure cycles dispose every geometry
 test("build cost: every type builds under 60 ms at default and under 150 ms at max", () => {
   const slow = [];
   for (const t of CATALOG) {
-    for (const [n, params] of [["def", {}], ["max", Object.fromEntries(t.params.map((p) => [p.key, p.kind === "number" ? p.max : p.kind === "bool" ? true : p.options.at(-1).value]))]]) {
+    for (const [n, params] of [["def", {}], ["max", Object.fromEntries(t.params.map((p) => [p.key, p.kind === "number" ? p.max : p.kind === "bool" ? true : p.kind === "text" ? p.default : p.options.at(-1).value]))]]) {
       const t0 = performance.now(); const g = buildObject(t.type, params); const dt = performance.now() - t0; disposeObject(g);
       if (dt > (n === "def" ? 60 : 150)) slow.push(`${t.type}/${n} ${dt.toFixed(0)} ms`);
     }

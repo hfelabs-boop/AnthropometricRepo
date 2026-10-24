@@ -131,7 +131,7 @@ async function build(undo) {
   const notesList = h("ul", {}, MODEL_NOTES.map((t) => h("li", {}, t)));
   const hero = h("div", { class: "hm-hero" },
     h("h1", {}, "Digital human"),
-    h("p", {}, "Turn a survey population or a single person into a posable 3D mannequin, place it among simple cabin and workstation objects, and measure distances, all in your browser."),
+    h("p", {}, "Turn a survey population or a single person into a posable 3D mannequin, place it in cockpits, operator workstations and maintenance scenes, or in your own CAD models, and measure distances, all in your browser."),
     h("details", { class: "hm-notes" }, h("summary", {}, "Model notes"), notesList));
 
   const tabs = tablist({ label: "Digital human tools", tabs: PANELS, selected: PANELS[0].id, onSelect: (id) => showPanel(id), idPrefix: "hm-tab" });

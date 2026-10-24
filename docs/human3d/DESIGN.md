@@ -286,6 +286,22 @@ steering wheel, joystick/stick grip, lever, pedals, handles). Click or drag to s
 translate/rotate, numeric fields, snapping, nudging, duplicate, delete, lock, attach to hand). Place the human: stand at a
 spot, **sit on a chair** (adjust chair to the body), grab a tool or handle with IK, reach checks.
 
+**Environment presets** (`sandbox.js` TEMPLATES, grouped by TEMPLATE_GROUPS): workstations (office, UAV ground control station
+with pilot and sensor positions, operations-room watch station, standing ship-bridge console), cockpits and cabins (vehicle cab,
+fast-jet canopy cockpit, helicopter cockpit) and maintenance (equipment rack standing, floor-level unit kneeling, deck enclosure
+with gull-wing doors, junction box with a lifted lid), plus tasks. A preset may carry `figure`: the Scene panel then seats the
+figure on the preset's seat (`place.js` sitOn) or stands it at a spot, in a library posture, and frames the scene from the side.
+The maintenance and cockpit presets use three types added for them: `equipment_rack` (service bay between two heights, side,
+lift-up or gull-wing door), `cabin_shell` (see-through crew compartment, canopy or flat roof, raked windscreen) and
+`side_console`.
+
+**Imported models** (`cadimport.js`, catalogue type `cad_model`): glTF / GLB, STEP, IGES, BREP (OpenCascade in a Web Worker,
+`cadworker.js`, vendor/occt), STL, OBJ, PLY, FBX, 3MF and COLLADA. The file's SHA-256 is the asset id; its bytes are kept in
+IndexedDB and embedded (base64) in scene files saved from the panel, never uploaded. The object keeps units, up axis, origin
+(footprint centre on the floor, or the file's own origin for CAD coordinates), extra scale, opacity, colour mode and the hidden
+layers (the parts under the model's first branching node). Until its asset is loaded an object is a placeholder box, rebuilt
+through `catalog.js` onAssetReady when the asset arrives.
+
 ### 3.5 Measuring
 Point-to-point on any surface, landmark or anchor (snapping), landmark-to-landmark from lists (eye point → display centre,
 hand → control), height above floor, angle between three points, visual angle of a display; live while things move; list with

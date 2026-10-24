@@ -136,6 +136,12 @@ class Parts {
   box(size, pos = [0, 0, 0], mat = "main", rot) { return this._put(new THREE.BoxGeometry(size[0], size[1], size[2]), mat, pos, rot); }
   /** Cylinder: radius r (top), height h, axis Y unless rot is "x" / "z" or angles; o.r2 = bottom radius (taper), o.seg = radial segments. */
   cyl(r, h, pos = [0, 0, 0], mat = "main", rot, o = {}) { return this._put(new THREE.CylinderGeometry(r, o.r2 ?? r, h, o.seg ?? 20, 1, !!o.open), mat, pos, rot); }
+  /** Upper half of an open tube of radius 1 along Z (length len), scaled by `scale` ([rx, ry, 1] for an elliptical vault): a canopy or a vaulted roof. */
+  halfTube(len, pos = [0, 0, 0], mat = "main", scale = [1, 1, 1], seg = 24) {
+    const g = new THREE.CylinderGeometry(1, 1, len, seg, 1, true, -Math.PI / 2, Math.PI);
+    g.rotateX(-Math.PI / 2); // axis Y -> Z, the half on +Z -> +Y
+    return this._put(g, mat, pos, undefined, scale);
+  }
   sph(r, pos = [0, 0, 0], mat = "main", scale = [1, 1, 1], seg = [16, 10]) { return this._put(new THREE.SphereGeometry(r, seg[0], seg[1]), mat, pos, undefined, scale); }
   /** Torus in the local XY plane (axis Z) unless rotated; R = ring radius, r = tube radius. */
   tor(R, r, pos = [0, 0, 0], mat = "main", rot, arc = Math.PI * 2, seg = [10, 32]) { return this._put(new THREE.TorusGeometry(R, r, seg[0], seg[1], arc), mat, pos, rot); }
@@ -222,6 +228,8 @@ class Parts {
 // parameter specs
 const num = (key, label, unit, min, max, step, def, extra = {}) => ({ key, label, unit, min, max, step, default: def, kind: "number", ...(Number.isInteger(step) && step >= 1 && unit === "" ? { integer: true } : {}) /* counts are whole numbers; a step of 1 degree is only the slider's step */, ...extra });
 const bool = (key, label, def = false) => ({ key, label, unit: "", kind: "bool", default: !!def });
+/** A string parameter the editor does not show as a field (`hidden`): an asset id, a list of hidden layers. Kept only when it matches `pattern`. */
+const text = (key, label, pattern, maxLength, def = "") => ({ key, label, unit: "", kind: "text", pattern, maxLength, default: def, hidden: true });
 const choice = (key, label, options, def) => ({ key, label, unit: "", kind: "choice", options: options.map((o) => (typeof o === "string" ? { value: o, label: o } : o)), default: def });
 
 /** Clamp / complete a parameter object against a type's spec. Unknown keys are dropped; non-finite numbers fall back to the default. */
@@ -237,6 +245,7 @@ export function clampParams(spec, params) {
       v = clamp(v, ps.min, ps.max);
       if (ps.integer) v = Math.round(v);
     } else if (ps.kind === "bool") v = has ? v === true || v === 1 || v === "true" : ps.default;
+    else if (ps.kind === "text") v = typeof v === "string" && v.length <= ps.maxLength && ps.pattern.test(v) ? v : ps.default;
     else v = ps.options.some((o) => o.value === v) ? v : ps.default;
     out[ps.key] = v;
   }
@@ -258,10 +267,10 @@ function def(spec) {
     hasMass: spec.params.some((p) => p.key === "mass"),
     tags: spec.tags ?? [],
     build(params, opts = {}) {
-      const p = clampParams(entry, params), P = new Parts();
-      spec.build(P, p, dims(p));
-      const color = isHexColor(opts.color) ? opts.color : entry.defaultColor;
-      const g = P.build(color);
+      const p = clampParams(entry, params), color = isHexColor(opts.color) ? opts.color : entry.defaultColor;
+      let g;
+      if (spec.buildGroup) g = spec.buildGroup(p, color); // a type whose geometry is not procedural (an imported model)
+      else { const P = new Parts(); spec.build(P, p, dims(p)); g = P.build(color); }
       g.name = entry.type;
       g.userData.type = entry.type;
       g.updateMatrixWorld(true);
@@ -1205,6 +1214,120 @@ def({
   supports: (p, d) => [support("work_surface", "Work surface", p.height, [p.width, p.depth - d.run], [0, d.run / 2])],
 });
 
+def({
+  type: "equipment_rack", name: "Equipment rack", category: "Structures", color: "#9aa2ab", yaw: 180, tags: ["maintenance", "access", "rack", "cabinet", "electronics", "enclosure"],
+  description: "Electronics rack or equipment cabinet with an open service bay between two heights (chassis units, rails and cable bundles inside) and a door: side-hinged, lifted up (a lid: 90 degrees is level, more is raised), a pair of gull-wing leaves, or none. A floor-level unit is a low cabinet with the bay near the floor. The maintainer works at +Z.",
+  source: "19-inch racks are 0.6 m wide and 0.6 to 1.2 m deep. Access to maintained equipment, bay heights and door clearances are covered by MIL-STD-1472 (maintainability) and MIL-HDBK-759; the defaults here are illustrative, not requirements.",
+  params: [num("width", "Width (X)", "m", 0.3, 1.6, 0.01, 0.6), num("depth", "Depth (Z)", "m", 0.3, 1.2, 0.01, 0.8), num("height", "Height (Y)", "m", 0.4, 2.4, 0.01, 2.0),
+    num("bayBottom", "Service bay, bottom", "m", 0, 2.2, 0.01, 0.9), num("bayTop", "Service bay, top", "m", 0.15, 2.35, 0.01, 1.6),
+    choice("door", "Door", [{ value: "side", label: "Side-hinged, open" }, { value: "lift", label: "Lifted up (top-hinged)" }, { value: "gullwing", label: "Two gull-wing leaves" }, { value: "none", label: "None (removed)" }], "side"),
+    num("doorAngle", "Door opening (0 = closed)", "deg", 20, 170, 1, 95), num("plinth", "Plinth or pedestal height", "m", 0, 1.5, 0.01, 0.05), bool("cables", "Cable bundles in the bay", true)],
+  dims(p) {
+    const base = Math.min(p.plinth, p.height - 0.2), b0 = clamp(Math.max(p.bayBottom, base + 0.02), base + 0.02, p.height - 0.1);
+    const b1 = clamp(Math.max(p.bayTop, b0 + 0.08), b0 + 0.08, p.height - 0.03);
+    return { base, b0, b1, wall: 0.025, recess: Math.min(0.05, p.depth * 0.1) };
+  },
+  build(P, p, d) {
+    const { width: w, depth: dp, height: h } = p, t = d.wall, zf = dp / 2, inner = w - 2 * t;
+    if (d.base > 0.005) P.box([w - 0.04, d.base, dp - 0.04], [0, d.base / 2, 0], "dark");
+    const H = h - d.base, y0 = d.base;
+    for (const s of [-1, 1]) P.box([t, H, dp], [s * (w / 2 - t / 2), y0 + H / 2, 0], "main");
+    P.box([w, t, dp], [0, h - t / 2, 0], "main");
+    P.box([w, t, dp], [0, y0 + t / 2, 0], "main");
+    P.box([inner, H - 2 * t, t], [0, y0 + H / 2, -zf + t / 2], "main");
+    // front panels above and below the bay
+    if (d.b0 - y0 > t) P.box([inner, d.b0 - y0, t], [0, (y0 + d.b0) / 2, zf - t / 2], "main");
+    if (h - d.b1 > t) P.box([inner, h - d.b1, t], [0, (d.b1 + h) / 2, zf - t / 2], "main");
+    // inside the bay: rails, chassis units with indicator lights, cable bundles
+    const bayH = d.b1 - d.b0, zr = zf - d.recess - 0.01;
+    for (const s of [-1, 1]) P.box([0.02, bayH, 0.02], [s * (inner / 2 - 0.02), d.b0 + bayH / 2, zr], "steel");
+    const units = Math.max(1, Math.min(8, Math.round(bayH / 0.13)));
+    for (let i = 0; i < units; i++) {
+      const uh = bayH / units, y = d.b0 + uh * (i + 0.5), ud = dp - 2 * t - d.recess - 0.06;
+      P.box([inner - 0.06, uh * 0.82, ud], [0, y, zr - ud / 2], i % 2 ? "black" : "dark");
+      for (let k = 0; k < 3; k++) P.box([0.012, 0.012, 0.004], [-inner / 2 + 0.08 + k * 0.03, y + uh * 0.2, zr + 0.002], ["blue", "yellow", "red"][k]);
+      P.box([0.03, uh * 0.4, 0.015], [inner / 2 - 0.07, y, zr + 0.008], "metal");
+    }
+    if (p.cables) {
+      for (let k = 0; k < 4; k++) {
+        const x = -inner / 2 + 0.12 + k * ((inner - 0.24) / 3);
+        P.rod([x, d.b1 - 0.02, zr - 0.04], [x + 0.03 * (k - 1.5), d.b0 + bayH * 0.35, zr + 0.015], 0.008 + 0.003 * (k % 2), ["blue", "white", "yellow", "blue"][k], 8);
+      }
+    }
+    // the door
+    const dh = bayH + 0.04, dw = inner + 0.02, yc = d.b0 + bayH / 2, ang = p.doorAngle;
+    // side door: hinged on the object's -X edge (the maintainer's left as they face the bay), so it opens away from a view of their right side
+    if (p.door === "side") P.frame([-w / 2, yc, zf], [0, -ang, 0], (q) => { q.box([dw, dh, 0.02], [dw / 2, 0, 0.01], "main"); q.box([0.02, 0.12, 0.03], [dw - 0.05, 0, 0.03], "metal"); });
+    else if (p.door === "lift") P.frame([0, d.b1 + 0.02, zf], [-ang, 0, 0], (q) => { q.box([dw, dh, 0.02], [0, -dh / 2, 0.01], "main"); q.box([0.16, 0.02, 0.03], [0, -dh + 0.04, 0.03], "metal"); });
+    else if (p.door === "gullwing") for (const s of [-1, 1]) P.frame([s * (w / 2), d.b1 + 0.02, zf - dp / 2], [0, 0, -s * ang], (q) => { q.box([0.02, dh, dp], [s * 0.01, -dh / 2, 0], "main"); q.box([0.02, 0.02, dp * 0.6], [s * 0.025, -dh + 0.05, 0], "metal"); });
+  },
+  anchors: (p, d) => ({
+    ...boxAnchors(p.width, p.depth, p.height, 0, 0, true),
+    bay_centre: a("Service bay, centre of the opening", [0, (d.b0 + d.b1) / 2, p.depth / 2], [0, 0, 1]),
+    bay_top: a("Service bay, top edge", [0, d.b1, p.depth / 2]), bay_bottom: a("Service bay, bottom edge (sill)", [0, d.b0, p.depth / 2]),
+    bay_back: a("Service bay, deepest point", [0, (d.b0 + d.b1) / 2, p.depth / 2 - d.recess - 0.01 - (p.depth - 2 * d.wall - d.recess - 0.06)]),
+  }),
+  supports: (p, d) => [support("top", "Top", p.height, [p.width, p.depth], [0, 0]), ...(d.b0 - d.base > 0.25 ? [support("bay_sill", "Bay sill", d.b0, [p.width - 0.1, 0.12], [0, p.depth / 2 - 0.08])] : [])],
+});
+
+def({
+  type: "cabin_shell", name: "Cockpit / cabin shell", category: "Structures", color: "#8fb3cf", tags: ["cockpit", "cabin", "vehicle", "aircraft", "clearance", "enclosure"],
+  description: "See-through crew compartment for checking head, shoulder and knee clearance: a floor, a frame, side walls, a roof or a bubble canopy and a raked windscreen; the back is open. The crew faces +Z (yaw 0, like a seat). Origin: the floor centre.",
+  source: "Fast-jet canopies leave about 0.9 to 1.0 m from the seat reference point to the canopy; rotorcraft and vehicle cabins are about 1.3 to 1.6 m high inside. Illustrative sizes; crew-station geometry is specified per platform (for example MIL-STD-1333, JSSG-2010).",
+  params: [num("width", "Inside width (X)", "m", 0.6, 3.0, 0.01, 1.0), num("length", "Length (Z)", "m", 1.0, 5.0, 0.01, 2.4), num("height", "Inside height (Y)", "m", 0.9, 2.6, 0.01, 1.5),
+    choice("roof", "Roof", [{ value: "canopy", label: "Bubble canopy" }, { value: "flat", label: "Flat roof" }], "canopy"), num("windscreen", "Windscreen rake from vertical", "deg", 10, 75, 1, 55), num("floor", "Floor height", "m", 0, 0.5, 0.005, 0)],
+  dims(p) { const f = p.floor, top = f + p.height, rake = p.windscreen * D2R, run = Math.min(p.length * 0.45, (p.height * 0.55) * Math.tan(rake)); return { f, top, run, zf: p.length / 2, zb: -p.length / 2 }; },
+  build(P, p, d) {
+    const { width: w, length: L } = p, t = 0.03, sill = d.f + Math.min(0.75, p.height * 0.5);
+    if (d.f > 0.004) P.box([w + 2 * t, d.f, L], [0, d.f / 2, 0], "dark");
+    P.box([w + 2 * t, 0.02, L], [0, d.f + 0.01, 0], "dark");
+    // side walls up to the sill (opaque), glazing above (translucent)
+    for (const s of [-1, 1]) {
+      P.box([t, sill - d.f, L], [s * (w / 2 + t / 2), (d.f + sill) / 2, 0], "mainT");
+      if (p.roof === "flat") P.box([0.01, d.top - sill, L - d.run], [s * (w / 2 + t / 2), (sill + d.top) / 2, d.zb + (L - d.run) / 2], "glass");
+      P.box([t * 1.2, 0.04, L], [s * (w / 2 + t / 2), sill, 0], "dark");
+    }
+    // windscreen: from the nose at sill height up and back to the roof line
+    const len = Math.hypot(d.run, d.top - sill), ang = Math.atan2(d.run, d.top - sill) / D2R;
+    P.frame([0, (sill + d.top) / 2, d.zf - d.run / 2], [-ang, 0, 0], (q) => { q.box([w, len, 0.01], [0, 0, 0], "glass"); for (const s of [-1, 0, 1]) q.box([0.035, len, 0.035], [s * w / 2, 0, 0], "dark"); });
+    P.box([w + 2 * t, sill - d.f, t], [0, (d.f + sill) / 2, d.zf + t / 2], "mainT");
+    if (p.roof === "flat") {
+      P.box([w + 2 * t, 0.01, L - d.run], [0, d.top, d.zb + (L - d.run) / 2], "glass");
+      for (const z of [d.zb, d.zf - d.run]) P.box([w + 2 * t, 0.04, 0.04], [0, d.top, z], "dark");
+    } else {
+      const R = w / 2, ry = Math.max(0.05, d.top - sill - 0.05), zc = d.zb + (L - d.run) / 2;
+      P.halfTube(L - d.run, [0, sill, zc], "glass", [R + t, ry, 1]);
+      for (const z of [d.zb + 0.02, d.zf - d.run]) P.frame([0, sill, z], [0, 0, 0], (q) => q.tor(1, 0.02, [0, 0, 0], "dark", undefined, Math.PI, [6, 20]), [R, ry, 1]);
+    }
+    for (const s of [-1, 1]) P.box([0.04, 0.04, L], [s * (w / 2 + t / 2), d.f + 0.02, 0], "dark");
+  },
+  anchors: (p, d) => ({
+    floor_centre: a("Floor, centre", [0, d.f, 0]), roof_centre: a("Roof / canopy, highest point", [0, d.top, d.zb + (p.length - d.run) / 2]),
+    windscreen_base: a("Windscreen, base centre", [0, d.f + Math.min(0.75, p.height * 0.5), d.zf]), windscreen_top: a("Windscreen, top centre", [0, d.top, d.zf - d.run]),
+    wall_left: a("Side wall, inside (crew's left, +X)", [p.width / 2, d.f + Math.min(0.75, p.height * 0.5), 0]), wall_right: a("Side wall, inside (crew's right, -X)", [-p.width / 2, d.f + Math.min(0.75, p.height * 0.5), 0]),
+  }),
+  supports: (p, d) => (d.f > 0.02 ? [support("floor", "Cabin floor", d.f, [p.width, p.length], [0, 0])] : []),
+});
+
+def({
+  type: "side_console", name: "Side console", category: "Structures", color: "#555c66", tags: ["cockpit", "controls", "vehicle", "armrest"],
+  description: "Low console beside a crew seat (throttle quadrant, switch panels): a box running fore and aft with a gently sloped top carrying switches. It runs along Z; the crew member sits beside it facing +Z.",
+  source: "Cockpit side consoles sit roughly at armrest height, about 0.15 to 0.3 m above the seat pan (illustrative).",
+  params: [num("length", "Length (Z)", "m", 0.3, 1.5, 0.01, 0.7), num("width", "Width (X)", "m", 0.12, 0.6, 0.01, 0.25), num("height", "Height (Y)", "m", 0.3, 1.1, 0.005, 0.6), num("slope", "Top slope (front up)", "deg", 0, 25, 1, 8)],
+  dims(p) { const rise = Math.tan(p.slope * D2R) * p.length; return { rise, hb: p.height - rise / 2, hf: p.height + rise / 2 }; },
+  build(P, p, d) {
+    const { length: L, width: w } = p;
+    P.side([[-L / 2, 0], [L / 2, 0], [L / 2, d.hf], [-L / 2, d.hb]], w, 0, "main");
+    const n = Math.max(2, Math.round(L / 0.12)), sl = Math.atan2(d.rise, L) / D2R;
+    for (let i = 0; i < n; i++) {
+      const z = -L / 2 + 0.06 + (i * (L - 0.12)) / (n - 1), y = d.hb + ((z + L / 2) / L) * d.rise;
+      for (const x of [-w / 4, w / 4]) P.cyl(0.008, 0.016, [x, y + 0.006, z], ["yellow", "white", "red"][i % 3], [-sl, 0, 0], { seg: 8 });
+    }
+  },
+  anchors: (p, d) => ({ top_centre: a("Top, centre", [0, p.height, 0]), top_front: a("Top, front end", [0, d.hf, p.length / 2]), top_back: a("Top, back end", [0, d.hb, -p.length / 2]) }),
+  supports: (p) => [support("top", "Top", p.height, [p.width, p.length], [0, 0], p.slope)],
+});
+
 // =====================================================================================================================
 // TOOLS AND CONTROLS
 // =====================================================================================================================
@@ -1638,10 +1761,114 @@ def({
 });
 
 // =====================================================================================================================
+// IMPORTED MODELS
+// =====================================================================================================================
+// The geometry of an imported CAD or 3D file lives in an asset registry (cadimport.js), not in the parameters: a cad_model object names its asset by id
+// (the SHA-256 of the file) and keeps only the settings. The registry plugs itself in with setAssetSource; until it does, or while an asset is being
+// loaded (from this browser's storage, or a scene file), the object is drawn as a translucent placeholder box and rebuilt when the asset arrives.
+const assetSource = { get: () => null, request: null, listeners: new Set() };
+/** Connect the asset registry: { get(id) -> asset | null, request(id) } (cadimport.js does this when it loads). */
+export function setAssetSource({ get, request }) { assetSource.get = get; assetSource.request = request; }
+/** Call fn(id) whenever an asset becomes available (the sandbox rebuilds the objects that use it). Returns the unsubscribe function. */
+export function onAssetReady(fn) { assetSource.listeners.add(fn); return () => assetSource.listeners.delete(fn); }
+/** Tell the listeners that asset `id` is now available. */
+export function notifyAssetReady(id) { for (const f of [...assetSource.listeners]) { try { f(id); } catch (e) { console.error("catalog: asset listener failed:", e); } } }
+const requested = new Set();
+function requestAsset(id) {
+  if (!id || requested.has(id)) return;
+  requested.add(id);
+  const go = (fn) => Promise.resolve().then(() => fn(id)).catch(() => null).finally(() => requested.delete(id));
+  if (assetSource.request) go(assetSource.request);
+  else go(async (x) => (await import("./cadimport.js")).ensureAsset(x));
+}
+export const UNIT_FACTORS = Object.freeze({ mm: 0.001, cm: 0.01, m: 1, in: 0.0254, ft: 0.3048 });
+const parseHidden = (s) => new Set(String(s || "").split(",").filter((x) => /^\d+$/.test(x)).map(Number));
+/** The local box (metres, after units, up axis and origin) of an imported model with these parameters, or null while its asset is missing. */
+export function cadModelBox(p) {
+  const asset = p.asset ? assetSource.get(p.asset) : null;
+  if (!asset) return null;
+  const g = buildCadGroup(asset, p, "#8a929b", { boxOnly: true });
+  return g.userData.bbox;
+}
+function buildCadGroup(asset, p, color, { boxOnly = false } = {}) {
+  const group = new THREE.Group(), own = [], inner = boxOnly ? asset.object : asset.object.clone(true), hidden = parseHidden(p.hidden);
+  const k = (UNIT_FACTORS[p.units] ?? 1) * p.scale;
+  const holder = new THREE.Group();
+  holder.add(inner);
+  holder.scale.setScalar(k);
+  if (p.up === "z") holder.rotation.x = -Math.PI / 2; // Z-up CAD -> Y-up: (x, y, z) -> (x, z, -y)
+  if (!boxOnly) {
+    asset.layers.forEach((L, i) => { if (hidden.has(i)) { const o = L.path.reduce((n, c) => n?.children[c], inner); if (o) o.visible = false; } });
+    const uniform = p.colors === "uniform", base = new THREE.Color(color);
+    inner.traverse((o) => {
+      if (!o.isMesh) return;
+      const mats = [].concat(o.material ?? []).map((m) => {
+        const c = (m ?? new THREE.MeshStandardMaterial()).clone();
+        if (uniform && c.color) { c.color.copy(base); c.map = null; c.vertexColors = false; }
+        c.side = THREE.DoubleSide;
+        if (p.opacity < 0.999) { c.transparent = true; c.opacity = p.opacity; c.depthWrite = false; }
+        c.needsUpdate = true;
+        own.push(c);
+        return c;
+      });
+      o.material = Array.isArray(o.material) ? mats : mats[0];
+      o.castShadow = p.opacity >= 0.999; o.receiveShadow = true;
+    });
+  }
+  holder.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(holder);
+  if (p.origin !== "file" && !box.isEmpty()) {
+    const c = box.getCenter(new THREE.Vector3());
+    holder.position.set(-c.x, -box.min.y, -c.z);
+    holder.updateMatrixWorld(true);
+    box.translate(new THREE.Vector3(-c.x, -box.min.y, -c.z));
+  }
+  if (boxOnly) { holder.remove(inner); group.userData.bbox = box; return group; }
+  group.add(holder);
+  group.userData.own = own;
+  return group;
+}
+def({
+  type: "cad_model", name: "Imported model", category: "Imported", color: "#9aa2ab", tags: ["cad", "import", "model", "environment", "step", "gltf", "stl"],
+  description: "A CAD or 3D file you imported (STEP, IGES, glTF / GLB, OBJ, STL, PLY, FBX, 3MF, DAE): an environment, a cockpit, a console or a part. Set its units and up axis if the size or orientation looks wrong; parts of the file are layers you can hide.",
+  source: "Your file. It stays in this browser (and in scene files you save); nothing is uploaded.",
+  params: [
+    text("asset", "Model", /^[0-9a-f]{64}$/, 64), text("file", "File name", /^[^\u0000-\u001f]*$/, 160),
+    choice("units", "Units of the file", [{ value: "mm", label: "Millimetres" }, { value: "cm", label: "Centimetres" }, { value: "m", label: "Metres" }, { value: "in", label: "Inches" }, { value: "ft", label: "Feet" }], "m"),
+    choice("up", "Up axis of the file", [{ value: "y", label: "Y up" }, { value: "z", label: "Z up (most CAD)" }], "y"),
+    choice("origin", "Origin", [{ value: "floor_centre", label: "Centre of its footprint, on the floor" }, { value: "file", label: "The file's own origin" }], "floor_centre"),
+    num("scale", "Extra scale", "", 0.01, 100, 0.01, 1), num("opacity", "Opacity", "", 0.1, 1, 0.05, 1),
+    choice("colors", "Colours", [{ value: "file", label: "From the file" }, { value: "uniform", label: "One colour (the object colour)" }], "file"),
+    text("hidden", "Hidden layers", /^[0-9,]*$/, 6000),
+  ],
+  buildGroup(p, color) {
+    const asset = p.asset ? assetSource.get(p.asset) : null;
+    if (asset) return buildCadGroup(asset, p, color);
+    if (p.asset) requestAsset(p.asset);
+    const P = new Parts(); // placeholder until the asset is loaded (or when it is not in this browser)
+    P.box([0.5, 0.5, 0.5], [0, 0.25, 0], "mainT");
+    const g = P.build(color);
+    g.userData.missing = true;
+    return g;
+  },
+  build() {},
+  anchors(p) {
+    const b = cadModelBox(p);
+    if (!b) return { base_centre: a("Base, centre", [0, 0, 0]) };
+    const c = b.getCenter(new THREE.Vector3());
+    return {
+      top_centre: a("Top of the model, centre", [c.x, b.max.y, c.z]), base_centre: a("Base, centre", [c.x, b.min.y, c.z]), centre: a("Centre of its box", [c.x, c.y, c.z]),
+      front_centre: a("Front (+Z) face of its box, centre", [c.x, c.y, b.max.z]), back_centre: a("Back (-Z) face of its box, centre", [c.x, c.y, b.min.z]),
+      origin: a("The file's origin", [0, 0, 0]),
+    };
+  },
+});
+
+// =====================================================================================================================
 // public API
 // =====================================================================================================================
 export const CATALOG = Object.freeze([...REGISTRY]);
-const CATEGORY_ORDER = ["Seating", "Displays", "Boxes and loads", "Structures", "Tools and controls", "Reference"];
+const CATEGORY_ORDER = ["Seating", "Displays", "Boxes and loads", "Structures", "Tools and controls", "Reference", "Imported"];
 export const CATEGORIES = Object.freeze(CATEGORY_ORDER.map((name) => Object.freeze({ id: name.toLowerCase().replace(/[^a-z]+/g, "-"), name, types: Object.freeze(REGISTRY.filter((t) => t.category === name).map((t) => t.type)) })));
 
 /** The catalogue entry of a type, or null. */
@@ -1655,7 +1882,7 @@ export function buildObject(type, params, opts = {}) { const t = byType(type); i
 /** Free the geometry and the owned materials of a built group (shared palette materials are left alone). */
 export function disposeObject(root) {
   root?.traverse?.((o) => {
-    o.geometry?.dispose?.();
+    if (!o.geometry?.userData?.shared) o.geometry?.dispose?.(); // the geometry of an imported model belongs to its asset, shared by every copy
     for (const m of [].concat(o.material ?? [])) if (m && !m.userData?.shared) m.dispose();
   });
 }

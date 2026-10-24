@@ -128,3 +128,8 @@ fieldset.hm-ed-set legend { font-size: .8rem; font-weight: 600; color: var(--tex
 .hm-ol-mil[data-state="compliant"], .hm-ol-mil[data-state="pass"] { background: var(--chip-good-bg); color: var(--good); }
 .hm-ed-mil > summary { cursor: pointer; }
 .hm-ed-millist { margin: 4px 0; padding: 0; list-style: none; display: grid; gap: 5px; overflow-wrap: anywhere; }
+
+/* imported models: the layer list of the selected one */
+.hm-ed-layerlist { display: grid; gap: 2px; max-height: 260px; overflow: auto; padding-right: 4px; }
+.hm-ed-layer { padding-left: 0; font-size: .85rem; }
+.hm-ed-layer .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

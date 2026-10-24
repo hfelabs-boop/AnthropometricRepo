@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { CATALOG, CATEGORIES, byType, buildObject, disposeObject, defaultParams, normalizeParams, clampParams, SWATCHES, isHexColor } from "../../site/js/human/catalog.js";
 import {
   createSandbox, sandboxFor, peekSandbox, acquireSandbox, releaseSandbox, snapValue, snapAngle, normalizeYaw, arrowToWorld, rectsOverlap, pointInPolygon, findFreeSpot,
-  validateScene, parseSceneText, cleanAttachment, TEMPLATES, MAX_OBJECTS, MAX_HISTORY, MAX_TEXT, SCENE_VERSION, GRID_STEPS_MM, ANGLE_STEPS, yawOfQuaternion,
+  validateScene, parseSceneText, cleanAttachment, TEMPLATES, TEMPLATE_GROUPS, MAX_OBJECTS, MAX_HISTORY, MAX_TEXT, SCENE_VERSION, GRID_STEPS_MM, ANGLE_STEPS, yawOfQuaternion,
 } from "../../site/js/human/sandbox.js";
 import { createStore } from "../../site/js/human/state.js";
 import { createMeasure } from "../../site/js/human/measure.js";
@@ -63,13 +63,14 @@ const ids = (sb) => [...sb.objects.keys()];
 test("catalogue: at least 45 types, unique ids, every category filled, required types present", () => {
   assert.ok(CATALOG.length >= 45, `${CATALOG.length} types`);
   assert.equal(new Set(CATALOG.map((t) => t.type)).size, CATALOG.length);
-  assert.deepEqual(CATEGORIES.map((c) => c.name), ["Seating", "Displays", "Boxes and loads", "Structures", "Tools and controls", "Reference"]);
-  for (const c of CATEGORIES) assert.ok(c.types.length >= 5, `${c.name} has ${c.types.length}`);
+  assert.deepEqual(CATEGORIES.map((c) => c.name), ["Seating", "Displays", "Boxes and loads", "Structures", "Tools and controls", "Reference", "Imported"]);
+  for (const c of CATEGORIES) assert.ok(c.types.length >= (c.name === "Imported" ? 1 : 5), `${c.name} has ${c.types.length}`);
   assert.equal(CATEGORIES.reduce((n, c) => n + c.types.length, 0), CATALOG.length, "every type is in exactly one category");
   const need = ["cabin_seat", "office_chair", "stool", "bar_stool", "bench", "jump_seat", "monitor", "triple_monitor", "hud_panel", "tablet", "laptop", "wall_display", "instrument_panel",
     "crate", "small_box", "pallet", "ammo_can", "toolbox", "rucksack", "drum", "sandbag", "jerrycan", "floor_platform", "step", "stairs", "ladder", "desk", "workbench", "shelving", "wall", "doorway", "hatch",
     "partition", "handrail", "console", "steering_wheel", "joystick", "throttle", "pedals", "hammer", "wrench", "screwdriver", "drill", "rifle", "pistol", "binoculars", "radio_handset", "shovel",
-    "grab_handle", "horizontal_bar", "lever", "keyboard_mouse", "flashlight", "cube_1m", "measuring_pole", "point_marker", "box", "cylinder", "floor_tile"];
+    "grab_handle", "horizontal_bar", "lever", "keyboard_mouse", "flashlight", "cube_1m", "measuring_pole", "point_marker", "box", "cylinder", "floor_tile",
+    "equipment_rack", "cabin_shell", "side_console", "cad_model"];
   for (const t of need) assert.ok(byType(t), `type ${t} is missing`);
   assert.equal(byType("nope"), null);
   assert.equal(byType("__proto__"), null);
@@ -79,7 +80,7 @@ test("catalogue: at least 45 types, unique ids, every category filled, required 
 function variants(t) {
   const lo = {}, hi = {}, mid = {};
   for (const p of t.params) {
-    if (p.kind === "number") { lo[p.key] = p.min; hi[p.key] = p.max; mid[p.key] = p.default; } else if (p.kind === "bool") { lo[p.key] = false; hi[p.key] = true; mid[p.key] = p.default; } else { lo[p.key] = p.options[0].value; hi[p.key] = p.options.at(-1).value; mid[p.key] = p.default; }
+    if (p.kind === "number") { lo[p.key] = p.min; hi[p.key] = p.max; mid[p.key] = p.default; } else if (p.kind === "bool") { lo[p.key] = false; hi[p.key] = true; mid[p.key] = p.default; } else if (p.kind === "text") { lo[p.key] = hi[p.key] = mid[p.key] = p.default; } else { lo[p.key] = p.options[0].value; hi[p.key] = p.options.at(-1).value; mid[p.key] = p.default; }
   }
   const flip = {};
   for (const p of t.params) flip[p.key] = p.kind === "bool" ? !p.default : mid[p.key];
@@ -95,11 +96,12 @@ test("catalogue: parameter specs are well formed", () => {
     for (const p of t.params) {
       assert.ok(p.key && p.label && !keys.has(p.key), `${t.type}.${p.key}`);
       keys.add(p.key);
-      assert.ok(["number", "bool", "choice"].includes(p.kind));
+      assert.ok(["number", "bool", "choice", "text"].includes(p.kind));
       assert.equal(typeof p.unit, "string");
       if (p.kind === "number") {
         assert.ok(p.min < p.max && p.step > 0 && p.default >= p.min && p.default <= p.max, `${t.type}.${p.key} range`);
       } else if (p.kind === "choice") assert.ok(p.options.length >= 2 && p.options.some((o) => o.value === p.default), `${t.type}.${p.key} options`);
+      else if (p.kind === "text") assert.ok(p.pattern instanceof RegExp && p.maxLength > 0 && p.hidden === true && typeof p.default === "string", `${t.type}.${p.key} text`);
       else assert.equal(typeof p.default, "boolean");
     }
     if (t.scaleMap) for (const v of Object.values(t.scaleMap)) assert.ok(keys.has(v), `${t.type} scaleMap ${v}`);
@@ -683,21 +685,23 @@ test("scene file sections of other modules are saved and restored through regist
 
 // ============================================================================================================================ templates
 test("templates: every template builds valid objects above the floor, in front of the figure, as one undo step", () => {
-  assert.deepEqual(TEMPLATES.map((t) => t.name), ["Empty", "Office workstation", "Vehicle cab", "Cockpit", "Lifting task", "Rifle range bench", "Stairs and ladder"]);
+  assert.deepEqual(TEMPLATES.map((t) => t.name), ["Empty", "Office workstation", "UAV ground control station", "Operations room watch station", "Ship bridge console (standing)", "Vehicle cab", "Cockpit, fast jet",
+    "Helicopter cockpit", "Equipment rack, standing", "Floor-level unit, kneeling", "Deck enclosure, gull-wing doors", "Junction box, lid lifted", "Lifting task", "Rifle range bench", "Stairs and ladder"]);
+  for (const t of TEMPLATES) assert.ok(TEMPLATE_GROUPS.includes(t.group), `${t.id} group`);
   const f = fixture(); f.sb.add("box");
   for (const t of TEMPLATES) {
     assert.equal(f.sb.applyTemplate(t.id), true, t.id);
     assert.equal(f.sb.objects.size, t.objects.length, t.id);
     for (const o of f.sb.objects.values()) {
       assert.ok(byType(o.type), `${t.id}: ${o.type}`); assert.ok(o.position[1] >= 0 && o.position.every(Number.isFinite), `${t.id}: ${o.name} ${o.position}`);
-      assert.ok(o.position[2] > 0.3, `${t.id}: ${o.name} is in front of the figure`);
+      if (!["floor_tile", "wrench", "screwdriver", "toolbox"].includes(o.type)) assert.ok(o.position[2] > 0.3, `${t.id}: ${o.name} is in front of the figure`); // a mat or tools at the maintainer's feet
       const b = o.bbox; assert.ok(Number.isFinite(b.min.x + b.max.z));
     }
   }
   assert.equal(f.sb.applyTemplate("nope"), false);
   f.sb.applyTemplate("office"); const types = [...f.sb.objects.values()].map((o) => o.type).sort(); assert.deepEqual(types, ["desk", "keyboard_mouse", "monitor", "office_chair"]);
   f.sb.applyTemplate("cab"); assert.deepEqual([...f.sb.objects.values()].map((o) => o.type).sort(), ["cabin_seat", "instrument_panel", "pedals", "steering_wheel"]);
-  f.sb.applyTemplate("cockpit"); assert.equal(f.sb.objects.size, 5); assert.ok([...f.sb.objects.values()].some((o) => o.type === "hud_panel") && [...f.sb.objects.values()].some((o) => o.type === "triple_monitor"));
+  f.sb.applyTemplate("cockpit"); assert.equal(f.sb.objects.size, 8); assert.ok([...f.sb.objects.values()].some((o) => o.type === "cabin_shell")); assert.ok([...f.sb.objects.values()].some((o) => o.type === "hud_panel") && [...f.sb.objects.values()].some((o) => o.type === "triple_monitor"));
   f.sb.applyTemplate("lifting"); assert.deepEqual([...f.sb.objects.values()].map((o) => o.type).sort(), ["crate", "pallet", "shelving"]);
   f.sb.applyTemplate("stairs"); f.sb.undo(); assert.deepEqual([...f.sb.objects.values()].map((o) => o.type).sort(), ["crate", "pallet", "shelving"], "one step back from a template is the scene before it");
   f.sb.applyTemplate("empty"); assert.equal(f.sb.objects.size, 0);
