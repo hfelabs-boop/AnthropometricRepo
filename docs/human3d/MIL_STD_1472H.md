@@ -180,6 +180,21 @@ The **Line of sight** toggle under the 3D view (`sightview.js`) draws Figure 2 f
 
 A legend lists every target with its angle. The drawing follows every pose and scene change.
 
+## Moving and minimising the boxes over the 3D view
+
+Every box that floats over the 3D view has a title bar (`floating.js`):
+- the verdict chips;
+- the line-of-sight and RULA / REBA legends;
+- the keyboard help;
+- the messages.
+
+Using it:
+- **Move:** drag the dotted grip on the left of the bar, or focus the grip and use the arrow keys (Shift moves 5 times further).
+- **Reset:** double-click the grip or press Home to put the box back.
+- **Minimise:** the button on the right minimises the box to its bar, so it no longer hides the figure. Press it again to expand.
+
+A box is kept inside the view, and the one you last touched comes to the front. The position and the minimised state are remembered in the browser.
+
 ## Showing and hiding parts of the scene
 
 The *Objects in the scene* section of the Scene tab has *Show all*, *Hide all*, *Only selected*, a *Walls and shells* toggle (cabin shells, walls, partitions, doorways, hatches and imported models: to see into a cockpit or past a wall) and one toggle per category present in the scene. Each is one undo step. Hidden objects leave the 3D view, picking and the MIL-STD-1472H checks, and a note under the buttons says how many are hidden.
