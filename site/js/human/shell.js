@@ -36,6 +36,7 @@ import { chipButton, segmented, roving, tablist, notice, emptyState, icon, fmtLe
 import { JOINT_BY_ID, BONE_BY_ID, BONES, GROUPS } from "./skeleton.js";
 import { postureMetrics } from "./metrics.js";
 import { segmentStrain, boneLevels, STRAIN_COLORS } from "./strain.js";
+import { makeFloating } from "./floating.js";
 
 const CSS_URL = new URL("../../human.css", import.meta.url).href;
 
@@ -168,13 +169,21 @@ async function build(undo) {
   const [, , dispRoving] = [viewGroup, toolGroup, dispGroup].map((g) => roving(g, { selector: "button" }));
   const busyText = h("span", {}, "Building the model…");
   const busyEl = h("div", { class: "hm-busy", role: "status", hidden: true }, h("div", {}, h("div", { class: "spinner" }), busyText));
+  const helpX = h("button", { type: "button", class: "hm-help-x", title: "Close this help (Esc)", "aria-label": "Close the help", onclick: () => toggleHelp(false) }, icon("close", 14));
   const helpEl = h("div", { class: "hm-help", role: "dialog", "aria-label": "Keyboard and mouse help", hidden: true, tabindex: "-1" },
-    h("button", { type: "button", class: "hm-help-x", title: "Close this help (Esc)", "aria-label": "Close the help", onclick: () => toggleHelp(false) }, icon("close", 14)),
-    h("h2", {}, "Keyboard and mouse"),
     HELP.map(([title, rows]) => [h("h3", {}, title), h("dl", {}, rows.map(([keys, text]) => [
       h("dt", {}, keys.map((k, i) => [i ? (k === "…" || keys[i - 1] === "…" ? " " : " + ") : "", k === "…" ? "to" : h("kbd", { class: "hm-kbd" }, k)])), h("dd", {}, text)]))]),
     h("p", { class: "small muted", style: { marginTop: "10px" } }, "Shortcuts are ignored while you type in a field."));
-  const noticesEl = h("div", { class: "hm-notices", "aria-live": "polite", "aria-label": "Messages" });
+  const noticesEl = h("div", { class: "hm-notices", "aria-live": "polite", "aria-label": "Messages", hidden: true });
+  // every box that floats over the 3D view can be moved (drag its grip) and minimised to its title bar, so it never has to hide the figure (floating.js)
+  const floats = {
+    verdicts: makeFloating(verdictBadge, { key: "verdicts", title: "Verdicts" }),
+    strain: makeFloating(strainLegend, { key: "strain", title: "RULA / REBA segment strain" }),
+    sight: makeFloating(sightLegend, { key: "sight", title: "Line of sight (MIL-STD-1472H)" }),
+    help: makeFloating(helpEl, { key: "help", title: "Keyboard and mouse", extra: [helpX] }),
+    notices: makeFloating(noticesEl, { key: "notices", title: "Messages" }),
+  };
+  undo.push(() => { for (const f of Object.values(floats)) f.dispose(); });
   const stage = h("div", { class: "hm-stage" },
     h("div", { class: "hm-bar hm-bar-top" }, viewGroup, toolGroup), noticesEl, viewportEl, h("div", { class: "hm-bar hm-bar-bottom" }, dispGroup), busyEl, helpEl);
   const stat = (name, cls = "") => { const v = h("span", {}); return { el: h("span", { class: `hm-stat ${cls}`.trim() }, h("span", {}, name), v), v }; };
@@ -435,13 +444,13 @@ async function build(undo) {
     sightView.update(sight);
     const rows = (sight?.targets ?? []).map((t) => ({ t, lv: sightLevel(t) })).filter((x) => x.lv);
     const why = (t) => [t.blockedBy ? `hidden behind ${t.blockedBy.name}` : "", t.arm ? `behind the ${t.arm}` : "", t.kind === "display" && t.angle > 45 ? "more than 45° off" : ""].filter(Boolean).join("; ");
-    sightLegend.replaceChildren(
-      h("div", { class: "hm-strain-head" }, "Line of sight (MIL-STD-1472H)"),
+    floats.sight.body.replaceChildren(
       rows.length ? h("ul", {}, rows.map(({ t, lv }) => h("li", { dataset: { level: lv }, title: `${t.kind === "display" ? "Display" : "Control"}: ${SIGHT_WORD[lv]}${why(t) ? ` (${why(t)})` : ""}` },
         h("span", { class: "hm-strain-dot", "aria-hidden": "true" }), h("span", { class: "hm-strain-name" }, t.name), h("span", { class: "hm-strain-score" }, `${Math.round(t.angle)}°${why(t) ? " · " + why(t) : ""}`))))
         : h("div", { class: "hm-strain-note" }, "No display in front of the figure and no control within reach."),
       h("div", { class: "hm-strain-note" }, "Blue: normal line of sight, 15° below the head's horizontal (dashed). Green cone: 30°, for warnings. Amber cone: displays at most 45° off."));
     sightLegend.hidden = false;
+    floats.sight.refresh();
   }
   const requestSight = () => { if (state.display.sight && !sightRaf) sightRaf = requestAnimationFrame(() => { sightRaf = 0; updateSight(); }); };
   undo.push(() => { cancelAnimationFrame(sightRaf); sightView?.dispose(); sightView = null; });
@@ -461,11 +470,11 @@ async function build(undo) {
     for (const [id, lv] of Object.entries(levels)) tint[id] = lv ? STRAIN_COLORS[lv] : null;
     rig.setBoneTint(tint);
     const rows = Object.values(segs).filter((x) => x.level);
-    strainLegend.replaceChildren(
-      h("div", { class: "hm-strain-head" }, "RULA / REBA segment strain"),
+    floats.strain.body.replaceChildren(
       h("ul", {}, rows.map((x) => h("li", { dataset: { level: x.level }, title: x.why }, h("span", { class: "hm-strain-dot", "aria-hidden": "true" }), h("span", { class: "hm-strain-name" }, x.label), h("span", { class: "hm-strain-score" }, `${x.score} · ${LEVEL_TEXT[x.level]}`)))),
       h("div", { class: "hm-strain-note" }, "Posture scores only: load, grip and activity are not included."));
     strainLegend.hidden = false;
+    floats.strain.refresh();
   }
   /** Why a selection cannot exist (null when it is fine): a joint or landmark that is not part of the rig would show an inspector about nothing. */
   function selectionProblem(sel) {
@@ -513,6 +522,7 @@ async function build(undo) {
     verdictMil.textContent = mw ? `MIL-STD-1472H: ${mw}${list.length ? ` · ${list.slice(0, 3).join(", ")}${list.length > 3 ? "…" : ""}` : ""}` : "";
     verdictMil.dataset.verdict = m ? { "not-compliant": "not-acceptable", check: "check", compliant: "acceptable" }[m.status] ?? "" : "";
     verdictBadge.hidden = verdictIso.hidden && verdictMil.hidden;
+    if (!verdictBadge.hidden) floats.verdicts.refresh();
   });
   store.on("rig", () => { rootEl.dataset.hmState = "ready"; updateStatus(); renderInspector(); });
   // a panel's own inspector content is left alone on pose events: it may hold the slider being dragged that causes them
@@ -712,7 +722,9 @@ async function build(undo) {
       start: { label: "Retry", onClick: () => { store.dismissNotice("default-profile"); startDefaultProfile(); } },
       styles: { label: "Retry", onClick: () => retryStyles() },
     };
-    noticesEl.replaceChildren(...state.notices.map((n) => notice(n.text, { level: n.level, id: n.id, onDismiss: () => store.dismissNotice(n.id), action: actions[n.action] })));
+    noticesEl.hidden = !state.notices.length;
+    if (!noticesEl.hidden) requestAnimationFrame(() => floats.notices.refresh());
+    floats.notices.body.replaceChildren(...state.notices.map((n) => notice(n.text, { level: n.level, id: n.id, onDismiss: () => store.dismissNotice(n.id), action: actions[n.action] })));
     if (state.notices.some((n) => n.level === "error") && !state.rig) rootEl.dataset.hmState = "error";
   }
 
@@ -721,6 +733,7 @@ async function build(undo) {
     const had = helpEl.contains(document.activeElement); // read before hiding: a hidden element no longer holds the focus
     helpOpen = open;
     helpEl.hidden = !open;
+    if (open) floats.help.refresh();
     helpBtn.setAttribute("aria-expanded", open ? "true" : "false");
     if (open) helpEl.focus(); else if (had) helpBtn.focus();
   }

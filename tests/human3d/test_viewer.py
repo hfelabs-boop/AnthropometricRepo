@@ -496,6 +496,72 @@ def test_help_popover(s):
     assert s.errors() == [], s.errors()
 
 
+def test_floating_boxes_over_the_view_can_be_moved_and_minimised(s):
+    """The help, the verdict chips and the legends of the 3D view each have a title bar: its grip moves the box (mouse or arrow keys, kept inside
+    the stage, Home puts it back) and its button minimises it to the bar. Position and state are remembered across a reload."""
+    s.open()
+    p = s.page
+    box = lambda sel: s.js(f"(() => {{ const r = document.querySelector('{sel}').getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; }})()")
+    p.get_by_role("button", name="Line of sight").click()
+    p.wait_for_selector(".hm-sight:not([hidden])", timeout=20000)
+    p.wait_for_timeout(300)
+    x0, y0, w0, h0 = box(".hm-sight")
+    g = p.locator(".hm-sight .hm-float-grip").bounding_box()
+    p.mouse.move(g["x"] + 8, g["y"] + 8)
+    p.mouse.down()
+    p.mouse.move(g["x"] + 160, g["y"] + 90, steps=6)
+    p.mouse.up()
+    x1, y1, _, _ = box(".hm-sight")
+    assert abs(x1 - x0 - 152) < 3 and abs(y1 - y0 - 82) < 3, (x0, y0, x1, y1)
+    # far outside: the whole box stays inside the view
+    g = p.locator(".hm-sight .hm-float-grip").bounding_box()
+    p.mouse.move(g["x"] + 8, g["y"] + 8)
+    p.mouse.down()
+    p.mouse.move(g["x"] + 4000, g["y"] + 4000, steps=3)
+    p.mouse.up()
+    hx, hy, hw, hh = box(".hm-viewport-host")
+    x2, y2, w2, h2 = box(".hm-sight")
+    assert x2 + w2 <= hx + hw + 1 and y2 + h2 <= hy + hh + 1, ((x2, y2, w2, h2), (hx, hy, hw, hh))
+    # minimise: only the bar is left; the button says what it does
+    mb = p.locator(".hm-sight .hm-float-min")
+    assert mb.get_attribute("aria-expanded") == "true"
+    mb.click()
+    assert mb.get_attribute("aria-expanded") == "false" and "Expand" in mb.get_attribute("aria-label")
+    assert box(".hm-sight")[3] < 50, box(".hm-sight")
+    assert not p.locator(".hm-sight .hm-float-body").is_visible()
+    # keyboard: arrows move it, Home puts it back where the stylesheet has it
+    grip = p.locator(".hm-sight .hm-float-grip")
+    grip.focus()
+    before = box(".hm-sight")
+    p.keyboard.press("ArrowUp")
+    p.keyboard.press("ArrowUp")
+    assert abs(box(".hm-sight")[1] - (before[1] - 20)) < 2
+    # remembered across a reload
+    p.reload()
+    p.wait_for_function("window.__human && window.__human.state.rig", timeout=90000)
+    p.wait_for_selector(".hm-sight:not([hidden])", timeout=20000)
+    p.wait_for_timeout(300)
+    assert s.js("document.querySelector('.hm-sight').dataset.min") == "1"
+    assert abs(box(".hm-sight")[1] - (before[1] - 20)) < 3
+    p.locator(".hm-sight .hm-float-grip").focus()
+    p.keyboard.press("Home")
+    assert abs(box(".hm-sight")[0] - x0) < 2 and abs(box(".hm-sight")[1] - y0) < 2
+    # the help can be moved and minimised while it stays open; its close button still closes it
+    p.get_by_role("button", name="Keyboard and mouse help").click()
+    dlg = p.get_by_role("dialog", name="Keyboard and mouse help")
+    hg = dlg.locator(".hm-float-grip").bounding_box()
+    p.mouse.move(hg["x"] + 8, hg["y"] + 8)
+    p.mouse.down()
+    p.mouse.move(hg["x"] - 200, hg["y"] + 60, steps=5)
+    p.mouse.up()
+    assert dlg.is_visible()
+    dlg.locator(".hm-float-min").click()
+    assert dlg.is_visible() and not dlg.locator(".hm-float-body").is_visible()
+    dlg.get_by_role("button", name="Close the help").click()
+    assert not dlg.is_visible()
+    assert s.errors() == [], s.errors()
+
+
 def test_panel_tabs_arrow_key_navigation(s):
     s.open()
     ids = ["profile", "posture", "scene", "measure", "skeleton", "analysis", "export"]

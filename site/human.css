@@ -125,8 +125,9 @@
 /* Notices float over the top of the stage (below the toolbar), so one that arrives after the first paint never pushes the view down.
    A narrow stage (see above) shows them in the flow between the toolbar and the view instead. */
 .hm-notices { position: absolute; top: 48px; left: 8px; right: 8px; z-index: 4; display: grid; gap: 5px; max-height: 42%; overflow: auto; pointer-events: none; }
-.hm-notices > * { pointer-events: auto; box-shadow: var(--shadow); padding: 6px 10px; font-size: .8rem; line-height: 1.35; } /* compact: they cover part of the view */
-.hm-notices:empty { display: none; }
+.hm-notices .hm-float-body { display: grid; gap: 5px; }
+.hm-notices .hm-float-body > * { pointer-events: auto; box-shadow: var(--shadow); padding: 6px 10px; font-size: .8rem; line-height: 1.35; } /* compact: they cover part of the view */
+.hm-notices[hidden] { display: none; }
 
 /* The toolbars float over the 3D view only when the stage is wide enough for them to fit on one row each (about 580 px). A narrower stage,
    whatever the window (a phone, or a laptop with the side panels open), stacks them above and below the view and lets them scroll sideways. */
@@ -140,7 +141,8 @@
   .hm-bar-bottom { order: 4; border-top: 1px solid var(--line); }
   .hm-group { flex-wrap: nowrap; flex: none; }
   .hm-notices { position: static; order: 2; max-height: none; padding: 6px 8px 0; }
-  .hm-notices > * { padding: 10px 12px; font-size: .86rem; line-height: inherit; box-shadow: none; }
+  .hm-notices .hm-float-body > * { padding: 10px 12px; font-size: .86rem; line-height: inherit; box-shadow: none; }
+  .hm-notices .hm-float-grip { display: none; } /* in the flow here: nothing to move */
   .hm-help { top: 8px; }
 }
 @media (max-width: 899px) { .hm-app { --hm-stage-h: clamp(300px, 60vh, 640px); } } /* one column: the view is a share of the screen, not of the column */
@@ -241,3 +243,23 @@
 .hm-strain-score { font-variant-numeric: tabular-nums; color: var(--text-2); }
 .hm-strain li[data-level="high"] .hm-strain-score { color: var(--bad); font-weight: 600; }
 .hm-strain-note { margin-top: 4px; color: var(--text-2); font-size: .72rem; }
+
+/* ---------- floating boxes over the 3D view (floating.js): a title bar with a grip to move them and a button to minimise them ---------- */
+.hm-float-bar { display: flex; align-items: center; gap: 4px; min-height: 24px; margin-bottom: 4px; user-select: none; -webkit-user-select: none; font-size: .76rem; }
+.hm-float[data-min="1"] .hm-float-bar { margin-bottom: 0; }
+.hm-float-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--text); }
+.hm-float-grip, .hm-float-min { flex: none; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: none; color: var(--text-3); }
+.hm-float-grip { cursor: grab; touch-action: none; }
+.hm-float[data-dragging="1"] .hm-float-grip { cursor: grabbing; }
+.hm-float-min { cursor: pointer; }
+.hm-float-grip:hover, .hm-float-min:hover, .hm-float-grip:focus-visible, .hm-float-min:focus-visible { background: var(--surface-2); color: var(--text); }
+.hm-float[data-dragging="1"] { box-shadow: 0 6px 22px rgba(0, 0, 0, .22); }
+.hm-float .hm-float-body[hidden] { display: none !important; }
+@media (pointer: coarse) { .hm-float-grip, .hm-float-min { width: 36px; height: 36px; } }
+/* the verdict chips and the notices let clicks through to the view: only their bar takes the pointer, on a small pill of its own */
+.hm-verdicts .hm-float-bar, .hm-notices .hm-float-bar { pointer-events: auto; align-self: flex-start; width: fit-content; max-width: 100%; padding: 0 2px 0 0; margin-bottom: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 999px; box-shadow: var(--shadow); }
+.hm-verdicts .hm-float-body { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; max-width: 100%; }
+.hm-notices .hm-float-bar { margin-bottom: 2px; }
+.hm-help .hm-float-bar { font-size: .9rem; margin: -4px -6px 6px 0; }
+.hm-help .hm-float-bar .hm-help-x { position: static; flex: none; width: 28px; height: 28px; }
